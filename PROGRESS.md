@@ -90,6 +90,14 @@ This file serves as a comprehensive progress summary of all architectural change
 * **User Profile Form**: Fields for Avatar, Name, Email, Mobile, Age, Gender, Hiking Experience level, Fitness level, and Emergency Contact.
 * **Actions**: Restart onboarding walkthrough, or Logout (resets state variables and navigates back to login view).
 
+### K. Organizer Profile View (`/organizer/:organizerName`)
+* **Structure**: Full-screen slide-over panel.
+* **Hero Header**: Profile avatar, verified status badge, total active hikes count, star rating, safety rating (100% safety log), experience (8+ years), and certified guide badge.
+* **Navigation Sub-tabs**:
+  * **About**: Dynamic description of organizer capabilities and agency bio.
+  * **Gallery**: Grid of recent snapshots compiled from their tours.
+  * **Trips**: List of active expeditions run by this organizer (tapping any card routes back to their Trip details page).
+
 ---
 
 ## 3. Underlying Data Models & Storage Schema

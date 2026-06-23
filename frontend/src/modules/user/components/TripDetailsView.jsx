@@ -16,6 +16,7 @@ export default function TripDetailsView({
   wishlist,
   onToggleWishlist,
   onTriggerBooking,
+  onSelectOrganizer,
   darkMode
 }) {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -34,7 +35,7 @@ export default function TripDetailsView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden relative font-sans ${
-      darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
+      darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'
     }`}>
       
       {/* Sticky top headers */}
@@ -128,9 +129,12 @@ export default function TripDetailsView({
           </div>
 
           {/* Rating metadata & Organizer Info card */}
-          <div className={`p-3 rounded-2xl flex items-center justify-between ${
-            darkMode ? 'bg-zinc-900/40' : 'bg-gray-55 shadow-xs'
-          }`}>
+          <div 
+            onClick={() => onSelectOrganizer && onSelectOrganizer(trip.organizer)}
+            className={`p-3 rounded-2xl flex items-center justify-between transition-transform duration-200 hover:scale-[1.01] cursor-pointer ${
+              darkMode ? 'bg-zinc-900/40 hover:bg-zinc-900/60' : 'bg-gray-55 shadow-xs hover:bg-gray-100'
+            }`}
+          >
             <div className="flex items-center gap-2">
               <img 
                 src={trip.organizer.avatar} 

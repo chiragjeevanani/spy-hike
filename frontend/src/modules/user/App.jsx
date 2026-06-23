@@ -17,6 +17,7 @@ import BookingsView from './components/BookingsView';
 import WishlistView from './components/WishlistView';
 import ProfileView from './components/ProfileView';
 import BookingDetailsView from './components/BookingDetailsView';
+import OrganizerProfileView from './components/OrganizerProfileView';
 
 import {
   loadUserState, saveUserState,
@@ -36,6 +37,7 @@ const getInitialStateFromUrl = () => {
   let trip = null;
   let bookingTrip = null;
   let selectedBooking = null;
+  let selectedOrganizer = null;
 
   // 1. Onboarding Gate redirect rules
   if (!user.isOnboarded) {
@@ -43,7 +45,7 @@ const getInitialStateFromUrl = () => {
     if (path !== '/onboardingguide') {
       window.history.replaceState({ path: '/onboardingguide' }, '', '/onboardingguide');
     }
-    return { tab, trip, bookingTrip, selectedBooking };
+    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
   }
 
   // 2. Auth Gate redirect rules
@@ -56,13 +58,13 @@ const getInitialStateFromUrl = () => {
         window.history.replaceState({ path: '/login' }, '', '/login');
       }
     }
-    return { tab, trip, bookingTrip, selectedBooking };
+    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
   }
 
   // 3. Authenticated & Onboarded redirect rules
   if (path === '/login' || path === '/register' || path === '/onboardingguide') {
     window.history.replaceState({ path: '/' }, '', '/');
-    return { tab: 'Home', trip, bookingTrip, selectedBooking };
+    return { tab: 'Home', trip, bookingTrip, selectedBooking, selectedOrganizer };
   }
 
   // 4. Normal Tab / Detail routing parsing
@@ -99,8 +101,16 @@ const getInitialStateFromUrl = () => {
       tab = 'Bookings';
       selectedBooking = foundBooking;
     }
+  } else if (path.startsWith('/organizer/')) {
+    const orgNameEncoded = path.replace('/organizer/', '');
+    const orgName = decodeURIComponent(orgNameEncoded);
+    const foundTrip = allTrips.find(t => t.organizer.name === orgName);
+    if (foundTrip) {
+      tab = 'Explore';
+      selectedOrganizer = foundTrip.organizer;
+    }
   }
-  return { tab, trip, bookingTrip, selectedBooking };
+  return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
 };
 
 export default function App() {
@@ -118,6 +128,7 @@ export default function App() {
   const [selectedTrip, setSelectedTrip] = useState(() => getInitialStateFromUrl().trip);
   const [activeBookingTrip, setActiveBookingTrip] = useState(() => getInitialStateFromUrl().bookingTrip);
   const [selectedBooking, setSelectedBooking] = useState(() => getInitialStateFromUrl().selectedBooking);
+  const [selectedOrganizer, setSelectedOrganizer] = useState(() => getInitialStateFromUrl().selectedOrganizer);
 
   // 3. Search & Filter dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState('');
@@ -141,6 +152,7 @@ export default function App() {
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
+      setSelectedOrganizer(null);
       if (path !== '/onboardingguide') {
         navigateTo('/onboardingguide', true, currentUser);
       }
@@ -153,11 +165,13 @@ export default function App() {
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
+        setSelectedOrganizer(null);
       } else {
         setActiveTab('Login');
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
+        setSelectedOrganizer(null);
         if (path !== '/login') {
           navigateTo('/login', true, currentUser);
         }
@@ -177,26 +191,31 @@ export default function App() {
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
+      setSelectedOrganizer(null);
     } else if (path === '/explore') {
       setActiveTab('Explore');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
+      setSelectedOrganizer(null);
     } else if (path === '/bookings') {
       setActiveTab('Bookings');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
+      setSelectedOrganizer(null);
     } else if (path === '/wishlist') {
       setActiveTab('Wishlist');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
+      setSelectedOrganizer(null);
     } else if (path === '/profile') {
       setActiveTab('Profile');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
+      setSelectedOrganizer(null);
     } else if (path.startsWith('/trip/')) {
       const tripId = path.replace('/trip/', '');
       const foundTrip = trips.find(t => t.id === tripId);
@@ -204,6 +223,7 @@ export default function App() {
         setSelectedTrip(foundTrip);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
+        setSelectedOrganizer(null);
       } else {
         navigateTo('/', true, currentUser);
       }
@@ -214,6 +234,7 @@ export default function App() {
         setSelectedTrip(foundTrip);
         setActiveBookingTrip(foundTrip);
         setSelectedBooking(null);
+        setSelectedOrganizer(null);
       } else {
         navigateTo('/', true, currentUser);
       }
@@ -225,8 +246,21 @@ export default function App() {
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(foundBooking);
+        setSelectedOrganizer(null);
       } else {
         navigateTo('/bookings', true, currentUser);
+      }
+    } else if (path.startsWith('/organizer/')) {
+      const orgNameEncoded = path.replace('/organizer/', '');
+      const orgName = decodeURIComponent(orgNameEncoded);
+      const foundTrip = trips.find(t => t.organizer.name === orgName);
+      if (foundTrip) {
+        setSelectedOrganizer(foundTrip.organizer);
+        setSelectedTrip(null);
+        setActiveBookingTrip(null);
+        setSelectedBooking(null);
+      } else {
+        navigateTo('/', true, currentUser);
       }
     } else {
       navigateTo('/', true, currentUser);
@@ -581,6 +615,7 @@ export default function App() {
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
                   onTriggerBooking={(t) => navigateTo(`/book/${t.id}`)}
+                  onSelectOrganizer={(org) => navigateTo(`/organizer/${encodeURIComponent(org.name)}`)}
                   darkMode={darkMode}
                 />
               </motion.div>
@@ -650,6 +685,31 @@ export default function App() {
                        handleAddReviewToTrip(b.tripId, ratingVal, commentInput || 'Incredible experience!');
                        alert('Review logged and average rating updated successfully!');
                      }
+                   }}
+                   darkMode={darkMode}
+                 />
+               </motion.div>
+             )}
+           </AnimatePresence>
+
+           {/* Dynamic Organizer Profile page absolute overlay */}
+           <AnimatePresence mode="wait">
+             {selectedOrganizer && (
+               <motion.div
+                 key="overlay-organizer-profile"
+                 initial={{ x: '100%' }}
+                 animate={{ x: 0 }}
+                 exit={{ x: '100%' }}
+                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                 className={`absolute inset-0 z-55 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+               >
+                 <OrganizerProfileView
+                   organizer={selectedOrganizer}
+                   trips={trips}
+                   onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                   onSelectTrip={(t) => {
+                     setSelectedOrganizer(null);
+                     navigateTo(`/trip/${t.id}`);
                    }}
                    darkMode={darkMode}
                  />
