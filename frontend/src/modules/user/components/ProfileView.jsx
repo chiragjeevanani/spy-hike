@@ -17,7 +17,8 @@ export default function ProfileView({
   darkMode,
   onToggleDarkMode,
   userReviews,
-  onTriggerOnboarding
+  onTriggerOnboarding,
+  bookings = []
 }) {
   const [currentSub, setCurrentSub] = useState('MAIN');
 
@@ -114,7 +115,7 @@ export default function ProfileView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-gray-50 text-zinc-900'
+      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
       
       {/* Dynamic Screen View State switcher rendering */}
@@ -145,6 +146,28 @@ export default function ProfileView({
               <span className="text-[9px] font-mono tracking-wider font-bold text-forest-505 dark:text-forest-400 uppercase mt-1.5 bg-forest-950/20 px-2 py-0.5 rounded-full inline-block border border-forest-800/10 dark:border-forest-800/40">
                 ⭐ {user.hikingExperience} Outdoorsman
               </span>
+            </div>
+          </div>
+          
+          {/* Quick profile stats */}
+          <div className="px-3 pt-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-xs border ${
+                darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-105'
+              }`}>
+                <span className="text-[9px] uppercase font-bold opacity-50 tracking-wider mb-1">Booked</span>
+                <span className="text-xs font-extrabold font-display text-forest-500">
+                  {bookings.length} {bookings.length === 1 ? 'Hike' : 'Hikes'}
+                </span>
+              </div>
+              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-xs border ${
+                darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-105'
+              }`}>
+                <span className="text-[9px] uppercase font-bold opacity-50 tracking-wider mb-1">Distance</span>
+                <span className="text-xs font-extrabold font-display text-spy-orange">
+                  {bookings.length * 16} Km
+                </span>
+              </div>
             </div>
           </div>
 
@@ -251,6 +274,91 @@ export default function ProfileView({
                 </button>
               </div>
             </div>
+
+            {/* Group C: Next Departure or Explore Treks */}
+            {(() => {
+              const upcomingBooking = bookings.find(b => b.status === 'Upcoming');
+              if (upcomingBooking) {
+                return (
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Next Departure Ticket</span>
+                    <div className={`rounded-xl p-3.5 border relative overflow-hidden flex flex-col justify-between min-h-[110px] ${
+                      darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-100 shadow-sm'
+                    }`}>
+                      {/* Accent color elements */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-forest-500/5 rounded-full blur-xl pointer-events-none" />
+                      
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[8px] font-mono tracking-widest text-forest-600 dark:text-forest-400 font-bold uppercase">CONFIRMED TICKET</span>
+                            <h4 className="text-xs font-black mt-0.5 line-clamp-1">{upcomingBooking.tripName}</h4>
+                          </div>
+                          <span className="text-[8px] font-mono bg-forest-500/10 text-forest-600 dark:text-forest-400 px-2 py-0.5 rounded-full font-bold uppercase">
+                            {upcomingBooking.bookingId || upcomingBooking.id}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 mt-2.5">
+                          <div>
+                            <span className="text-[7px] uppercase font-bold opacity-45 block">Date</span>
+                            <span className="text-[10px] font-bold">{upcomingBooking.selectedDate}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] uppercase font-bold opacity-45 block">Location</span>
+                            <span className="text-[10px] font-bold line-clamp-1">{upcomingBooking.tripLocation}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] uppercase font-bold opacity-45 block">Travelers</span>
+                            <span className="text-[10px] font-bold">{upcomingBooking.travelersCount} Pax</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-dashed border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
+                        <span className="text-[8px] opacity-55">Show ticket QR at gate control</span>
+                        <div className="flex items-center gap-1 text-[9px] font-bold text-forest-600 dark:text-forest-400">
+                          Active Adventure <Sparkles size={10} className="text-spy-orange animate-pulse" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Ready For Next Hike?</span>
+                    <div className={`rounded-xl p-4 border relative overflow-hidden flex flex-col justify-between ${
+                      darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-100 shadow-sm'
+                    }`}>
+                      {/* Premium visual gradients */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-spy-orange/5 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="relative z-10">
+                        <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-100 flex items-center gap-1.5 font-display">
+                          <Compass size={14} className="text-spy-orange" /> Find Your Next Summit
+                        </h4>
+                        <p className="text-[10px] opacity-75 mt-1 leading-normal">
+                          Explore premium certified trails, real-time weather alerts, and coordinate with expert organizers.
+                        </p>
+                      </div>
+
+                      <div className="mt-3.5 flex justify-end">
+                        <button
+                          onClick={() => {
+                            window.history.pushState({ path: '/explore' }, '', '/explore');
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                          }}
+                          className="px-3.5 py-1.5 bg-forest-600 hover:bg-forest-700 text-white rounded-lg text-[9px] font-bold uppercase transition flex items-center gap-1 cursor-pointer"
+                        >
+                          Explore Trips <ChevronRight size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+            })()}
 
             {/* Logout actions */}
             <button

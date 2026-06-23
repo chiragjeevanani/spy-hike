@@ -101,7 +101,7 @@ export default function HomeView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-3 pb-4 ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-gray-50 text-zinc-900'
+      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
       
       {/* 1. Header Row */}

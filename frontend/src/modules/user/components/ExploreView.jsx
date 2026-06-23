@@ -106,7 +106,7 @@ export default function ExploreView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-gray-50 text-zinc-900'
+      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
       
       {/* Search Header Row */}

@@ -571,6 +571,7 @@ export default function App() {
             onToggleDarkMode={handleToggleDarkMode}
             userReviews={getUserDraftedReviews()}
             onTriggerOnboarding={handleTriggerOnboardingWalkthrough}
+            bookings={bookings}
           />
         );
       default:

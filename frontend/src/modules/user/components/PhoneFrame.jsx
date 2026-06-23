@@ -22,7 +22,7 @@ export default function PhoneFrame({ children, darkMode, onToggleDarkMode }) {
         className={`relative w-full h-screen md:max-w-[400px] md:shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
           darkMode 
             ? 'bg-elegant-app text-white shadow-[#050807]/90' 
-            : 'bg-white text-zinc-800 shadow-zinc-200/40'
+            : 'bg-[#FAF8F2] text-zinc-800 shadow-zinc-200/40'
         }`}
       >
         {/* App Content viewport */}

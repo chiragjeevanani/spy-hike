@@ -155,12 +155,7 @@ export default function BookingDetailsView({
           Invoice <Download size={10} />
         </button>
 
-        <button
-          onClick={() => onContactOrganizer(booking)}
-          className="flex-1 py-2 rounded-full bg-forest-600 hover:bg-forest-700 text-white text-[9px] uppercase font-black tracking-wider flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all duration-200"
-        >
-          Chat Guide <MessageSquare size={10} />
-        </button>
+
 
         {booking.status === 'Completed' && (
           <button

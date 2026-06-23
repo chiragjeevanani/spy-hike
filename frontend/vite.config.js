@@ -18,5 +18,7 @@ export default defineConfig(() => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    // Serve index.html for all routes (SPA fallback)
+    appType: 'spa',
   };
 });

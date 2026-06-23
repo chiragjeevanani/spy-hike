@@ -37,7 +37,7 @@ export default function OrganizerProfileView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans h-full ${
-      darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
+      darkMode ? 'bg-zinc-950 text-white' : 'bg-transparent text-zinc-900'
     }`}>
       
       {/* 1. Header Bar */}
@@ -184,22 +184,17 @@ export default function OrganizerProfileView({
                   <div className="space-y-2.5 pt-2">
                     <h3 className="text-xs font-display font-bold uppercase tracking-wider opacity-85">Core Capabilities</h3>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className={`p-2 rounded-lg flex items-center gap-1.5 ${darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                        <span>Snow Expedition Specialists</span>
-                      </div>
-                      <div className={`p-2 rounded-lg flex items-center gap-1.5 ${darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                        <span>Eco-Friendly Leave-No-Trace</span>
-                      </div>
-                      <div className={`p-2 rounded-lg flex items-center gap-1.5 ${darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                        <span>Emergency Medical Rescue</span>
-                      </div>
-                      <div className={`p-2 rounded-lg flex items-center gap-1.5 ${darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                        <span>Naturalist Guided Hiking</span>
-                      </div>
+                      {(organizer?.coreCapabilities || [
+                        'Snow Expedition Specialists',
+                        'Eco-Friendly Leave-No-Trace',
+                        'Emergency Medical Rescue',
+                        'Naturalist Guided Hiking'
+                      ]).map((cap, i) => (
+                        <div key={i} className={`p-2 rounded-lg flex items-center gap-1.5 ${darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                          <span>{cap}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
