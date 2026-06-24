@@ -175,6 +175,10 @@ export default function BookingFlow({
       setIsProcessingPayment(false);
       setPaymentFinished(true);
       
+      const storedRate = localStorage.getItem('spyhike_commission_rate');
+      const commissionRate = storedRate !== null ? Number(storedRate) : 10;
+      const commissionAmount = Math.round((finalPayAmount * commissionRate / 100) * 100) / 100;
+
       const newBookingId = `SH-${Math.floor(1000 + Math.random() * 9000)}-U`;
       const finalBookingObject = {
         id: 'b-' + Date.now(),
@@ -190,6 +194,8 @@ export default function BookingFlow({
         couponDiscount: appliedDiscountValue,
         taxAmount: taxAmountValue,
         finalAmount: finalPayAmount,
+        commissionRate: commissionRate,
+        commissionAmount: commissionAmount,
         status: 'Upcoming',
         bookingId: newBookingId,
         organizerName: trip.organizer.name

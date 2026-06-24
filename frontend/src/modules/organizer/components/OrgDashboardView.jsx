@@ -8,13 +8,20 @@ import { motion } from 'motion/react';
 import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Sun, Moon } from 'lucide-react';
 
 export default function OrgDashboardView({ organizer, trips, bookings, notifications, onNavigate, onViewTrip, darkMode, onToggleDarkMode }) {
-  const totalRevenue = bookings.filter(b => b.status === 'Upcoming' || b.status === 'Completed').reduce((s, b) => s + (b.finalAmount || 0), 0);
+  const activeBookings = bookings.filter(b => b.status === 'Upcoming' || b.status === 'Completed');
+  const grossRevenue = activeBookings.reduce((s, b) => s + (b.finalAmount || 0), 0);
+  const totalCommission = activeBookings.reduce((s, b) => {
+    const commission = b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount * 0.1);
+    return s + commission;
+  }, 0);
+  const netRevenue = grossRevenue - totalCommission;
+
   const upcomingBookings = bookings.filter(b => b.status === 'Upcoming');
   const publishedTrips = trips.filter(t => t.status === 'Published');
   const unreadNotifs = notifications.filter(n => !n.read).length;
 
   const statCards = [
-    { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+    { label: `Net Revenue (Gross: ₹${grossRevenue.toLocaleString('en-IN')})`, value: `₹${netRevenue.toLocaleString('en-IN')}`, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
     { label: 'Live Trips', value: publishedTrips.length, icon: Map, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { label: 'Upcoming Slots', value: upcomingBookings.length, icon: CalendarCheck, color: 'text-spy-orange', bg: 'bg-spy-orange/10' },
     { label: 'Avg Rating', value: organizer?.rating ? organizer.rating.toFixed(1) : '—', icon: Star, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },

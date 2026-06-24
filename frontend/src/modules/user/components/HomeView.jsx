@@ -120,7 +120,7 @@ export default function HomeView({
               🏔️ SPY HIKE ADVENTURER
             </span>
             <h2 className="text-xs font-display font-black leading-tight flex items-center gap-0.5">
-              Hi, {user.name.split(' ')[0]} <span className="animate-bounce">👋</span>
+              Hi, {user.name ? user.name.split(' ')[0] : 'Explorer'} <span className="animate-bounce">👋</span>
             </h2>
           </div>
         </div>

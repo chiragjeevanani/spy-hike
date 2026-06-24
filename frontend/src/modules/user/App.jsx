@@ -18,6 +18,7 @@ import WishlistView from './components/WishlistView';
 import ProfileView from './components/ProfileView';
 import BookingDetailsView from './components/BookingDetailsView';
 import OrganizerProfileView from './components/OrganizerProfileView';
+import LandingView from '../landing/LandingView';
 
 import {
   loadUserState, saveUserState,
@@ -39,6 +40,11 @@ const getInitialStateFromUrl = () => {
   let selectedBooking = null;
   let selectedOrganizer = null;
 
+  // Bypass routing gates for landing page
+  if (path === '/landing') {
+    return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer };
+  }
+
   // 1. Onboarding Gate redirect rules
   if (!user.isOnboarded) {
     tab = 'Onboarding';
@@ -48,8 +54,14 @@ const getInitialStateFromUrl = () => {
     return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
   }
 
-  // 2. Auth Gate redirect rules
-  if (!user.isAuthenticated) {
+  // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
+  const isProtectedRoute = 
+    path === '/profile' || 
+    path === '/bookings' || 
+    path.startsWith('/booking/') || 
+    path.startsWith('/book/');
+
+  if (!user.isAuthenticated && isProtectedRoute) {
     if (path === '/register') {
       tab = 'Register';
     } else {
@@ -62,7 +74,7 @@ const getInitialStateFromUrl = () => {
   }
 
   // 3. Authenticated & Onboarded redirect rules
-  if (path === '/login' || path === '/register' || path === '/onboardingguide') {
+  if (user.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide')) {
     window.history.replaceState({ path: '/' }, '', '/');
     return { tab: 'Home', trip, bookingTrip, selectedBooking, selectedOrganizer };
   }
@@ -109,6 +121,10 @@ const getInitialStateFromUrl = () => {
       tab = 'Explore';
       selectedOrganizer = foundTrip.organizer;
     }
+  } else if (path === '/login') {
+    tab = 'Login';
+  } else if (path === '/register') {
+    tab = 'Register';
   }
   return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
 };
@@ -122,6 +138,7 @@ export default function App() {
   const [chats, setChats] = useState(() => loadChats());
   const [trips, setTrips] = useState(() => loadTrips());
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
+  const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
 
   // 2. Navigation registers initialized from URL
   const [activeTab, setActiveTab] = useState(() => getInitialStateFromUrl().tab);
@@ -146,6 +163,16 @@ export default function App() {
   const handleRouteChange = (currentUser = user) => {
     const path = window.location.pathname;
     
+    // Bypass routing gates for landing page
+    if (path === '/landing') {
+      setActiveTab('Landing');
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
+      return;
+    }
+    
     // Redirect rules based on user auth/onboard states
     if (!currentUser.isOnboarded) {
       setActiveTab('Onboarding');
@@ -159,7 +186,16 @@ export default function App() {
       return;
     }
 
-    if (!currentUser.isAuthenticated) {
+    // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
+    const isProtectedRoute = 
+      path === '/profile' || 
+      path === '/bookings' || 
+      path.startsWith('/booking/') || 
+      path.startsWith('/book/');
+
+    if (!currentUser.isAuthenticated && isProtectedRoute) {
+      setRedirectAfterAuth(path);
+
       if (path === '/register') {
         setActiveTab('Register');
         setSelectedTrip(null);
@@ -180,7 +216,7 @@ export default function App() {
     }
 
     // Authenticated & Onboarded: Redirect away from auth/onboard pages
-    if (path === '/login' || path === '/register' || path === '/onboardingguide') {
+    if (currentUser.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide')) {
       navigateTo('/', true, currentUser);
       return;
     }
@@ -262,6 +298,18 @@ export default function App() {
       } else {
         navigateTo('/', true, currentUser);
       }
+    } else if (path === '/login') {
+      setActiveTab('Login');
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
+    } else if (path === '/register') {
+      setActiveTab('Register');
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
     } else {
       navigateTo('/', true, currentUser);
     }
@@ -329,13 +377,18 @@ export default function App() {
       isOnboarded: true
     };
     setUser(updated);
-    navigateTo('/login', false, updated);
+    navigateTo('/', false, updated);
   };
 
   // Sign In success
   const handleAuthSuccess = (authenticatedUser) => {
     setUser(authenticatedUser);
-    navigateTo('/', false, authenticatedUser);
+    if (redirectAfterAuth) {
+      navigateTo(redirectAfterAuth, false, authenticatedUser);
+      setRedirectAfterAuth(null);
+    } else {
+      navigateTo('/', false, authenticatedUser);
+    }
   };
 
   // Logout session resets
@@ -579,7 +632,15 @@ export default function App() {
     }
   };
 
-  return (
+  return activeTab === 'Landing' ? (
+    <LandingView
+      darkMode={darkMode}
+      onToggleDarkMode={handleToggleDarkMode}
+      onLaunchApp={() => navigateTo('/')}
+      onLaunchOrganizer={() => { window.location.href = '/organizer'; }}
+      onLaunchAdmin={() => { window.location.href = '/admin'; }}
+    />
+  ) : (
     <PhoneFrame darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode}>
       
       {!user.isOnboarded ? (

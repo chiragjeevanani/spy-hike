@@ -178,13 +178,17 @@ export default function OrgBookingsView({ bookings, darkMode }) {
                     <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>Hikers</span>
                     <span className="font-bold">{selectedBooking.hikersCount}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>Add-ons</span>
-                    <span className="font-bold">{selectedBooking.addOns?.join(', ') || 'None'}</span>
+                   <div className="flex justify-between text-sm">
+                    <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>Gross Amount</span>
+                    <span className="font-bold">₹{selectedBooking.finalAmount?.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-red-400">
+                    <span>Platform Commission ({selectedBooking.commissionRate || 10}%)</span>
+                    <span className="font-bold">-₹{(selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1)).toLocaleString('en-IN')}</span>
                   </div>
                   <div className={`pt-2 border-t flex justify-between ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
-                    <span className="font-black">Total Amount</span>
-                    <span className="font-black text-spy-orange">₹{selectedBooking.finalAmount?.toLocaleString('en-IN')}</span>
+                    <span className="font-black">Your Net Payout</span>
+                    <span className="font-black text-emerald-450">₹{(selectedBooking.finalAmount - (selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1))).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
