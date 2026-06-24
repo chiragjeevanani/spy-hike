@@ -294,33 +294,167 @@ All organizer states use separate localStorage keys (prefixed `spyhike_org_`) to
 
 ---
 
-## 7. Admin Panel Reference Notes
-*(For use when building the Admin Panel)*
+## 7. Admin Panel — Full Architecture & Flow Details
+*(Module: `src/modules/admin/` — Accessed at `/admin/*`)*
 
-### Key Admin Responsibilities
-1. **Review & Approve Organizer Applications**: Admin sets `isApproved: true` for organizer accounts pending approval.
-2. **Trip Moderation**: Admin can view, pause, or remove any trip across all organizers.
-3. **Booking Oversight**: View all bookings across user and organizer apps.
-4. **User Management**: View all registered users, manage flags or bans.
-5. **Revenue Dashboards**: Aggregate revenue across trips and organizers.
-6. **Notification Broadcasts**: Send platform-wide promo or alert notifications.
+### Routing & Framework Architecture
+* **Routing Entry**: `main.jsx` detects paths starting with `/admin` and dynamically boots the `App.jsx` engine (`src/modules/admin/App.jsx`).
+* **HTML5 Navigation**: URL routing via `window.history.pushState` / `popstate`, producing clean `/admin/*` URLs.
+* **Desktop-First Layout**: Unlike the mobile-locked User and Organizer panels, the Admin Panel is a full-screen desktop layout with a collapsible sidebar and a fixed top header. No viewport mockup frame.
+* **Theme**: Light mode by default (`spyhike_admin_darkmode` defaults to `false`). Dark mode toggle available in the header and Settings view.
+* **Login Credentials**: `admin@spyhike.com` / `admin123` (hardcoded demo credentials).
+* **Framer Motion**: Page transitions use `AnimatePresence` with `mode="wait"` and `opacity + y` slide transitions between views.
 
-### Shared localStorage Keys (Admin needs read access to all)
-- `spyhike_user` — User profile
-- `spyhike_bookings` — User bookings
-- `spyhike_trips` — All published trips (shared between user and organizer)
-- `spyhike_notifications` — User notifications
-- `spyhike_org_user` — Current organizer profile
-- `spyhike_org_accounts` — All organizer accounts
-- `spyhike_org_trips` — Organizer-specific trips
-- `spyhike_org_bookings` — Organizer bookings
+### A. Admin Login (`/admin/login`)
+* **Trigger**: Shown automatically when `spyhike_admin_user.isAuthenticated` is `false`.
+* **Fields**: Email, Password.
+* **Validation**: Checked against hardcoded demo credentials (`admin@spyhike.com` / `admin123`).
+* **On Success**: Sets `isAuthenticated: true` in `spyhike_admin_user`, then navigates to `/admin/dashboard`.
 
-### Admin Panel Routes (Suggested)
-- `/admin` — Admin dashboard with key metrics
-- `/admin/login` — Admin login (separate credentials)
-- `/admin/organizers` — List all organizer applications with Approve/Reject actions
-- `/admin/trips` — All trips across all organizers
-- `/admin/users` — All registered users
-- `/admin/bookings` — All bookings
-- `/admin/analytics` — Revenue and engagement charts
+### B. Dashboard (`/admin/dashboard`)
+* **KPI Cards (6 total)**:
+  * **Total Users**: Count of all registered users.
+  * **Total Organizers**: Count of all organizer accounts.
+  * **Total Trips**: Count of all published trips.
+  * **Total Bookings**: Count of all merged bookings from user + organizer sources.
+  * **Total Revenue**: Sum of `finalAmount` across all active (Upcoming + Completed) bookings.
+  * **Commission Earned**: Sum of `commissionAmount` across all active bookings (where commission rate was applied at checkout).
+* **Charts** (rendered via Recharts):
+  * **Bookings Over Time**: `AreaChart` showing booking volume by month with gradient fill.
+  * **Revenue by Trip Category**: `BarChart` breaking down revenue by trip category tags.
+  * **Booking Status Breakdown**: `PieChart` / `RadialBarChart` showing Upcoming vs. Completed vs. Cancelled ratios.
+  * **User Growth**: `LineChart` showing cumulative user registrations over time.
+* **Quick Navigation**: Shortcut cards linking directly to Organizers, Trips, Bookings, and Analytics views.
+
+### C. Users View (`/admin/users`)
+* **Data Source**: `loadAllUsers()` — merges mock seed users with the active `spyhike_user_state` from localStorage. Admin-applied status flags are stored in `spyhike_admin_user_flags` (keyed by email).
+* **Table Columns**: Avatar, Name, Email, Mobile, Age, Gender, Hiking Experience, Fitness Level, Joined Date, Bookings Count, Status badge.
+* **Search**: Real-time text filter matching name or email.
+* **Status Filter Pills**: All, Active, Banned.
+* **User Actions** (per row):
+  * **View Details**: Expands a modal showing full profile (emergency contact, fitness level, experience, join date).
+  * **Ban / Reactivate**: Toggles user status between `Active` ↔ `Banned` and persists to `spyhike_admin_user_flags`.
+* **Status Badges**: `Active` (green), `Banned` (red).
+
+### D. Organizers View (`/admin/organizers`)
+* **Data Source**: `loadAllOrganizers()` — reads from `spyhike_org_accounts`. Seeds the demo organizer (`demo@himalayan.com`) if the list is empty.
+* **Table Columns**: Avatar, Name, Agency Name, Email, Mobile, Years Experience, Rating, Total Trips, Total Bookings, Approval Status.
+* **Status Filter Pills**: All, Approved, Pending, Rejected.
+* **Organizer Actions** (per row):
+  * **View Details**: Modal showing full organizer profile (bio, govt ID type & number, website).
+  * **Approve**: Sets `isApproved: true` / `isPendingApproval: false` in `spyhike_org_accounts` and syncs to active `spyhike_org_user` if it matches.
+  * **Reject**: Sets `isApproved: false` / `isPendingApproval: false` / `isRejected: true`.
+  * **Suspend / Reactivate**: Toggles `isApproved` for already-approved organizers.
+* **Status Badges**: `Approved` (green), `Pending` (amber), `Rejected` (red), `Suspended` (grey).
+
+### E. Trips View (`/admin/trips`)
+* **Data Source**: `loadAllTrips()` — reads from shared `spyhike_trips` key.
+* **Table Columns**: Cover Image thumbnail, Trip Name, Organizer, Location, Duration, Price per person, Difficulty, Available Seats, Status.
+* **Search & Filters**: Real-time name/location search and difficulty filter pills (All, Easy, Moderate, Difficult).
+* **Trip Actions** (per row):
+  * **View Full Details**: Modal showing full trip info including day-by-day itinerary, inclusions, FAQs, gallery images, and highlights. The close (✕) button is always sticky at the top of the modal regardless of scroll position. The itinerary renders inline without a separate inner scroll container.
+  * **Toggle Status**: Switches trip between `Published` ↔ `Paused` and syncs to both `spyhike_trips` and `spyhike_org_trips`.
+  * **Delete**: Removes the trip from both `spyhike_trips` and `spyhike_org_trips` with a confirmation step.
+
+### F. Bookings View (`/admin/bookings`)
+* **Data Source**: `loadAllBookings()` — merges bookings from `spyhike_bookings` (user) and `spyhike_org_bookings` (organizer), de-duplicated by `bookingId`.
+* **Table Columns**: Booking ID, User Name, Trip Name, Date, Hikers, Amount, Commission Amount, Status, Booking Date.
+* **Search & Filters**: Real-time filter by booking ID or user name; status filter pills (All, Upcoming, Completed, Cancelled).
+* **Booking Actions** (per row):
+  * **View Receipt**: Modal showing full invoice: base price, add-ons, promo discounts, final amount, commission rate (%), commission amount charged, and net organizer payout. Syncs status change back to both user and organizer localStorage keys.
+  * **Update Status**: Dropdown to change booking status (Upcoming / Completed / Cancelled) and persist across both storage sources.
+
+### G. Analytics View (`/admin/analytics`)
+* **Charts & Visualizations** (Recharts):
+  * **Monthly Revenue Trend**: `AreaChart` with gradient showing revenue growth month-over-month.
+  * **Top Performing Trips**: `BarChart` of highest-grossing trips by total revenue.
+  * **Bookings by Difficulty**: `PieChart` showing distribution across Easy / Moderate / Difficult.
+  * **Organizer Performance**: `BarChart` comparing organizer-wise bookings and revenue.
+* **Summary Stat Cards**: Peak revenue month, best-performing trip, highest-grossing organizer, and average booking value.
+
+### H. Broadcast View (`/admin/broadcast`)
+* **Broadcast Form**:
+  * **Title**: Notification headline.
+  * **Message**: Body text of the notification.
+  * **Type**: `Updates`, `Booking`, `Payment`, or `System`.
+  * **Target**: `Users Only`, `Organizers Only`, or `Both`.
+* **On Send**: Calls `broadcastNotification()` which writes the notification to `spyhike_notifications` (users) and/or `spyhike_org_notifications` (organizers) and appends to `spyhike_admin_broadcasts` history.
+* **Broadcast History Table**: Lists all previously sent broadcasts with title, target audience, type badge, and timestamp.
+
+### I. Settings View (`/admin/settings`)
+* **Admin Profile Card**: Displays current admin name, role (`Super Admin`), and avatar.
+* **Commission Rate Setting**:
+  * Numeric input to set the platform-wide commission percentage (0–100%).
+  * Saved to `spyhike_admin_commission_rate` in localStorage.
+  * This rate is read by the user's `BookingFlow.jsx` at checkout time.
+* **Theme Toggle**: Light / Dark mode switch (synced to `spyhike_admin_darkmode`).
+* **Demo Data Reset**: "Reset Demo Data" button clears `spyhike_admin_user_flags`, `spyhike_admin_broadcasts`, and `spyhike_org_accounts`, then re-seeds the demo organizer.
+
+---
+
+## 8. Admin Panel — Commission System
+
+### How Commission Works
+1. **Rate Configuration**: Admin sets a commission rate (%) in **Settings → Commission Rate**. Stored in `spyhike_admin_commission_rate`.
+2. **Checkout Integration**: When a user completes payment in `BookingFlow.jsx`, the current commission rate is read from localStorage and applied:
+   ```js
+   const commissionRate = parseFloat(localStorage.getItem('spyhike_admin_commission_rate')) || 0;
+   const commissionAmount = (finalAmount * commissionRate) / 100;
+   const netOrganizerPayout = finalAmount - commissionAmount;
+   ```
+3. **Booking Object**: The following commission fields are stored in each booking:
+   ```json
+   {
+     "commissionRate": 10,
+     "commissionAmount": 1850,
+     "netOrganizerPayout": 16650
+   }
+   ```
+4. **Admin Bookings View**: Displays `commissionAmount` per booking and the `netOrganizerPayout` in the receipt modal.
+5. **Admin Dashboard**: Sums `commissionAmount` across all active (Upcoming + Completed) bookings for the "Commission Earned" KPI card.
+6. **Organizer Panel**: `OrgDashboardView.jsx` uses `netOrganizerPayout` (if available) instead of `finalAmount` to accurately reflect organizer earnings after commission deduction. `OrgBookingsView.jsx` shows the commission rate, commission charged, and net payout in the booking details drawer.
+
+---
+
+## 9. Admin Panel — Storage Schema
+
+All admin-specific state is stored under `spyhike_admin_*` prefixed keys:
+
+1. **Admin Session (`spyhike_admin_user`)**:
+   ```json
+   {
+     "isAuthenticated": false,
+     "email": "",
+     "name": "System Administrator",
+     "role": "Super Admin",
+     "avatar": "url"
+   }
+   ```
+2. **Theme Preference (`spyhike_admin_darkmode`)**: Boolean. Defaults to `false` (light mode).
+3. **User Status Flags (`spyhike_admin_user_flags`)**: Object keyed by user email: `{ "user@email.com": "Banned" }`.
+4. **Commission Rate (`spyhike_admin_commission_rate`)**: Number (percentage). E.g., `10` = 10% commission.
+5. **Broadcast History (`spyhike_admin_broadcasts`)**: Array of broadcast objects:
+   ```json
+   {
+     "id": "an-1729000000000",
+     "title": "Platform Update",
+     "content": "Message body...",
+     "timestamp": "ISO-String",
+     "type": "Updates",
+     "target": "both"
+   }
+   ```
+
+### Shared localStorage Keys Read by Admin
+| Key | Source | Description |
+|---|---|---|
+| `spyhike_user` | User App | Active user profile |
+| `spyhike_bookings` | User App | All user bookings |
+| `spyhike_trips` | Shared | All published trips |
+| `spyhike_notifications` | User App | User notification list |
+| `spyhike_org_user` | Organizer App | Active organizer profile |
+| `spyhike_org_accounts` | Organizer App | All registered organizer accounts |
+| `spyhike_org_trips` | Organizer App | All organizer-created trips |
+| `spyhike_org_bookings` | Organizer App | All organizer bookings |
+| `spyhike_org_notifications` | Organizer App | Organizer notification list |
 
