@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 export const CATEGORIES_LIST = [
   { id: 'Trekking', label: 'Trekking', icon: 'Mountain' },
   { id: 'Hiking', label: 'Hiking', icon: 'Compass' },

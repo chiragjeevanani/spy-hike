@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
 import { Mail, Lock, Shield, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 

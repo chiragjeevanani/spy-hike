@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 const ORG_USER_KEY = 'spyhike_org_user';
 const ORG_TRIPS_KEY = 'spyhike_org_trips';
 const ORG_BOOKINGS_KEY = 'spyhike_org_bookings';

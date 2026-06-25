@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
 import { Sun, Moon, Bell, Search, ChevronRight, Check } from 'lucide-react';
 import { loadBroadcastHistory } from '../utils/storage';

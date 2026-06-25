@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe } from 'lucide-react';

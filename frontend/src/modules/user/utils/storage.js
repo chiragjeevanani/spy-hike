@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { HIKING_TRIPS } from '../data/trips';
 
 const USER_STORAGE_KEY = 'spyhike_user';

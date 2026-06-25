@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import { Building2, Check, X, Eye, Star, Globe, Phone, FileText } from 'lucide-react';
 import { loadAllOrganizers, saveOrganizerStatus } from '../utils/storage';

@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 const ADMIN_USER_KEY = 'spyhike_admin_user';
 const ADMIN_DARK_MODE_KEY = 'spyhike_admin_darkmode';
 

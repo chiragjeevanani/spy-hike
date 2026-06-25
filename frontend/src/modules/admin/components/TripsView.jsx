@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import { Search, Compass, Pause, Play, Trash2, MapPin, Star, Users, Clock, Eye, X } from 'lucide-react';
 import { loadAllTrips, saveTripStatus, deleteTripAdmin } from '../utils/storage';

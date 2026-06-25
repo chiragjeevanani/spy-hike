@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Ban, CheckCircle, Eye, Download, X } from 'lucide-react';
 import { loadAllUsers, saveUserStatus } from '../utils/storage';

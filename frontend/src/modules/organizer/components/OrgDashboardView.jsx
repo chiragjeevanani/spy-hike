@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Sun, Moon } from 'lucide-react';

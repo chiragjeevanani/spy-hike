@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import { Megaphone, Send, Clock, Info, Copy } from 'lucide-react';
 import { broadcastNotification, loadBroadcastHistory } from '../utils/storage';

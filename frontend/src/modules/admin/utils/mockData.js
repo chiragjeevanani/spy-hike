@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 // Monthly Revenue Trend (in Thousands ₹)
 export const REVENUE_TREND_DATA = [
   { month: 'Jan', revenue: 120, bookings: 14, users: 15 },
