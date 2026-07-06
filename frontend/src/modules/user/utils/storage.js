@@ -11,6 +11,7 @@ const DARK_MODE_KEY = 'spyhike_darkmode';
 const DEFAULT_USER = {
   isAuthenticated: false, // Start as unauthenticated!
   isOnboarded: false, // Start with onboarding on first visit!
+  isOrganizer: true, // Also flagged as a verified organizer -> unlocks the Organizer Panel login tab
   name: 'Chirag Jeevanani',
   email: 'chiragjeevanani333@gmail.com',
   mobile: '+91 98765 43210',

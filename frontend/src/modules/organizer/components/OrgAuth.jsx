@@ -1,15 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe } from 'lucide-react';
-import { saveOrgUser, loadOrgUser } from '../utils/storage';
+import { saveOrgUser } from '../utils/storage';
 
-const DEMO_CREDENTIALS = {
-  email: 'demo@himalayan.com',
-  password: 'organizer123',
-  isApproved: true,
-};
-
-export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkMode }) {
+export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -27,64 +21,11 @@ export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkM
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // registration multi-step: 1=personal, 2=agency, 3=verification
 
-  const isLogin = mode === 'login';
   const totalSteps = 3;
 
   const handleChange = (field, val) => {
     setFormData(prev => ({ ...prev, [field]: val }));
     setError('');
-  };
-
-  const handleLogin = async () => {
-    if (!formData.email || !formData.password) {
-      setError('Please fill in all fields.');
-      return;
-    }
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    
-    // Check demo credentials
-    if (formData.email === DEMO_CREDENTIALS.email && formData.password === DEMO_CREDENTIALS.password) {
-      const user = {
-        ...loadOrgUser(),
-        isAuthenticated: true,
-        isOnboarded: true,
-        isApproved: true,
-        isPendingApproval: false,
-        email: formData.email,
-        name: 'Himalayan Guides Ltd',
-        agencyName: 'Himalayan Guides Ltd',
-        avatar: 'https://images.unsplash.com/photo-1552058544-f2b08422138a?auto=format&fit=crop&w=150&q=80',
-        bio: 'Premium Himalayan expedition organizers with 8+ years experience.',
-        yearsExperience: 8,
-        rating: 4.9,
-        totalTrips: 42,
-        totalBookings: 380,
-      };
-      saveOrgUser(user);
-      setLoading(false);
-      onSuccess(user);
-      return;
-    }
-
-    // Check stored accounts
-    try {
-      const stored = localStorage.getItem('spyhike_org_accounts');
-      if (stored) {
-        const accounts = JSON.parse(stored);
-        const account = accounts.find(a => a.email === formData.email && a.password === formData.password);
-        if (account) {
-          const user = { ...account };
-          saveOrgUser(user);
-          setLoading(false);
-          onSuccess(user);
-          return;
-        }
-      }
-    } catch (e) {}
-
-    setError('Invalid credentials. Try demo@himalayan.com / organizer123');
-    setLoading(false);
   };
 
   const handleRegisterStep = async () => {
@@ -151,41 +92,6 @@ export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkM
   }`;
 
   const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
-
-  const renderLoginForm = () => (
-    <div className="space-y-4">
-      <div>
-        <label className={labelCls}>Email Address</label>
-        <div className="relative">
-          <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="email"
-            className={`${inputCls} pl-10`}
-            placeholder="demo@himalayan.com"
-            value={formData.email}
-            onChange={e => handleChange('email', e.target.value)}
-          />
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Password</label>
-        <div className="relative">
-          <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type={showPassword ? 'text' : 'password'}
-            className={`${inputCls} pl-10 pr-10`}
-            placeholder="Enter your password"
-            value={formData.password}
-            onChange={e => handleChange('password', e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleLogin()}
-          />
-          <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
-            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 
   const renderRegisterStep = () => {
     if (step === 1) return (
@@ -301,10 +207,10 @@ export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkM
             <Building2 size={26} className="text-spy-orange" />
           </div>
           <h1 className="text-2xl font-display font-black tracking-tight">
-            {isLogin ? 'Partner Login' : 'Become a Partner'}
+            Become a Partner
           </h1>
           <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-            {isLogin ? 'Access your organizer dashboard' : 'Join our verified organizer network'}
+            Join our verified organizer network
           </p>
         </div>
       </div>
@@ -313,23 +219,19 @@ export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkM
       <div className="flex-1 px-6 py-6 space-y-5">
         
         {/* Step indicator for registration */}
-        {!isLogin && (
-          <div className="flex items-center gap-2 mb-2">
-            {Array.from({ length: totalSteps }, (_, i) => (
-              <React.Fragment key={i}>
-                <div className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                  i < step ? 'bg-spy-orange' : darkMode ? 'bg-zinc-800' : 'bg-zinc-200'
-                }`} />
-              </React.Fragment>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-2 mb-2">
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <React.Fragment key={i}>
+              <div className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                i < step ? 'bg-spy-orange' : darkMode ? 'bg-zinc-800' : 'bg-zinc-200'
+              }`} />
+            </React.Fragment>
+          ))}
+        </div>
 
-        {!isLogin && (
-          <p className={`text-xs font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-            Step {step} of {totalSteps} — {step === 1 ? 'Personal Info' : step === 2 ? 'Agency Details' : 'Verification'}
-          </p>
-        )}
+        <p className={`text-xs font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+          Step {step} of {totalSteps} — {step === 1 ? 'Personal Info' : step === 2 ? 'Agency Details' : 'Verification'}
+        </p>
 
         {/* Error message */}
         <AnimatePresence>
@@ -347,12 +249,12 @@ export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkM
         </AnimatePresence>
 
         {/* Dynamic form content */}
-        {isLogin ? renderLoginForm() : renderRegisterStep()}
+        {renderRegisterStep()}
 
         {/* Submit button */}
         <button
           type="button"
-          onClick={isLogin ? handleLogin : handleRegisterStep}
+          onClick={handleRegisterStep}
           disabled={loading}
           className="w-full bg-spy-orange hover:bg-[#d96d1a] disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 shadow-lg shadow-spy-orange/20"
         >
@@ -360,29 +262,23 @@ export default function OrgAuth({ mode = 'login', onSuccess, onSwitchMode, darkM
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
-              {isLogin ? 'Sign In' : (step < totalSteps ? 'Continue' : 'Submit Application')}
-              {!loading && (step < totalSteps && !isLogin ? <ChevronRight size={18} /> : <ArrowRight size={18} />)}
+              {step < totalSteps ? 'Continue' : 'Submit Application'}
+              {step < totalSteps ? <ChevronRight size={18} /> : <ArrowRight size={18} />}
             </>
           )}
         </button>
 
         {/* Switch mode link */}
         <p className={`text-center text-sm ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-          {isLogin ? "Don't have an account?" : 'Already a partner?'}{' '}
+          Already a partner?{' '}
           <button
             type="button"
             onClick={onSwitchMode}
             className="text-spy-orange font-semibold hover:underline"
           >
-            {isLogin ? 'Register here' : 'Sign in'}
+            Sign in
           </button>
         </p>
-
-        {isLogin && (
-          <div className={`mt-2 p-3 rounded-xl text-xs text-center ${darkMode ? 'bg-zinc-900 border border-white/5 text-zinc-500' : 'bg-zinc-100 text-zinc-500'}`}>
-            Demo: <span className="font-mono text-spy-orange">demo@himalayan.com</span> / <span className="font-mono text-spy-orange">organizer123</span>
-          </div>
-        )}
       </div>
     </div>
   );

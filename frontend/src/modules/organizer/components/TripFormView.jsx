@@ -15,7 +15,9 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
     location: trip?.location || '',
     state: trip?.state || '',
     city: trip?.city || '',
-    price: trip?.price || '',
+    pricingTiers: (trip?.pricingTiers && trip.pricingTiers.length > 0)
+      ? trip.pricingTiers.map(t => ({ label: t.label, price: String(t.price) }))
+      : [{ label: 'Solo', price: '' }],
     difficulty: trip?.difficulty || 'Moderate',
     durationDays: trip?.durationDays || 3,
     maxGroupSize: trip?.maxGroupSize || 15,
@@ -81,20 +83,44 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
     set('faqs', arr);
   };
 
+  const setPricingTierItem = (idx, field, val) => {
+    const arr = [...form.pricingTiers];
+    arr[idx] = { ...arr[idx], [field]: val };
+    set('pricingTiers', arr);
+  };
+
   const handleSave = async (status = form.status) => {
-    if (!form.name || !form.location || !form.price) {
-      setErrors({ basic: 'Trip name, location, and price are required.' });
+    if (!form.name || !form.location) {
+      setErrors({ basic: 'Trip name and location are required.' });
       setSection('basic');
       return;
     }
+
+    const validTiers = form.pricingTiers
+      .map(t => ({ label: t.label.trim(), price: parseFloat(t.price) }))
+      .filter(t => t.label && !isNaN(t.price));
+
+    if (validTiers.length === 0) {
+      setErrors({ basic: 'Add at least one batch pricing tier with a label and price.' });
+      setSection('details');
+      return;
+    }
+
     setSaving(true);
     await new Promise(r => setTimeout(r, 800));
+
+    const pricingTiers = validTiers.map((t, i) => ({
+      id: t.label.toLowerCase().replace(/\s+/g, '-') || `tier-${i}`,
+      label: t.label,
+      price: t.price
+    }));
 
     const savedTrip = {
       ...form,
       id: trip?.id || `org-trip-${Date.now()}`,
       organizerEmail,
-      price: parseFloat(form.price) || 0,
+      pricingTiers,
+      price: Math.min(...pricingTiers.map(t => t.price)),
       durationDays: parseInt(form.durationDays) || 1,
       maxGroupSize: parseInt(form.maxGroupSize) || 10,
       availableSeats: parseInt(form.availableSeats) || 10,
@@ -295,16 +321,40 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
 
   const renderDetails = () => (
     <div className="space-y-4">
+      {errors.basic && (
+        <div className={`flex gap-2 items-center p-3 rounded-xl text-xs ${darkMode ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}>
+          <AlertCircle size={14} /> {errors.basic}
+        </div>
+      )}
+
+      {/* Batch Pricing */}
       <div className={cardCls}>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Price per person (₹) *</label>
-            <input type="number" className={inputCls} placeholder="8500" value={form.price} onChange={e => set('price', e.target.value)} />
+        <div className="flex items-center justify-between">
+          <label className={labelCls}>Batch Pricing *</label>
+          <button type="button" onClick={() => set('pricingTiers', [...form.pricingTiers, { label: '', price: '' }])} className="text-spy-orange">
+            <Plus size={16} />
+          </button>
+        </div>
+        <p className={`text-[10px] -mt-2 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
+          Add a rate per traveler type, e.g. Solo, Couple (per person), Group of 4+ (per person).
+        </p>
+        {form.pricingTiers.map((tier, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" className={`${inputCls} flex-1`} placeholder="e.g. Solo" value={tier.label} onChange={e => setPricingTierItem(i, 'label', e.target.value)} />
+            <input type="number" className={`${inputCls} w-28`} placeholder="₹ Price" value={tier.price} onChange={e => setPricingTierItem(i, 'price', e.target.value)} />
+            {form.pricingTiers.length > 1 && (
+              <button type="button" onClick={() => set('pricingTiers', form.pricingTiers.filter((_, ii) => ii !== i))} className="text-red-400 px-1">
+                <Minus size={14} />
+              </button>
+            )}
           </div>
-          <div>
-            <label className={labelCls}>Duration (days)</label>
-            <input type="number" min="1" max="30" className={inputCls} value={form.durationDays} onChange={e => set('durationDays', e.target.value)} />
-          </div>
+        ))}
+      </div>
+
+      <div className={cardCls}>
+        <div>
+          <label className={labelCls}>Duration (days)</label>
+          <input type="number" min="1" max="30" className={inputCls} value={form.durationDays} onChange={e => set('durationDays', e.target.value)} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

@@ -2,9 +2,13 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import './index.css';
 
-// Route to the correct module based on URL prefix
-const isAdminPath = window.location.pathname.startsWith('/admin');
-const isOrganizerPath = window.location.pathname.startsWith('/organizer');
+// Route to the correct module based on URL prefix.
+// Match the panel namespaces precisely so the customer-facing organizer profile
+// (served by the user module at the plural `/organizers/:name`) is NOT swallowed
+// by the organizer panel module.
+const routePath = window.location.pathname;
+const isAdminPath = routePath === '/admin' || routePath.startsWith('/admin/');
+const isOrganizerPath = routePath === '/organizer' || routePath.startsWith('/organizer/');
 
 async function bootstrap() {
   let AppComponent;

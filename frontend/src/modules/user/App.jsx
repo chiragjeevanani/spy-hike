@@ -6,6 +6,7 @@ import Onboarding from './components/Onboarding';
 import Auth from './components/Auth';
 import HomeView from './components/HomeView';
 import ExploreView from './components/ExploreView';
+import TrekOrganizersView from './components/TrekOrganizersView';
 import TripDetailsView from './components/TripDetailsView';
 import BookingFlow from './components/BookingFlow';
 import BookingsView from './components/BookingsView';
@@ -24,36 +25,59 @@ import {
   loadTrips, saveTrips,
   loadDarkMode, saveDarkMode
 } from './utils/storage';
+import { slugifyTrekName } from './utils/trekGroups';
+import { downloadTicketPDF } from './utils/ticketPdf';
+
+// The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
+// the root path (and anything else outside /app, /organizer, /admin) is the
+// public marketing Landing page and bypasses onboarding/auth gates entirely.
+const APP_PREFIX = '/app';
+
+// Raw browser pathname -> internal relative path this router understands
+// (e.g. '/app/explore' -> '/explore', '/app' -> '/'). Null means "not under
+// /app" — render the Landing page.
+const toInternalPath = (rawPath) => {
+  if (rawPath === APP_PREFIX) return '/';
+  if (rawPath.startsWith(APP_PREFIX + '/')) return rawPath.slice(APP_PREFIX.length);
+  return null;
+};
+
+// Internal relative path -> real browser URL (e.g. '/explore' -> '/app/explore').
+const toBrowserPath = (internalPath) => (
+  internalPath === '/' ? APP_PREFIX : `${APP_PREFIX}${internalPath}`
+);
 
 const getInitialStateFromUrl = () => {
-  const path = window.location.pathname;
   const user = loadUserState();
-  
+
   let tab = 'Home';
   let trip = null;
   let bookingTrip = null;
   let selectedBooking = null;
   let selectedOrganizer = null;
+  let trekName = null;
 
-  // Bypass routing gates for landing page
-  if (path === '/landing') {
-    return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer };
+  // Root path (and anything outside /app) is the public marketing Landing page.
+  const path = toInternalPath(window.location.pathname);
+  if (path === null) {
+    return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
   }
 
   // 1. Onboarding Gate redirect rules
   if (!user.isOnboarded) {
     tab = 'Onboarding';
     if (path !== '/onboardingguide') {
-      window.history.replaceState({ path: '/onboardingguide' }, '', '/onboardingguide');
+      const url = toBrowserPath('/onboardingguide');
+      window.history.replaceState({ path: url }, '', url);
     }
-    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
+    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
   }
 
   // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
-  const isProtectedRoute = 
-    path === '/profile' || 
-    path === '/bookings' || 
-    path.startsWith('/booking/') || 
+  const isProtectedRoute =
+    path === '/profile' ||
+    path === '/bookings' ||
+    path.startsWith('/booking/') ||
     path.startsWith('/book/');
 
   if (!user.isAuthenticated && isProtectedRoute) {
@@ -62,16 +86,18 @@ const getInitialStateFromUrl = () => {
     } else {
       tab = 'Login';
       if (path !== '/login') {
-        window.history.replaceState({ path: '/login' }, '', '/login');
+        const url = toBrowserPath('/login');
+        window.history.replaceState({ path: url }, '', url);
       }
     }
-    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
+    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
   }
 
   // 3. Authenticated & Onboarded redirect rules
   if (user.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide')) {
-    window.history.replaceState({ path: '/' }, '', '/');
-    return { tab: 'Home', trip, bookingTrip, selectedBooking, selectedOrganizer };
+    const url = toBrowserPath('/');
+    window.history.replaceState({ path: url }, '', url);
+    return { tab: 'Home', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
   }
 
   // 4. Normal Tab / Detail routing parsing
@@ -86,12 +112,20 @@ const getInitialStateFromUrl = () => {
     tab = 'Wishlist';
   } else if (path === '/profile') {
     tab = 'Profile';
+  } else if (path.startsWith('/trek/')) {
+    const trekSlug = path.replace('/trek/', '');
+    const foundTrip = allTrips.find(t => slugifyTrekName(t.name) === trekSlug);
+    if (foundTrip) {
+      tab = 'Explore';
+      trekName = foundTrip.name;
+    }
   } else if (path.startsWith('/trip/')) {
     const tripId = path.replace('/trip/', '');
     const foundTrip = allTrips.find(t => t.id === tripId);
     if (foundTrip) {
       tab = 'Explore';
       trip = foundTrip;
+      trekName = foundTrip.name;
     }
   } else if (path.startsWith('/book/')) {
     const tripId = path.replace('/book/', '');
@@ -100,6 +134,7 @@ const getInitialStateFromUrl = () => {
       tab = 'Explore';
       trip = foundTrip;
       bookingTrip = foundTrip;
+      trekName = foundTrip.name;
     }
   } else if (path.startsWith('/booking/')) {
     const bookingId = path.replace('/booking/', '');
@@ -108,8 +143,8 @@ const getInitialStateFromUrl = () => {
       tab = 'Bookings';
       selectedBooking = foundBooking;
     }
-  } else if (path.startsWith('/organizer/')) {
-    const orgNameEncoded = path.replace('/organizer/', '');
+  } else if (path.startsWith('/organizers/')) {
+    const orgNameEncoded = path.replace('/organizers/', '');
     const orgName = decodeURIComponent(orgNameEncoded);
     const foundTrip = allTrips.find(t => t.organizer.name === orgName);
     if (foundTrip) {
@@ -121,7 +156,7 @@ const getInitialStateFromUrl = () => {
   } else if (path === '/register') {
     tab = 'Register';
   }
-  return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer };
+  return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
 };
 
 export default function App() {
@@ -141,33 +176,35 @@ export default function App() {
   const [activeBookingTrip, setActiveBookingTrip] = useState(() => getInitialStateFromUrl().bookingTrip);
   const [selectedBooking, setSelectedBooking] = useState(() => getInitialStateFromUrl().selectedBooking);
   const [selectedOrganizer, setSelectedOrganizer] = useState(() => getInitialStateFromUrl().selectedOrganizer);
+  const [selectedTrekName, setSelectedTrekName] = useState(() => getInitialStateFromUrl().trekName);
 
   // 3. Search & Filter dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState('');
   const [exploreCategory, setExploreCategory] = useState('All');
 
   const navigateTo = (path, replace = false, currentUser = user) => {
+    const url = toBrowserPath(path);
     if (replace) {
-      window.history.replaceState({ path }, '', path);
+      window.history.replaceState({ path: url }, '', url);
     } else {
-      window.history.pushState({ path }, '', path);
+      window.history.pushState({ path: url }, '', url);
     }
     handleRouteChange(currentUser);
   };
 
   const handleRouteChange = (currentUser = user) => {
-    const path = window.location.pathname;
-    
-    // Bypass routing gates for landing page
-    if (path === '/landing') {
+    // Root (and anything outside /app) is the public marketing Landing page — bypasses all gates.
+    const path = toInternalPath(window.location.pathname);
+    if (path === null) {
       setActiveTab('Landing');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
       return;
     }
-    
+
     // Redirect rules based on user auth/onboard states
     if (!currentUser.isOnboarded) {
       setActiveTab('Onboarding');
@@ -175,6 +212,7 @@ export default function App() {
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
       if (path !== '/onboardingguide') {
         navigateTo('/onboardingguide', true, currentUser);
       }
@@ -197,12 +235,14 @@ export default function App() {
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
+        setSelectedTrekName(null);
       } else {
         setActiveTab('Login');
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
+        setSelectedTrekName(null);
         if (path !== '/login') {
           navigateTo('/login', true, currentUser);
         }
@@ -223,35 +263,53 @@ export default function App() {
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else if (path === '/explore') {
       setActiveTab('Explore');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else if (path === '/bookings') {
       setActiveTab('Bookings');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else if (path === '/wishlist') {
       setActiveTab('Wishlist');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else if (path === '/profile') {
       setActiveTab('Profile');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
+    } else if (path.startsWith('/trek/')) {
+      const trekSlug = path.replace('/trek/', '');
+      const foundTrip = trips.find(t => slugifyTrekName(t.name) === trekSlug);
+      if (foundTrip) {
+        setSelectedTrekName(foundTrip.name);
+        setSelectedTrip(null);
+        setActiveBookingTrip(null);
+        setSelectedBooking(null);
+        setSelectedOrganizer(null);
+      } else {
+        navigateTo('/', true, currentUser);
+      }
     } else if (path.startsWith('/trip/')) {
       const tripId = path.replace('/trip/', '');
       const foundTrip = trips.find(t => t.id === tripId);
       if (foundTrip) {
         setSelectedTrip(foundTrip);
+        setSelectedTrekName(foundTrip.name);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
@@ -263,6 +321,7 @@ export default function App() {
       const foundTrip = trips.find(t => t.id === tripId);
       if (foundTrip) {
         setSelectedTrip(foundTrip);
+        setSelectedTrekName(foundTrip.name);
         setActiveBookingTrip(foundTrip);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
@@ -278,11 +337,12 @@ export default function App() {
         setActiveBookingTrip(null);
         setSelectedBooking(foundBooking);
         setSelectedOrganizer(null);
+        setSelectedTrekName(null);
       } else {
         navigateTo('/bookings', true, currentUser);
       }
-    } else if (path.startsWith('/organizer/')) {
-      const orgNameEncoded = path.replace('/organizer/', '');
+    } else if (path.startsWith('/organizers/')) {
+      const orgNameEncoded = path.replace('/organizers/', '');
       const orgName = decodeURIComponent(orgNameEncoded);
       const foundTrip = trips.find(t => t.organizer.name === orgName);
       if (foundTrip) {
@@ -290,6 +350,7 @@ export default function App() {
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
+        setSelectedTrekName(null);
       } else {
         navigateTo('/', true, currentUser);
       }
@@ -299,12 +360,14 @@ export default function App() {
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else if (path === '/register') {
       setActiveTab('Register');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else {
       navigateTo('/', true, currentUser);
     }
@@ -388,9 +451,10 @@ export default function App() {
 
   // Logout session resets
   const handleLogoutResets = () => {
-    setUser({
+    const resetUser = {
       isAuthenticated: false,
-      isOnboarded: false,
+      isOnboarded: true, // Keep onboarding done — logout should land on the login screen, not the onboarding carousel
+      isOrganizer: false,
       name: '',
       email: '',
       mobile: '',
@@ -401,9 +465,9 @@ export default function App() {
       fitnessLevel: 'Moderate',
       emergencyContact: '',
       rememberMe: false
-    });
-    // Return view to initial tab
-    navigateTo('/', true);
+    };
+    setUser(resetUser);
+    navigateTo('/login', true, resetUser);
   };
 
   // Add review to data dynamically so it displays inside reviews tab instantly
@@ -559,7 +623,7 @@ export default function App() {
             trips={trips}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
-            onSelectTrip={(t) => navigateTo(`/trip/${t.id}`)}
+            onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
             onSwitchTab={(tab) => navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`)}
             onApplyCategory={handleApplyCategoryFromHome}
             onApplySearch={handleApplySearchFromHome}
@@ -576,7 +640,7 @@ export default function App() {
             trips={trips}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
-            onSelectTrip={(t) => navigateTo(`/trip/${t.id}`)}
+            onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
             searchQuery={exploreSearchQuery}
             onSetSearchQuery={setExploreSearchQuery}
             selectedCategory={exploreCategory}
@@ -655,6 +719,30 @@ export default function App() {
         /* 3. Main Dashboard flow viewport screen */
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
           
+          {/* Dynamic trek -> choose organizer listing absolute overlay */}
+          <AnimatePresence mode="wait">
+            {selectedTrekName && !selectedTrip && !activeBookingTrip && (
+              <motion.div
+                key="overlay-trek-organizers"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                className={`absolute inset-0 z-48 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+              >
+                <TrekOrganizersView
+                  trekName={selectedTrekName}
+                  offers={trips.filter(t => t.name === selectedTrekName)}
+                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                  onSelectOrganizerOffer={(t) => navigateTo(`/trip/${t.id}`)}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  darkMode={darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Dynamic details page loaded absolute overlay */}
           <AnimatePresence mode="wait">
             {selectedTrip && !activeBookingTrip && (
@@ -672,7 +760,7 @@ export default function App() {
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
                   onTriggerBooking={(t) => navigateTo(`/book/${t.id}`)}
-                  onSelectOrganizer={(org) => navigateTo(`/organizer/${encodeURIComponent(org.name)}`)}
+                  onSelectOrganizer={(org) => navigateTo(`/organizers/${encodeURIComponent(org.name)}`)}
                   darkMode={darkMode}
                 />
               </motion.div>
@@ -726,9 +814,7 @@ export default function App() {
                      alert(`Connecting to ${b.organizerName} Support... Tapping "Chat Guide" inside Bookings will open the console chat drawer directly.`);
                      setSelectedBooking(null);
                    }}
-                   onDownloadInvoice={(b) => {
-                     alert(`Ledger statement receipt for Permit Code ${b.bookingId} downloaded successfully.`);
-                   }}
+                   onDownloadInvoice={(b) => downloadTicketPDF(b)}
                    onRateHike={(b) => {
                      const ratingInput = prompt('Rate your experience (1 to 5 stars):', '5');
                      if (!ratingInput) return;

@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
+import {
   Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart
 } from 'lucide-react';
+import { groupTripsByTrekName } from '../utils/trekGroups';
 
 export default function ExploreView({
   trips,
   wishlist,
   onToggleWishlist,
-  onSelectTrip,
+  onSelectTrek,
   searchQuery,
   onSetSearchQuery,
   selectedCategory,
@@ -27,52 +28,60 @@ export default function ExploreView({
   // Categories quick toggles
   const categoriesList = ['All', 'Trekking', 'Hiking', 'Camping', 'Adventure Tours', 'Nature Walks', 'Weekend Trips'];
 
-  // Dynamic search + filters + sort core mathematical calculation
-  const filteredTrips = useMemo(() => {
-    let result = [...trips];
+  // Dynamic search + filters + sort core mathematical calculation.
+  // Operates on one card per unique trek name (see utils/trekGroups.js) —
+  // multiple organizers offering the same trek collapse into a single entry,
+  // using the highest-rated organizer's trip as the representative for
+  // name/location/category/etc, and the cheapest organizer's price for
+  // budget filtering & price sorting.
+  const filteredTreks = useMemo(() => {
+    let result = groupTripsByTrekName(trips);
 
     // 1. Search Query (checks Name, Location, City, State)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(t => 
-        t.name.toLowerCase().includes(q) ||
-        t.location.toLowerCase().includes(q) ||
-        t.city.toLowerCase().includes(q) ||
-        t.state.toLowerCase().includes(q)
-      );
+      result = result.filter(g => {
+        const t = g.representative;
+        return (
+          t.name.toLowerCase().includes(q) ||
+          t.location.toLowerCase().includes(q) ||
+          t.city.toLowerCase().includes(q) ||
+          t.state.toLowerCase().includes(q)
+        );
+      });
     }
 
     // 2. Quick category selector
     if (selectedCategory && selectedCategory !== 'All') {
-      result = result.filter(t => t.category === selectedCategory);
+      result = result.filter(g => g.representative.category === selectedCategory);
     }
 
     // 3. Difficulty Level
     if (filterDifficulty !== 'All') {
-      result = result.filter(t => t.difficulty === filterDifficulty);
+      result = result.filter(g => g.representative.difficulty === filterDifficulty);
     }
 
-    // 4. Budget Range
-    result = result.filter(t => t.price <= filterBudget);
+    // 4. Budget Range (cheapest organizer offering this trek)
+    result = result.filter(g => g.minPrice <= filterBudget);
 
     // 5. Duration days
-    result = result.filter(t => t.durationDays <= filterDuration);
+    result = result.filter(g => g.representative.durationDays <= filterDuration);
 
     // 6. Minimum available seats
-    result = result.filter(t => t.availableSeats >= filterMinSeats);
+    result = result.filter(g => g.representative.availableSeats >= filterMinSeats);
 
     // 7. Sort core criteria
     if (sortOption === 'Popular') {
-      result.sort((a, b) => b.reviewsCount - a.reviewsCount);
+      result.sort((a, b) => b.representative.reviewsCount - a.representative.reviewsCount);
     } else if (sortOption === 'PriceLowToHigh') {
-      result.sort((a, b) => a.price - b.price);
+      result.sort((a, b) => a.minPrice - b.minPrice);
     } else if (sortOption === 'PriceHighToLow') {
-      result.sort((a, b) => b.price - a.price);
+      result.sort((a, b) => b.minPrice - a.minPrice);
     } else if (sortOption === 'HighestRated') {
-      result.sort((a, b) => b.rating - a.rating);
+      result.sort((a, b) => b.representative.rating - a.representative.rating);
     } else if (sortOption === 'Newest') {
       // simulated newest by sorting ID length
-      result.sort((a, b) => b.id.localeCompare(a.id));
+      result.sort((a, b) => b.representative.id.localeCompare(a.representative.id));
     }
 
     return result;
@@ -306,14 +315,14 @@ export default function ExploreView({
         
         {/* Results Metadata */}
         <div className="flex justify-between items-center text-[10px] opacity-60">
-          <span>SHOWING {filteredTrips.length} EXPEDITIONS</span>
+          <span>SHOWING {filteredTreks.length} EXPEDITIONS</span>
           {activeFiltersCount > 0 && (
             <span className="text-spy-orange font-semibold">FILTERS APPLIED</span>
           )}
         </div>
 
         {/* Empty list screen */}
-        {filteredTrips.length === 0 ? (
+        {filteredTreks.length === 0 ? (
           <div className="text-center py-16">
             <span className="text-4xl block">🗺️</span>
             <h3 className="text-sm font-display font-black mt-3">No Hiking Trails Matched</h3>
@@ -328,13 +337,14 @@ export default function ExploreView({
             </button>
           </div>
         ) : (
-          filteredTrips.map((trip, idx) => {
+          filteredTreks.map((group, idx) => {
+            const trip = group.representative;
             const isSaved = wishlist.includes(trip.id);
             return (
               <motion.div
-                key={trip.id}
+                key={group.trekName}
                 id={`trip-list-card-${trip.id}`}
-                onClick={() => onSelectTrip(trip)}
+                onClick={() => onSelectTrek(group.trekName)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
@@ -343,27 +353,27 @@ export default function ExploreView({
                   darkMode ? 'bg-elegant-card' : 'bg-white'
                 }`}
               >
-                
+
                 {/* Visual Image Banner with details overlay floaters */}
                 <div className="h-34 relative overflow-hidden">
-                  <img 
-                    src={trip.coverImage} 
-                    alt={trip.name} 
-                    className="w-full h-full object-cover group-hover:scale-103 duration-300 brightness-[0.75] dark:brightness-[0.7]" 
+                  <img
+                    src={trip.coverImage}
+                    alt={trip.name}
+                    className="w-full h-full object-cover group-hover:scale-103 duration-300 brightness-[0.75] dark:brightness-[0.7]"
                   />
-                  
+
                   {/* Floating Left: Difficulty tag */}
                   <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
                     <span className={`text-[7px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border shadow-sm ${
-                      trip.difficulty === 'Easy' 
-                        ? 'bg-green-500 border-green-400 text-white' 
-                        : trip.difficulty === 'Moderate' 
+                      trip.difficulty === 'Easy'
+                        ? 'bg-green-500 border-green-400 text-white'
+                        : trip.difficulty === 'Moderate'
                         ? 'bg-orange-505 border-orange-400 text-white'
                         : 'bg-red-505 border-red-400 text-white'
                     }`}>
                       {trip.difficulty}
                     </span>
-                    
+
                     <span className="bg-black/55 text-white/90 text-[7px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full backdrop-blur-xs border border-white/15 self-start">
                       {trip.category}
                     </span>
@@ -390,6 +400,13 @@ export default function ExploreView({
                     <MapPin size={11} className="text-spy-orange fill-spy-orange shrink-0" />
                     <span>{trip.location}</span>
                   </div>
+
+                  {/* Bottom right: Organizer count badge */}
+                  {group.organizerCount > 1 && (
+                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-black/55 text-white border-white/15 backdrop-blur-xs">
+                      <Users size={9} /> {group.organizerCount} Organizers
+                    </div>
+                  )}
                 </div>
 
                 {/* Info block */}
@@ -427,7 +444,7 @@ export default function ExploreView({
                   }`}>
                     <div className="flex flex-col">
                       <span className="text-[8px] uppercase tracking-wider opacity-55 font-bold">STARTING PRICE</span>
-                      <span className={`text-xs font-black font-sans ${darkMode ? 'text-[#F27D26]' : 'text-forest-655'}`}>₹{trip.price}</span>
+                      <span className={`text-xs font-black font-sans ${darkMode ? 'text-[#F27D26]' : 'text-forest-655'}`}>From ₹{group.minPrice}</span>
                     </div>
 
                     <button
@@ -435,7 +452,7 @@ export default function ExploreView({
                         darkMode ? 'bg-elegant-green text-white hover:bg-forest-600' : 'bg-forest-600 group-hover:bg-forest-700 text-white'
                       }`}
                     >
-                      Book Trek <Sparkles size={10} />
+                      View Organizers <Sparkles size={10} />
                     </button>
                   </div>
                 </div>

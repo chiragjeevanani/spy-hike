@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe } from 'lucide-react';
+import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2 } from 'lucide-react';
+import { saveUserState } from '../utils/storage';
+import SwitchTransition from './SwitchTransition';
+
+const ORG_USER_STORAGE_KEY = 'spyhike_org_user';
+const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play, then holds briefly before redirecting
+const ROLE_TOGGLE_TRANSITION_MS = 3000; // lets the scene flip play before the login form switches role
 
 export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL', onSwitchToRegister, onSwitchToLogin }) {
   const [mode, setMode] = useState(initialMode);
@@ -7,7 +13,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
-  
+
+  // Which portal the person is signing in to: 'TRAVELLER' or 'ORGANIZER'.
+  // Both share the same account/credentials — the Organizer tab just gates on isOrganizer.
+  const [role, setRole] = useState('TRAVELLER');
+
   // Fields for forms
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,6 +37,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [otpTimer, setOtpTimer] = useState(30);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showOrgTransition, setShowOrgTransition] = useState(false);
+  const [roleSwitchLabel, setRoleSwitchLabel] = useState(null);
 
   // Start OTP timer if confirm screen
   useEffect(() => {
@@ -38,6 +50,75 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     }
     return () => clearInterval(interval);
   }, [mode, otpTimer]);
+
+  // Mirrors this account into the organizer panel's own session storage and
+  // hands off to /organizer — the two modules run as independent mini-SPAs
+  // (see main.jsx path-prefix routing) with no shared auth context.
+  const redirectToOrganizerPanel = (loggedInUser) => {
+    let existingOrg = {};
+    try {
+      const val = localStorage.getItem(ORG_USER_STORAGE_KEY);
+      if (val) existingOrg = JSON.parse(val);
+    } catch (e) {}
+
+    const orgUser = {
+      agencyName: loggedInUser.name,
+      agencyWebsite: '',
+      govtIdType: 'Aadhaar',
+      govtIdNumber: '',
+      yearsExperience: 1,
+      bio: 'Verified Spy Hike organizer.',
+      verificationDocumentUrl: '',
+      rating: 4.8,
+      totalTrips: 0,
+      totalBookings: 0,
+      coreCapabilities: ['Certified Trek Leader'],
+      ...existingOrg,
+      // Being flagged isOrganizer means this account is already a vetted
+      // organizer, so it skips the fresh-signup onboarding/approval gates.
+      isAuthenticated: true,
+      isOnboarded: true,
+      isApproved: true,
+      isPendingApproval: false,
+      name: loggedInUser.name,
+      email: loggedInUser.email,
+      mobile: loggedInUser.mobile,
+      avatar: loggedInUser.avatar,
+      rememberMe,
+    };
+    localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser));
+    window.location.href = '/organizer';
+  };
+
+  // Routes a successfully-authenticated account to the right portal based on
+  // the selected role tab, gating Organizer access on the isOrganizer flag.
+  const completeLogin = (loggedInUser) => {
+    if (role === 'ORGANIZER') {
+      if (!loggedInUser.isOrganizer) {
+        setErrorMsg("This account isn't registered as an organizer yet. Switch to Traveller sign-in, or apply from the Organizer Panel.");
+        return;
+      }
+      setSuccessMsg('Organizer access verified! Redirecting to your dashboard...');
+      saveUserState(loggedInUser);
+      setShowOrgTransition(true);
+      setTimeout(() => redirectToOrganizerPanel(loggedInUser), ORGANIZER_TRANSITION_MS);
+      return;
+    }
+    onSuccess(loggedInUser);
+  };
+
+  // Plays the same blur+pill transition briefly when toggling between the
+  // Traveller and Organizer login forms, before the form itself flips over.
+  const handleToggleRole = () => {
+    const nextRole = role === 'ORGANIZER' ? 'TRAVELLER' : 'ORGANIZER';
+    setErrorMsg('');
+    setSuccessMsg('');
+    setRoleSwitchLabel(nextRole === 'ORGANIZER' ? 'Switching to Organizer' : 'Switching to Traveller');
+    setTimeout(() => {
+      setRole(nextRole);
+      setRoleSwitchLabel(null);
+    }, ROLE_TOGGLE_TRANSITION_MS);
+  };
 
   const handleLoginEmail = (e) => {
     e.preventDefault();
@@ -54,6 +135,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       const user = {
         isAuthenticated: true,
         isOnboarded: true,
+        isOrganizer: true,
         name: 'Chirag Jeevanani',
         email: email,
         mobile: '+91 98765 43210',
@@ -65,12 +147,13 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         emergencyContact: 'Asha Jeevanani (+91 98765 43219)',
         rememberMe,
       };
-      onSuccess(user);
+      completeLogin(user);
     } else {
       // Create user on the fly or log in as standard adventurer
       const standardUser = {
         isAuthenticated: true,
         isOnboarded: true,
+        isOrganizer: false,
         name: email.split('@')[0].toUpperCase(),
         email: email,
         mobile: '+1 (555) 019-2834',
@@ -82,8 +165,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         emergencyContact: 'Emergency Contact (+1 555-010-0000)',
         rememberMe,
       };
-      setSuccessMsg('Logged in successfully!');
-      setTimeout(() => onSuccess(standardUser), 600);
+      if (role === 'ORGANIZER') {
+        completeLogin(standardUser);
+      } else {
+        setSuccessMsg('Logged in successfully!');
+        setTimeout(() => completeLogin(standardUser), 600);
+      }
     }
   };
 
@@ -106,11 +193,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       return;
     }
     setSuccessMsg('Mobile OTP Verified!');
-    
+
     // Auto logged in user
     const user = {
       isAuthenticated: true,
       isOnboarded: true,
+      isOrganizer: false,
       name: 'Chirag - Mobile User',
       email: 'chirag.mobile@spyhike.com',
       mobile: phone,
@@ -122,27 +210,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       emergencyContact: 'Family Member (+91 90000 11111)',
       rememberMe,
     };
-    setTimeout(() => onSuccess(user), 800);
-  };
-
-  const handleGoogleSignIn = () => {
-    setErrorMsg('');
-    setSuccessMsg('Google Authenticated Successfully!');
-    const user = {
-      isAuthenticated: true,
-      isOnboarded: true,
-      name: 'Chirag Jeevanani (Google)',
-      email: 'chiragjeevanani333@gmail.com',
-      mobile: '+91 98765 00000',
-      age: 24,
-      gender: 'Male',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      hikingExperience: 'Advanced',
-      fitnessLevel: 'High',
-      emergencyContact: 'Asha Jeevanani (+91 98765 43219)',
-      rememberMe,
-    };
-    setTimeout(() => onSuccess(user), 800);
+    setTimeout(() => completeLogin(user), 800);
   };
 
   const handleRegister = (e) => {
@@ -156,6 +224,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     const newUser = {
       isAuthenticated: true,
       isOnboarded: false, // Redirect to Onboarding Flow!
+      isOrganizer: false,
       name: regName,
       email: regEmail,
       mobile: regPhone,
@@ -183,10 +252,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   };
 
   return (
-    <div className={`h-full flex flex-col justify-between overflow-y-auto font-sans px-6 py-8 ${
+    <div className={`relative h-full flex flex-col justify-between overflow-y-auto font-sans px-6 py-8 ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'
     }`}>
-      
+      {showOrgTransition && <SwitchTransition darkMode={darkMode} label="Switching to Organizer Panel" showScene />}
+      {roleSwitchLabel && <SwitchTransition darkMode={darkMode} label={roleSwitchLabel} showScene />}
+
       {/* Brand logo top spacing */}
       <div className="flex flex-col items-center mt-6 mb-6">
         <div className="w-14 h-14 bg-forest-600 rounded-2xl flex items-center justify-center shadow-lg transform rotate-6 border border-forest-400">
@@ -204,7 +275,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       <div className={`w-full rounded-3xl p-6 shadow-xl ${
         darkMode ? 'bg-zinc-900' : 'bg-white'
       }`}>
-        
+
         {/* Errors & Confirms */}
         {errorMsg && (
           <div className="mb-4 text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/35 p-3 rounded-xl">
@@ -220,9 +291,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         {/* Transition modes block */}
         {mode === 'LOGIN_EMAIL' && (
           <form onSubmit={handleLoginEmail} className="space-y-4">
-            <h2 className="text-xl font-display font-extrabold tracking-tight">Welcome Adventurer</h2>
+            <h2 className="text-xl font-display font-extrabold tracking-tight">
+              {role === 'ORGANIZER' ? 'Welcome Back, Partner' : 'Welcome Adventurer'}
+            </h2>
             <p className={`text-xs -mt-1 pb-2 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              Sign in to explore custom high-risk trails
+              {role === 'ORGANIZER' ? 'Sign in to manage your listed trips' : 'Sign in to explore custom high-risk trails'}
             </p>
 
             <div className="space-y-1.5">
@@ -283,21 +356,40 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 />
                 Remember Me
               </label>
-              <button
-                type="button"
-                onClick={() => setMode('LOGIN_OTP')}
-                className="text-xs text-forest-500 dark:text-forest-400 font-semibold hover:underline"
-              >
-                Use Mobile OTP
-              </button>
+              {role === 'TRAVELLER' && (
+                <button
+                  type="button"
+                  onClick={() => setMode('LOGIN_OTP')}
+                  className="text-xs text-forest-500 dark:text-forest-400 font-semibold hover:underline"
+                >
+                  Use Mobile OTP
+                </button>
+              )}
             </div>
 
             <button
               type="submit"
               id="btn-login-email-submit"
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-4 cursor-pointer active:scale-98"
+              className={`w-full text-white font-bold py-3.5 rounded-xl shadow-lg mt-4 cursor-pointer active:scale-98 ${
+                role === 'ORGANIZER' ? 'bg-spy-orange hover:bg-[#d96d1a]' : 'bg-forest-600 hover:bg-forest-700'
+              }`}
             >
-              Sign In
+              {role === 'ORGANIZER' ? 'Sign In to Organizer Panel' : 'Sign In'}
+            </button>
+
+            <button
+              type="button"
+              id="btn-switch-role"
+              onClick={handleToggleRole}
+              className={`w-full flex items-center justify-center gap-2 text-xs font-bold py-3 rounded-xl border cursor-pointer transition-all ${
+                darkMode ? 'border-zinc-800 text-zinc-300 hover:bg-zinc-850' : 'border-gray-200 text-zinc-600 hover:bg-gray-50'
+              }`}
+            >
+              {role === 'ORGANIZER' ? (
+                <><User size={14} /> Switch to Traveller</>
+              ) : (
+                <><Building2 size={14} /> Switch to Organizer</>
+              )}
             </button>
           </form>
         )}
@@ -576,16 +668,29 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
           darkMode ? 'border-zinc-800 text-zinc-400' : 'border-gray-200 text-zinc-650'
         }`}>
           {mode !== 'REGISTER' ? (
-            <p>
-              Don't have an adventure account?{' '}
-              <button
-                type="button"
-                onClick={() => onSwitchToRegister ? onSwitchToRegister() : setMode('REGISTER')}
-                className="text-spy-orange font-bold hover:underline"
-              >
-                Sign Up Now
-              </button>
-            </p>
+            role === 'ORGANIZER' ? (
+              <p>
+                New agency wanting to list trips?{' '}
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = '/organizer/register'; }}
+                  className="text-spy-orange font-bold hover:underline"
+                >
+                  Apply as Organizer
+                </button>
+              </p>
+            ) : (
+              <p>
+                Don't have an adventure account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setRole('TRAVELLER'); onSwitchToRegister ? onSwitchToRegister() : setMode('REGISTER'); }}
+                  className="text-spy-orange font-bold hover:underline"
+                >
+                  Sign Up Now
+                </button>
+              </p>
+            )
           ) : (
             <p>
               Already verified on Spy Hike?{' '}
@@ -600,36 +705,6 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
           )}
         </div>
       </div>
-
-      {/* Social login option */}
-      {mode !== 'REGISTER' && mode !== 'OTP_CONFIRM' && (
-        <div className="mt-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <span className={`h-px flex-1 ${darkMode ? 'bg-zinc-850' : 'bg-gray-200'}`}></span>
-            <span className="text-[10px] uppercase font-bold tracking-widest opacity-40">OR CONTINUE WITH</span>
-            <span className={`h-px flex-1 ${darkMode ? 'bg-zinc-850' : 'bg-gray-200'}`}></span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            className={`w-full flex items-center justify-center gap-3 py-3 rounded-xl text-xs font-bold border cursor-pointer active:scale-98 transition ${
-              darkMode 
-                ? 'bg-zinc-900 border-zinc-800 text-zinc-200 hover:bg-zinc-850' 
-                : 'bg-white border-gray-200 text-zinc-700 hover:bg-gray-50'
-            }`}
-          >
-            {/* Visual simulation of Google color icon */}
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-            </svg>
-            Google Sign In
-          </button>
-        </div>
-      )}
 
       {/* Footer support coordinates */}
       <div className={`mt-auto pt-6 text-center text-[10px] opacity-75 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut, Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus } from 'lucide-react';
+import ThemeToggle from '../../../components/ThemeToggle';
 import { saveOrgUser } from '../utils/storage';
 
 export default function OrgProfileView({ organizer, onLogout, darkMode, onToggleDarkMode }) {
@@ -121,6 +122,14 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
 
         {/* Settings section */}
         <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}>
+          {/* Appearance / theme */}
+          <div className={`flex items-center justify-between gap-3 px-4 py-3 border-b ${darkMode ? 'border-white/5' : 'border-zinc-100'}`}>
+            <div className="flex items-center gap-3">
+              {darkMode ? <Moon size={16} /> : <Sun size={16} />}
+              <span className="text-sm font-semibold">Appearance</span>
+            </div>
+            <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} size="sm" />
+          </div>
           {/* Logout */}
           <button
             type="button"

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle, 
-  ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award
+import {
+  User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
+  ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon
 } from 'lucide-react';
+import ThemeToggle from '../../../components/ThemeToggle';
+import TravelTicket from './TravelTicket';
+import { downloadTicketPDF } from '../utils/ticketPdf';
 
 export default function ProfileView({
   user,
@@ -218,7 +221,17 @@ export default function ProfileView({
               <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Help Center & Prefs</span>
               
               <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
-                
+
+                {/* Appearance / theme toggle */}
+                <div className={`w-full p-3 flex justify-between items-center text-xs font-bold border-b last:border-b-0 ${
+                  darkMode ? 'border-white/5' : 'border-gray-100'
+                }`}>
+                  <span className="flex items-center gap-2">
+                    {darkMode ? <Moon size={14} className="text-forest-500" /> : <Sun size={14} className="text-spy-orange" />} Appearance
+                  </span>
+                  <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} size="sm" />
+                </div>
+
                 <button
                   onClick={() => setCurrentSub('SETTINGS')}
                   className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
@@ -277,46 +290,12 @@ export default function ProfileView({
                 return (
                   <div className="space-y-1.5">
                     <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Next Departure Ticket</span>
-                    <div className={`rounded-xl p-3.5 border relative overflow-hidden flex flex-col justify-between min-h-[110px] ${
-                      darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-100 shadow-sm'
-                    }`}>
-                      {/* Accent color elements */}
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-forest-500/5 rounded-full blur-xl pointer-events-none" />
-                      
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-[8px] font-mono tracking-widest text-forest-600 dark:text-forest-400 font-bold uppercase">CONFIRMED TICKET</span>
-                            <h4 className="text-xs font-black mt-0.5 line-clamp-1">{upcomingBooking.tripName}</h4>
-                          </div>
-                          <span className="text-[8px] font-mono bg-forest-500/10 text-forest-600 dark:text-forest-400 px-2 py-0.5 rounded-full font-bold uppercase">
-                            {upcomingBooking.bookingId || upcomingBooking.id}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center gap-4 mt-2.5">
-                          <div>
-                            <span className="text-[7px] uppercase font-bold opacity-45 block">Date</span>
-                            <span className="text-[10px] font-bold">{upcomingBooking.selectedDate}</span>
-                          </div>
-                          <div>
-                            <span className="text-[7px] uppercase font-bold opacity-45 block">Location</span>
-                            <span className="text-[10px] font-bold line-clamp-1">{upcomingBooking.tripLocation}</span>
-                          </div>
-                          <div>
-                            <span className="text-[7px] uppercase font-bold opacity-45 block">Travelers</span>
-                            <span className="text-[10px] font-bold">{upcomingBooking.travelersCount} Pax</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 pt-2.5 border-t border-dashed border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
-                        <span className="text-[8px] opacity-55">Show ticket QR at gate control</span>
-                        <div className="flex items-center gap-1 text-[9px] font-bold text-forest-600 dark:text-forest-400">
-                          Active Adventure <Sparkles size={10} className="text-spy-orange animate-pulse" />
-                        </div>
-                      </div>
-                    </div>
+                    <TravelTicket
+                      booking={upcomingBooking}
+                      darkMode={darkMode}
+                      notchClass={darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'}
+                      onDownload={() => downloadTicketPDF(upcomingBooking)}
+                    />
                   </div>
                 );
               } else {
@@ -341,7 +320,7 @@ export default function ProfileView({
                       <div className="mt-3.5 flex justify-end">
                         <button
                           onClick={() => {
-                            window.history.pushState({ path: '/explore' }, '', '/explore');
+                            window.history.pushState({ path: '/app/explore' }, '', '/app/explore');
                             window.dispatchEvent(new PopStateEvent('popstate'));
                           }}
                           className="px-3.5 py-1.5 bg-forest-600 hover:bg-forest-700 text-white rounded-lg text-[9px] font-bold uppercase transition flex items-center gap-1 cursor-pointer"

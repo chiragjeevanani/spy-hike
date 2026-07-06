@@ -22,6 +22,8 @@ import OrgProfileView from './components/OrgProfileView';
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
 const PATH_PREFIX = '/organizer';
+// The traveller app (and its shared Traveller/Organizer login) now lives under /app.
+const SHARED_LOGIN_PATH = '/app/login';
 
 function getOrgTab(pathname) {
   const p = pathname.replace(PATH_PREFIX, '').replace(/^\//, '');
@@ -31,7 +33,6 @@ function getOrgTab(pathname) {
   if (p.startsWith('trips/') && p !== 'trips/new') return 'EditTrip';
   if (p === 'bookings') return 'Bookings';
   if (p === 'profile') return 'Profile';
-  if (p === 'login') return 'Login';
   if (p === 'register') return 'Register';
   if (p === 'pending') return 'Pending';
   if (p === 'onboarding') return 'Onboarding';
@@ -45,7 +46,6 @@ function tabToPath(tab, tripId = null) {
   if (tab === 'EditTrip' && tripId) return `${PATH_PREFIX}/trips/${tripId}`;
   if (tab === 'Bookings') return `${PATH_PREFIX}/bookings`;
   if (tab === 'Profile') return `${PATH_PREFIX}/profile`;
-  if (tab === 'Login') return `${PATH_PREFIX}/login`;
   if (tab === 'Register') return `${PATH_PREFIX}/register`;
   if (tab === 'Pending') return `${PATH_PREFIX}/pending`;
   if (tab === 'Onboarding') return `${PATH_PREFIX}/onboarding`;
@@ -84,6 +84,16 @@ export default function OrgApp() {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
+  // There's no organizer-specific login screen anymore — sign-in happens on the
+  // single shared /login (Traveller/Organizer tabs), which hands off back here
+  // once authenticated. Bounce anyone who lands here unauthenticated, except
+  // the "Apply as Organizer" registration flow which still lives in this module.
+  useEffect(() => {
+    if (organizer.isOnboarded && !organizer.isAuthenticated && activeTab !== 'Register') {
+      window.location.href = SHARED_LOGIN_PATH;
+    }
+  }, [organizer.isOnboarded, organizer.isAuthenticated, activeTab]);
+
   const navigateTo = useCallback((tab, replace = false, tripId = null) => {
     const path = tabToPath(tab, tripId);
     if (replace) {
@@ -100,7 +110,7 @@ export default function OrgApp() {
     const updated = { ...organizer, isOnboarded: true };
     saveOrgUser(updated);
     setOrganizer(updated);
-    navigateTo('Login', true);
+    window.location.href = SHARED_LOGIN_PATH;
   };
 
   const handleAuthSuccess = (orgUser) => {
@@ -123,7 +133,19 @@ export default function OrgApp() {
     setOrganizer(reset);
     setTrips([]);
     setBookings([]);
-    navigateTo('Login', true);
+
+    // Also sign the shared traveller session out — otherwise the shared
+    // /app/login screen sees an already-authenticated user and bounces
+    // straight past the login form into the Traveller Home tab.
+    try {
+      const rawUser = localStorage.getItem('spyhike_user');
+      if (rawUser) {
+        const travellerUser = JSON.parse(rawUser);
+        localStorage.setItem('spyhike_user', JSON.stringify({ ...travellerUser, isAuthenticated: false }));
+      }
+    } catch (e) {}
+
+    window.location.href = SHARED_LOGIN_PATH;
   };
 
   const handleToggleDarkMode = () => setDarkMode(p => !p);
@@ -218,26 +240,19 @@ export default function OrgApp() {
       return <OrgOnboarding onComplete={handleOnboardingComplete} darkMode={darkMode} />;
     }
 
-    // 2. Auth gate
+    // 2. Auth gate — sign-in lives on the shared /login now (redirected there by
+    // the effect above); only the "Apply as Organizer" registration flow renders here.
     if (!organizer.isAuthenticated) {
       if (activeTab === 'Register') {
         return (
           <OrgAuth
-            mode="register"
             onSuccess={handleAuthSuccess}
-            onSwitchMode={() => navigateTo('Login', true)}
+            onSwitchMode={() => { window.location.href = SHARED_LOGIN_PATH; }}
             darkMode={darkMode}
           />
         );
       }
-      return (
-        <OrgAuth
-          mode="login"
-          onSuccess={handleAuthSuccess}
-          onSwitchMode={() => navigateTo('Register', true)}
-          darkMode={darkMode}
-        />
-      );
+      return null;
     }
 
     // 3. Pending approval

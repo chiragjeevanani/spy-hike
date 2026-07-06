@@ -47,79 +47,94 @@ export const TRENDING_DESTINATIONS = [
   { id: 'dest-4', name: 'Western Ghats', state: 'Maharashtra', hikes: 12, img: 'https://images.unsplash.com/photo-1500627869374-13cd993b1115?auto=format&fit=crop&w=400&q=80' },
 ];
 
+// Batch pricing tiers, derived from a base "group of 4+" per-person rate.
+// Solo travelers pay the most per person; larger groups get the best rate.
+const buildTieredPricing = (groupPrice) => ([
+  { id: 'group', label: 'Group of 4+ (per person)', price: groupPrice },
+  { id: 'couple', label: 'Couple (per person)', price: Math.round(groupPrice * 1.12) },
+  { id: 'solo', label: 'Solo', price: Math.round(groupPrice * 1.28) }
+]);
+
+// Multiple organizers run this exact route/itinerary — shared trek content,
+// only pricing/organizer/rating/capacity differ per batch below.
+const himalayanRidgePassBase = {
+  name: 'Himalayan Ridge Pass Trek',
+  location: 'Kasol, Parvati Valley',
+  state: 'Himachal Pradesh',
+  city: 'Kasol',
+  difficulty: 'Difficult',
+  durationDays: 7,
+  category: 'Trekking',
+  featured: true,
+  coverImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1000&q=80',
+  galleryImages: [
+    'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1520201163981-8cc95007dd2a?auto=format&fit=crop&w=600&q=80'
+  ],
+  description: 'Conquer the breathtaking elevation of Parvati Valley. Experience crisp alpine breeze, freezing high-altitude lakes, and dense pine forests that lead to spectacular snow-capped viewing points. This is an epic 7-day challenge suited for hikers ready to push their boundaries and touch high Himalayan horizons.',
+  highlights: [
+    'Acclimatization hikes around classic Parvati Valley viewpoints',
+    'Camping in high-grade geodesic domes under crystal-clear starry nights',
+    'Technical glacial pass crossing guided by mountaineering veterans',
+    'Warm traditional meals cooked by local Sherpas at standard rest tents'
+  ],
+  distanceKm: 54,
+  elevationMeters: 4200,
+  maxGroupSize: 15,
+  itinerary: [
+    { day: 1, title: 'Arrival & Base Camp Kasol', description: 'Briefing by the expedition lead, material checklist verification, and short light walk around Parvati river to adapt to altitude.' },
+    { day: 2, title: 'Trek to Kheerganga Wilderness', description: 'Trek through alpine valleys, rushing waterfalls, and geothermal hot springs of historic Kheerganga.' },
+    { day: 3, title: 'Ascent to Tunda Bhuj Camp', description: 'A dramatic climb passing deep gorges with views of roaring waterfalls and mighty pine structures.' },
+    { day: 4, title: 'Ridge High Glacial Base Camp', description: 'Climb onto the high alpine ridges, feeling the vegetation yield to cold, wild grey and white horizons.' },
+    { day: 5, title: 'Pass Conquest & Summit Ridge', description: 'Pre-dawn departure to conquer the High Ridge Pass, witnessing a pristine 360-degree Himalayan sunrise.' },
+    { day: 6, title: 'Descent to Wilderness Fields', description: 'A smooth downhill journey traversing dynamic scree, high alpine meadows, and warm shelter huts.' },
+    { day: 7, title: 'Return Journey to Kasol Base', description: 'Concluding the epic trek. Distribution of formal certificate of completion and transport drop-off.' }
+  ],
+  included: [
+    'Certified Wilderness First Responder Guide',
+    'All forest entry permits, environmental fees and state regulatory permissions',
+    'Premium expedition tents and warm sub-zero sleeping bags',
+    'Hot local buffet meals (Breakfast, Lunch, Dinner and high-alt snacks)'
+  ],
+  notIncluded: [
+    'Personal emergency evacuation or high-risk medical insurance costs',
+    'Porters/Mules to carry personal baggage (can be pre-rented on side)',
+    'Specific personal protective gear (trekking poles, premium boots, heavy down jackets)'
+  ],
+  safetyGuidelines: [
+    'Maintain continuous dynamic communications with lead organizer',
+    'Strict Zero-Litter eco compliance policy must be verified',
+    'High physical preparation is mandatory; regular cardio exercises 2 weeks prior recommended'
+  ],
+  cancellationPolicy: [
+    'Full refund if cancelled up to 15 days before the departure date',
+    '50% refund dynamic penalty between 7 and 14 days prior',
+    'No refunds allowed within 7 days because logistics and ration pre-allocation occur'
+  ],
+  faqs: [
+    { question: 'What physical fitness level is required?', answer: 'An Advanced fitness level is strongly recommended. Regular running, core exercises, and legs workouts make the 54km trek comfortable.' },
+    { question: 'Are toilets available during the high altitude trek?', answer: 'We set up eco-friendly dry toilet tents at every overnight camp site.' }
+  ]
+};
+
 export const HIKING_TRIPS = [
   {
+    ...himalayanRidgePassBase,
     id: 'himalayan-ridge-pass-trek',
-    name: 'Himalayan Ridge Pass Trek',
-    location: 'Kasol, Parvati Valley',
-    state: 'Himachal Pradesh',
-    city: 'Kasol',
     rating: 4.9,
     reviewsCount: 142,
     price: 349,
-    difficulty: 'Difficult',
-    durationDays: 7,
+    pricingTiers: buildTieredPricing(349),
     availableSeats: 6,
     totalSeats: 15,
-    category: 'Trekking',
-    featured: true,
-    coverImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1000&q=80',
-    galleryImages: [
-      'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
-      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80',
-      'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&q=80',
-      'https://images.unsplash.com/photo-1520201163981-8cc95007dd2a?auto=format&fit=crop&w=600&q=80'
-    ],
     organizer: {
       name: 'Himalayan Sherpa Guides',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       rating: 4.95,
       verified: true
     },
-    description: 'Conquer the breathtaking elevation of Parvati Valley. Experience crisp alpine breeze, freezing high-altitude lakes, and dense pine forests that lead to spectacular snow-capped viewing points. This is an epic 7-day challenge suited for hikers ready to push their boundaries and touch high Himalayan horizons.',
-    highlights: [
-      'Acclimatization hikes around classic Parvati Valley viewpoints',
-      'Camping in high-grade geodesic domes under crystal-clear starry nights',
-      'Technical glacial pass crossing guided by mountaineering veterans',
-      'Warm traditional meals cooked by local Sherpas at standard rest tents'
-    ],
-    distanceKm: 54,
-    elevationMeters: 4200,
-    maxGroupSize: 15,
-    itinerary: [
-      { day: 1, title: 'Arrival & Base Camp Kasol', description: 'Briefing by the expedition lead, material checklist verification, and short light walk around Parvati river to adapt to altitude.' },
-      { day: 2, title: 'Trek to Kheerganga Wilderness', description: 'Trek through alpine valleys, rushing waterfalls, and geothermal hot springs of historic Kheerganga.' },
-      { day: 3, title: 'Ascent to Tunda Bhuj Camp', description: 'A dramatic climb passing deep gorges with views of roaring waterfalls and mighty pine structures.' },
-      { day: 4, title: 'Ridge High Glacial Base Camp', description: 'Climb onto the high alpine ridges, feeling the vegetation yield to cold, wild grey and white horizons.' },
-      { day: 5, title: 'Pass Conquest & Summit Ridge', description: 'Pre-dawn departure to conquer the High Ridge Pass, witnessing a pristine 360-degree Himalayan sunrise.' },
-      { day: 6, title: 'Descent to Wilderness Fields', description: 'A smooth downhill journey traversing dynamic scree, high alpine meadows, and warm shelter huts.' },
-      { day: 7, title: 'Return Journey to Kasol Base', description: 'Concluding the epic trek. Distribution of formal certificate of completion and transport drop-off.' }
-    ],
-    included: [
-      'Certified Wilderness First Responder Guide',
-      'All forest entry permits, environmental fees and state regulatory permissions',
-      'Premium expedition tents and warm sub-zero sleeping bags',
-      'Hot local buffet meals (Breakfast, Lunch, Dinner and high-alt snacks)'
-    ],
-    notIncluded: [
-      'Personal emergency evacuation or high-risk medical insurance costs',
-      'Porters/Mules to carry personal baggage (can be pre-rented on side)',
-      'Specific personal protective gear (trekking poles, premium boots, heavy down jackets)'
-    ],
-    safetyGuidelines: [
-      'Maintain continuous dynamic communications with lead organizer',
-      'Strict Zero-Litter eco compliance policy must be verified',
-      'High physical preparation is mandatory; regular cardio exercises 2 weeks prior recommended'
-    ],
-    cancellationPolicy: [
-      'Full refund if cancelled up to 15 days before the departure date',
-      '50% refund dynamic penalty between 7 and 14 days prior',
-      'No refunds allowed within 7 days because logistics and ration pre-allocation occur'
-    ],
-    faqs: [
-      { question: 'What physical fitness level is required?', answer: 'An Advanced fitness level is strongly recommended. Regular running, core exercises, and legs workouts make the 54km trek comfortable.' },
-      { question: 'Are toilets available during the high altitude trek?', answer: 'We set up eco-friendly dry toilet tents at every overnight camp site.' }
-    ],
     reviews: [
       {
         id: 'rev-1',
@@ -140,6 +155,87 @@ export const HIKING_TRIPS = [
     ]
   },
   {
+    ...himalayanRidgePassBase,
+    id: 'himalayan-ridge-parvati-trekkers',
+    rating: 4.6,
+    reviewsCount: 58,
+    price: 299,
+    pricingTiers: buildTieredPricing(299),
+    availableSeats: 9,
+    totalSeats: 12,
+    featured: false,
+    organizer: {
+      name: 'Parvati Valley Trekkers',
+      avatar: 'https://images.unsplash.com/photo-1502764613149-7f1d229e230f?auto=format&fit=crop&w=150&q=80',
+      rating: 4.65,
+      verified: true
+    },
+    reviews: [
+      {
+        id: 'pvt-rev-1',
+        userName: 'Karan Malhotra',
+        userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+        rating: 4.5,
+        comment: 'Great value batch — smaller group, very personal guiding, and the budget pricing was a big plus.',
+        date: '2026-06-05'
+      }
+    ]
+  },
+  {
+    ...himalayanRidgePassBase,
+    id: 'himalayan-ridge-peak-seekers',
+    rating: 4.3,
+    reviewsCount: 21,
+    price: 399,
+    pricingTiers: buildTieredPricing(399),
+    availableSeats: 11,
+    totalSeats: 18,
+    featured: false,
+    organizer: {
+      name: 'Peak Seekers Himalaya',
+      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80',
+      rating: 4.35,
+      verified: false
+    },
+    reviews: [
+      {
+        id: 'psh-rev-1',
+        userName: 'Neha Kapoor',
+        userAvatar: 'https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?auto=format&fit=crop&w=150&q=80',
+        rating: 4,
+        comment: 'Solid trek overall, though logistics on day 3 felt a bit rushed. Views were unbeatable.',
+        date: '2026-05-28'
+      }
+    ]
+  },
+  {
+    ...himalayanRidgePassBase,
+    id: 'himalayan-ridge-snowline-expeditions',
+    rating: 4.95,
+    reviewsCount: 76,
+    price: 459,
+    pricingTiers: buildTieredPricing(459),
+    availableSeats: 4,
+    totalSeats: 10,
+    featured: false,
+    organizer: {
+      name: 'Snowline Expeditions',
+      avatar: 'https://images.unsplash.com/photo-1601455763557-db1bea8a9a5a?auto=format&fit=crop&w=150&q=80',
+      rating: 4.97,
+      verified: true
+    },
+    reviews: [
+      {
+        id: 'sle-rev-1',
+        userName: 'Ishaan Bhatt',
+        userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
+        rating: 5,
+        comment: 'Premium batch, worth every rupee. Smaller group, top-tier gear, and the guides were exceptional.',
+        date: '2026-06-12'
+      }
+    ]
+  },
+  {
     id: 'valley-of-flowers-trek',
     name: 'Valley of Flowers Scenic Valley',
     location: 'Govindghat, Chamoli',
@@ -148,6 +244,7 @@ export const HIKING_TRIPS = [
     rating: 4.8,
     reviewsCount: 98,
     price: 199,
+    pricingTiers: buildTieredPricing(199),
     difficulty: 'Moderate',
     durationDays: 5,
     availableSeats: 12,
@@ -225,6 +322,7 @@ export const HIKING_TRIPS = [
     rating: 4.7,
     reviewsCount: 76,
     price: 89,
+    pricingTiers: buildTieredPricing(89),
     difficulty: 'Easy',
     durationDays: 2,
     availableSeats: 15,
@@ -296,6 +394,7 @@ export const HIKING_TRIPS = [
     rating: 4.6,
     reviewsCount: 45,
     price: 129,
+    pricingTiers: buildTieredPricing(129),
     difficulty: 'Easy',
     durationDays: 3,
     availableSeats: 8,
@@ -366,6 +465,7 @@ export const HIKING_TRIPS = [
     rating: 4.9,
     reviewsCount: 34,
     price: 49,
+    pricingTiers: buildTieredPricing(49),
     difficulty: 'Easy',
     durationDays: 1,
     availableSeats: 20,
@@ -432,6 +532,7 @@ export const HIKING_TRIPS = [
     rating: 4.8,
     reviewsCount: 112,
     price: 159,
+    pricingTiers: buildTieredPricing(159),
     difficulty: 'Moderate',
     durationDays: 3,
     availableSeats: 4,

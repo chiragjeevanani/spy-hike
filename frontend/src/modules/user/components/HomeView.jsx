@@ -1,24 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Search, Bell, Star, MapPin, Sparkles, Flame, Mountain, Compass, Tent, Trees, CalendarDays, Heart, ChevronRight, X, Sun, Moon
+import {
+  Search, Bell, Star, MapPin, Sparkles, Heart, ChevronRight, X, Users
 } from 'lucide-react';
-import { CATEGORIES_LIST, PROMOTIONAL_BANNERS, TRENDING_DESTINATIONS } from '../data/trips';
+import { PROMOTIONAL_BANNERS, TRENDING_DESTINATIONS } from '../data/trips';
+import { groupTripsByTrekName } from '../utils/trekGroups';
 
 export default function HomeView({
   user,
   trips,
   wishlist,
   onToggleWishlist,
-  onSelectTrip,
+  onSelectTrek,
   onSwitchTab,
-  onApplyCategory,
   onApplySearch,
   notifications,
   onMarkNotificationRead,
   onClearNotifications,
-  darkMode,
-  onToggleDarkMode
+  darkMode
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activePromoIdx, setActivePromoIdx] = useState(0);
@@ -48,15 +47,14 @@ export default function HomeView({
     }
   };
 
-  const handleCategoryClick = (catName) => {
-    onApplyCategory(catName);
-    onSwitchTab('Explore');
-  };
-
   const handleDestinationClick = (destName) => {
     onApplySearch(destName);
     onSwitchTab('Explore');
   };
+
+  // One card per unique trek name — multiple organizers offering the same
+  // trek collapse into a single browsable entry (see utils/trekGroups.js).
+  const trekGroups = useMemo(() => groupTripsByTrekName(trips), [trips]);
 
   // AI-Style recommendation core logic:
   // Match hikes based on user fitness and hiking experience
@@ -64,35 +62,22 @@ export default function HomeView({
   // Intermediate -> Easy and Moderate hikes
   // Advanced -> Moderate and Difficult hikes
   const getSmartRecommendations = () => {
-    let experienceMatched = trips;
+    let experienceMatched = trekGroups;
     if (user.hikingExperience === 'Beginner') {
-      experienceMatched = trips.filter(t => t.difficulty === 'Easy');
+      experienceMatched = trekGroups.filter(g => g.representative.difficulty === 'Easy');
     } else if (user.hikingExperience === 'Intermediate') {
-      experienceMatched = trips.filter(t => t.difficulty === 'Easy' || t.difficulty === 'Moderate');
+      experienceMatched = trekGroups.filter(g => g.representative.difficulty === 'Easy' || g.representative.difficulty === 'Moderate');
     } else if (user.hikingExperience === 'Advanced') {
-      experienceMatched = trips.filter(t => t.difficulty === 'Moderate' || t.difficulty === 'Difficult');
+      experienceMatched = trekGroups.filter(g => g.representative.difficulty === 'Moderate' || g.representative.difficulty === 'Difficult');
     }
 
     // fallback to list all if none or empty
-    if (experienceMatched.length === 0) return trips.slice(0, 2);
+    if (experienceMatched.length === 0) return trekGroups.slice(0, 2);
     return experienceMatched.slice(0, 3);
   };
 
-  const recommendedTrips = getSmartRecommendations();
+  const recommendedTreks = getSmartRecommendations();
   const unreadNotifications = notifications.filter(n => !n.read);
-
-  // Categories helper icons mapping
-  const getCatIcon = (iconName) => {
-    switch (iconName) {
-      case 'Mountain': return <Mountain className="w-5 h-5" />;
-      case 'Compass': return <Compass className="w-5 h-5" />;
-      case 'Tent': return <Tent className="w-5 h-5" />;
-      case 'Flame': return <Flame className="w-5 h-5" />;
-      case 'Trees': return <Trees className="w-5 h-5" />;
-      case 'CalendarDays': return <CalendarDays className="w-5 h-5" />;
-      default: return <Compass className="w-5 h-5" />;
-    }
-  };
 
   return (
     <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-3 pb-4 ${
@@ -120,23 +105,8 @@ export default function HomeView({
           </div>
         </div>
 
-        {/* Header Actions: Toggle Theme + Bell Notify */}
+        {/* Header Actions: Bell Notify */}
         <div className="flex items-center gap-1.5">
-          {onToggleDarkMode && (
-            <button
-              id="btn-toggle-darkmode"
-              onClick={onToggleDarkMode}
-              className={`w-8 h-8 rounded-full flex items-center justify-center border active:scale-90 transition-all cursor-pointer ${
-                darkMode 
-                  ? 'bg-elegant-card border-white/5 text-[#F27D26] hover:bg-elegant-card/80' 
-                  : 'bg-white border-gray-200 text-forest-500 hover:bg-gray-50'
-              }`}
-              title="Toggle Dark Mode"
-            >
-              {darkMode ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-          )}
-
           {/* Bell Notify Button */}
           <button
             id="btn-bell-notifications"
@@ -181,39 +151,7 @@ export default function HomeView({
         </button>
       </form>
 
-      {/* 3. Horizontal Categories */}
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-2 text-xs">
-          <span className="font-display font-black uppercase tracking-wider opacity-85 text-[11px]">Curated Experiences</span>
-          <button onClick={() => onSwitchTab('Explore')} className="text-[9px] text-spy-orange font-bold flex items-center gap-0.5 hover:underline">
-            View All Explore
-          </button>
-        </div>
-        
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-0.5">
-          {CATEGORIES_LIST.map((cat, idx) => (
-            <motion.button
-              key={cat.id}
-              id={`cat-btn-${cat.id.replace(/\s+/g, '-').toLowerCase()}`}
-              onClick={() => handleCategoryClick(cat.id)}
-              initial={{ opacity: 0, x: 15 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.04, duration: 0.25 }}
-              whileTap={{ scale: 0.95 }}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap border shrink-0 transition-all cursor-pointer ${
-                darkMode 
-                  ? 'bg-elegant-card border-white/5 hover:bg-[#1C2520] text-white/70 hover:text-white' 
-                  : 'bg-white border-gray-100 hover:bg-zinc-50 text-zinc-700'
-              }`}
-            >
-              <span className={darkMode ? 'text-elegant-orange scale-90' : 'text-forest-500 scale-90'}>{getCatIcon(cat.icon)}</span>
-              {cat.label}
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
-      {/* 4. Promotional Banner Slider (Edge-to-Edge & Swipeable Carousel) */}
+      {/* 3. Promotional Banner Slider (Edge-to-Edge & Swipeable Carousel) */}
       <div className="mt-3 relative -mx-3 select-none">
         <div className="overflow-hidden relative aspect-[16/9] rounded-none">
           <AnimatePresence mode="wait">
@@ -262,7 +200,7 @@ export default function HomeView({
                     onClick={(e) => {
                       e.stopPropagation();
                       const correlatedTrip = trips.find(t => t.id === PROMOTIONAL_BANNERS[activePromoIdx].tripId);
-                      if (correlatedTrip) onSelectTrip(correlatedTrip);
+                      if (correlatedTrip) onSelectTrek(correlatedTrip.name);
                     }}
                     className="bg-white hover:bg-gray-100 text-forest-955 text-[8px] font-black py-1 px-2.5 rounded-md active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto"
                   >
@@ -299,11 +237,12 @@ export default function HomeView({
 
         {/* Carousel flex content wrapper */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar py-0.5">
-          {trips.map((trip, idx) => {
+          {trekGroups.map((group, idx) => {
+            const trip = group.representative;
             const isSaved = wishlist.includes(trip.id);
             return (
               <motion.div
-                key={trip.id}
+                key={group.trekName}
                 id={`popular-card-${trip.id}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -330,27 +269,32 @@ export default function HomeView({
                 </button>
 
                 {/* Cover visual segment */}
-                <div 
-                  onClick={() => onSelectTrip(trip)}
+                <div
+                  onClick={() => onSelectTrek(group.trekName)}
                   className="h-28 overflow-hidden cursor-pointer relative"
                 >
                   <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
                   <span className={`absolute bottom-1.5 left-1.5 text-[7px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full border ${
-                    trip.difficulty === 'Easy' 
-                      ? 'bg-green-500/90 text-white border-green-400' 
-                      : trip.difficulty === 'Moderate' 
+                    trip.difficulty === 'Easy'
+                      ? 'bg-green-500/90 text-white border-green-400'
+                      : trip.difficulty === 'Moderate'
                       ? 'bg-orange-500/90 text-white border-orange-400'
                       : 'bg-red-500/90 text-white border-red-400'
                   }`}>
                     {trip.difficulty}
                   </span>
+                  {group.organizerCount > 1 && (
+                    <span className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 text-[7px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full border bg-black/55 text-white border-white/20 backdrop-blur-xs">
+                      <Users size={7} /> {group.organizerCount}
+                    </span>
+                  )}
                 </div>
 
                 {/* Details segment */}
                 <div className="p-2 flex-1 flex flex-col justify-between">
                   <div>
-                    <h4 
-                      onClick={() => onSelectTrip(trip)}
+                    <h4
+                      onClick={() => onSelectTrek(group.trekName)}
                       className={`text-[11px] font-display font-extrabold line-clamp-1 cursor-pointer ${
                         darkMode ? 'hover:text-elegant-orange text-white' : 'hover:text-forest-500 text-zinc-800'
                       }`}
@@ -371,7 +315,7 @@ export default function HomeView({
                       {trip.rating} <span className="opacity-50 text-[8px]">({trip.reviewsCount})</span>
                     </div>
                     <div className="text-right">
-                      <span className={`text-[11px] font-extrabold ${darkMode ? 'text-[#F27D26]' : 'text-forest-650'}`}>₹{trip.price}</span>
+                      <span className={`text-[11px] font-extrabold ${darkMode ? 'text-[#F27D26]' : 'text-forest-650'}`}>From ₹{group.minPrice}</span>
                     </div>
                   </div>
                 </div>
@@ -409,35 +353,38 @@ export default function HomeView({
 
         {/* Recommendations list */}
         <div className="space-y-1.5">
-          {recommendedTrips.map((trip, idx) => (
-            <motion.div
-              key={`ai-${trip.id}`}
-              onClick={() => onSelectTrip(trip)}
-              whileHover={{ x: 3, scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.04, duration: 0.25 }}
-              className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-all ${
-                darkMode ? 'bg-elegant-app/60 hover:bg-elegant-app' : 'bg-white hover:bg-white shadow-xs'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <img src={trip.coverImage} alt="" className="w-8 h-8 rounded-md object-cover text-xs" />
-                <div>
-                  <h4 className="text-[11px] font-bold font-display line-clamp-1">{trip.name}</h4>
-                  <p className="text-[8px] text-zinc-500 flex items-center gap-0.5">
-                    <MapPin size={8} /> {trip.city}, {trip.state}
-                  </p>
+          {recommendedTreks.map((group, idx) => {
+            const trip = group.representative;
+            return (
+              <motion.div
+                key={`ai-${group.trekName}`}
+                onClick={() => onSelectTrek(group.trekName)}
+                whileHover={{ x: 3, scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.04, duration: 0.25 }}
+                className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-all ${
+                  darkMode ? 'bg-elegant-app/60 hover:bg-elegant-app' : 'bg-white hover:bg-white shadow-xs'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <img src={trip.coverImage} alt="" className="w-8 h-8 rounded-md object-cover text-xs" />
+                  <div>
+                    <h4 className="text-[11px] font-bold font-display line-clamp-1">{trip.name}</h4>
+                    <p className="text-[8px] text-zinc-500 flex items-center gap-0.5">
+                      <MapPin size={8} /> {trip.city}, {trip.state}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="text-right shrink-0">
-                <span className="text-[9px] font-extrabold text-[#F27D26] font-sans block">₹{trip.price}</span>
-                <span className="text-[7.5px] opacity-65 font-medium">{trip.durationDays} Days</span>
-              </div>
-            </motion.div>
-          ))}
+                <div className="text-right shrink-0">
+                  <span className="text-[9px] font-extrabold text-[#F27D26] font-sans block">From ₹{group.minPrice}</span>
+                  <span className="text-[7.5px] opacity-65 font-medium">{trip.durationDays} Days</span>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 

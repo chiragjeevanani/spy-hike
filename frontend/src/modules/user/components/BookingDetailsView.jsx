@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { 
-  ArrowLeft, Download, MessageSquare, Star, CalendarDays, Receipt, ShieldAlert 
+import {
+  ArrowLeft, Download, MessageSquare, Star, Receipt, ShieldAlert
 } from 'lucide-react';
+import TravelTicket from './TravelTicket';
+import { downloadTicketPDF } from '../utils/ticketPdf';
 
 export default function BookingDetailsView({
   booking,
@@ -64,37 +66,12 @@ export default function BookingDetailsView({
           </div>
         </div>
 
-        {/* Schedule & Information Details */}
-        <div className={`p-4 rounded-2xl border space-y-3.5 ${
-          darkMode ? 'bg-zinc-900/40 border-white/5' : 'bg-white border-zinc-200/60 shadow-xs'
-        }`}>
-          <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85">
-            Expedition Parameters
-          </h4>
-          
-          <div className="grid grid-cols-2 gap-3.5 text-xs pt-1">
-            <div className="space-y-1">
-              <span className="opacity-50 text-[10px] uppercase font-bold block">Departure Date</span>
-              <span className="font-semibold flex items-center gap-1">
-                <CalendarDays size={12} className="text-forest-500" /> {booking.selectedDate}
-              </span>
-            </div>
-            <div className="space-y-1">
-              <span className="opacity-50 text-[10px] uppercase font-bold block">Hikers Roster</span>
-              <span className="font-semibold">
-                {booking.travelersCount} Hiker(s) Registered
-              </span>
-            </div>
-            <div className="space-y-1">
-              <span className="opacity-50 text-[10px] uppercase font-bold block">Permit Reference</span>
-              <span className="font-mono font-bold">{booking.bookingId}</span>
-            </div>
-            <div className="space-y-1">
-              <span className="opacity-50 text-[10px] uppercase font-bold block">Organizer</span>
-              <span className="font-semibold">{booking.organizerName}</span>
-            </div>
-          </div>
-        </div>
+        {/* Boarding-pass style trek ticket */}
+        <TravelTicket
+          booking={booking}
+          darkMode={darkMode}
+          onDownload={() => downloadTicketPDF(booking)}
+        />
 
         {/* Settled Cost Receipt Sheet */}
         <div className={`p-4 rounded-2xl border space-y-3.5 ${
@@ -147,7 +124,7 @@ export default function BookingDetailsView({
               : 'border-zinc-200 hover:bg-zinc-50 text-zinc-650'
           }`}
         >
-          Invoice <Download size={10} />
+          Ticket PDF <Download size={10} />
         </button>
 
 

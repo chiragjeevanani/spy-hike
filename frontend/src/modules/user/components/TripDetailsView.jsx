@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, Heart, Star, MapPin, Milestone, TrendingUp, ShieldCheck, Users, 
@@ -17,6 +17,19 @@ export default function TripDetailsView({
   const [activeTab, setActiveTab] = useState('Overview');
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const galleryRef = useRef(null);
+
+  const scrollToImage = (idx) => {
+    const el = galleryRef.current;
+    if (el) el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' });
+  };
+
+  const handleGalleryScroll = () => {
+    const el = galleryRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    if (idx !== activeImageIdx) setActiveImageIdx(idx);
+  };
 
   const isSaved = wishlist.includes(trip.id);
 
@@ -59,25 +72,27 @@ export default function TripDetailsView({
         
         {/* 1. HERO BAR & IMAGE SLIDER */}
         <div className="h-72 relative shrink-0 overflow-hidden bg-zinc-950">
-          <AnimatePresence mode="wait">
-            <motion.img 
-              key={activeImageIdx}
-              src={trip.galleryImages[activeImageIdx]} 
-              alt={trip.name} 
-              initial={{ opacity: 0, scale: 1.05 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.3 }}
-              className="absolute inset-0 w-full h-full object-cover brightness-[0.7]" 
-            />
-          </AnimatePresence>
+          <div
+            ref={galleryRef}
+            onScroll={handleGalleryScroll}
+            className="absolute inset-0 flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+          >
+            {trip.galleryImages.map((img, idx) => (
+              <img
+                key={idx}
+                src={img}
+                alt={`${trip.name} photo ${idx + 1}`}
+                className="w-full h-full shrink-0 snap-center object-cover brightness-[0.7]"
+              />
+            ))}
+          </div>
 
           {/* Dot switcher indices */}
           <div className="absolute bottom-4 left-4 flex gap-1.5 z-20">
             {trip.galleryImages.map((_, idx) => (
               <button
                 key={idx}
-                onClick={() => setActiveImageIdx(idx)}
+                onClick={() => scrollToImage(idx)}
                 className={`h-1.5 rounded-full transition-all ${
                   idx === activeImageIdx ? 'w-5 bg-forest-500' : 'w-1.5 bg-white/60'
                 }`}
@@ -90,7 +105,7 @@ export default function TripDetailsView({
             {activeImageIdx + 1} / {trip.galleryImages.length} Photos
           </div>
           
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-transparent to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-transparent to-transparent pointer-events-none"></div>
         </div>
 
         {/* Small thumbnail strip selector */}
@@ -98,7 +113,7 @@ export default function TripDetailsView({
           {trip.galleryImages.map((img, idx) => (
             <button
               key={idx}
-              onClick={() => setActiveImageIdx(idx)}
+              onClick={() => scrollToImage(idx)}
               className={`w-12 h-12 rounded-lg shrink-0 overflow-hidden border transition ${
                 idx === activeImageIdx ? 'border-forest-500 scale-103 ring-2 ring-forest-500/20' : 'border-zinc-200 dark:border-white/10 opacity-60'
               }`}
@@ -172,6 +187,28 @@ export default function TripDetailsView({
             ))}
           </div>
         </div>
+
+        {/* 3.5. BATCH PRICING TIERS */}
+        {trip.pricingTiers && trip.pricingTiers.length > 0 && (
+          <div className="px-4 mt-3">
+            <h3 className="text-[10px] font-display font-bold uppercase tracking-wider opacity-70 mb-1.5">
+              Batch Pricing
+            </h3>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {trip.pricingTiers.map(tier => (
+                <div
+                  key={tier.id}
+                  className={`shrink-0 px-3 py-2 rounded-xl border ${
+                    darkMode ? 'bg-zinc-900/40 border-white/5' : 'bg-white shadow-xs border-zinc-100'
+                  }`}
+                >
+                  <span className="text-[9px] uppercase tracking-wide opacity-55 font-bold block whitespace-nowrap">{tier.label}</span>
+                  <span className={`text-xs font-black font-sans ${darkMode ? 'text-forest-400' : 'text-forest-650'}`}>₹{tier.price}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 4. TABS NAVIGATION PANEL */}
         <div className="mt-6 px-4">
@@ -432,7 +469,7 @@ export default function TripDetailsView({
       }`}>
         <div className="flex flex-col">
           <span className="text-[9px] uppercase tracking-wider opacity-60 font-bold block">
-            TOTAL BASE COST
+            STARTING FROM
           </span>
           <div className="flex items-baseline gap-1">
             <span className={`text-lg font-black font-sans ${darkMode ? 'text-forest-400' : 'text-forest-650'}`}>₹{trip.price}</span>
