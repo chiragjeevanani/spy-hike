@@ -87,10 +87,11 @@ export default function BookingFlow({
   const [showShareModal, setShowShareModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
 
-  // Available dates (simulated near future dates)
-  const availableDates = [
-    '2026-07-10', '2026-07-20', '2026-08-05', '2026-08-20', '2026-09-02'
-  ];
+  // Departure batch dates for this specific trip (falls back to simulated
+  // dates for records saved before per-trip departures existed)
+  const availableDates = trip.departureDates?.length
+    ? trip.departureDates
+    : ['2026-07-10', '2026-07-20', '2026-08-05', '2026-08-20', '2026-09-02'];
 
   // Sync travelers count with list array size
   useEffect(() => {

@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  ArrowLeft, Heart, Star, MapPin, Milestone, TrendingUp, ShieldCheck, Users, 
-  CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText
+import {
+  ArrowLeft, Heart, Star, MapPin, Milestone, TrendingUp, ShieldCheck, Users,
+  CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText, Bus
 } from 'lucide-react';
 
 export default function TripDetailsView({
@@ -167,6 +167,31 @@ export default function TripDetailsView({
               </div>
               <span className="text-[9px] opacity-50 block">{trip.reviewsCount} Reviews</span>
             </div>
+          </div>
+
+          {/* Boarding / pickup points supported by this organizer */}
+          <div className={`p-3.5 rounded-2xl ${darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs'}`}>
+            <span className="text-[10px] uppercase font-bold tracking-wider opacity-55 flex items-center gap-1.5">
+              <Bus size={13} className="text-forest-500" /> Pickup Available From
+            </span>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(trip.pickupPoints?.length
+                ? trip.pickupPoints
+                : [trip.city || trip.location?.split(',')[0]].filter(Boolean)
+              ).map(p => (
+                <span
+                  key={p}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                    darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
+                  }`}
+                >
+                  Ex-{p}
+                </span>
+              ))}
+            </div>
+            <p className={`text-[11px] leading-relaxed mt-2 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+              Board from any of these cities — transport to the trek base is arranged by the organizer.
+            </p>
           </div>
         </div>
 

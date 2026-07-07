@@ -32,6 +32,7 @@ export const groupTripsByTrekName = (trips) => {
     return {
       trekName,
       representative,
+      offers,
       organizerCount: offers.length,
       minPrice: Math.min(...prices),
       maxPrice: Math.max(...prices)

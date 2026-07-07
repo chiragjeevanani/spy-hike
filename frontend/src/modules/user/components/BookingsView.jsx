@@ -111,37 +111,39 @@ export default function BookingsView({
     setReviewRating(5);
   };
 
+  const statusPill = (status) =>
+    status === 'Upcoming'
+      ? (darkMode ? 'bg-emerald-950/40 text-emerald-400' : 'bg-emerald-100 text-emerald-700')
+      : status === 'Completed'
+      ? (darkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600')
+      : (darkMode ? 'bg-rose-950/40 text-rose-400' : 'bg-rose-100 text-rose-700');
+
   return (
-    <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
+    <div className={`flex-1 overflow-y-auto no-scrollbar font-sans px-5 pb-8 ${
       darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
-      
-      {/* 1. Header Segment */}
-      <div className={`p-4 border-b shrink-0 ${
-        darkMode ? 'bg-elegant-app border-white/5' : 'bg-white border-zinc-200/60'
-      }`}>
-        <h2 className="text-sm uppercase font-mono font-black tracking-widest text-[#F27D26]">
-          MY BOOKINGS DATABASE
-        </h2>
-        
-        {/* Sliding Tab select columns */}
-        <div className={`flex rounded-xl p-1 border justify-around mt-3 relative ${
-          darkMode ? 'bg-elegant-card border-white/5' : 'bg-gray-100 border-gray-200'
-        }`}>
+
+      {/* Header */}
+      <div className="pt-6">
+        <h1 className="font-serif text-4xl font-medium tracking-tight">Bookings</h1>
+        <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Your treks, past and upcoming</p>
+
+        {/* Segmented tabs */}
+        <div className={`flex rounded-full p-1 mt-5 relative ${darkMode ? 'bg-elegant-card' : 'bg-gray-100'}`}>
           {['Upcoming', 'Completed', 'Cancelled'].map(tab => (
             <button
               key={tab}
               id={`bookings-tab-${tab.toLowerCase()}`}
               onClick={() => setActiveTab(tab)}
-              className="flex-1 py-2 rounded-lg text-xs font-bold transition cursor-pointer relative"
+              className="flex-1 py-2.5 rounded-full text-sm font-semibold transition cursor-pointer relative"
             >
-              <span className={`relative z-20 transition-colors ${activeTab === tab ? 'text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
+              <span className={`relative z-20 transition-colors ${activeTab === tab ? 'text-white' : (darkMode ? 'text-zinc-400' : 'text-zinc-500')}`}>
                 {tab}
               </span>
               {activeTab === tab && (
                 <motion.div
                   layoutId="activeTabCapsule"
-                  className="absolute inset-0 bg-forest-600 rounded-lg shadow-xs"
+                  className="absolute inset-0 bg-forest-600 rounded-full shadow-sm"
                   style={{ zIndex: 10 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
@@ -151,68 +153,50 @@ export default function BookingsView({
         </div>
       </div>
 
-      {/* 2. Main list segment scroll */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-3">
-        
+      {/* List */}
+      <div className="mt-6 space-y-4">
         {filteredBookings.length === 0 ? (
-          <div className="text-center py-16">
-            <span className="text-4xl">🧭</span>
-            <h3 className="text-sm font-display font-black mt-3">Empty Roster History</h3>
-            <p className="text-xs text-zinc-500 mt-1 max-w-xs mx-auto">
-              There are no current bookings tagged under {activeTab.toUpperCase()}. Go to Explore to find mountains.
+          <div className="text-center py-20">
+            <CalendarDays size={44} className={`mx-auto ${darkMode ? 'text-zinc-700' : 'text-zinc-300'}`} />
+            <h3 className="font-serif text-2xl font-semibold mt-4">Nothing here yet</h3>
+            <p className={`text-sm mt-2 max-w-xs mx-auto leading-relaxed ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+              No {activeTab.toLowerCase()} treks. Head to Explore to find your next adventure.
             </p>
           </div>
         ) : (
-          filteredBookings.map((b, idx) => {
-            return (
-              <motion.div
-                key={b.id}
-                id={`booking-card-${b.bookingId.toLowerCase()}`}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
-                whileHover={{ y: -2, scale: 1.01 }}
-                onClick={() => onSelectBooking(b)}
-                className={`rounded-xl overflow-hidden p-2.5 flex gap-2.5 relative shadow-xs cursor-pointer transition ${
-                  darkMode ? 'bg-elegant-card hover:bg-elegant-card/85' : 'bg-white hover:bg-zinc-50'
-                }`}
-              >
-                {/* Image */}
-                <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 relative bg-zinc-800">
-                  <img src={b.tripImage} alt={b.tripName} className="w-full h-full object-cover" />
+          filteredBookings.map((b, idx) => (
+            <motion.div
+              key={b.id}
+              id={`booking-card-${b.bookingId.toLowerCase()}`}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
+              whileHover={{ y: -3 }}
+              onClick={() => onSelectBooking(b)}
+              className={`rounded-3xl overflow-hidden p-3 flex gap-3.5 shadow-md cursor-pointer ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+            >
+              <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0">
+                <img src={b.tripImage} alt={b.tripName} className="w-full h-full object-cover" />
+              </div>
+
+              <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                <div>
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="font-serif text-lg font-semibold leading-tight truncate">{b.tripName}</h3>
+                    <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full shrink-0 ${statusPill(b.status)}`}>
+                      {b.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className={`text-xs truncate mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.tripLocation}</p>
                 </div>
 
-                {/* Details header */}
-                <div className="flex-1 min-w-0 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start gap-1">
-                      <h4 className="text-[11px] font-display font-extrabold truncate">
-                        {b.tripName}
-                      </h4>
-                      <span className={`text-[9px] font-sans font-black tracking-wider px-2 py-0.5 rounded-md ${
-                        b.status === 'Upcoming'
-                          ? (darkMode ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40' : 'bg-emerald-100 text-emerald-800 border border-emerald-200')
-                          : b.status === 'Completed'
-                          ? (darkMode ? 'bg-zinc-900 text-zinc-400 border border-zinc-800' : 'bg-zinc-100 text-zinc-600 border border-zinc-200')
-                          : (darkMode ? 'bg-rose-950/40 text-rose-455 border border-rose-800/40' : 'bg-rose-100 text-rose-800 border border-rose-200')
-                      }`}>
-                        {b.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-[9px] text-zinc-500 truncate mt-0.5">{b.tripLocation}</p>
-                  </div>
-
-                  <div className={`flex justify-between items-center mt-1.5 pt-1.5 border-t text-[9px] ${
-                    darkMode ? 'border-white/5' : 'border-zinc-100'
-                  }`}>
-                    <span className="opacity-60 font-mono">Date: {b.selectedDate}</span>
-                    <span className={`font-sans font-black text-xs ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{b.finalAmount}</span>
-                  </div>
+                <div className={`flex justify-between items-center mt-2 pt-2 border-t ${darkMode ? 'border-white/5' : 'border-gray-100'}`}>
+                  <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{b.selectedDate}</span>
+                  <span className={`font-serif text-lg font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
                 </div>
-
-              </motion.div>
-            );
-          })
+              </div>
+            </motion.div>
+          ))
         )}
       </div>
 

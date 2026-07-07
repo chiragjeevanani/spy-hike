@@ -7,8 +7,15 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Search, SlidersHorizontal, Star, MapPin, ShieldCheck, Users,
-  Clock, Milestone, Heart, Sparkles, X, Check
+  Clock, Milestone, Heart, Sparkles, X, Check, Bus
 } from 'lucide-react';
+
+// Boarding cities this organizer picks travellers up from; older records
+// without the field fall back to the trek's base city.
+const getPickupPoints = (offer) =>
+  offer.pickupPoints?.length
+    ? offer.pickupPoints
+    : [offer.city || offer.location?.split(',')[0]].filter(Boolean);
 
 export default function TrekOrganizersView({
   trekName,
@@ -293,6 +300,23 @@ export default function TrekOrganizersView({
                         <span className={`w-1.5 h-1.5 rounded-full ${offer.availableSeats <= 5 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
                         {offer.availableSeats} seats left
                       </span>
+                    </div>
+
+                    {/* Boarding / pickup points this organizer supports */}
+                    <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
+                      <span className="text-[9px] uppercase font-bold tracking-wider opacity-45 flex items-center gap-1">
+                        <Bus size={11} className="text-forest-400" /> Pickup
+                      </span>
+                      {getPickupPoints(offer).map(p => (
+                        <span
+                          key={p}
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                            darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
+                          }`}
+                        >
+                          Ex-{p}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Batch pricing tier chips (falls back to a single rate for

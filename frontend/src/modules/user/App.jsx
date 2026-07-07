@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Map } from 'lucide-react';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
 import Onboarding from './components/Onboarding';
@@ -14,6 +15,7 @@ import WishlistView from './components/WishlistView';
 import ProfileView from './components/ProfileView';
 import BookingDetailsView from './components/BookingDetailsView';
 import OrganizerProfileView from './components/OrganizerProfileView';
+import MapView from './components/MapView';
 import LandingView from '../landing/LandingView';
 
 import {
@@ -169,6 +171,10 @@ export default function App() {
   const [trips, setTrips] = useState(() => loadTrips());
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
+  const [showMap, setShowMap] = useState(false);
+  // Hides the bottom nav while a tab renders a fullscreen flow (e.g. the
+  // "Become an Organizer" application form inside Profile).
+  const [navHidden, setNavHidden] = useState(false);
 
   // 2. Navigation registers initialized from URL
   const [activeTab, setActiveTab] = useState(() => getInitialStateFromUrl().tab);
@@ -181,6 +187,8 @@ export default function App() {
   // 3. Search & Filter dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState('');
   const [exploreCategory, setExploreCategory] = useState('All');
+  // Departure-date filter ('' = off) — set from the Home calendar, applied in Explore.
+  const [exploreDate, setExploreDate] = useState('');
 
   const navigateTo = (path, replace = false, currentUser = user) => {
     const url = toBrowserPath(path);
@@ -627,6 +635,7 @@ export default function App() {
             onSwitchTab={(tab) => navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`)}
             onApplyCategory={handleApplyCategoryFromHome}
             onApplySearch={handleApplySearchFromHome}
+            onApplyDate={setExploreDate}
             notifications={notifications}
             onMarkNotificationRead={handleMarkNotificationRead}
             onClearNotifications={handleClearNotifications}
@@ -645,6 +654,8 @@ export default function App() {
             onSetSearchQuery={setExploreSearchQuery}
             selectedCategory={exploreCategory}
             onSetCategory={setExploreCategory}
+            selectedDate={exploreDate}
+            onSetDate={setExploreDate}
             darkMode={darkMode}
           />
         );
@@ -684,6 +695,7 @@ export default function App() {
             userReviews={getUserDraftedReviews()}
             onTriggerOnboarding={handleTriggerOnboardingWalkthrough}
             bookings={bookings}
+            onFullscreenChange={setNavHidden}
           />
         );
       default:
@@ -876,8 +888,28 @@ export default function App() {
             </AnimatePresence>
           </div>
  
+          {/* Floating Map button — only on Home & Explore, icon-only, sits with a
+              clear gap above the glassmorphic nav. Hides while the map is open
+              (the map shows its own labelled "Map" pill). */}
+          <AnimatePresence>
+            {(activeTab === 'Home' || activeTab === 'Explore') && !showMap && (
+              <motion.button
+                id="btn-open-map"
+                onClick={() => setShowMap(true)}
+                aria-label="Open map"
+                initial={{ opacity: 0, scale: 0.8, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 8 }}
+                whileTap={{ scale: 0.9 }}
+                className="absolute left-0 right-0 mx-auto w-12 h-12 bottom-[96px] z-40 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 active:scale-95"
+              >
+                <Map size={20} />
+              </motion.button>
+            )}
+          </AnimatePresence>
+
           {/* Sticky bottom navigation system */}
-          <BottomNav
+          {!navHidden && <BottomNav
             activeTab={activeTab}
             onChangeTab={(tab) => {
               navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`);
@@ -885,12 +917,27 @@ export default function App() {
               if (tab !== 'Explore') {
                 setExploreSearchQuery('');
                 setExploreCategory('All');
+                setExploreDate('');
               }
             }}
             darkMode={darkMode}
             wishlistCount={wishlist.length}
-          />
- 
+          />}
+
+          {/* Full-screen map view (draggable list sheet over the map) */}
+          <AnimatePresence>
+            {showMap && (
+              <MapView
+                trips={trips}
+                wishlist={wishlist}
+                onToggleWishlist={handleToggleWishlist}
+                onSelectTrek={(trekName) => { setShowMap(false); navigateTo(`/trek/${slugifyTrekName(trekName)}`); }}
+                onClose={() => setShowMap(false)}
+                darkMode={darkMode}
+              />
+            )}
+          </AnimatePresence>
+
         </div>
       )}
  

@@ -4,3 +4,5 @@ temp_interactive_push.bat
 .DS_Store
 frontend/785z15.zip
 frontend/dump/
+# Added by code-review-graph
+.code-review-graph/

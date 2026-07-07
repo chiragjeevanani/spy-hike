@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
-  ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon
+  ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon,
+  Building2, CreditCard, Upload
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
 import TravelTicket from './TravelTicket';
+import SwitchTransition from './SwitchTransition';
 import { downloadTicketPDF } from '../utils/ticketPdf';
+
+// Mirrors Auth.jsx — the organizer panel runs as an independent mini-SPA with
+// its own session storage, so switching modules means seeding that store and
+// doing a hard navigation to /organizer.
+const ORG_USER_STORAGE_KEY = 'spyhike_org_user';
+const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play before handing off
 
 export default function ProfileView({
   user,
@@ -16,9 +24,17 @@ export default function ProfileView({
   onToggleDarkMode,
   userReviews,
   onTriggerOnboarding,
-  bookings = []
+  bookings = [],
+  onFullscreenChange
 }) {
   const [currentSub, setCurrentSub] = useState('MAIN');
+
+  // The partner application takes over the whole screen — ask the shell to
+  // hide the bottom nav while it's open (restored on back/unmount).
+  useEffect(() => {
+    if (onFullscreenChange) onFullscreenChange(currentSub === 'BECOME_ORGANIZER');
+    return () => { if (onFullscreenChange) onFullscreenChange(false); };
+  }, [currentSub, onFullscreenChange]);
 
   // Input bindings state
   const [profileName, setProfileName] = useState(user.name);
@@ -43,6 +59,14 @@ export default function ProfileView({
   const [ticketsList, setTicketsList] = useState([
     { id: 'TKT-998', title: 'Payment processed twice fail query', category: 'Payment Issue', status: 'Resolved', timestamp: '2026-06-12' }
   ]);
+
+  // Become an Organizer flow
+  const [orgSwitching, setOrgSwitching] = useState(false);
+  const [orgForm, setOrgForm] = useState({
+    agencyName: '', agencyWebsite: '', yearsExperience: '', bio: '',
+    govtIdType: 'Aadhaar', govtIdNumber: '', documentName: ''
+  });
+  const [orgFormError, setOrgFormError] = useState('');
 
   // Support Chat
   const [supportChats, setSupportChats] = useState([
@@ -111,10 +135,112 @@ export default function ProfileView({
     }, 1000);
   };
 
+  // Same handoff Auth.jsx performs for vetted organizers: seed the organizer
+  // module's own session storage, then hard-navigate to /organizer.
+  const redirectToOrganizerPanel = () => {
+    let existingOrg = {};
+    try {
+      const val = localStorage.getItem(ORG_USER_STORAGE_KEY);
+      if (val) existingOrg = JSON.parse(val);
+    } catch (e) {}
+
+    const orgUser = {
+      agencyName: user.name,
+      agencyWebsite: '',
+      govtIdType: 'Aadhaar',
+      govtIdNumber: '',
+      yearsExperience: 1,
+      bio: 'Verified Spy Hike organizer.',
+      verificationDocumentUrl: '',
+      rating: 4.8,
+      totalTrips: 0,
+      totalBookings: 0,
+      coreCapabilities: ['Certified Trek Leader'],
+      ...existingOrg,
+      isAuthenticated: true,
+      isOnboarded: true,
+      isApproved: true,
+      isPendingApproval: false,
+      name: user.name,
+      email: user.email,
+      mobile: user.mobile,
+      avatar: user.avatar,
+      rememberMe: true,
+    };
+    try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser)); } catch (e) {}
+    window.location.href = '/organizer';
+  };
+
+  // Plays the climb→camp flip, then either enters the organizer module
+  // (already-vetted accounts) or opens the partner application form.
+  const handleBecomeOrganizer = () => {
+    setOrgSwitching(true);
+    setTimeout(() => {
+      if (user.isOrganizer) {
+        redirectToOrganizerPanel();
+      } else {
+        setOrgSwitching(false);
+        setCurrentSub('BECOME_ORGANIZER');
+      }
+    }, ORGANIZER_TRANSITION_MS);
+  };
+
+  const handleSubmitOrgApplication = (e) => {
+    e.preventDefault();
+    if (!orgForm.agencyName.trim()) { setOrgFormError('Agency / company name is required.'); return; }
+    if (!orgForm.govtIdNumber.trim()) { setOrgFormError('Government ID number is required for verification.'); return; }
+    setOrgFormError('');
+
+    // Same pending-approval application shape OrgAuth registration produces —
+    // the organizer panel will greet them with the "under review" screen.
+    const application = {
+      isAuthenticated: true,
+      isOnboarded: true,
+      isApproved: false,
+      isPendingApproval: true,
+      name: user.name,
+      email: user.email,
+      mobile: user.mobile,
+      avatar: user.avatar,
+      agencyName: orgForm.agencyName.trim(),
+      agencyWebsite: orgForm.agencyWebsite.trim(),
+      govtIdType: orgForm.govtIdType,
+      govtIdNumber: orgForm.govtIdNumber.trim(),
+      yearsExperience: parseInt(orgForm.yearsExperience) || 1,
+      bio: orgForm.bio.trim(),
+      verificationDocumentUrl: orgForm.documentName,
+      rating: 0,
+      totalTrips: 0,
+      totalBookings: 0,
+      rememberMe: true,
+    };
+    try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(application)); } catch (e) {}
+
+    setOrgSwitching(true);
+    setTimeout(() => { window.location.href = '/organizer'; }, ORGANIZER_TRANSITION_MS);
+  };
+
+  // Shared sub-page styling — keeps every profile sub-screen on the same
+  // design language as the main profile / home redesign.
+  const subHeaderCls = `flex items-center gap-3 pb-3.5 border-b shrink-0 ${darkMode ? 'border-white/10' : 'border-zinc-200'}`;
+  const subBackBtnCls = `w-10 h-10 rounded-full border flex items-center justify-center active:scale-90 transition cursor-pointer shrink-0 shadow-sm ${
+    darkMode ? 'bg-elegant-card border-white/5 text-zinc-300' : 'bg-white border-gray-200 text-zinc-700'
+  }`;
+  const subTitleCls = 'font-serif text-xl font-semibold leading-tight';
+  const subLabelCls = 'text-xs font-bold uppercase tracking-wider opacity-60 block';
+  const subInputCls = `w-full text-sm px-4 py-3.5 border rounded-xl outline-hidden transition focus:border-forest-500 ${
+    darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+  }`;
+  const subPrimaryBtnCls = 'w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-2xl text-sm uppercase tracking-wide active:scale-[0.99] transition cursor-pointer';
+  const subCardCls = darkMode ? 'bg-elegant-card' : 'bg-white shadow-sm';
+
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
       darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
+
+      {/* Module-switch flip overlay (reused from the Auth role switch) */}
+      {orgSwitching && <SwitchTransition darkMode={darkMode} label="Switching to Organizer Panel" showScene />}
       
       {/* Dynamic Screen View State switcher rendering */}
       <AnimatePresence mode="wait">
@@ -129,40 +255,38 @@ export default function ProfileView({
           >
           
           {/* Quick profile header decoration */}
-          <div className={`p-4 text-center border-b flex flex-col items-center gap-1.5 ${
-            darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-gray-100'
-          }`}>
-            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-forest-500 shadow-lg relative select-none">
+          <div className="px-5 pt-8 pb-2 text-center flex flex-col items-center gap-2">
+            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-forest-500 shadow-lg relative select-none">
               <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
             </div>
 
             <div>
-              <h3 className="text-sm font-display font-black leading-tight flex items-center justify-center gap-1">
-                {user.name} <Award size={13} className="text-spy-orange fill-spy-orange/10" />
-              </h3>
-              <p className="text-[10px] opacity-65">{user.email}</p>
-              <span className="text-[9px] font-mono tracking-wider font-bold text-forest-505 dark:text-forest-400 uppercase mt-1.5 bg-forest-950/20 px-2 py-0.5 rounded-full inline-block border border-forest-800/10 dark:border-forest-800/40">
+              <h1 className="font-serif text-2xl font-semibold leading-tight flex items-center justify-center gap-1.5">
+                {user.name} <Award size={16} className="text-spy-orange fill-spy-orange/10" />
+              </h1>
+              <p className={`text-sm mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{user.email}</p>
+              <span className="text-xs tracking-wider font-bold text-forest-600 dark:text-forest-400 uppercase mt-2 bg-forest-500/10 px-3 py-1.5 rounded-full inline-block">
                 ⭐ {user.hikingExperience} Outdoorsman
               </span>
             </div>
           </div>
-          
+
           {/* Quick profile stats */}
-          <div className="px-3 pt-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-xs border ${
-                darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-105'
+          <div className="px-5 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
+                darkMode ? 'bg-elegant-card' : 'bg-white'
               }`}>
-                <span className="text-[9px] uppercase font-bold opacity-50 tracking-wider mb-1">Booked</span>
-                <span className="text-xs font-extrabold font-display text-forest-500">
+                <span className="text-xs uppercase font-bold opacity-50 tracking-wider mb-1.5">Booked</span>
+                <span className="font-serif text-xl font-semibold text-forest-600 dark:text-forest-400">
                   {bookings.length} {bookings.length === 1 ? 'Hike' : 'Hikes'}
                 </span>
               </div>
-              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-xs border ${
-                darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-105'
+              <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
+                darkMode ? 'bg-elegant-card' : 'bg-white'
               }`}>
-                <span className="text-[9px] uppercase font-bold opacity-50 tracking-wider mb-1">Distance</span>
-                <span className="text-xs font-extrabold font-display text-spy-orange">
+                <span className="text-xs uppercase font-bold opacity-50 tracking-wider mb-1.5">Distance</span>
+                <span className="font-serif text-xl font-semibold text-spy-orange">
                   {bookings.length * 16} Km
                 </span>
               </div>
@@ -170,115 +294,128 @@ export default function ProfileView({
           </div>
 
           {/* Configuration Sections Menu list */}
-          <div className="p-3 space-y-3">
-            
+          <div className="px-5 pt-5 space-y-6">
+
             {/* Group A: Personal stats */}
-            <div className="space-y-1">
-              <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Account & Bio</span>
-              
-              <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
+            <div className="space-y-2.5">
+              <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Account & Bio</span>
+
+              <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
                 
                 <button
                   onClick={() => setCurrentSub('EDIT_PERSONAL')}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <User size={14} className="text-forest-500" /> Personal Details
+                  <span className="flex items-center gap-3">
+                    <User size={19} className="text-forest-500" /> Personal Details
                   </span>
-                  <ChevronRight size={13} className="opacity-40" />
+                  <ChevronRight size={17} className="opacity-40" />
                 </button>
 
                 <button
                   onClick={() => setCurrentSub('EDIT_STATS')}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <Flame size={14} className="text-spy-orange" /> Athletics & Experience
+                  <span className="flex items-center gap-3">
+                    <Flame size={19} className="text-spy-orange" /> Athletics & Experience
                   </span>
-                  <ChevronRight size={13} className="opacity-40" />
+                  <ChevronRight size={17} className="opacity-40" />
                 </button>
 
                 <button
                   onClick={() => setCurrentSub('MY_REVIEWS')}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <MessageSquare size={14} className="text-forest-500" /> Verified Reviews ({userReviews.length})
+                  <span className="flex items-center gap-3">
+                    <MessageSquare size={19} className="text-forest-500" /> Verified Reviews ({userReviews.length})
                   </span>
-                  <ChevronRight size={13} className="opacity-40" />
+                  <ChevronRight size={17} className="opacity-40" />
+                </button>
+
+                <button
+                  id="btn-become-organizer"
+                  onClick={handleBecomeOrganizer}
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <Building2 size={19} className="text-spy-orange" /> Become an Organizer
+                  </span>
+                  <ChevronRight size={17} className="opacity-40" />
                 </button>
               </div>
             </div>
 
             {/* Group B: App preferences */}
-            <div className="space-y-1">
-              <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Help Center & Prefs</span>
-              
-              <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
+            <div className="space-y-2.5">
+              <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Help Center & Prefs</span>
+
+              <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
 
                 {/* Appearance / theme toggle */}
-                <div className={`w-full p-3 flex justify-between items-center text-xs font-bold border-b last:border-b-0 ${
+                <div className={`w-full px-4 py-3.5 flex justify-between items-center text-base font-semibold border-b last:border-b-0 ${
                   darkMode ? 'border-white/5' : 'border-gray-100'
                 }`}>
-                  <span className="flex items-center gap-2">
-                    {darkMode ? <Moon size={14} className="text-forest-500" /> : <Sun size={14} className="text-spy-orange" />} Appearance
+                  <span className="flex items-center gap-3">
+                    {darkMode ? <Moon size={19} className="text-forest-500" /> : <Sun size={19} className="text-spy-orange" />} Appearance
                   </span>
-                  <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} size="sm" />
+                  <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} />
                 </div>
 
                 <button
                   onClick={() => setCurrentSub('SETTINGS')}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <Shield size={14} className="text-forest-500" /> Preferences & Settings
+                  <span className="flex items-center gap-3">
+                    <Shield size={19} className="text-forest-500" /> Preferences & Settings
                   </span>
-                  <ChevronRight size={13} className="opacity-40" />
+                  <ChevronRight size={17} className="opacity-40" />
                 </button>
 
                 <button
                   onClick={() => setCurrentSub('SUPPORT')}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <HelpCircle size={14} className="text-forest-500" /> Support Desk & Tickets
+                  <span className="flex items-center gap-3">
+                    <HelpCircle size={19} className="text-forest-500" /> Support Desk & Tickets
                   </span>
-                  <ChevronRight size={13} className="opacity-40" />
+                  <ChevronRight size={17} className="opacity-40" />
                 </button>
 
                 <button
                   onClick={() => setCurrentSub('LIVE_CHAT_SUPPORT')}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <MessageSquare size={14} className="text-spy-orange" /> Helpdesk Live Chat
+                  <span className="flex items-center gap-3">
+                    <MessageSquare size={19} className="text-spy-orange" /> Helpdesk Live Chat
                   </span>
-                  <ChevronRight size={13} className="opacity-40" />
+                  <ChevronRight size={17} className="opacity-40" />
                 </button>
 
                 {/* Restart onboarding tutorial */}
                 <button
                   onClick={onTriggerOnboarding}
-                  className={`w-full p-3 flex justify-between items-center text-xs font-bold text-left border-b last:border-b-0 ${
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <Compass size={14} className="text-forest-500" /> Start Onboarding Guide
+                  <span className="flex items-center gap-3">
+                    <Compass size={19} className="text-forest-500" /> Start Onboarding Guide
                   </span>
-                  <Sparkles size={12} className="text-spy-orange animate-pulse" />
+                  <Sparkles size={16} className="text-spy-orange animate-pulse" />
                 </button>
               </div>
             </div>
@@ -288,8 +425,8 @@ export default function ProfileView({
               const upcomingBooking = bookings.find(b => b.status === 'Upcoming');
               if (upcomingBooking) {
                 return (
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Next Departure Ticket</span>
+                  <div className="space-y-2.5">
+                    <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Next Departure Ticket</span>
                     <TravelTicket
                       booking={upcomingBooking}
                       darkMode={darkMode}
@@ -300,8 +437,8 @@ export default function ProfileView({
                 );
               } else {
                 return (
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Ready For Next Hike?</span>
+                  <div className="space-y-2.5">
+                    <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Ready For Next Hike?</span>
                     <div className={`rounded-xl p-4 border relative overflow-hidden flex flex-col justify-between ${
                       darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-100 shadow-sm'
                     }`}>
@@ -309,10 +446,10 @@ export default function ProfileView({
                       <div className="absolute top-0 right-0 w-32 h-32 bg-spy-orange/5 rounded-full blur-2xl pointer-events-none" />
                       
                       <div className="relative z-10">
-                        <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-100 flex items-center gap-1.5 font-display">
-                          <Compass size={14} className="text-spy-orange" /> Find Your Next Summit
+                        <h4 className="text-base font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
+                          <Compass size={19} className="text-spy-orange" /> Find Your Next Summit
                         </h4>
-                        <p className="text-[10px] opacity-75 mt-1 leading-normal">
+                        <p className="text-sm opacity-75 mt-1.5 leading-relaxed">
                           Explore premium certified trails, real-time weather alerts, and coordinate with expert organizers.
                         </p>
                       </div>
@@ -323,9 +460,9 @@ export default function ProfileView({
                             window.history.pushState({ path: '/app/explore' }, '', '/app/explore');
                             window.dispatchEvent(new PopStateEvent('popstate'));
                           }}
-                          className="px-3.5 py-1.5 bg-forest-600 hover:bg-forest-700 text-white rounded-lg text-[9px] font-bold uppercase transition flex items-center gap-1 cursor-pointer"
+                          className="px-4 py-2.5 bg-forest-600 hover:bg-forest-700 text-white rounded-full text-xs font-bold uppercase transition flex items-center gap-1 cursor-pointer"
                         >
-                          Explore Trips <ChevronRight size={10} />
+                          Explore Trips <ChevronRight size={13} />
                         </button>
                       </div>
                     </div>
@@ -337,7 +474,7 @@ export default function ProfileView({
             {/* Logout actions */}
             <button
               onClick={onLogout}
-              className="w-full mt-3 py-3 rounded-xl text-center font-black bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 transition text-xs uppercase shadow-xs cursor-pointer"
+              className="w-full mt-3 py-4 rounded-2xl text-center font-bold bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 transition text-sm uppercase tracking-wide shadow-xs cursor-pointer"
             >
               Log Out Session
             </button>
@@ -354,78 +491,236 @@ export default function ProfileView({
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
             onSubmit={handleSavePersonalInfo}
-            className="flex-1 flex flex-col justify-between p-4"
+            className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
           >
-          <div className="space-y-4">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-zinc-800">
-              <button type="button" onClick={() => setCurrentSub('MAIN')} className="text-zinc-500 hover:text-zinc-300">
-                <ArrowLeft size={18} />
+          <div className="space-y-5">
+            <div className={subHeaderCls}>
+              <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+                <ArrowLeft size={17} />
               </button>
-              <h3 className="text-sm font-display font-black">Personal Info</h3>
+              <h3 className={subTitleCls}>Personal Info</h3>
             </div>
 
             {/* Name input */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-65">Full Name</label>
+            <div className="space-y-1.5">
+              <label className={subLabelCls}>Full Name</label>
               <input
                 type="text"
                 required
                 value={profileName}
                 onChange={e => setProfileName(e.target.value)}
-                className={`w-full text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-gray-250 text-zinc-900'
-                }`}
+                className={subInputCls}
               />
             </div>
 
             {/* Email input */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-65">Email Address</label>
+            <div className="space-y-1.5">
+              <label className={subLabelCls}>Email Address</label>
               <input
                 type="email"
                 required
                 value={profileEmail}
                 onChange={e => setProfileEmail(e.target.value)}
-                className={`w-full text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-gray-250 text-zinc-900'
-                }`}
+                className={subInputCls}
               />
             </div>
 
             {/* Phone input */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-65">Mobile Number</label>
+            <div className="space-y-1.5">
+              <label className={subLabelCls}>Mobile Number</label>
               <input
                 type="tel"
                 required
                 value={profileMobile}
                 onChange={e => setProfileMobile(e.target.value)}
-                className={`w-full text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-505 ${
-                  darkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-gray-250 text-zinc-900'
-                }`}
+                className={subInputCls}
               />
             </div>
 
             {/* Emergency Info */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-65">Emergency Coordinates (Name + Phone)</label>
+            <div className="space-y-1.5">
+              <label className={subLabelCls}>Emergency Coordinates (Name + Phone)</label>
               <input
                 type="text"
                 required
                 value={profileEmergency}
                 onChange={e => setProfileEmergency(e.target.value)}
-                className={`w-full text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-505 ${
-                  darkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-gray-250'
-                }`}
+                className={subInputCls}
               />
             </div>
           </div>
 
+          <button type="submit" className={subPrimaryBtnCls}>
+            Save Account Details
+          </button>
+          </motion.form>
+        )}
+
+        {/* SUB: BECOME AN ORGANIZER — partner application for accounts that
+            aren't vetted organizers yet (mirrors the OrgAuth signup fields) */}
+        {currentSub === 'BECOME_ORGANIZER' && (
+          <motion.form
+            key="BECOME_ORGANIZER"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 30 }}
+            transition={{ duration: 0.2 }}
+            onSubmit={handleSubmitOrgApplication}
+            // Full-screen overlay (covers the bottom nav) — applying to become
+            // a partner is a focused flow, not a tab-level screen.
+            className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar p-4 ${
+              darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
+            }`}
+          >
+          <div className="space-y-4 flex-1">
+            <div className={subHeaderCls}>
+              <button type="button" onClick={() => { setOrgFormError(''); setCurrentSub('MAIN'); }} className={subBackBtnCls}>
+                <ArrowLeft size={17} />
+              </button>
+              <h3 className={`${subTitleCls} flex items-center gap-2`}>
+                <Building2 size={19} className="text-spy-orange" /> Become an Organizer
+              </h3>
+            </div>
+
+            {/* Applicant identity comes from the signed-in account */}
+            <div className={`p-3.5 rounded-xl flex items-center gap-3 ${darkMode ? 'bg-zinc-900/60' : 'bg-white shadow-xs'}`}>
+              <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-forest-500" />
+              <div className="min-w-0">
+                <span className="text-sm font-bold block truncate">{user.name}</span>
+                <span className="text-xs opacity-60 block truncate">{user.email} · {user.mobile}</span>
+              </div>
+            </div>
+
+            <div className={`p-3.5 rounded-xl text-xs leading-relaxed flex gap-2 items-start ${
+              darkMode ? 'bg-spy-orange/10 border border-spy-orange/20 text-amber-300' : 'bg-amber-50 border border-amber-200 text-amber-700'
+            }`}>
+              <AlertCircle size={14} className="mt-0.5 shrink-0" />
+              <span>Your application and documents will be reviewed by our admin team within 24–48 hours. You'll be notified on approval.</span>
+            </div>
+
+            {/* Agency details */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Agency / Company Name *</label>
+              <input
+                type="text"
+                placeholder="e.g. Himalayan Guides Ltd"
+                value={orgForm.agencyName}
+                onChange={e => { setOrgForm({ ...orgForm, agencyName: e.target.value }); setOrgFormError(''); }}
+                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                }`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Website (Optional)</label>
+              <input
+                type="url"
+                placeholder="https://yourwebsite.com"
+                value={orgForm.agencyWebsite}
+                onChange={e => setOrgForm({ ...orgForm, agencyWebsite: e.target.value })}
+                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                }`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Years of Experience</label>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                placeholder="e.g. 5"
+                value={orgForm.yearsExperience}
+                onChange={e => setOrgForm({ ...orgForm, yearsExperience: e.target.value })}
+                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                }`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">About Your Agency</label>
+              <textarea
+                rows={3}
+                placeholder="Brief description of your services..."
+                value={orgForm.bio}
+                onChange={e => setOrgForm({ ...orgForm, bio: e.target.value })}
+                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden resize-none focus:border-forest-500 ${
+                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                }`}
+              />
+            </div>
+
+            {/* Verification */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Government ID Type</label>
+              <select
+                value={orgForm.govtIdType}
+                onChange={e => setOrgForm({ ...orgForm, govtIdType: e.target.value })}
+                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                  darkMode ? 'bg-elegant-card border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
+                }`}
+              >
+                <option value="Aadhaar">Aadhaar Card</option>
+                <option value="PAN">PAN Card</option>
+                <option value="GST">GST Certificate</option>
+                <option value="Passport">Passport</option>
+                <option value="TIN">Travel India License (TIN)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">ID Number *</label>
+              <div className="relative">
+                <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Enter your ID number"
+                  value={orgForm.govtIdNumber}
+                  onChange={e => { setOrgForm({ ...orgForm, govtIdNumber: e.target.value }); setOrgFormError(''); }}
+                  className={`w-full text-sm pl-10 pr-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                    darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Verification Document</label>
+              <label className={`w-full px-3.5 py-3 border border-dashed rounded-xl flex items-center gap-2.5 cursor-pointer text-sm ${
+                darkMode ? 'bg-zinc-900/50 border-zinc-700 text-zinc-400 hover:border-spy-orange/50' : 'bg-white border-gray-300 text-zinc-500 hover:border-spy-orange/60'
+              }`}>
+                <Upload size={16} className="text-spy-orange shrink-0" />
+                <span className="truncate">{orgForm.documentName || 'Upload ID / License (PDF or image)'}</span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={e => setOrgForm({ ...orgForm, documentName: e.target.files?.[0]?.name || '' })}
+                />
+              </label>
+            </div>
+
+            {orgFormError && (
+              <div className={`flex gap-2 items-center p-3 rounded-xl text-xs font-semibold ${
+                darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'
+              }`}>
+                <AlertCircle size={14} className="shrink-0" /> {orgFormError}
+              </div>
+            )}
+
+            <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+              By applying, you agree to Spy Hike's Partner Terms of Service. All ID information is encrypted and secure.
+            </p>
+          </div>
+
           <button
             type="submit"
-            className="w-full py-3.5 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-xl text-xs uppercase"
+            className="w-full mt-4 py-4 bg-spy-orange hover:bg-spy-orange-hover text-white font-bold rounded-2xl text-sm uppercase tracking-wide flex items-center justify-center gap-2 active:scale-[0.99] transition"
           >
-            Save Account Details
+            Submit Application <ChevronRight size={16} />
           </button>
           </motion.form>
         )}
@@ -439,33 +734,33 @@ export default function ProfileView({
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
             onSubmit={handleSaveStatsInfo}
-            className="flex-1 flex flex-col justify-between p-4"
+            className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
           >
           <div className="space-y-5">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-zinc-800">
-              <button type="button" onClick={() => setCurrentSub('MAIN')} className="text-zinc-500 hover:text-zinc-300">
-                <ArrowLeft size={18} />
+            <div className={subHeaderCls}>
+              <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+                <ArrowLeft size={17} />
               </button>
-              <h3 className="text-sm font-display font-black">Athletics, Experience & Level</h3>
+              <h3 className={subTitleCls}>Athletics & Experience</h3>
             </div>
-            
-            <p className="text-xs text-zinc-400">
+
+            <p className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
               These details construct the background parameters in our smart AI-Recommendation matrix systems:
             </p>
 
             {/* Hiking Experience toggles */}
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-65">Outdoors Hiking Experience</label>
+              <label className={subLabelCls}>Outdoors Hiking Experience</label>
               <div className="grid grid-cols-3 gap-2">
                 {['Beginner', 'Intermediate', 'Advanced'].map(lev => (
                   <button
                     key={lev}
                     type="button"
                     onClick={() => setHikeExperience(lev)}
-                    className={`py-3 rounded-xl text-xs font-bold border transition ${
+                    className={`py-3.5 rounded-xl text-sm font-semibold border transition cursor-pointer ${
                       hikeExperience === lev
-                        ? 'border-forest-500 bg-forest-950/20 text-white'
-                        : 'border-zinc-850 bg-zinc-900/30 text-zinc-400 hover:bg-zinc-900'
+                        ? 'border-forest-500 bg-forest-500/10 text-forest-600 dark:text-forest-400'
+                        : (darkMode ? 'border-white/10 bg-elegant-card text-zinc-400 hover:text-zinc-200' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-700 shadow-sm')
                     }`}
                   >
                     {lev}
@@ -476,17 +771,17 @@ export default function ProfileView({
 
             {/* Fitness Level toggles */}
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-65">Current Cardio Fitness Level</label>
+              <label className={subLabelCls}>Current Cardio Fitness Level</label>
               <div className="grid grid-cols-3 gap-2">
                 {['Low', 'Moderate', 'High'].map(fit => (
                   <button
                     key={fit}
                     type="button"
                     onClick={() => setFitLevel(fit)}
-                    className={`py-3 rounded-xl text-xs font-bold border transition ${
+                    className={`py-3.5 rounded-xl text-sm font-semibold border transition cursor-pointer ${
                       fitLevel === fit
-                        ? 'border-forest-505 bg-forest-950/20 text-white'
-                        : 'border-zinc-850 bg-zinc-900/40 text-zinc-450 hover:bg-zinc-900'
+                        ? 'border-forest-500 bg-forest-500/10 text-forest-600 dark:text-forest-400'
+                        : (darkMode ? 'border-white/10 bg-elegant-card text-zinc-400 hover:text-zinc-200' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-700 shadow-sm')
                     }`}
                   >
                     {fit}
@@ -496,10 +791,7 @@ export default function ProfileView({
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-3.5 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-xl text-xs uppercase"
-          >
+          <button type="submit" className={subPrimaryBtnCls}>
             Update Physical Stats
           </button>
           </motion.form>
@@ -513,43 +805,41 @@ export default function ProfileView({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 flex flex-col p-4 overflow-hidden"
+            className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
           >
-          <div className="flex items-center gap-2.5 pb-3 border-b border-zinc-805 shrink-0">
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className="text-zinc-500 hover:text-zinc-300">
-              <ArrowLeft size={18} />
+          <div className={subHeaderCls}>
+            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <ArrowLeft size={17} />
             </button>
-            <h3 className="text-sm font-display font-black">My Verified Comments</h3>
+            <h3 className={subTitleCls}>My Verified Comments</h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto no-scrollbar py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-4">
             {userReviews.length === 0 ? (
               <div className="text-center py-16">
                 <span className="text-5xl block">✍️</span>
-                <p className="text-xs text-zinc-500 mt-4 leading-normal px-6">
+                <p className={`text-sm mt-4 leading-relaxed px-6 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   You haven't filed trek reviews yet. Completed trips can be rated directly in My Bookings tabs.
                 </p>
               </div>
             ) : (
               userReviews.map((rev, i) => (
-                <div 
+                <div
                   key={i}
-                  className={`p-3 rounded-2xl space-y-2 ${
-                    darkMode ? 'bg-zinc-900/45' : 'bg-white shadow-sm'
-                  }`}
+                  className={`p-4 rounded-2xl space-y-2 ${subCardCls}`}
                 >
                   <div className="flex justify-between items-start gap-2">
                     <div>
-                      <h4 className="text-xs font-bold">{rev.tripName}</h4>
-                      <span className="text-[8px] opacity-40 font-mono block">Validated on {rev.date}</span>
+                      <h4 className="text-sm font-bold">{rev.tripName}</h4>
+                      <span className="text-[10px] opacity-45 font-mono block mt-0.5">Validated on {rev.date}</span>
                     </div>
 
                     <div className="flex gap-0.5 shrink-0 text-amber-400">
-                      {[...Array(rev.rating)].map((_, st) => <Star key={st} size={9} className="fill-amber-400" />)}
+                      {[...Array(rev.rating)].map((_, st) => <Star key={st} size={12} className="fill-amber-400" />)}
                     </div>
                   </div>
 
-                  <p className={`text-[11px] leading-relaxed opacity-95 ${darkMode ? 'text-zinc-300' : 'text-zinc-650'}`}>
+                  <p className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
                     "{rev.comment}"
                   </p>
                 </div>
@@ -567,46 +857,36 @@ export default function ProfileView({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 flex flex-col p-4 overflow-y-auto no-scrollbar pb-8 space-y-5"
+            className="flex-1 flex flex-col px-5 pt-4 overflow-y-auto no-scrollbar pb-8 space-y-5"
           >
-          <div className="flex items-center gap-2.5 pb-2 border-b border-zinc-850 shrink-0">
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className="text-zinc-500 hover:text-zinc-300">
-              <ArrowLeft size={18} />
+          <div className={subHeaderCls}>
+            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <ArrowLeft size={17} />
             </button>
-            <h3 className="text-sm font-display font-black">Preferences & Configurations</h3>
+            <h3 className={subTitleCls}>Preferences & Settings</h3>
           </div>
 
           {/* Setting 1: Theme toggle */}
-          <div className={`p-4 rounded-xl flex items-center justify-between ${
-            darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'
-          }`}>
+          <div className={`p-4 rounded-2xl flex items-center justify-between ${subCardCls}`}>
             <div>
-              <h4 className="text-xs font-bold">App Night Mode</h4>
-              <p className="text-[10px] text-zinc-550">Toggles premium twilight visuals</p>
+              <h4 className="text-[15px] font-semibold">App Night Mode</h4>
+              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Toggles premium twilight visuals</p>
             </div>
-            
-            <button
-              id="settings-tog-dark-mode"
-              onClick={onToggleDarkMode}
-              className={`w-12 h-6.5 rounded-full p-1 transition-colors ${darkMode ? 'bg-forest-600' : 'bg-gray-300'}`}
-            >
-              <div className={`w-4.5 h-4.5 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-[22px]' : 'translate-x-0'}`} />
-            </button>
+
+            <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} size="sm" />
           </div>
 
           {/* Setting 2: Language Selection */}
-          <div className={`p-4 rounded-xl space-y-2.5 ${
-            darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'
-          }`}>
+          <div className={`p-4 rounded-2xl space-y-3 ${subCardCls}`}>
             <div>
-              <h4 className="text-xs font-bold">Select Language</h4>
-              <p className="text-[10px] text-zinc-500">Local guides coordination translation default</p>
+              <h4 className="text-[15px] font-semibold">Select Language</h4>
+              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Local guides coordination translation default</p>
             </div>
             <select
               value={appLanguage}
               onChange={e => { setAppLanguage(e.target.value); alert(`Language settings applied: ${e.target.value}`); }}
-              className={`w-full text-xs px-2 py-2 border rounded-lg focus:border-forest-500 outline-hidden ${
-                darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+              className={`w-full text-sm px-3.5 py-3 border rounded-xl focus:border-forest-500 outline-hidden ${
+                darkMode ? 'bg-elegant-app border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
               }`}
             >
               <option value="English">English</option>
@@ -617,23 +897,21 @@ export default function ProfileView({
           </div>
 
           {/* Setting 3: Notification Preference */}
-          <div className={`p-4 rounded-xl space-y-3 ${
-            darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'
-          }`}>
-            <h4 className="text-xs font-bold">Push Notifications Preferences</h4>
-            
-            <div className="space-y-2">
+          <div className={`p-4 rounded-2xl space-y-3.5 ${subCardCls}`}>
+            <h4 className="text-[15px] font-semibold">Push Notifications Preferences</h4>
+
+            <div className="space-y-3">
               {[
                 { key: 'bookings', label: 'Booking Confirmation Notifications' },
                 { key: 'updates', label: 'Weather & Trail Safety Updates' },
                 { key: 'promo', label: 'Promotion Offer Bulletins' }
               ].map(pref => (
-                <label key={pref.key} className="flex items-center gap-2 text-xs cursor-pointer">
+                <label key={pref.key} className="flex items-center gap-2.5 text-sm cursor-pointer">
                   <input
                     type="checkbox"
                     checked={notifyState[pref.key]}
                     onChange={e => setNotifyState({ ...notifyState, [pref.key]: e.target.checked })}
-                    className="rounded accent-forest-650"
+                    className="w-4 h-4 rounded accent-forest-600"
                   />
                   {pref.label}
                 </label>
@@ -642,30 +920,24 @@ export default function ProfileView({
           </div>
 
           {/* Setting 4: Change Password simulation */}
-          <div className={`p-4 rounded-xl space-y-3 ${
-            darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'
-          }`}>
-            <h4 className="text-xs font-bold">Safely Change Password</h4>
-            
+          <div className={`p-4 rounded-2xl space-y-3 ${subCardCls}`}>
+            <h4 className="text-[15px] font-semibold">Safely Change Password</h4>
+
             <input
               type="password"
               placeholder="Current credentials"
               value={passwordState.current}
               onChange={e => setPasswordState({ ...passwordState, current: e.target.value })}
-              className={`w-full text-[11px] p-2 py-2.5 border rounded-lg focus:border-forest-500 outline-hidden ${
-                darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white'
-              }`}
+              className={subInputCls}
             />
             <input
               type="password"
               placeholder="New password (min 6 symbols)"
               value={passwordState.next}
               onChange={e => setPasswordState({ ...passwordState, next: e.target.value })}
-              className={`w-full text-[11px] p-2 py-2.5 border rounded-lg focus:border-forest-500 outline-hidden ${
-                darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white'
-              }`}
+              className={subInputCls}
             />
-            
+
             <button
               onClick={() => {
                 if (!passwordState.current || !passwordState.next) {
@@ -675,9 +947,9 @@ export default function ProfileView({
                 alert('Secret symbols updated successfully!');
                 setPasswordState({ current: '', next: '', confirm: '' });
               }}
-              className="w-full py-2 bg-forest-600 hover:bg-forest-700 text-white rounded-lg text-xs font-bold uppercase transition"
+              className="w-full py-3.5 bg-forest-600 hover:bg-forest-700 text-white rounded-xl text-sm font-bold uppercase tracking-wide transition cursor-pointer active:scale-[0.99]"
             >
-              Update symbols
+              Update Password
             </button>
           </div>
           </motion.div>
@@ -691,31 +963,29 @@ export default function ProfileView({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 flex flex-col p-4 overflow-hidden"
+            className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
           >
-          <div className="flex items-center gap-2.5 pb-2.5 border-b border-zinc-800 shrink-0">
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className="text-zinc-500 hover:text-zinc-300">
-              <ArrowLeft size={18} />
+          <div className={subHeaderCls}>
+            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <ArrowLeft size={17} />
             </button>
-            <h3 className="text-sm font-display font-black">Support Tickets Center</h3>
+            <h3 className={subTitleCls}>Support Tickets Center</h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto no-scrollbar py-4 space-y-5">
+          <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-6">
             {/* Create new ticket card form */}
-            <form onSubmit={handleRaiseTicketSubmit} className={`p-4 rounded-xl space-y-3 shrink-0 ${
-              darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs'
-            }`}>
-              <h4 className="text-xs font-bold text-forest-650 dark:text-forest-400 flex items-center gap-1">
-                <AlertCircle size={14} /> Raise Ticket / Report Issue
+            <form onSubmit={handleRaiseTicketSubmit} className={`p-4 rounded-2xl space-y-4 shrink-0 ${subCardCls}`}>
+              <h4 className="text-[15px] font-semibold text-forest-600 dark:text-forest-400 flex items-center gap-1.5">
+                <AlertCircle size={16} /> Raise Ticket / Report Issue
               </h4>
 
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase font-bold tracking-wider opacity-60">Category</label>
+              <div className="space-y-1.5">
+                <label className={subLabelCls}>Category</label>
                 <select
                   value={ticketCategory}
                   onChange={e => setTicketCategory(e.target.value)}
-                  className={`w-full text-xs px-2 py-2 border rounded-lg outline-hidden ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-gray-100 border-gray-200'
+                  className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                    darkMode ? 'bg-elegant-app border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
                   }`}
                 >
                   <option value="Booking Issue">Booking Coordinator Error</option>
@@ -725,23 +995,21 @@ export default function ProfileView({
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase font-bold tracking-wider opacity-60">Ticket Title</label>
+              <div className="space-y-1.5">
+                <label className={subLabelCls}>Ticket Title</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Coupon SPYHIKE20 dynamic logic error"
                   value={ticketTitle}
                   onChange={e => setTicketTitle(e.target.value)}
-                  className={`w-full text-[11px] p-2.5 border rounded-lg outline-hidden focus:border-forest-500 ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-white border-gray-200 text-zinc-900'
-                  }`}
+                  className={subInputCls}
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2 bg-spy-orange hover:bg-spy-orange-hover text-white text-xs font-bold rounded-lg uppercase transition cursor-pointer"
+                className="w-full py-3.5 bg-spy-orange hover:bg-spy-orange-hover text-white text-sm font-bold rounded-xl uppercase tracking-wide transition cursor-pointer active:scale-[0.99]"
               >
                 File Support Ticket
               </button>
@@ -749,25 +1017,23 @@ export default function ProfileView({
 
             {/* List existing tickets filed */}
             <div className="space-y-2.5">
-              <span className="text-[10px] uppercase font-bold tracking-widest opacity-50 block">RECENT TICKET ENQUIRIES</span>
-              
+              <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 block pl-1">Recent Ticket Enquiries</span>
+
               {ticketsList.map(t => (
-                <div 
+                <div
                   key={t.id}
-                  className={`p-3 rounded-xl flex items-center justify-between ${
-                    darkMode ? 'bg-zinc-900/20' : 'bg-white shadow-xs'
-                  }`}
+                  className={`p-4 rounded-2xl flex items-center justify-between ${subCardCls}`}
                 >
                   <div className="min-w-0 pr-2">
-                    <h5 className="text-[11px] font-bold truncate">{t.title}</h5>
-                    <div className="flex gap-2 text-[8px] opacity-50 mt-1">
+                    <h5 className="text-sm font-bold truncate">{t.title}</h5>
+                    <div className="flex gap-2 text-[11px] opacity-55 mt-1">
                       <span>Cat: {t.category}</span>
                       <span>•</span>
                       <span>Filed: {t.timestamp}</span>
                     </div>
                   </div>
 
-                  <span className={`text-[8px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full shrink-0 ${
+                  <span className={`text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full shrink-0 ${
                     t.status === 'Open'
                       ? 'bg-amber-500/15 text-amber-500'
                       : 'bg-emerald-500/15 text-emerald-500'
@@ -779,13 +1045,13 @@ export default function ProfileView({
             </div>
 
             {/* Support descriptive collapsible FAQs */}
-            <div className="space-y-2 pt-2 border-t border-zinc-805">
-              <span className="text-[10px] uppercase font-bold tracking-widest opacity-50 block">Support Desk FAQs</span>
-              <div className="text-[11px] space-y-1 text-zinc-400">
-                <p className="font-bold text-zinc-300">Q: How soon can I cancel my trek departure?</p>
-                <p className="leading-normal pb-2">A: Full booking refund settlements are executed up to 15 days before the departure slot.</p>
-                <p className="font-bold text-zinc-300">Q: Are park mountain permits physical documents?</p>
-                <p className="leading-normal">A: No, Spy Hike coordinates verified digital QR pass entries directly with forest control gates.</p>
+            <div className={`space-y-3 pt-4 border-t ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
+              <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 block pl-1">Support Desk FAQs</span>
+              <div className={`text-sm space-y-1.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: How soon can I cancel my trek departure?</p>
+                <p className="leading-relaxed pb-2">A: Full booking refund settlements are executed up to 15 days before the departure slot.</p>
+                <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: Are park mountain permits physical documents?</p>
+                <p className="leading-relaxed">A: No, Spy Hike coordinates verified digital QR pass entries directly with forest control gates.</p>
               </div>
             </div>
           </div>
@@ -800,30 +1066,32 @@ export default function ProfileView({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 flex flex-col p-4 overflow-hidden justify-between"
+            className="flex-1 flex flex-col px-5 pt-4 pb-4 overflow-hidden justify-between"
           >
-          
-          <div className="flex items-center justify-between pb-2 border-b border-zinc-800 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <button type="button" onClick={() => setCurrentSub('MAIN')} className="text-zinc-500 hover:text-zinc-300">
-                <ArrowLeft size={18} />
+
+          <div className={`flex items-center justify-between ${subHeaderCls}`}>
+            <div className="flex items-center gap-3 min-w-0">
+              <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+                <ArrowLeft size={17} />
               </button>
-              <div>
-                <h4 className="text-xs font-black font-display text-forest-650 dark:text-forest-400">Helpdesk Live Bot</h4>
-                <p className="text-[8px] text-emerald-400 block font-bold uppercase tracking-wider">Interactive Agent Online</p>
+              <div className="min-w-0">
+                <h4 className={subTitleCls}>Helpdesk Live Bot</h4>
+                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mt-0.5">Interactive Agent Online</p>
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => setCurrentSub('MAIN')}
-              className="w-7 h-7 rounded-full bg-zinc-800/10 dark:bg-zinc-850 flex items-center justify-center text-zinc-400"
+              className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition cursor-pointer ${
+                darkMode ? 'bg-white/5 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+              }`}
             >
-              <X size={15} />
+              <X size={16} />
             </button>
           </div>
 
           {/* Messages list stream scroll */}
-          <div className="flex-1 overflow-y-auto no-scrollbar py-4 space-y-3px px-1 space-y-3">
+          <div className="flex-1 overflow-y-auto no-scrollbar py-4 px-1 space-y-3">
             {supportChats.map((m, i) => {
               const isUser = m.sender === 'user';
               return (
@@ -831,13 +1099,13 @@ export default function ProfileView({
                   key={i}
                   className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`p-2.5 max-w-[80%] text-[11px] leading-relaxed rounded-2xl ${
+                  <div className={`px-4 py-3 max-w-[82%] text-sm leading-relaxed rounded-2xl ${
                     isUser
-                      ? 'bg-forest-600 text-white rounded-tr-none shadow-sm'
-                      : (darkMode ? 'bg-zinc-900 border border-zinc-850 text-zinc-350 rounded-tl-none' : 'bg-gray-150 text-zinc-800 rounded-tl-none')
+                      ? 'bg-forest-600 text-white rounded-tr-md shadow-sm'
+                      : (darkMode ? 'bg-elegant-card text-zinc-300 rounded-tl-md' : 'bg-white text-zinc-700 rounded-tl-md shadow-sm')
                   }`}>
                     <p>{m.text}</p>
-                    <span className="text-[7.5px] opacity-40 font-mono block text-right mt-1">
+                    <span className="text-[9px] opacity-45 font-mono block text-right mt-1.5">
                       {m.time}
                     </span>
                   </div>
@@ -847,22 +1115,22 @@ export default function ProfileView({
           </div>
 
           {/* Lower field inputs */}
-          <div className="pt-3 border-t border-zinc-800/10 dark:border-zinc-850 flex gap-2">
+          <div className={`pt-3 border-t flex gap-2 ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
             <input
               type="text"
-              placeholder="Specify query regarding reservations slots..."
+              placeholder="Specify query regarding reservations..."
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSendSupportMsg(); }}
-              className={`flex-1 text-xs px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-505 ${
-                darkMode ? 'bg-zinc-900 border-zinc-850 text-white' : 'bg-white border-gray-250'
+              className={`flex-1 text-sm px-4 py-3.5 border rounded-full outline-hidden transition focus:border-forest-500 ${
+                darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
               }`}
             />
             <button
               onClick={handleSendSupportMsg}
-              className="w-11 bg-forest-600 hover:bg-forest-700 text-white rounded-xl flex items-center justify-center active:scale-90 cursor-pointer"
+              className="w-12 h-12 shrink-0 bg-forest-600 hover:bg-forest-700 text-white rounded-full flex items-center justify-center active:scale-90 transition cursor-pointer shadow-sm"
             >
-              <Send size={14} />
+              <Send size={16} />
             </button>
           </div>
           </motion.div>

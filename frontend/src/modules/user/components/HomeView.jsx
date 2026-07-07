@@ -1,10 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, Bell, Star, MapPin, Sparkles, Heart, ChevronRight, X, Users
+  Search, Bell, Star, MapPin, Sparkles, Heart, ChevronRight, ChevronDown, X, Users, Mountain, ArrowUpRight, CalendarDays
 } from 'lucide-react';
 import { PROMOTIONAL_BANNERS, TRENDING_DESTINATIONS } from '../data/trips';
 import { groupTripsByTrekName } from '../utils/trekGroups';
+import LocationPicker from './LocationPicker';
+import TrekDatePicker from './TrekDatePicker';
+
+// Persisted chosen location (city / GPS). Google Maps API will later power the
+// live search + reverse-geocoding inside LocationPicker.
+const loadLocation = () => {
+  try {
+    const v = localStorage.getItem('spyhike_location');
+    if (v) return JSON.parse(v);
+  } catch (e) {}
+  return { label: 'India' };
+};
 
 export default function HomeView({
   user,
@@ -14,6 +26,7 @@ export default function HomeView({
   onSelectTrek,
   onSwitchTab,
   onApplySearch,
+  onApplyDate,
   notifications,
   onMarkNotificationRead,
   onClearNotifications,
@@ -22,6 +35,28 @@ export default function HomeView({
   const [searchQuery, setSearchQuery] = useState('');
   const [activePromoIdx, setActivePromoIdx] = useState(0);
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
+  const [location, setLocation] = useState(loadLocation);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Every date any organizer has a batch departing on — the calendar
+  // highlights these as pickable.
+  const availableDepartureDates = useMemo(
+    () => new Set(trips.flatMap(t => t.departureDates || [])),
+    [trips]
+  );
+
+  const handlePickDate = (dateStr) => {
+    setShowDatePicker(false);
+    if (onApplyDate) onApplyDate(dateStr);
+    if (dateStr) onSwitchTab('Explore');
+  };
+
+  const handleSelectLocation = (loc) => {
+    setLocation(loc);
+    try { localStorage.setItem('spyhike_location', JSON.stringify(loc)); } catch (e) {}
+    setShowLocationPicker(false);
+  };
 
   // Auto-cycle banner slides every 5 seconds
   useEffect(() => {
@@ -79,45 +114,56 @@ export default function HomeView({
   const recommendedTreks = getSmartRecommendations();
   const unreadNotifications = notifications.filter(n => !n.read);
 
+  // First trek headlines the "Featured trek" hero; the rest fill "Popular Treks".
+  const featured = trekGroups[0] || null;
+  const popularGroups = trekGroups.length > 1 ? trekGroups.slice(1) : trekGroups;
+
+  const difficultyPill = (difficulty) =>
+    difficulty === 'Easy'
+      ? 'bg-emerald-500 text-white'
+      : difficulty === 'Moderate'
+      ? 'bg-spy-orange text-white'
+      : 'bg-rose-500 text-white';
+
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-3 pb-4 ${
+    <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-5 pb-8 ${
       darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
       
-      {/* 1. Header Row */}
-      <div className="flex items-center justify-between pt-2.5 pb-2">
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => onSwitchTab('Profile')}
-            className={`w-9 h-9 rounded-full overflow-hidden border-2 shadow-md transform hover:scale-105 active:scale-95 cursor-pointer ${
-              darkMode ? 'border-elegant-green' : 'border-forest-500'
-            }`}
-          >
-            <img src={user.avatar} alt="User Avatar" className="w-full h-full object-cover" />
-          </button>
-          <div>
-            <span className="text-[9px] uppercase font-bold tracking-widest opacity-60 flex items-center gap-0.5">
-              🏔️ SPY HIKE ADVENTURER
-            </span>
-            <h2 className="text-xs font-display font-black leading-tight flex items-center gap-0.5">
-              Hi, {user.name ? user.name.split(' ')[0] : 'Explorer'} <span className="animate-bounce">👋</span>
-            </h2>
+      {/* 1. Brand header */}
+      <div className="flex items-center justify-between pt-5 pb-1 gap-2">
+        <button onClick={() => onSwitchTab('Profile')} className="flex items-center gap-2 cursor-pointer active:scale-95 transition min-w-0">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm shrink-0 ${darkMode ? 'bg-elegant-green' : 'bg-forest-600'}`}>
+            <Mountain size={18} className="text-white" />
           </div>
-        </div>
+          <span className="text-lg font-serif font-semibold tracking-tight truncate">Spy Hike</span>
+        </button>
 
-        {/* Header Actions: Bell Notify */}
-        <div className="flex items-center gap-1.5">
-          {/* Bell Notify Button */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Location selector */}
           <button
-            id="btn-bell-notifications"
-            onClick={() => setShowNotificationDrawer(true)}
-            className={`w-8 h-8 rounded-full flex items-center justify-center border relative active:scale-90 cursor-pointer ${
+            id="btn-location"
+            onClick={() => setShowLocationPicker(true)}
+            className={`flex items-center gap-1 pl-2.5 pr-2 py-2 rounded-full border relative active:scale-95 cursor-pointer shadow-sm ${
               darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-gray-200'
             }`}
           >
-            <Bell size={15} className={darkMode ? 'text-[#E0E5E2]/80' : 'text-zinc-650'} />
+            <MapPin size={14} className="text-spy-orange shrink-0" />
+            <span className="text-xs font-semibold truncate max-w-[58px]">{(location?.label || 'India').split(',')[0]}</span>
+            <ChevronDown size={12} className="opacity-50 shrink-0" />
+          </button>
+
+          {/* Bell / notifications */}
+          <button
+            id="btn-bell-notifications"
+            onClick={() => setShowNotificationDrawer(true)}
+            className={`w-10 h-10 rounded-full flex items-center justify-center border relative active:scale-90 cursor-pointer shadow-sm ${
+              darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-gray-200'
+            }`}
+          >
+            <Bell size={17} className={darkMode ? 'text-[#E0E5E2]/80' : 'text-zinc-700'} />
             {unreadNotifications.length > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-spy-orange text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white dark:border-elegant-app">
+              <span className="absolute top-1 right-1 w-4 h-4 bg-spy-orange text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white dark:border-elegant-app">
                 {unreadNotifications.length}
               </span>
             )}
@@ -125,35 +171,51 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 2. Search Section */}
-      <form onSubmit={handleSearchSubmit} className="mt-1 relative">
-        <input
-          type="text"
-          id="search-input-box"
-          placeholder="Search hikes, mountains, destinations..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className={`w-full text-xs pl-8 pr-12 py-2.5 rounded-xl outline-hidden border transition-all shadow-xs ${
-            darkMode 
-              ? 'bg-elegant-card border-white/5 focus:border-elegant-green text-white placeholder-white/30' 
-              : 'bg-white border-gray-200 focus:bg-white text-zinc-800 placeholder-zinc-450 focus:border-forest-500'
-          }`}
-        />
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 dark:text-white/30 text-zinc-500" size={13} />
-        
+      {/* 2. Serif hero */}
+      <div className="mt-5">
+        <h1 className="font-serif text-[2.6rem] leading-[1.02] font-medium tracking-tight">
+          Find your next<br />
+          <span className={darkMode ? 'text-elegant-orange' : 'text-forest-500'}>raw adventure</span>
+        </h1>
+        <p className={`mt-3.5 text-sm leading-relaxed max-w-[88%] ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+          Handpicked Himalayan treks and wild trails across the country.
+        </p>
+      </div>
+
+      {/* 3. Search + departure-date calendar */}
+      <div className="mt-6 flex items-stretch gap-2.5">
+        <form onSubmit={handleSearchSubmit} className="relative flex-1">
+          <Search className={`absolute left-5 top-1/2 -translate-y-1/2 ${darkMode ? 'text-white/40' : 'text-zinc-400'}`} size={18} />
+          <input
+            type="text"
+            id="search-input-box"
+            placeholder="Search treks, peaks, valleys…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className={`w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border transition-all shadow-sm ${
+              darkMode
+                ? 'bg-elegant-card border-white/5 focus:border-elegant-green text-white placeholder-white/35'
+                : 'bg-white border-gray-200/80 focus:border-forest-500 text-zinc-800 placeholder-zinc-400'
+            }`}
+          />
+        </form>
+
+        {/* Filter treks by departure date */}
         <button
-          type="submit"
-          className={`absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold px-2.5 py-1.2 rounded-lg cursor-pointer ${
-            darkMode ? 'bg-elegant-green text-white hover:bg-forest-605' : 'bg-forest-600 hover:bg-forest-700 text-white'
+          id="btn-open-date-filter"
+          onClick={() => setShowDatePicker(true)}
+          aria-label="Filter treks by date"
+          className={`w-[52px] shrink-0 rounded-full border shadow-sm flex items-center justify-center active:scale-95 transition cursor-pointer ${
+            darkMode ? 'bg-elegant-card border-white/5 text-elegant-orange' : 'bg-white border-gray-200/80 text-forest-600'
           }`}
         >
-          Search
+          <CalendarDays size={20} />
         </button>
-      </form>
+      </div>
 
-      {/* 3. Promotional Banner Slider (Edge-to-Edge & Swipeable Carousel) */}
-      <div className="mt-3 relative -mx-3 select-none">
-        <div className="overflow-hidden relative aspect-[16/9] rounded-none">
+      {/* 4. Promotional carousel — sits where a stats bar would, as a rounded card */}
+      <div className="mt-6 relative select-none">
+        <div className="overflow-hidden relative aspect-[16/10] rounded-3xl shadow-lg">
           <AnimatePresence mode="wait">
             <motion.div
               key={activePromoIdx}
@@ -163,10 +225,8 @@ export default function HomeView({
               onDragEnd={(e, info) => {
                 const swipeThreshold = 50;
                 if (info.offset.x < -swipeThreshold) {
-                  // Swiped left -> next slide
                   setActivePromoIdx(prev => (prev + 1) % PROMOTIONAL_BANNERS.length);
                 } else if (info.offset.x > swipeThreshold) {
-                  // Swiped right -> previous slide
                   setActivePromoIdx(prev => (prev - 1 + PROMOTIONAL_BANNERS.length) % PROMOTIONAL_BANNERS.length);
                 }
               }}
@@ -176,147 +236,149 @@ export default function HomeView({
               transition={{ duration: 0.25 }}
               className="absolute inset-0 cursor-grab active:cursor-grabbing"
             >
-              <img 
-                src={PROMOTIONAL_BANNERS[activePromoIdx].img} 
-                alt={PROMOTIONAL_BANNERS[activePromoIdx].title} 
-                className="w-full h-full object-cover brightness-[0.7] dark:brightness-[0.6] pointer-events-none"
+              <img
+                src={PROMOTIONAL_BANNERS[activePromoIdx].img}
+                alt={PROMOTIONAL_BANNERS[activePromoIdx].title}
+                className="w-full h-full object-cover brightness-[0.72] pointer-events-none"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-zinc-950/30 to-transparent p-4 flex flex-col justify-between">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-5 flex flex-col justify-between">
                 <div>
-                  <span className="bg-spy-orange text-white font-mono text-[7px] font-black tracking-widest px-1.5 py-0.2 rounded-full uppercase">
+                  <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase">
                     {PROMOTIONAL_BANNERS[activePromoIdx].tag}
                   </span>
-                  <h3 className="text-sm font-display font-black text-white mt-1 leading-tight">
+                </div>
+                <div>
+                  <h3 className="text-lg font-serif font-semibold text-white leading-tight">
                     {PROMOTIONAL_BANNERS[activePromoIdx].title}
                   </h3>
-                  <p className="text-[9px] text-zinc-205/90">{PROMOTIONAL_BANNERS[activePromoIdx].subtitle}</p>
-                </div>
-
-                <div className="flex justify-between items-end">
-                  <span className="text-[10px] font-bold text-emerald-400 font-mono">
-                    Code: {PROMOTIONAL_BANNERS[activePromoIdx].code} ({PROMOTIONAL_BANNERS[activePromoIdx].discount})
-                  </span>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const correlatedTrip = trips.find(t => t.id === PROMOTIONAL_BANNERS[activePromoIdx].tripId);
-                      if (correlatedTrip) onSelectTrek(correlatedTrip.name);
-                    }}
-                    className="bg-white hover:bg-gray-100 text-forest-955 text-[8px] font-black py-1 px-2.5 rounded-md active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto"
-                  >
-                    Claim Now
-                  </button>
+                  <p className="text-xs text-white/80 mt-0.5">{PROMOTIONAL_BANNERS[activePromoIdx].subtitle}</p>
+                  <div className="flex justify-between items-center mt-3">
+                    <span className="text-xs font-bold text-emerald-300 font-mono">
+                      Code: {PROMOTIONAL_BANNERS[activePromoIdx].code} ({PROMOTIONAL_BANNERS[activePromoIdx].discount})
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const correlatedTrip = trips.find(t => t.id === PROMOTIONAL_BANNERS[activePromoIdx].tripId);
+                        if (correlatedTrip) onSelectTrek(correlatedTrip.name);
+                      }}
+                      className="bg-white hover:bg-gray-100 text-forest-700 text-[11px] font-bold py-1.5 px-3.5 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto"
+                    >
+                      Claim Now
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* Dots spacer */}
-        <div className="flex justify-center gap-1 mt-1.5">
+        {/* Dots */}
+        <div className="flex justify-center gap-1.5 mt-3">
           {PROMOTIONAL_BANNERS.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setActivePromoIdx(idx)}
-              className={`h-1 rounded-full transition-all ${
-                idx === activePromoIdx ? 'w-3 bg-forest-500' : 'w-1 bg-zinc-600'
+              className={`h-1.5 rounded-full transition-all ${
+                idx === activePromoIdx ? 'w-5 bg-forest-500' : `w-1.5 ${darkMode ? 'bg-white/25' : 'bg-zinc-300'}`
               }`}
             />
           ))}
         </div>
       </div>
 
-      {/* 5. Popular Trips Carousel */}
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-2 text-xs">
-          <span className="font-display font-black uppercase tracking-wider opacity-85 text-[11px]">Popular Hiking Expeditions</span>
-          <button onClick={() => onSwitchTab('Explore')} className="text-[9px] text-spy-orange font-bold flex items-center gap-0.5 hover:underline">
-            See All <ChevronRight size={11} />
+      {/* 5. Featured trek */}
+      {featured && (
+        <div className="mt-8">
+          <h2 className="font-serif text-2xl font-medium tracking-tight mb-3.5">Featured trek</h2>
+          <motion.div
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => onSelectTrek(featured.trekName)}
+            className="relative rounded-3xl overflow-hidden cursor-pointer shadow-lg aspect-[5/4]"
+          >
+            <img src={featured.representative.coverImage} alt={featured.representative.name} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-5">
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${difficultyPill(featured.representative.difficulty)}`}>
+                {featured.representative.difficulty}
+              </span>
+              <h3 className="font-serif text-2xl font-semibold text-white leading-tight mt-2">
+                {featured.representative.name}
+              </h3>
+              <p className="text-sm text-white/80 mt-1">
+                {featured.representative.location} · {featured.representative.durationDays} Days
+              </p>
+            </div>
+            <div className="absolute bottom-5 right-5 w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-md">
+              <ArrowUpRight size={20} className="text-forest-700" />
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* 6. Popular Treks — spacious full-width cards */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3.5">
+          <h2 className="font-serif text-2xl font-medium tracking-tight">Popular Treks</h2>
+          <button onClick={() => onSwitchTab('Explore')} className="text-sm text-spy-orange font-semibold flex items-center gap-0.5 hover:underline">
+            View all <ChevronRight size={15} />
           </button>
         </div>
 
-        {/* Carousel flex content wrapper */}
-        <div className="flex gap-3 overflow-x-auto no-scrollbar py-0.5">
-          {trekGroups.map((group, idx) => {
+        <div className="space-y-5">
+          {popularGroups.map((group, idx) => {
             const trip = group.representative;
             const isSaved = wishlist.includes(trip.id);
             return (
               <motion.div
                 key={group.trekName}
                 id={`popular-card-${trip.id}`}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.06, duration: 0.35 }}
-                whileHover={{ y: -4, scale: 1.01 }}
-                className={`w-[180px] shrink-0 rounded-xl overflow-hidden flex flex-col relative transition shadow-xs hover:shadow-sm ${
-                  darkMode ? 'bg-elegant-card' : 'bg-white'
-                }`}
+                transition={{ delay: idx * 0.05, duration: 0.3 }}
+                whileHover={{ y: -3 }}
+                onClick={() => onSelectTrek(group.trekName)}
+                className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
               >
-                {/* Wishlist toggle absolute floating helper */}
-                <button
-                  id={`btn-toggle-wishlist-popular-${trip.id}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleWishlist(trip.id);
-                  }}
-                  className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center border backdrop-blur-md z-15 active:scale-90 transition ${
-                    isSaved
-                      ? 'bg-rose-500 border-rose-500 text-white'
-                      : 'bg-black/30 border-white/20 text-white hover:bg-black/50'
-                  }`}
-                >
-                  <Heart size={12} fill={isSaved ? 'white' : 'none'} />
-                </button>
-
-                {/* Cover visual segment */}
-                <div
-                  onClick={() => onSelectTrek(group.trekName)}
-                  className="h-28 overflow-hidden cursor-pointer relative"
-                >
+                {/* Cover */}
+                <div className="relative h-44 overflow-hidden">
                   <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
-                  <span className={`absolute bottom-1.5 left-1.5 text-[7px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full border ${
-                    trip.difficulty === 'Easy'
-                      ? 'bg-green-500/90 text-white border-green-400'
-                      : trip.difficulty === 'Moderate'
-                      ? 'bg-orange-500/90 text-white border-orange-400'
-                      : 'bg-red-500/90 text-white border-red-400'
-                  }`}>
+                  <span className={`absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${difficultyPill(trip.difficulty)}`}>
                     {trip.difficulty}
                   </span>
+                  <button
+                    id={`btn-toggle-wishlist-popular-${trip.id}`}
+                    onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
+                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition ${
+                      isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
+                    }`}
+                  >
+                    <Heart size={16} fill={isSaved ? 'white' : 'none'} />
+                  </button>
                   {group.organizerCount > 1 && (
-                    <span className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 text-[7px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full border bg-black/55 text-white border-white/20 backdrop-blur-xs">
-                      <Users size={7} /> {group.organizerCount}
+                    <span className="absolute bottom-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-black/55 text-white backdrop-blur-xs">
+                      <Users size={11} /> {group.organizerCount} organizers
                     </span>
                   )}
                 </div>
 
-                {/* Details segment */}
-                <div className="p-2 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h4
-                      onClick={() => onSelectTrek(group.trekName)}
-                      className={`text-[11px] font-display font-extrabold line-clamp-1 cursor-pointer ${
-                        darkMode ? 'hover:text-elegant-orange text-white' : 'hover:text-forest-500 text-zinc-800'
-                      }`}
-                    >
-                      {trip.name}
-                    </h4>
-                    <p className="text-[9px] text-zinc-400 dark:text-zinc-500 flex items-center gap-0.5 mt-0.5">
-                      <MapPin size={9} className="text-[#F27D26] shrink-0" />
+                {/* Details */}
+                <div className="p-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-serif text-lg font-semibold leading-tight truncate">{trip.name}</h3>
+                    <p className={`text-xs flex items-center gap-1 mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      <MapPin size={12} className="text-spy-orange shrink-0" />
                       {trip.location}
                     </p>
+                    <div className="flex items-center gap-1 text-xs font-bold mt-2">
+                      <Star size={12} className="text-amber-400 fill-amber-400" />
+                      {trip.rating} <span className="opacity-50 font-medium">({trip.reviewsCount})</span>
+                    </div>
                   </div>
-
-                  <div className={`flex items-center justify-between mt-2 pt-1.5 border-t ${
-                    darkMode ? 'border-white/5' : 'border-zinc-100'
-                  }`}>
-                    <div className="flex items-center gap-0.5 text-[9px] font-bold">
-                      <Star size={9} className="text-amber-400 fill-amber-400" />
-                      {trip.rating} <span className="opacity-50 text-[8px]">({trip.reviewsCount})</span>
-                    </div>
-                    <div className="text-right">
-                      <span className={`text-[11px] font-extrabold ${darkMode ? 'text-[#F27D26]' : 'text-forest-650'}`}>From ₹{group.minPrice}</span>
-                    </div>
+                  <div className="text-right shrink-0">
+                    <span className={`block text-[10px] uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>From</span>
+                    <span className={`text-lg font-bold ${darkMode ? 'text-elegant-orange' : 'text-forest-600'}`}>₹{group.minPrice}</span>
                   </div>
                 </div>
               </motion.div>
@@ -325,10 +387,10 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 6. AI Recommendations System Block */}
-      <div className={`mt-4 rounded-xl p-3 relative overflow-hidden backdrop-blur-md ${
-        darkMode 
-          ? 'bg-gradient-to-tr from-elegant-card to-elegant-app' 
+      {/* 7. AI Recommendations System Block */}
+      <div className={`mt-8 rounded-3xl p-4 relative overflow-hidden backdrop-blur-md ${
+        darkMode
+          ? 'bg-gradient-to-tr from-elegant-card to-elegant-app'
           : 'bg-gradient-to-tr from-white to-forest-50'
       }`}>
         
@@ -388,13 +450,11 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 7. Trending Destinations Grid */}
-      <div className="mt-4">
-        <h4 className="font-display font-black uppercase text-[11px] tracking-wider opacity-85 mb-2">
-          Trending Destinations
-        </h4>
+      {/* 8. Trending Destinations Grid */}
+      <div className="mt-8">
+        <h2 className="font-serif text-2xl font-medium tracking-tight mb-3.5">Trending destinations</h2>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-3">
           {TRENDING_DESTINATIONS.map((dest, idx) => (
             <motion.div
               key={dest.id}
@@ -404,30 +464,58 @@ export default function HomeView({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.04, duration: 0.25 }}
-              className="h-20 rounded-xl overflow-hidden relative group cursor-pointer shadow-xs"
+              className="h-28 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
             >
               <img src={dest.img} alt={dest.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 brightness-[0.7] dark:brightness-[0.6]" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-2 flex flex-col justify-end">
-                <h5 className="text-[11px] font-bold text-white leading-tight font-display">{dest.name}</h5>
-                <span className="text-[8px] text-zinc-300 font-medium">{dest.hikes} Local Expeditions</span>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-3 flex flex-col justify-end">
+                <h5 className="text-sm font-semibold text-white leading-tight font-serif">{dest.name}</h5>
+                <span className="text-[10px] text-zinc-300 font-medium">{dest.hikes} local expeditions</span>
               </div>
             </motion.div>
           ))}
         </div>
       </div>
 
+      {/* Location picker bottom sheet */}
+      <LocationPicker
+        open={showLocationPicker}
+        current={location}
+        onSelect={handleSelectLocation}
+        onClose={() => setShowLocationPicker(false)}
+        darkMode={darkMode}
+      />
+
+      <TrekDatePicker
+        open={showDatePicker}
+        current=""
+        availableDates={availableDepartureDates}
+        onSelect={handlePickDate}
+        onClose={() => setShowDatePicker(false)}
+        darkMode={darkMode}
+      />
+
       {/* ===================================== */}
       {/* 8. Notification Center overlay Drawer */}
       {/* ===================================== */}
       <AnimatePresence>
         {showNotificationDrawer && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-end">
-            <motion.div 
+          // absolute (not fixed) so the drawer is constrained to the phone-frame
+          // viewport rather than spanning the whole browser window on desktop.
+          <div className="absolute inset-0 z-50 flex justify-end overflow-hidden">
+            {/* Tap-outside backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNotificationDrawer(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-xs"
+            />
+            <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`w-[85%] max-w-sm h-full flex flex-col justify-between p-4 shadow-2xl relative ${
+              className={`relative w-[85%] max-w-sm h-full flex flex-col justify-between p-4 shadow-2xl ${
                 darkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-800'
               }`}
             >
