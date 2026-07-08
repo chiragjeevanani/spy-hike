@@ -5,6 +5,7 @@ import {
   Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus
 } from 'lucide-react';
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
+import { loadCoupons, validateCouponCode, markCouponUsed } from '../../../utils/coupons';
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -66,17 +67,54 @@ export default function BookingFlow({
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
+  // Single pickup boarding point this organizer supports. Legacy trips saved
+  // before this existed (or with the older multi-location format) fall back
+  // to the first pickup option or the trip's flat price.
+  const pickup = trip.pickup || (trip.pickupOptions?.[0]
+    ? { location: trip.pickupOptions[0].location, price: trip.pickupOptions[0].price }
+    : null);
+  const unitPrice = pickup ? pickup.price : trip.price;
+
+  // Batch pricing tiers configured by the organizer (Solo/Couple/Group/etc.),
+  // each already a per-person rate. Falls back to a single implicit tier at
+  // the flat per-person price above, for trips saved before tiered pricing
+  // existed.
+  const pricingTiers = (trip.pricingTiers && trip.pricingTiers.length > 0)
+    ? trip.pricingTiers
+    : [{ id: 'standard', label: 'Per Traveler', price: unitPrice }];
+
+  // Pickup/transport is a flat per-person add-on layered on top of the
+  // tiered trek price — only applied when real tiered pricing exists, so
+  // the legacy fallback tier above (already the flat price) isn't double-counted.
+  const pickupAddOn = (trip.pricingTiers?.length > 0 && pickup) ? pickup.price : 0;
+
+  // How many people one "unit" of a tier represents, and the minimum group
+  // size implied by the organizer's label — "Couple" books in pairs,
+  // "Group of 4+" requires at least 4 travelers together.
+  const getTierMeta = (tier) => {
+    const lbl = tier.label.toLowerCase();
+    if (lbl.includes('couple')) return { step: 2, min: 2 };
+    const match = lbl.match(/(\d+)/);
+    if (lbl.includes('group') && match) return { step: 1, min: parseInt(match[1], 10) };
+    return { step: 1, min: 1 };
+  };
+
   const [step, setStep] = useState(1);
-  
+
+  // Per-tier selected counts (people), keyed by tier id — lets a traveler
+  // mix traveler types in one booking, e.g. 1 Couple + 2 Solo.
+  const [tierCounts, setTierCounts] = useState(() => {
+    const defaultTier = pricingTiers.find(t => t.label.toLowerCase().includes('solo')) || pricingTiers[0];
+    return defaultTier ? { [defaultTier.id]: getTierMeta(defaultTier).min } : {};
+  });
+
   // State variables for Wizard
   const [selectedDate, setSelectedDate] = useState('');
-  const [travelersCount, setTravelersCount] = useState(1);
   const [travelersList, setTravelersList] = useState([
     { name: 'Chirag Jeevanani', age: 24, gender: 'Male', emergencyContact: '+91 98765 43219' }
   ]);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
-  const [discountPercent, setDiscountPercent] = useState(0);
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
@@ -159,13 +197,44 @@ export default function BookingFlow({
     return cells;
   }, [calYear, calMonth, daysInMonth, firstDayIndex]);
 
-  // Single pickup boarding point this organizer supports. Legacy trips saved
-  // before this existed (or with the older multi-location format) fall back
-  // to the first pickup option or the trip's flat price.
-  const pickup = trip.pickup || (trip.pickupOptions?.[0]
-    ? { location: trip.pickupOptions[0].location, price: trip.pickupOptions[0].price }
-    : null);
-  const unitPrice = pickup ? pickup.price : trip.price;
+  // Per-tier breakdown: how many people are booked at each tier's rate, and
+  // the totals derived from it (mixing tiers is allowed, e.g. 1 Couple + 2 Solo).
+  const tierBreakdown = pricingTiers.map(tier => {
+    const count = tierCounts[tier.id] || 0;
+    const perPersonPrice = tier.price + pickupAddOn;
+    return { ...tier, count, perPersonPrice, subtotal: count * perPersonPrice };
+  });
+  const travelersCount = tierBreakdown.reduce((sum, t) => sum + t.count, 0);
+  const baseCostTotal = tierBreakdown.reduce((sum, t) => sum + t.subtotal, 0);
+  // Flat per-index list of tier labels, used to tag each traveler detail
+  // form in Step 2 with the type it was booked under.
+  const travelerTierLabels = tierBreakdown.reduce((acc, t) => {
+    for (let i = 0; i < t.count; i++) acc.push(t.label);
+    return acc;
+  }, []);
+
+  const incrementTier = (tierId) => {
+    const tier = pricingTiers.find(t => t.id === tierId);
+    const meta = getTierMeta(tier);
+    setTierCounts(prev => {
+      const cur = prev[tierId] || 0;
+      const next = cur === 0 ? meta.min : cur + meta.step;
+      const others = travelersCount - cur;
+      if (others + next > trip.availableSeats) return prev;
+      return { ...prev, [tierId]: next };
+    });
+  };
+
+  const decrementTier = (tierId) => {
+    const tier = pricingTiers.find(t => t.id === tierId);
+    const meta = getTierMeta(tier);
+    setTierCounts(prev => {
+      const cur = prev[tierId] || 0;
+      if (cur <= 0) return prev;
+      const next = cur - meta.step;
+      return { ...prev, [tierId]: next < meta.min ? 0 : next };
+    });
+  };
 
   // Sync travelers count with list array size
   useEffect(() => {
@@ -209,35 +278,30 @@ export default function BookingFlow({
     setTravelersList(updated);
   };
 
+  // Up to 3 currently-active admin coupons, offered as quick-apply chips.
+  const quickCoupons = loadCoupons().filter(c => c.status === 'Active').slice(0, 3);
+
   const handleValidateCoupon = (e) => {
     e.preventDefault();
     setCouponError('');
     setCouponSuccess('');
-    
-    const formatted = couponCode.toUpperCase().trim();
-    if (formatted === 'TREKIGO20') {
-      setDiscountPercent(20);
-      setAppliedCoupon('TREKIGO20');
-      setCouponSuccess('Success! Coupon applied: 20% Discount.');
-      setShowConfetti(true);
-    } else if (formatted === 'VALLEY50') {
-      setDiscountPercent(15);
-      setAppliedCoupon('VALLEY50');
-      setCouponSuccess('Success! Coupon applied: ₹50 equivalent discounted.');
-      setShowConfetti(true);
-    } else if (formatted === 'GHATS15') {
-      setDiscountPercent(15);
-      setAppliedCoupon('GHATS15');
-      setCouponSuccess('Success! Coupon applied: 15% off.');
+
+    const result = validateCouponCode(couponCode, baseCostTotal);
+    if (result.ok) {
+      setAppliedCoupon(result.coupon.code);
+      setCouponSuccess(result.message);
       setShowConfetti(true);
     } else {
-      setCouponError('Invalid coupon code. Try TREKIGO20.');
+      setAppliedCoupon('');
+      setCouponError(result.message);
     }
   };
 
-  // Math totals calculation
-  const baseCostTotal = unitPrice * travelersCount;
-  const appliedDiscountValue = Math.round((baseCostTotal * discountPercent / 100) * 100) / 100;
+  // Math totals calculation — re-validated against live coupon data (admin
+  // may flat/percentage-price it, cap it, or it may have expired mid-session).
+  const appliedDiscountValue = appliedCoupon
+    ? (validateCouponCode(appliedCoupon, baseCostTotal).discountAmount || 0)
+    : 0;
   // A redeemed loyalty voucher comps the entire booking — no tax, no charge.
   const taxAmountValue = useLoyaltyReward ? 0 : Math.round(((baseCostTotal - appliedDiscountValue) * 0.05) * 100) / 100; // 5% flat local tax
   const finalPayAmount = useLoyaltyReward ? 0 : Math.round((baseCostTotal - appliedDiscountValue + taxAmountValue) * 100) / 100;
@@ -268,6 +332,9 @@ export default function BookingFlow({
         pickupPrice: unitPrice,
         travelersCount: travelersCount,
         travelers: travelersList,
+        travelerBreakdown: tierBreakdown
+          .filter(t => t.count > 0)
+          .map(t => ({ id: t.id, label: t.label, count: t.count, perPersonPrice: t.perPersonPrice, subtotal: t.subtotal })),
         couponUsed: appliedCoupon,
         couponDiscount: appliedDiscountValue,
         taxAmount: taxAmountValue,
@@ -285,6 +352,11 @@ export default function BookingFlow({
         markCustomerVoucherUsed(availableVoucher.id, newBookingId);
       }
 
+      // Track the redemption against the admin-managed coupon record.
+      if (appliedCoupon) {
+        markCouponUsed(appliedCoupon);
+      }
+
       setCreatedBooking(finalBookingObject);
       setStep(4); // Success is now Step 4
     }, 2000);
@@ -297,7 +369,7 @@ export default function BookingFlow({
   };
 
   return (
-    <div className={`flex-1 flex flex-col justify-between overflow-y-auto no-scrollbar font-sans px-6 py-4 relative ${
+    <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-6 py-4 relative ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
     }`}>
       
@@ -338,7 +410,6 @@ export default function BookingFlow({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -15 }}
           transition={{ duration: 0.2 }}
-          className="flex-1 flex flex-col justify-start"
         >
         
         {/* Step 1: Select Date & Travelers Count */}
@@ -453,55 +524,82 @@ export default function BookingFlow({
                   </div>
                   <span className="text-xs font-black font-sans text-forest-600 dark:text-forest-400">₹{pickup.price}/person</span>
                 </div>
+                {pickupAddOn > 0 && (
+                  <p className="text-[9px] text-zinc-500 mt-1.5 pl-1">Added on top of each traveler's batch price below.</p>
+                )}
               </div>
             )}
 
-            {/* 2. Travelers count counters */}
-            <div className={`p-3 rounded-xl border ${darkMode ? 'bg-zinc-900/30 border-white/5' : 'bg-white border-zinc-200'}`}>
+            {/* 2. Traveler type & count — mix Solo/Couple/Group (or whatever
+                tiers the organizer configured), each priced independently */}
+            <div className={`p-3 rounded-xl border space-y-3 ${darkMode ? 'bg-zinc-900/30 border-white/5' : 'bg-white border-zinc-200'}`}>
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold flex items-center gap-1.5">
-                    <Users size={14} className="text-forest-500" /> Travelers Count
-                  </h3>
-                  <p className="text-[9px] text-zinc-500 mt-0.5">
-                    Seats Left: {trip.availableSeats}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={travelersCount <= 1}
-                    onClick={() => setTravelersCount(prev => prev - 1)}
-                    className={`w-8 h-8 rounded-full border flex items-center justify-center text-base font-bold cursor-pointer transition ${
-                      travelersCount <= 1 
-                        ? 'border-zinc-800 text-zinc-400 cursor-not-allowed' 
-                        : 'border-forest-500 text-forest-500 hover:bg-forest-500/10'
-                    }`}
-                  >
-                    -
-                  </button>
-
-                  <span className="text-base font-black font-mono w-4 text-center">{travelersCount}</span>
-
-                  <button
-                    type="button"
-                    disabled={travelersCount >= trip.availableSeats}
-                    onClick={() => setTravelersCount(prev => prev + 1)}
-                    className={`w-8 h-8 rounded-full border flex items-center justify-center text-base font-bold cursor-pointer transition ${
-                      travelersCount >= trip.availableSeats 
-                        ? 'border-zinc-805 text-zinc-400 cursor-not-allowed' 
-                        : 'border-forest-500 text-forest-500 hover:bg-forest-500/10'
-                    }`}
-                  >
-                    +
-                  </button>
-                </div>
+                <h3 className="text-xs font-bold flex items-center gap-1.5">
+                  <Users size={14} className="text-forest-500" /> Traveler Type & Count
+                </h3>
+                <span className="text-[9px] text-zinc-500">Seats Left: {trip.availableSeats}</span>
               </div>
 
-              <div className="mt-2.5 pt-2.5 border-t border-zinc-800/10 dark:border-zinc-800/40 flex justify-between items-center text-[10px]">
-                <span className="opacity-60">Estimated Cost:</span>
-                <span className="font-extrabold text-forest-600 dark:text-forest-400">₹{baseCostTotal}</span>
+              <div className="space-y-2.5">
+                {tierBreakdown.map(tier => {
+                  const meta = getTierMeta(tier);
+                  const nextIfIncremented = tier.count === 0 ? meta.min : tier.count + meta.step;
+                  const wouldExceedCapacity = (travelersCount - tier.count + nextIfIncremented) > trip.availableSeats;
+                  return (
+                    <div
+                      key={tier.id}
+                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                        darkMode ? 'bg-zinc-950/40 border-white/5' : 'bg-zinc-50 border-zinc-100'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <span className="text-[11px] font-bold block truncate">{tier.label}</span>
+                        <span className="text-[9px] text-zinc-500">
+                          ₹{tier.perPersonPrice}/person{meta.step === 2 ? ' · booked in pairs' : meta.min > 1 ? ` · min ${meta.min} travelers` : ''}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={tier.count === 0}
+                          onClick={() => decrementTier(tier.id)}
+                          className={`w-7 h-7 rounded-full border flex items-center justify-center text-sm font-bold transition ${
+                            tier.count === 0
+                              ? 'border-zinc-800 text-zinc-400 cursor-not-allowed'
+                              : 'border-forest-500 text-forest-500 hover:bg-forest-500/10 cursor-pointer'
+                          }`}
+                        >
+                          -
+                        </button>
+
+                        <span className="text-sm font-black font-mono w-5 text-center">{tier.count}</span>
+
+                        <button
+                          type="button"
+                          disabled={wouldExceedCapacity}
+                          onClick={() => incrementTier(tier.id)}
+                          className={`w-7 h-7 rounded-full border flex items-center justify-center text-sm font-bold transition ${
+                            wouldExceedCapacity
+                              ? 'border-zinc-800 text-zinc-400 cursor-not-allowed'
+                              : 'border-forest-500 text-forest-500 hover:bg-forest-500/10 cursor-pointer'
+                          }`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {travelersCount === 0 && (
+                <p className="text-[10px] text-rose-500 font-semibold">Select at least one traveler type to continue.</p>
+              )}
+
+              <div className="pt-2.5 border-t border-zinc-800/10 dark:border-zinc-800/40 flex justify-between items-center text-[10px]">
+                <span className="opacity-60">{travelersCount} traveler{travelersCount === 1 ? '' : 's'} selected</span>
+                <span className="font-extrabold text-forest-600 dark:text-forest-400">Estimated Cost: ₹{baseCostTotal}</span>
               </div>
             </div>
 
@@ -516,7 +614,7 @@ export default function BookingFlow({
 
         {/* Step 2: Add Traveler Details */}
         {step === 2 && (
-          <div className="space-y-4 max-h-[460px] overflow-y-auto no-scrollbar pointer-events-auto pr-1">
+          <div className="space-y-4">
             <div className="flex items-center gap-2">
               <FileText className="text-forest-500" size={18} />
               <h2 className="text-base font-display font-black">Traveler Coordinates</h2>
@@ -534,7 +632,7 @@ export default function BookingFlow({
                   }`}
                 >
                   <span className="absolute -top-2.5 left-4 bg-forest-600 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded-full">
-                    TRAVELER #{idx + 1}
+                    TRAVELER #{idx + 1}{travelerTierLabels[idx] ? ` · ${travelerTierLabels[idx]}` : ''}
                   </span>
 
                   {/* Name field */}
@@ -683,18 +781,18 @@ export default function BookingFlow({
                 </span>
               )}
               
-              {!appliedCoupon && (
+              {!appliedCoupon && quickCoupons.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pt-1">
-                  {['TREKIGO20', 'GHATS15'].map(cp => (
+                  {quickCoupons.map(cp => (
                     <button
-                      key={cp}
+                      key={cp.id}
                       type="button"
-                      onClick={() => { setCouponCode(cp); }}
+                      onClick={() => { setCouponCode(cp.code); }}
                       className={`text-[8.5px] font-bold px-2 py-1 rounded-md border border-dashed transition ${
                         darkMode ? 'border-zinc-700 text-zinc-400 bg-zinc-950/45 hover:bg-zinc-900' : 'border-gray-300 text-zinc-650 bg-gray-50 hover:bg-gray-100'
                       }`}
                     >
-                      Use {cp}
+                      Use {cp.code}
                     </button>
                   ))}
                 </div>
@@ -708,9 +806,13 @@ export default function BookingFlow({
                 ? 'bg-zinc-900 border-white/5' 
                 : 'bg-white border-zinc-200/60 shadow-xs'
             }`}>
-              <div className="flex justify-between text-xs">
-                <span className="opacity-70">Basics ({travelersCount} travelers)</span>
-                <span className="font-sans font-bold text-zinc-700 dark:text-zinc-300">₹{baseCostTotal}</span>
+              <div className="space-y-1.5">
+                {tierBreakdown.filter(t => t.count > 0).map(t => (
+                  <div key={t.id} className="flex justify-between text-xs">
+                    <span className="opacity-70">{t.label} × {t.count}</span>
+                    <span className="font-sans font-bold text-zinc-700 dark:text-zinc-300">₹{t.subtotal}</span>
+                  </div>
+                ))}
               </div>
 
               {appliedCoupon && !useLoyaltyReward && (
@@ -857,11 +959,14 @@ export default function BookingFlow({
           <button
             type="button"
             id={`btn-booking-step-${step}-continue`}
+            disabled={step === 1 && travelersCount === 0}
             onClick={() => setStep(prev => prev + 1)}
-            className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
-              darkMode
-                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
-                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
+            className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 ${
+              step === 1 && travelersCount === 0
+                ? 'opacity-40 cursor-not-allowed border-zinc-700 text-zinc-500'
+                : darkMode
+                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10 cursor-pointer'
+                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5 cursor-pointer'
             }`}
           >
             Continue

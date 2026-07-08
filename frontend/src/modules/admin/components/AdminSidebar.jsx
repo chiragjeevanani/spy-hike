@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Building2, Compass,
-  Ticket, BarChart3, Megaphone, Gift, Settings,
+  Ticket, TicketPercent, BarChart3, Megaphone, Gift, Settings,
   LogOut, Shield, ChevronLeft, Menu
 } from 'lucide-react';
 import { loadAllOrganizers } from '../utils/storage';
@@ -32,6 +32,7 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
     { id: 'Organizers', label: 'Organizers', icon: Building2, badge: pendingCount },
     { id: 'Trips', label: 'Trips', icon: Compass },
     { id: 'Bookings', label: 'Bookings', icon: Ticket },
+    { id: 'Coupons', label: 'Coupons', icon: TicketPercent },
     { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'Broadcast', label: 'Broadcast', icon: Megaphone },
     { id: 'Loyalty', label: 'Loyalty', icon: Gift },
