@@ -413,15 +413,7 @@ export default function ProfileView({
 
               <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
 
-                {/* Appearance / theme toggle */}
-                <div className={`w-full px-4 py-3.5 flex justify-between items-center text-base font-semibold border-b last:border-b-0 ${
-                  darkMode ? 'border-white/5' : 'border-gray-100'
-                }`}>
-                  <span className="flex items-center gap-3">
-                    {darkMode ? <Moon size={19} className="text-forest-500" /> : <Sun size={19} className="text-spy-orange" />} Appearance
-                  </span>
-                  <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} />
-                </div>
+
 
                 <button
                   onClick={() => setCurrentSub('SETTINGS')}
