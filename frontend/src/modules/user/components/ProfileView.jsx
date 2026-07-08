@@ -54,7 +54,7 @@ export default function ProfileView({
   const [fitLevel, setFitLevel] = useState(user.fitnessLevel);
 
   // Settings
-  const [appLanguage, setAppLanguage] = useState('English');
+
   const [passwordState, setPasswordState] = useState({ current: '', next: '', confirm: '' });
   const [notifyState, setNotifyState] = useState({ bookings: true, updates: true, promo: false });
   const [privacyState, setPrivacyState] = useState({ shareStats: true, cloudBackup: true });
@@ -926,25 +926,7 @@ export default function ProfileView({
             <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} size="sm" />
           </div>
 
-          {/* Setting 2: Language Selection */}
-          <div className={`p-4 rounded-2xl space-y-3 ${subCardCls}`}>
-            <div>
-              <h4 className="text-[15px] font-semibold">Select Language</h4>
-              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Local guides coordination translation default</p>
-            </div>
-            <select
-              value={appLanguage}
-              onChange={e => { setAppLanguage(e.target.value); alert(`Language settings applied: ${e.target.value}`); }}
-              className={`w-full text-sm px-3.5 py-3 border rounded-xl focus:border-forest-500 outline-hidden ${
-                darkMode ? 'bg-elegant-app border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
-              }`}
-            >
-              <option value="English">English</option>
-              <option value="Hindi">हिंदी (Hindi)</option>
-              <option value="Marathi">मराठी (Marathi)</option>
-              <option value="French">Français</option>
-            </select>
-          </div>
+
 
           {/* Setting 3: Notification Preference */}
           <div className={`p-4 rounded-2xl space-y-3.5 ${subCardCls}`}>
