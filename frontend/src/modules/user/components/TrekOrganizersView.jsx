@@ -424,6 +424,10 @@ export default function TrekOrganizersView({
             <div className="space-y-2.5">
               {filteredOffers.map((offer, idx) => {
                 const isSaved = wishlist.includes(offer.id);
+                const pObj = offer.pickup || (offer.pickupOptions?.[0]) || (offer.pickupPoints?.length ? { location: offer.pickupPoints[0], price: null } : null);
+                const pickupLoc = pObj?.location || offer.city || (offer.location ? offer.location.split(',')[0] : 'Base Camp');
+                const pickupPrice = pObj?.price != null ? `₹${pObj.price}` : null;
+                const startLabel = offer.startPoint?.label || offer.location || '';
                 return (
                   <motion.div
                     key={offer.id}
@@ -482,22 +486,32 @@ export default function TrekOrganizersView({
                       </span>
                     </div>
 
-                    {/* Boarding / pickup points this organizer supports */}
-                    <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
-                      <span className="text-[9px] uppercase font-bold tracking-wider opacity-45 flex items-center gap-1">
-                        <Bus size={11} className="text-forest-400" /> Pickup
-                      </span>
-                      {getPickupPoints(offer).map(p => (
-                        <span
-                          key={p.location}
-                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                            darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
-                          }`}
-                        >
-                          Ex-{p.location}{p.price != null ? ` · ₹${p.price}` : ''}
-                        </span>
-                      ))}
-                    </div>
+                    {/* Boarding/pickup point and starting trailhead details */}
+                     <div className="flex items-center flex-wrap gap-2 mt-2.5">
+                       <div className="flex items-center gap-1">
+                         <span className="text-[8px] uppercase font-bold tracking-wider opacity-45 flex items-center gap-0.5">
+                           <Bus size={10} className="text-forest-400" /> Pickup
+                         </span>
+                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                           darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
+                         }`}>
+                           Ex-{pickupLoc}{pickupPrice ? ` · ${pickupPrice}` : ''}
+                         </span>
+                       </div>
+                       
+                       {startLabel && (
+                         <div className="flex items-center gap-1">
+                           <span className="text-[8px] uppercase font-bold tracking-wider opacity-45 flex items-center gap-0.5">
+                             <MapPin size={10} className="text-forest-400" /> Start
+                           </span>
+                           <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full truncate ${
+                             darkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100/80 text-zinc-650'
+                           }`} style={{ maxWidth: '140px' }} title={startLabel}>
+                             {startLabel}
+                           </span>
+                         </div>
+                       )}
+                     </div>
 
                     {/* Batch pricing tier chips (falls back to a single rate for
                         legacy trip records saved before batch pricing existed) */}
