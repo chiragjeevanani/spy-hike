@@ -60,7 +60,7 @@ export default function OrgTripsView({ trips, onNewTrip, onEditTrip, onToggleSta
         </div>
 
         {/* Status filter pills */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {filters.map(f => (
             <button
               key={f}

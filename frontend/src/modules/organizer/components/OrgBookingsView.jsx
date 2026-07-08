@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarCheck, Users, IndianRupee, ChevronRight, Search, Filter, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CalendarCheck, Users, IndianRupee, ChevronRight, Search, Filter, CheckCircle, XCircle, Clock, Gift, Sparkles } from 'lucide-react';
+import { getAvailableOrganizerVoucher } from '../../../utils/loyalty';
 
 const STATUS_FILTERS = ['All', 'Upcoming', 'Completed', 'Cancelled'];
 
-export default function OrgBookingsView({ bookings, darkMode }) {
+export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMode }) {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const availableVoucher = getAvailableOrganizerVoucher();
+
+  const handleRedeem = () => {
+    if (!availableVoucher || !selectedBooking) return;
+    onApplyLoyaltyReward(availableVoucher.id, selectedBooking.bookingId || selectedBooking.id);
+    setSelectedBooking(prev => ({ ...prev, commissionAmount: 0, loyaltyRewardApplied: true }));
+  };
 
   const filtered = bookings.filter(b => {
     const matchFilter = filter === 'All' || b.status === filter;
@@ -49,7 +57,7 @@ export default function OrgBookingsView({ bookings, darkMode }) {
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {STATUS_FILTERS.map(f => (
             <button
               key={f}
@@ -77,6 +85,7 @@ export default function OrgBookingsView({ bookings, darkMode }) {
           filtered.map((booking, i) => (
             <motion.div
               key={booking.id}
+              id={`org-booking-row-${booking.id}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
@@ -96,9 +105,16 @@ export default function OrgBookingsView({ bookings, darkMode }) {
                     <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{booking.userEmail}</p>
                   </div>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${statusColor(booking.status)}`}>
-                  {statusIcon(booking.status)} {booking.status}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${statusColor(booking.status)}`}>
+                    {statusIcon(booking.status)} {booking.status}
+                  </span>
+                  {booking.loyaltyRewardApplied && (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange flex items-center gap-1">
+                      <Gift size={9} /> Reward Applied
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Trip name */}
@@ -177,19 +193,45 @@ export default function OrgBookingsView({ bookings, darkMode }) {
                     <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>Gross Amount</span>
                     <span className="font-bold">₹{selectedBooking.finalAmount?.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-red-400">
-                    <span>Platform Commission ({selectedBooking.commissionRate || 10}%)</span>
-                    <span className="font-bold">-₹{(selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1)).toLocaleString('en-IN')}</span>
-                  </div>
+                  {selectedBooking.loyaltyRewardApplied ? (
+                    <div className="flex justify-between text-sm text-spy-orange">
+                      <span className="flex items-center gap-1"><Gift size={12} /> Platform Commission</span>
+                      <span className="font-bold">₹0 (Reward Applied)</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm text-red-400">
+                      <span>Platform Commission ({selectedBooking.commissionRate || 10}%)</span>
+                      <span className="font-bold">-₹{(selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1)).toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
                   <div className={`pt-2 border-t flex justify-between ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
                     <span className="font-black">Your Net Payout</span>
-                    <span className="font-black text-emerald-450">₹{(selectedBooking.finalAmount - (selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1))).toLocaleString('en-IN')}</span>
+                    <span className="font-black text-emerald-450">
+                      ₹{(selectedBooking.loyaltyRewardApplied
+                        ? selectedBooking.finalAmount
+                        : selectedBooking.finalAmount - (selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1))
+                      ).toLocaleString('en-IN')}
+                    </span>
                   </div>
                 </div>
 
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor(selectedBooking.status)}`}>
-                  {statusIcon(selectedBooking.status)} {selectedBooking.status}
-                </span>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor(selectedBooking.status)}`}>
+                    {statusIcon(selectedBooking.status)} {selectedBooking.status}
+                  </span>
+
+                  {/* Redeem a zero-commission loyalty voucher onto this booking */}
+                  {availableVoucher && !selectedBooking.loyaltyRewardApplied && selectedBooking.status === 'Upcoming' && (
+                    <button
+                      type="button"
+                      id="btn-apply-org-loyalty-reward"
+                      onClick={handleRedeem}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-spy-orange text-white active:scale-95 transition shadow-sm"
+                    >
+                      <Sparkles size={12} /> Apply Zero-Commission Reward
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </motion.div>

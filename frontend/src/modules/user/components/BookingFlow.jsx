@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  ArrowLeft, ArrowRight, Calendar, Users, FileText, Ticket, CreditCard, CheckCircle2, 
-  Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight
+import {
+  ArrowLeft, ArrowRight, Calendar, Users, FileText, Ticket, CreditCard, CheckCircle2,
+  Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, Gift, Bus
 } from 'lucide-react';
+import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -76,6 +77,11 @@ export default function BookingFlow({
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // Loyalty reward — an earned free-booking voucher, if any, can be applied
+  // in place of payment at checkout.
+  const [availableVoucher] = useState(() => getAvailableCustomerVoucher());
+  const [useLoyaltyReward, setUseLoyaltyReward] = useState(false);
   
   // Payment Options
   const [paymentGateway, setPaymentGateway] = useState('Razorpay');
@@ -92,6 +98,14 @@ export default function BookingFlow({
   const availableDates = trip.departureDates?.length
     ? trip.departureDates
     : ['2026-07-10', '2026-07-20', '2026-08-05', '2026-08-20', '2026-09-02'];
+
+  // Single pickup boarding point this organizer supports. Legacy trips saved
+  // before this existed (or with the older multi-location format) fall back
+  // to the first pickup option or the trip's flat price.
+  const pickup = trip.pickup || (trip.pickupOptions?.[0]
+    ? { location: trip.pickupOptions[0].location, price: trip.pickupOptions[0].price }
+    : null);
+  const unitPrice = pickup ? pickup.price : trip.price;
 
   // Sync travelers count with list array size
   useEffect(() => {
@@ -157,10 +171,11 @@ export default function BookingFlow({
   };
 
   // Math totals calculation
-  const baseCostTotal = trip.price * travelersCount;
+  const baseCostTotal = unitPrice * travelersCount;
   const appliedDiscountValue = Math.round((baseCostTotal * discountPercent / 100) * 100) / 100;
-  const taxAmountValue = Math.round(((baseCostTotal - appliedDiscountValue) * 0.05) * 100) / 100; // 5% flat local tax
-  const finalPayAmount = Math.round((baseCostTotal - appliedDiscountValue + taxAmountValue) * 100) / 100;
+  // A redeemed loyalty voucher comps the entire booking — no tax, no charge.
+  const taxAmountValue = useLoyaltyReward ? 0 : Math.round(((baseCostTotal - appliedDiscountValue) * 0.05) * 100) / 100; // 5% flat local tax
+  const finalPayAmount = useLoyaltyReward ? 0 : Math.round((baseCostTotal - appliedDiscountValue + taxAmountValue) * 100) / 100;
 
   const handleProcessPayment = () => {
     setIsProcessingPayment(true);
@@ -184,6 +199,8 @@ export default function BookingFlow({
         tripLocation: trip.location,
         bookingDate: new Date().toISOString().split('T')[0],
         selectedDate: selectedDate,
+        pickupLocation: pickup?.location || trip.city || trip.location?.split(',')[0],
+        pickupPrice: unitPrice,
         travelersCount: travelersCount,
         travelers: travelersList,
         couponUsed: appliedCoupon,
@@ -194,8 +211,14 @@ export default function BookingFlow({
         commissionAmount: commissionAmount,
         status: 'Upcoming',
         bookingId: newBookingId,
-        organizerName: trip.organizer.name
+        organizerName: trip.organizer.name,
+        loyaltyRewardApplied: useLoyaltyReward,
       };
+
+      // Consume the voucher now that the free booking is confirmed.
+      if (useLoyaltyReward && availableVoucher) {
+        markCustomerVoucherUsed(availableVoucher.id, newBookingId);
+      }
 
       setCreatedBooking(finalBookingObject);
       setStep(4); // Success is now Step 4
@@ -316,6 +339,22 @@ export default function BookingFlow({
                 })}
               </div>
             </div>
+
+            {/* 1b. Pickup location — fixed, single boarding point set by the organizer */}
+            {pickup && (
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-2">Pickup Location</label>
+                <div className={`p-2.5 rounded-xl flex items-center justify-between border ${
+                  darkMode ? 'bg-zinc-900/30 border-white/5 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <Bus size={14} className="text-forest-500" />
+                    <span className="text-[11px] font-bold font-sans">Ex-{pickup.location}</span>
+                  </div>
+                  <span className="text-xs font-black font-sans text-forest-600 dark:text-forest-400">₹{pickup.price}/person</span>
+                </div>
+              </div>
+            )}
 
             {/* 2. Travelers count counters */}
             <div className={`p-3 rounded-xl border ${darkMode ? 'bg-zinc-900/30 border-white/5' : 'bg-white border-zinc-200'}`}>
@@ -473,7 +512,43 @@ export default function BookingFlow({
               <h2 className="text-base font-display font-black">Checkout & Settlement</h2>
             </div>
             
-            {/* Promo coupon inline input */}
+            {/* Loyalty reward — an earned free-booking voucher, if any */}
+            {availableVoucher && (
+              <div className={`p-3.5 rounded-2xl border-2 border-dashed ${
+                useLoyaltyReward
+                  ? 'border-emerald-500 bg-emerald-500/10'
+                  : (darkMode ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-400/50 bg-emerald-50/60')
+              }`}>
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0">
+                    <Gift size={15} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-bold block text-emerald-600 dark:text-emerald-400">
+                      Free Booking Reward Available!
+                    </span>
+                    <p className="text-[10px] opacity-70 mt-0.5 leading-relaxed">
+                      You've earned a free booking through Spy Hike Loyalty Rewards. Apply it to make this booking ₹0.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="btn-toggle-loyalty-reward"
+                  onClick={() => setUseLoyaltyReward(prev => !prev)}
+                  className={`w-full mt-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    useLoyaltyReward
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : (darkMode ? 'bg-zinc-900 border border-emerald-500/30 text-emerald-400 hover:bg-zinc-850' : 'bg-white border border-emerald-400/60 text-emerald-600 hover:bg-emerald-50')
+                  }`}
+                >
+                  {useLoyaltyReward ? '✓ Reward Applied — Tap to Remove' : 'Apply Free Booking Reward'}
+                </button>
+              </div>
+            )}
+
+            {/* Promo coupon inline input — hidden while a free reward is applied */}
+            {!useLoyaltyReward && (
             <div className={`p-3 rounded-2xl border ${
               darkMode ? 'bg-zinc-900/40 border-white/5' : 'bg-white border-zinc-200/60 shadow-xs'
             } space-y-2`}>
@@ -525,6 +600,7 @@ export default function BookingFlow({
                 </div>
               )}
             </div>
+            )}
 
             {/* Real Checkout Detail card */}
             <div className={`p-4 rounded-2xl space-y-3 border ${
@@ -537,10 +613,17 @@ export default function BookingFlow({
                 <span className="font-sans font-bold text-zinc-700 dark:text-zinc-300">₹{baseCostTotal}</span>
               </div>
 
-              {appliedCoupon && (
+              {appliedCoupon && !useLoyaltyReward && (
                 <div className="flex justify-between text-xs text-rose-500 font-bold">
                   <span>Coupon Discount ({appliedCoupon})</span>
                   <span className="font-sans">-₹{appliedDiscountValue}</span>
+                </div>
+              )}
+
+              {useLoyaltyReward && (
+                <div className="flex justify-between text-xs text-emerald-500 font-bold">
+                  <span className="flex items-center gap-1"><Gift size={11} /> Loyalty Reward — Free Booking</span>
+                  <span className="font-sans">-₹{baseCostTotal - appliedDiscountValue}</span>
                 </div>
               )}
 
@@ -697,11 +780,15 @@ export default function BookingFlow({
             id="btn-pay-and-confirm"
             disabled={isProcessingPayment}
             onClick={handleProcessPayment}
-            className={`flex-1 bg-forest-600 hover:bg-forest-700 text-white font-black py-4 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-md ${
+            className={`flex-1 font-black py-4 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-md text-white ${
+              useLoyaltyReward ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-forest-600 hover:bg-forest-700'
+            } ${
               isProcessingPayment ? 'opacity-50 cursor-not-allowed' : 'active:scale-98 cursor-pointer'
             }`}
           >
-            Pay ₹{finalPayAmount} <ShieldCheck size={14} />
+            {useLoyaltyReward
+              ? <>Confirm Free Booking <Gift size={14} /></>
+              : <>Pay ₹{finalPayAmount} <ShieldCheck size={14} /></>}
           </button>
         </div>
       )}

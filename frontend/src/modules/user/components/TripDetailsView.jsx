@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Heart, Star, MapPin, Milestone, TrendingUp, ShieldCheck, Users,
-  CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText, Bus
+  CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText, Bus, Navigation
 } from 'lucide-react';
 
 export default function TripDetailsView({
@@ -169,30 +169,58 @@ export default function TripDetailsView({
             </div>
           </div>
 
-          {/* Boarding / pickup points supported by this organizer */}
+          {/* Boarding / pickup point supported by this organizer */}
           <div className={`p-3.5 rounded-2xl ${darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs'}`}>
             <span className="text-[10px] uppercase font-bold tracking-wider opacity-55 flex items-center gap-1.5">
               <Bus size={13} className="text-forest-500" /> Pickup Available From
             </span>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {(trip.pickupPoints?.length
-                ? trip.pickupPoints
-                : [trip.city || trip.location?.split(',')[0]].filter(Boolean)
-              ).map(p => (
-                <span
-                  key={p}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                    darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
-                  }`}
-                >
-                  Ex-{p}
-                </span>
-              ))}
+              {(() => {
+                const pickup = trip.pickup || trip.pickupOptions?.[0];
+                if (pickup) {
+                  return (
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'}`}>
+                      Ex-{pickup.location} · ₹{pickup.price}
+                    </span>
+                  );
+                }
+                const points = trip.pickupPoints?.length ? trip.pickupPoints : [trip.city || trip.location?.split(',')[0]].filter(Boolean);
+                return points.map(p => (
+                  <span key={p} className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'}`}>
+                    Ex-{p}
+                  </span>
+                ));
+              })()}
             </div>
             <p className={`text-[11px] leading-relaxed mt-2 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              Board from any of these cities — transport to the trek base is arranged by the organizer.
+              {trip.pickup || trip.pickupOptions?.[0]
+                ? 'Per-person price from this boarding point — confirmed at checkout.'
+                : 'Board from any of these cities — transport to the trek base is arranged by the organizer.'}
             </p>
           </div>
+
+          {/* Trek/travel start point — exact map location set by the organizer */}
+          {trip.startPoint?.lat != null && (
+            <div className={`p-3.5 rounded-2xl flex items-center justify-between gap-3 ${darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs'}`}>
+              <div className="min-w-0">
+                <span className="text-[10px] uppercase font-bold tracking-wider opacity-55 flex items-center gap-1.5">
+                  <Navigation size={13} className="text-forest-500" /> Trek Start Point
+                </span>
+                <p className="text-xs font-bold mt-1.5 truncate">{trip.startPoint.label}</p>
+                <p className={`text-[10px] font-mono mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                  {trip.startPoint.lat.toFixed(5)}, {trip.startPoint.lng.toFixed(5)}
+                </p>
+              </div>
+              <button
+                type="button"
+                id="btn-get-directions-start-point"
+                onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${trip.startPoint.lat},${trip.startPoint.lng}`, '_blank', 'noopener,noreferrer')}
+                className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-forest-600 hover:bg-forest-700 text-white active:scale-95 transition"
+              >
+                <Navigation size={13} /> Get Directions
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 3. TRIP INFOMATION STATS GRID */}

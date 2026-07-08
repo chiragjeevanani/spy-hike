@@ -65,6 +65,10 @@ const himalayanRidgePassBase = {
   // Cities the organizer can pick travellers up from ("Ex-Manali", "Ex-Delhi"
   // style boarding points). Per-organizer variants below override this.
   pickupPoints: ['Manali', 'Delhi'],
+  // Exact real-world coordinates of the trek's actual starting point (base
+  // camp), set by the organizer on a map — powers the "Get Directions" deep
+  // link into Google Maps on the trip details page.
+  startPoint: { label: 'Kasol Base Camp', lat: 32.0102, lng: 77.3151 },
   // Upcoming departure batch dates; per-organizer variants override this.
   departureDates: ['2026-07-20', '2026-08-05', '2026-08-20'],
   difficulty: 'Difficult',
@@ -255,6 +259,7 @@ export const HIKING_TRIPS = [
     state: 'Uttarakhand',
     city: 'Chamoli',
     pickupPoints: ['Haridwar', 'Dehradun', 'Delhi'],
+    startPoint: { label: 'Ghangaria Trailhead', lat: 30.6939, lng: 79.6008 },
     departureDates: ['2026-07-15', '2026-08-01', '2026-08-14'],
     rating: 4.8,
     reviewsCount: 98,
@@ -335,6 +340,7 @@ export const HIKING_TRIPS = [
     state: 'Maharashtra',
     city: 'Lonavala',
     pickupPoints: ['Mumbai', 'Pune'],
+    startPoint: { label: 'Rajmachi Trailhead', lat: 18.7402, lng: 73.3719 },
     departureDates: ['2026-07-12', '2026-07-26', '2026-08-09'],
     rating: 4.7,
     reviewsCount: 76,
@@ -409,6 +415,7 @@ export const HIKING_TRIPS = [
     state: 'Rajasthan',
     city: 'Jaisalmer',
     pickupPoints: ['Jaisalmer', 'Jodhpur'],
+    startPoint: { label: 'Sam Sand Dunes', lat: 26.9157, lng: 70.7031 },
     departureDates: ['2026-09-12', '2026-10-03'],
     rating: 4.6,
     reviewsCount: 45,
@@ -482,6 +489,7 @@ export const HIKING_TRIPS = [
     state: 'Karnataka',
     city: 'Coorg',
     pickupPoints: ['Bangalore', 'Mysore'],
+    startPoint: { label: 'Abbey Falls Trailhead', lat: 12.4547, lng: 75.7395 },
     departureDates: ['2026-07-18', '2026-08-08'],
     rating: 4.9,
     reviewsCount: 34,
@@ -551,6 +559,7 @@ export const HIKING_TRIPS = [
     state: 'Karnataka',
     city: 'Chikmagalur',
     pickupPoints: ['Bangalore', 'Chikmagalur'],
+    startPoint: { label: 'Mullodi Base Village', lat: 13.1976, lng: 75.2649 },
     departureDates: ['2026-07-22', '2026-08-15'],
     rating: 4.8,
     reviewsCount: 112,

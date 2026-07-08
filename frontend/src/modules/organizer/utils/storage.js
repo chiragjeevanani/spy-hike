@@ -4,6 +4,7 @@ const ORG_BOOKINGS_KEY = 'spyhike_org_bookings';
 const ORG_NOTIFICATIONS_KEY = 'spyhike_org_notifications';
 const ORG_CHATS_KEY = 'spyhike_org_chats';
 const ORG_DARK_MODE_KEY = 'spyhike_org_darkmode';
+const ORG_PAYOUTS_KEY = 'spyhike_org_payouts';
 
 export const DEFAULT_ORG_USER = {
   isAuthenticated: false,
@@ -15,6 +16,7 @@ export const DEFAULT_ORG_USER = {
   mobile: '',
   agencyName: '',
   agencyWebsite: '',
+  socialMediaLink: '', // required — e.g. Instagram/Facebook page for the agency
   govtIdType: 'Aadhaar', // 'Aadhaar', 'PAN', 'GST', 'Passport'
   govtIdNumber: '',
   yearsExperience: 1,
@@ -26,6 +28,14 @@ export const DEFAULT_ORG_USER = {
   totalBookings: 0,
   rememberMe: false,
   coreCapabilities: ['Snow Expedition Specialists', 'Eco-Friendly Leave-No-Trace', 'Emergency Medical Rescue', 'Naturalist Guided Hiking'],
+  bankDetails: {
+    accountHolderName: '',
+    bankName: '',
+    accountNumber: '',
+    ifsc: '',
+    upiId: '',
+    panNumber: '',
+  },
 };
 
 const DEMO_ORG_TRIPS = [
@@ -188,4 +198,16 @@ export const loadOrgDarkMode = () => {
 
 export const saveOrgDarkMode = (val) => {
   localStorage.setItem(ORG_DARK_MODE_KEY, JSON.stringify(val));
+};
+
+export const loadOrgPayouts = () => {
+  try {
+    const val = localStorage.getItem(ORG_PAYOUTS_KEY);
+    if (val) return JSON.parse(val);
+  } catch (e) { console.error(e); }
+  return [];
+};
+
+export const saveOrgPayouts = (val) => {
+  localStorage.setItem(ORG_PAYOUTS_KEY, JSON.stringify(val));
 };

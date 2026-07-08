@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, DollarSign, Users, Calendar, Mountain, AlignLeft, List, AlertCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, DollarSign, Users, Calendar, Mountain, AlignLeft, List, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation } from 'lucide-react';
+import OrgBatchDatePicker from './OrgBatchDatePicker';
+import OrgStartPointPicker from './OrgStartPointPicker';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 const CATEGORY_OPTIONS = ['Trekking', 'Summit', 'Desert', 'Camping', 'Wildlife', 'Cultural'];
 const INCLUDED_DEFAULTS = ['Tents', 'Meals (Veg)', 'Certified Guide', 'Permits', 'First Aid Kit'];
 const ADDON_DEFAULTS = ['Porter Service', 'Photography Service', 'Gear Rental Kit', 'High-Altitude Health Pack'];
 
-export default function TripFormView({ trip = null, organizerEmail, onSave, onBack, darkMode }) {
+export default function TripFormView({ trip = null, organizer = null, organizerEmail, onSave, onBack, darkMode }) {
   const isEdit = !!trip;
 
   const [form, setForm] = useState({
@@ -18,6 +20,13 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
     pricingTiers: (trip?.pricingTiers && trip.pricingTiers.length > 0)
       ? trip.pricingTiers.map(t => ({ label: t.label, price: String(t.price) }))
       : [{ label: 'Solo', price: '' }],
+    pickup: trip?.pickup
+      ? { location: trip.pickup.location, price: String(trip.pickup.price) }
+      : (trip?.pickupOptions?.[0]
+        ? { location: trip.pickupOptions[0].location, price: String(trip.pickupOptions[0].price) }
+        : { location: '', price: '' }),
+    startPoint: trip?.startPoint || null,
+    departureDates: trip?.departureDates || [],
     difficulty: trip?.difficulty || 'Moderate',
     durationDays: trip?.durationDays || 3,
     maxGroupSize: trip?.maxGroupSize || 15,
@@ -43,6 +52,8 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [imageTab, setImageTab] = useState(trip?.coverImage && !trip.coverImage.startsWith('data:') ? 'url' : 'upload');
+  const [showBatchDatePicker, setShowBatchDatePicker] = useState(false);
+  const [showStartPointPicker, setShowStartPointPicker] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -58,6 +69,7 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
   const sections = [
     { id: 'basic', label: 'Basic Info' },
     { id: 'details', label: 'Trip Details' },
+    { id: 'pickup', label: 'Pickup & Dates' },
     { id: 'inclusions', label: 'Inclusions' },
     { id: 'itinerary', label: 'Itinerary' },
     { id: 'faqs', label: 'FAQs' },
@@ -89,6 +101,18 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
     set('pricingTiers', arr);
   };
 
+  const setPickupField = (field, val) => {
+    set('pickup', { ...form.pickup, [field]: val });
+  };
+
+  const toggleBatchDate = (dateStr) => {
+    const exists = form.departureDates.includes(dateStr);
+    set('departureDates', exists
+      ? form.departureDates.filter(d => d !== dateStr)
+      : [...form.departureDates, dateStr].sort()
+    );
+  };
+
   const handleSave = async (status = form.status) => {
     if (!form.name || !form.location) {
       setErrors({ basic: 'Trip name and location are required.' });
@@ -106,6 +130,26 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
       return;
     }
 
+    const pickupLocation = form.pickup.location.trim();
+    const pickupPrice = parseFloat(form.pickup.price);
+    if (!pickupLocation || isNaN(pickupPrice)) {
+      setErrors({ basic: 'Add a pickup location with a valid per-person price.' });
+      setSection('pickup');
+      return;
+    }
+
+    if (!form.startPoint) {
+      setErrors({ basic: 'Set the trek/travel start point on the map.' });
+      setSection('pickup');
+      return;
+    }
+
+    if (form.departureDates.length === 0) {
+      setErrors({ basic: 'Select at least one future batch departure date.' });
+      setSection('pickup');
+      return;
+    }
+
     setSaving(true);
     await new Promise(r => setTimeout(r, 800));
 
@@ -115,12 +159,27 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
       price: t.price
     }));
 
+    const pickup = { location: pickupLocation, price: pickupPrice };
+
     const savedTrip = {
       ...form,
       id: trip?.id || `org-trip-${Date.now()}`,
       organizerEmail,
+      // The traveller-facing apps (trip cards, details, booking) all read
+      // trip.organizer.{name,avatar,rating,verified} directly — build it
+      // from the live organizer profile so a newly published trip renders
+      // correctly the moment a traveller opens it.
+      organizer: trip?.organizer || {
+        name: organizer?.agencyName || organizer?.name || 'Verified Organizer',
+        avatar: organizer?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(organizer?.agencyName || organizer?.name || 'Organizer')}&background=F27D26&color=fff`,
+        rating: organizer?.rating || 0,
+        verified: !!organizer?.isApproved,
+      },
       pricingTiers,
-      price: Math.min(...pricingTiers.map(t => t.price)),
+      pickup,
+      startPoint: form.startPoint,
+      departureDates: form.departureDates,
+      price: pickup.price,
       durationDays: parseInt(form.durationDays) || 1,
       maxGroupSize: parseInt(form.maxGroupSize) || 10,
       availableSeats: parseInt(form.availableSeats) || 10,
@@ -145,6 +204,11 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
   const inputCls = `w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition ${
     darkMode ? 'bg-zinc-900 border-white/10 text-white placeholder-white/30 focus:border-spy-orange/50' : 'bg-white border-zinc-200 text-zinc-800 placeholder-zinc-400 focus:border-spy-orange/50'
   }`;
+  // Same field styling minus `w-full` — for fixed-width inputs (e.g. a price
+  // box beside a flex-growing label field). Concatenating `w-28` onto
+  // `inputCls` directly would leave two conflicting width utilities on one
+  // element, and whichever Tailwind happens to generate last wins.
+  const inputClsFixedWidth = inputCls.replace('w-full ', '');
   const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
   const cardCls = `rounded-2xl p-4 space-y-4 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`;
 
@@ -341,7 +405,7 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
         {form.pricingTiers.map((tier, i) => (
           <div key={i} className="flex gap-2">
             <input type="text" className={`${inputCls} flex-1`} placeholder="e.g. Solo" value={tier.label} onChange={e => setPricingTierItem(i, 'label', e.target.value)} />
-            <input type="number" className={`${inputCls} w-28`} placeholder="₹ Price" value={tier.price} onChange={e => setPricingTierItem(i, 'price', e.target.value)} />
+            <input type="number" className={`${inputClsFixedWidth} w-28`} placeholder="₹ Price" value={tier.price} onChange={e => setPricingTierItem(i, 'price', e.target.value)} />
             {form.pricingTiers.length > 1 && (
               <button type="button" onClick={() => set('pricingTiers', form.pricingTiers.filter((_, ii) => ii !== i))} className="text-red-400 px-1">
                 <Minus size={14} />
@@ -435,6 +499,128 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
           </div>
         ))}
       </div>
+    </div>
+  );
+
+  const renderPickup = () => (
+    <div className="space-y-4">
+      {errors.basic && (
+        <div className={`flex gap-2 items-center p-3 rounded-xl text-xs ${darkMode ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}>
+          <AlertCircle size={14} /> {errors.basic}
+        </div>
+      )}
+
+      {/* Single pickup location + per-person price */}
+      <div className={cardCls}>
+        <label className={labelCls}>Pickup Location & Pricing *</label>
+        <p className={`text-[10px] -mt-2 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
+          The one city you pick travellers up from, with the per-person price from there — e.g. Manali ₹6000.
+        </p>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Bus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input type="text" className={`${inputCls} pl-9`} placeholder="e.g. Manali" value={form.pickup.location} onChange={e => setPickupField('location', e.target.value)} />
+          </div>
+          <input type="number" min="0" className={`${inputClsFixedWidth} w-28`} placeholder="₹ Price" value={form.pickup.price} onChange={e => setPickupField('price', e.target.value)} />
+        </div>
+      </div>
+
+      {/* Trek/travel start point — exact map location the organizer picks */}
+      <div className={cardCls}>
+        <label className={labelCls}>Start Point *</label>
+        <p className={`text-[10px] -mt-2 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
+          Drop a pin at the exact spot the trek/travel begins. Travellers get a one-tap Google Maps link to reach it.
+        </p>
+
+        {form.startPoint ? (
+          <div className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-zinc-950/60 border border-white/5' : 'bg-zinc-50 border border-zinc-100'}`}>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-spy-orange/15 text-spy-orange">
+              <Navigation size={16} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold truncate">{form.startPoint.label}</p>
+              <p className={`text-[10px] font-mono ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                {form.startPoint.lat.toFixed(5)}, {form.startPoint.lng.toFixed(5)}
+              </p>
+            </div>
+            <button
+              type="button"
+              id="btn-edit-start-point"
+              onClick={() => setShowStartPointPicker(true)}
+              className={`p-2 rounded-lg shrink-0 ${darkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-white text-zinc-500 shadow-sm'}`}
+            >
+              <Edit3 size={14} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            id="btn-set-start-point"
+            onClick={() => setShowStartPointPicker(true)}
+            className={`w-full py-3 rounded-xl text-sm font-bold border-2 border-dashed flex items-center justify-center gap-2 transition ${
+              darkMode ? 'border-white/10 text-zinc-400 hover:border-spy-orange/40 hover:text-spy-orange' : 'border-zinc-200 text-zinc-500 hover:border-spy-orange hover:text-spy-orange'
+            }`}
+          >
+            <MapPin size={16} /> Set Start Point on Map
+          </button>
+        )}
+      </div>
+
+      {/* Batch departure dates */}
+      <div className={cardCls}>
+        <label className={labelCls}>Batch Departure Dates *</label>
+        <p className={`text-[10px] -mt-2 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
+          Pick every future date this trek departs. Travellers filter and book against these exact dates.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setShowBatchDatePicker(true)}
+          className={`w-full py-3 rounded-xl text-sm font-bold border-2 border-dashed flex items-center justify-center gap-2 transition ${
+            darkMode ? 'border-white/10 text-zinc-400 hover:border-spy-orange/40 hover:text-spy-orange' : 'border-zinc-200 text-zinc-500 hover:border-spy-orange hover:text-spy-orange'
+          }`}
+        >
+          <CalendarDays size={16} /> Select Batch Dates
+        </button>
+
+        {form.departureDates.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {form.departureDates.map(dt => {
+              const dateObj = new Date(`${dt}T00:00:00`);
+              const label = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+              return (
+                <span
+                  key={dt}
+                  className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-bold ${
+                    darkMode ? 'bg-spy-orange/15 text-spy-orange' : 'bg-spy-orange/10 text-spy-orange'
+                  }`}
+                >
+                  {label}
+                  <button type="button" onClick={() => toggleBatchDate(dt)} className="w-4 h-4 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center">
+                    <X size={10} />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <OrgBatchDatePicker
+        open={showBatchDatePicker}
+        selectedDates={form.departureDates}
+        onToggleDate={toggleBatchDate}
+        onClose={() => setShowBatchDatePicker(false)}
+        darkMode={darkMode}
+      />
+
+      <OrgStartPointPicker
+        open={showStartPointPicker}
+        initialPoint={form.startPoint}
+        onConfirm={(pt) => { set('startPoint', pt); setShowStartPointPicker(false); }}
+        onClose={() => setShowStartPointPicker(false)}
+        darkMode={darkMode}
+      />
     </div>
   );
 
@@ -538,7 +724,7 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
     </div>
   );
 
-  const sectionContent = { basic: renderBasic, details: renderDetails, inclusions: renderInclusions, itinerary: renderItinerary, faqs: renderFaqs };
+  const sectionContent = { basic: renderBasic, details: renderDetails, pickup: renderPickup, inclusions: renderInclusions, itinerary: renderItinerary, faqs: renderFaqs };
 
   return (
     <div className={`h-full flex flex-col font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
@@ -556,7 +742,7 @@ export default function TripFormView({ trip = null, organizerEmail, onSave, onBa
         </div>
 
         {/* Section tabs */}
-        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar">
           {sections.map(s => (
             <button
               key={s.id}

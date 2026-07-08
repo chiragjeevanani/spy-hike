@@ -64,6 +64,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     const orgUser = {
       agencyName: loggedInUser.name,
       agencyWebsite: '',
+      socialMediaLink: 'https://instagram.com/spyhikeorganizer',
       govtIdType: 'Aadhaar',
       govtIdNumber: '',
       yearsExperience: 1,
@@ -391,6 +392,22 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <><Building2 size={14} /> Switch to Organizer</>
               )}
             </button>
+
+            {/* Demo credentials hint */}
+            <div className={`p-3 rounded-xl border text-[11px] leading-relaxed ${
+              darkMode ? 'bg-zinc-950 border-zinc-800 text-zinc-400' : 'bg-gray-50 border-gray-200 text-zinc-500'
+            }`}>
+              <span className={`font-semibold block mb-1 ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                {role === 'ORGANIZER' ? 'Quick Demo Access (Verified Organizer):' : 'Quick Demo Access:'}
+              </span>
+              <div className="flex justify-between font-mono text-[10px]">
+                <div>Email: <span className="text-spy-orange font-semibold">chiragjeevanani333@gmail.com</span></div>
+                <div>Pass: <span className="text-spy-orange font-semibold">spyhike123</span></div>
+              </div>
+              {role === 'ORGANIZER' && (
+                <p className="mt-1.5 opacity-80">This account is pre-approved as an organizer — any other email won't pass the Organizer gate.</p>
+              )}
+            </div>
           </form>
         )}
 

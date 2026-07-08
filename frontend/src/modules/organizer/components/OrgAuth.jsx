@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe, Instagram } from 'lucide-react';
 import { saveOrgUser } from '../utils/storage';
 
 export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
@@ -11,6 +11,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     password: '',
     agencyName: '',
     agencyWebsite: '',
+    socialMediaLink: '',
     govtIdType: 'Aadhaar',
     govtIdNumber: '',
     yearsExperience: '',
@@ -38,6 +39,10 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         setError('Agency name is required.');
         return;
       }
+      if (step === 2 && !formData.socialMediaLink) {
+        setError('A social media link (e.g. Instagram) is required.');
+        return;
+      }
       setError('');
       setStep(prev => prev + 1);
     } else {
@@ -59,6 +64,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         mobile: formData.mobile,
         agencyName: formData.agencyName,
         agencyWebsite: formData.agencyWebsite,
+        socialMediaLink: formData.socialMediaLink,
         govtIdType: formData.govtIdType,
         govtIdNumber: formData.govtIdNumber,
         yearsExperience: parseInt(formData.yearsExperience) || 1,
@@ -144,6 +150,13 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           <div className="relative">
             <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input type="url" className={`${inputCls} pl-10`} placeholder="https://yourwebsite.com" value={formData.agencyWebsite} onChange={e => handleChange('agencyWebsite', e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls}>Social Media Link (e.g. Instagram) *</label>
+          <div className="relative">
+            <Instagram size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input type="url" required className={`${inputCls} pl-10`} placeholder="https://instagram.com/youragency" value={formData.socialMediaLink} onChange={e => handleChange('socialMediaLink', e.target.value)} />
           </div>
         </div>
         <div>

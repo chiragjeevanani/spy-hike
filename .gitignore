@@ -6,3 +6,9 @@ frontend/785z15.zip
 frontend/dump/
 # Added by code-review-graph
 .code-review-graph/
+
+# Playwright e2e artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/

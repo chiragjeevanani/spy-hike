@@ -1,22 +1,37 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut, Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus } from 'lucide-react';
+import { User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut, Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus, Gift, LifeBuoy, Info, Instagram, AlertCircle, Wallet } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import OrgHelpSupportView from './OrgHelpSupportView';
+import OrgAboutView from './OrgAboutView';
 import { saveOrgUser } from '../utils/storage';
+import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 
-export default function OrgProfileView({ organizer, onLogout, darkMode, onToggleDarkMode }) {
+export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, darkMode, onToggleDarkMode }) {
+  const loyaltyConfig = loadLoyaltyConfig();
+  const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const [editing, setEditing] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showHelpSupport, setShowHelpSupport] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [form, setForm] = useState({
     name: organizer?.name || '',
     agencyName: organizer?.agencyName || '',
     mobile: organizer?.mobile || '',
     agencyWebsite: organizer?.agencyWebsite || '',
+    socialMediaLink: organizer?.socialMediaLink || '',
     bio: organizer?.bio || '',
     yearsExperience: organizer?.yearsExperience || 1,
     coreCapabilities: organizer?.coreCapabilities || ['Snow Expedition Specialists', 'Eco-Friendly Leave-No-Trace', 'Emergency Medical Rescue', 'Naturalist Guided Hiking'],
   });
+  const [formError, setFormError] = useState('');
 
   const handleSave = () => {
+    if (!form.socialMediaLink.trim()) {
+      setFormError('A social media link (e.g. Instagram) is required.');
+      return;
+    }
     const updated = { ...organizer, ...form };
     saveOrgUser(updated);
     setEditing(false);
@@ -65,7 +80,8 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
           </div>
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            id="btn-edit-org-profile"
+            onClick={() => { setFormError(''); setEditing(true); }}
             className={`p-2.5 rounded-xl transition ${darkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-white shadow-sm hover:shadow'}`}
           >
             <Edit3 size={16} className={darkMode ? 'text-zinc-400' : 'text-zinc-500'} />
@@ -106,6 +122,7 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
             { icon: Phone, label: 'Mobile', value: organizer?.mobile },
             { icon: Mail, label: 'Email', value: organizer?.email },
             { icon: Globe, label: 'Website', value: organizer?.agencyWebsite || '—' },
+            { icon: Instagram, label: 'Social Media', value: organizer?.socialMediaLink || '—' },
           ].map((item, i, arr) => {
             const Icon = item.icon;
             return (
@@ -120,6 +137,36 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
           })}
         </div>
 
+        {/* Loyalty rewards highlight card */}
+        {loyaltyConfig.organizer.enabled && (
+          <button
+            type="button"
+            id="btn-open-loyalty-profile"
+            onClick={onOpenLoyalty}
+            className={`w-full p-4 rounded-2xl text-left flex items-center gap-3.5 transition active:scale-[0.99] ${
+              darkMode ? 'bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/5' : 'bg-gradient-to-br from-orange-50 to-white shadow-sm'
+            }`}
+          >
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+              darkMode ? 'bg-spy-orange/15 text-spy-orange' : 'bg-spy-orange/15 text-spy-orange'
+            }`}>
+              <Gift size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-bold block">Loyalty Rewards</span>
+              <span className={`text-xs block mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                {loyaltyProgress.remaining > 0
+                  ? `${loyaltyProgress.remaining} more bookings to a zero-commission credit`
+                  : 'Zero-commission credit unlocked — tap to view!'}
+              </span>
+              <div className="w-full h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden mt-2">
+                <div className="h-full bg-spy-orange rounded-full transition-all duration-700" style={{ width: `${loyaltyProgress.percent}%` }} />
+              </div>
+            </div>
+            <ChevronRight size={17} className="opacity-40 shrink-0" />
+          </button>
+        )}
+
         {/* Settings section */}
         <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}>
           {/* Appearance / theme */}
@@ -130,10 +177,57 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
             </div>
             <ThemeToggle darkMode={darkMode} onToggle={onToggleDarkMode} size="sm" />
           </div>
+
+          {/* Financials */}
+          <button
+            type="button"
+            id="btn-open-financials-profile"
+            onClick={onOpenFinancials}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 border-b transition ${
+              darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <Wallet size={16} className="text-spy-orange" />
+              <span className="text-sm font-semibold">Financials & Payouts</span>
+            </span>
+            <ChevronRight size={16} className="opacity-40" />
+          </button>
+
+          {/* Help & Support */}
+          <button
+            type="button"
+            onClick={() => setShowHelpSupport(true)}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 border-b transition ${
+              darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <LifeBuoy size={16} className="text-spy-orange" />
+              <span className="text-sm font-semibold">Help & Support</span>
+            </span>
+            <ChevronRight size={16} className="opacity-40" />
+          </button>
+
+          {/* About */}
+          <button
+            type="button"
+            onClick={() => setShowAbout(true)}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 border-b transition ${
+              darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <Info size={16} className="text-spy-orange" />
+              <span className="text-sm font-semibold">About</span>
+            </span>
+            <ChevronRight size={16} className="opacity-40" />
+          </button>
+
           {/* Logout */}
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className={`w-full flex items-center gap-3 px-4 py-3.5 text-red-400 ${darkMode ? 'hover:bg-red-500/10' : 'hover:bg-red-50'} transition`}
           >
             <LogOut size={16} />
@@ -161,19 +255,28 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
                   { label: 'Agency Name', key: 'agencyName', type: 'text', placeholder: 'Agency name' },
                   { label: 'Mobile', key: 'mobile', type: 'tel', placeholder: '+91 XXXXX XXXXX' },
                   { label: 'Website', key: 'agencyWebsite', type: 'url', placeholder: 'https://...' },
+                  { label: 'Social Media Link (e.g. Instagram) *', key: 'socialMediaLink', type: 'url', placeholder: 'https://instagram.com/youragency', required: true },
                   { label: 'Years Experience', key: 'yearsExperience', type: 'number', placeholder: '5' },
                 ].map(field => (
                   <div key={field.key}>
                     <label className={labelCls}>{field.label}</label>
                     <input
                       type={field.type}
+                      required={field.required}
                       className={inputCls}
                       placeholder={field.placeholder}
                       value={form[field.key]}
-                      onChange={e => setForm(p => ({ ...p, [field.key]: e.target.value }))}
+                      onChange={e => { setForm(p => ({ ...p, [field.key]: e.target.value })); setFormError(''); }}
                     />
                   </div>
                 ))}
+                {formError && (
+                  <div className={`flex gap-2 items-center p-3 rounded-xl text-xs font-semibold ${
+                    darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'
+                  }`}>
+                    <AlertCircle size={14} className="shrink-0" /> {formError}
+                  </div>
+                )}
                 <div>
                   <label className={labelCls}>About Agency</label>
                   <textarea className={`${inputCls} resize-none`} rows={3} placeholder="Describe your agency..." value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} />
@@ -233,6 +336,42 @@ export default function OrgProfileView({ organizer, onLogout, darkMode, onToggle
           </div>
         </motion.div>
       )}
+
+      {/* Help & Support overlay */}
+      {showHelpSupport && (
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+          className="absolute inset-0 z-50 flex flex-col"
+        >
+          <OrgHelpSupportView organizer={organizer} onBack={() => setShowHelpSupport(false)} darkMode={darkMode} />
+        </motion.div>
+      )}
+
+      {/* About overlay */}
+      {showAbout && (
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+          className="absolute inset-0 z-50 flex flex-col"
+        >
+          <OrgAboutView onBack={() => setShowAbout(false)} darkMode={darkMode} />
+        </motion.div>
+      )}
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Log Out?"
+        message="Are you sure you want to log out of your organizer account?"
+        confirmLabel="Log Out"
+        onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
+        onCancel={() => setShowLogoutConfirm(false)}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

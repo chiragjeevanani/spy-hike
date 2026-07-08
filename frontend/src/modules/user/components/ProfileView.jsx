@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
   ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon,
-  Building2, CreditCard, Upload
+  Building2, CreditCard, Upload, Gift
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 import TravelTicket from './TravelTicket';
 import SwitchTransition from './SwitchTransition';
 import { downloadTicketPDF } from '../utils/ticketPdf';
+import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 
 // Mirrors Auth.jsx — the organizer panel runs as an independent mini-SPA with
 // its own session storage, so switching modules means seeding that store and
@@ -25,9 +27,11 @@ export default function ProfileView({
   userReviews,
   onTriggerOnboarding,
   bookings = [],
-  onFullscreenChange
+  onFullscreenChange,
+  onOpenLoyalty
 }) {
   const [currentSub, setCurrentSub] = useState('MAIN');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // The partner application takes over the whole screen — ask the shell to
   // hide the bottom nav while it's open (restored on back/unmount).
@@ -35,6 +39,9 @@ export default function ProfileView({
     if (onFullscreenChange) onFullscreenChange(currentSub === 'BECOME_ORGANIZER');
     return () => { if (onFullscreenChange) onFullscreenChange(false); };
   }, [currentSub, onFullscreenChange]);
+
+  const loyaltyConfig = loadLoyaltyConfig();
+  const loyaltyProgress = getCustomerProgress(bookings, loyaltyConfig);
 
   // Input bindings state
   const [profileName, setProfileName] = useState(user.name);
@@ -63,7 +70,7 @@ export default function ProfileView({
   // Become an Organizer flow
   const [orgSwitching, setOrgSwitching] = useState(false);
   const [orgForm, setOrgForm] = useState({
-    agencyName: '', agencyWebsite: '', yearsExperience: '', bio: '',
+    agencyName: '', agencyWebsite: '', socialMediaLink: '', yearsExperience: '', bio: '',
     govtIdType: 'Aadhaar', govtIdNumber: '', documentName: ''
   });
   const [orgFormError, setOrgFormError] = useState('');
@@ -188,6 +195,7 @@ export default function ProfileView({
   const handleSubmitOrgApplication = (e) => {
     e.preventDefault();
     if (!orgForm.agencyName.trim()) { setOrgFormError('Agency / company name is required.'); return; }
+    if (!orgForm.socialMediaLink.trim()) { setOrgFormError('A social media link (e.g. Instagram) is required.'); return; }
     if (!orgForm.govtIdNumber.trim()) { setOrgFormError('Government ID number is required for verification.'); return; }
     setOrgFormError('');
 
@@ -204,6 +212,7 @@ export default function ProfileView({
       avatar: user.avatar,
       agencyName: orgForm.agencyName.trim(),
       agencyWebsite: orgForm.agencyWebsite.trim(),
+      socialMediaLink: orgForm.socialMediaLink.trim(),
       govtIdType: orgForm.govtIdType,
       govtIdNumber: orgForm.govtIdNumber.trim(),
       yearsExperience: parseInt(orgForm.yearsExperience) || 1,
@@ -292,6 +301,37 @@ export default function ProfileView({
               </div>
             </div>
           </div>
+
+          {/* Loyalty Rewards highlight card */}
+          {loyaltyConfig.customer.enabled && (
+            <div className="px-5 pt-4">
+              <button
+                id="btn-open-loyalty-rewards"
+                onClick={onOpenLoyalty}
+                className={`w-full p-4 rounded-2xl text-left flex items-center gap-3.5 transition active:scale-[0.99] ${
+                  darkMode ? 'bg-gradient-to-br from-forest-900 to-elegant-card' : 'bg-gradient-to-br from-forest-50 to-white shadow-sm'
+                }`}
+              >
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                  darkMode ? 'bg-forest-500/20 text-forest-400' : 'bg-forest-500/15 text-forest-600'
+                }`}>
+                  <Gift size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-bold block">Loyalty Rewards</span>
+                  <span className={`text-xs block mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {loyaltyProgress.remaining > 0
+                      ? `${loyaltyProgress.remaining} more traveler${loyaltyProgress.remaining !== 1 ? 's' : ''} to a free booking`
+                      : 'Free booking unlocked — tap to view!'}
+                  </span>
+                  <div className="w-full h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden mt-2">
+                    <div className="h-full bg-forest-500 rounded-full transition-all duration-700" style={{ width: `${loyaltyProgress.percent}%` }} />
+                  </div>
+                </div>
+                <ChevronRight size={17} className="opacity-40 shrink-0" />
+              </button>
+            </div>
+          )}
 
           {/* Configuration Sections Menu list */}
           <div className="px-5 pt-5 space-y-6">
@@ -473,7 +513,7 @@ export default function ProfileView({
 
             {/* Logout actions */}
             <button
-              onClick={onLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-full mt-3 py-4 rounded-2xl text-center font-bold bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 transition text-sm uppercase tracking-wide shadow-xs cursor-pointer"
             >
               Log Out Session
@@ -619,6 +659,20 @@ export default function ProfileView({
                 placeholder="https://yourwebsite.com"
                 value={orgForm.agencyWebsite}
                 onChange={e => setOrgForm({ ...orgForm, agencyWebsite: e.target.value })}
+                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                }`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Social Media Link (e.g. Instagram) *</label>
+              <input
+                type="url"
+                required
+                placeholder="https://instagram.com/youragency"
+                value={orgForm.socialMediaLink}
+                onChange={e => { setOrgForm({ ...orgForm, socialMediaLink: e.target.value }); setOrgFormError(''); }}
                 className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
                   darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
                 }`}
@@ -1136,6 +1190,16 @@ export default function ProfileView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Log Out?"
+        message="Are you sure you want to log out of your Spy Hike account?"
+        confirmLabel="Log Out"
+        onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
+        onCancel={() => setShowLogoutConfirm(false)}
+        darkMode={darkMode}
+      />
 
     </div>
   );

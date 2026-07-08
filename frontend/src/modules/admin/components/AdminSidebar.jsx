@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, Users, Building2, Compass, 
-  Ticket, BarChart3, Megaphone, Settings, 
-  LogOut, Shield, ChevronLeft, Menu 
+import {
+  LayoutDashboard, Users, Building2, Compass,
+  Ticket, BarChart3, Megaphone, Gift, Settings,
+  LogOut, Shield, ChevronLeft, Menu
 } from 'lucide-react';
 import { loadAllOrganizers } from '../utils/storage';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
 export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collapsed, setCollapsed, darkMode }) {
   const [pendingCount, setPendingCount] = useState(0);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Compute pending applications dynamically
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
     { id: 'Bookings', label: 'Bookings', icon: Ticket },
     { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'Broadcast', label: 'Broadcast', icon: Megaphone },
+    { id: 'Loyalty', label: 'Loyalty', icon: Gift },
     { id: 'Settings', label: 'Settings', icon: Settings },
   ];
 
@@ -116,7 +119,7 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
       {/* Sidebar Footer */}
       <div className={`p-4 border-t ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
         <button
-          onClick={onLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm font-semibold tracking-wide transition-colors group relative ${
             darkMode 
               ? 'hover:bg-rose-500/10 text-slate-400 hover:text-rose-400' 
@@ -133,6 +136,16 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
           )}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Log Out?"
+        message="Are you sure you want to log out of the admin console?"
+        confirmLabel="Log Out"
+        onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
+        onCancel={() => setShowLogoutConfirm(false)}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

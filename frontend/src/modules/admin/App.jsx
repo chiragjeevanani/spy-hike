@@ -16,6 +16,7 @@ import TripsView from './components/TripsView';
 import BookingsView from './components/BookingsView';
 import AnalyticsView from './components/AnalyticsView';
 import BroadcastView from './components/BroadcastView';
+import LoyaltyProgramView from './components/LoyaltyProgramView';
 import SettingsView from './components/SettingsView';
 
 const PATH_PREFIX = '/admin';
@@ -29,6 +30,7 @@ function getAdminTab(pathname) {
   if (p === 'bookings') return 'Bookings';
   if (p === 'analytics') return 'Analytics';
   if (p === 'broadcast') return 'Broadcast';
+  if (p === 'loyalty') return 'Loyalty';
   if (p === 'settings') return 'Settings';
   if (p === 'login') return 'Login';
   return 'Dashboard';
@@ -42,6 +44,7 @@ function tabToPath(tab) {
   if (tab === 'Bookings') return `${PATH_PREFIX}/bookings`;
   if (tab === 'Analytics') return `${PATH_PREFIX}/analytics`;
   if (tab === 'Broadcast') return `${PATH_PREFIX}/broadcast`;
+  if (tab === 'Loyalty') return `${PATH_PREFIX}/loyalty`;
   if (tab === 'Settings') return `${PATH_PREFIX}/settings`;
   if (tab === 'Login') return `${PATH_PREFIX}/login`;
   return `${PATH_PREFIX}/dashboard`;
@@ -116,6 +119,8 @@ export default function AdminApp() {
         return <AnalyticsView darkMode={darkMode} />;
       case 'Broadcast':
         return <BroadcastView darkMode={darkMode} />;
+      case 'Loyalty':
+        return <LoyaltyProgramView darkMode={darkMode} />;
       case 'Settings':
         return <SettingsView admin={admin} darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode} />;
       default:

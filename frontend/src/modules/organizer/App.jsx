@@ -7,7 +7,9 @@ import {
   loadOrgBookings, saveOrgBookings,
   loadOrgNotifications, saveOrgNotifications,
   loadOrgDarkMode, saveOrgDarkMode,
+  loadOrgPayouts, saveOrgPayouts,
 } from './utils/storage';
+import { syncOrganizerVouchers, markOrganizerVoucherUsed } from '../../utils/loyalty';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -18,6 +20,9 @@ import OrgTripsView from './components/OrgTripsView';
 import TripFormView from './components/TripFormView';
 import OrgBookingsView from './components/OrgBookingsView';
 import OrgProfileView from './components/OrgProfileView';
+import OrgLoyaltyView from './components/OrgLoyaltyView';
+import OrgNotificationsView from './components/OrgNotificationsView';
+import OrgFinancialsView from './components/OrgFinancialsView';
 
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
@@ -62,12 +67,29 @@ export default function OrgApp() {
   const [bookings, setBookings] = useState([]);
   const [notifications, setNotifications] = useState(loadOrgNotifications());
   const [editingTrip, setEditingTrip] = useState(null);
+  const [showOrgLoyalty, setShowOrgLoyalty] = useState(false);
+  const [showOrgNotifications, setShowOrgNotifications] = useState(false);
+  const [showOrgFinancials, setShowOrgFinancials] = useState(false);
+  const [payouts, setPayouts] = useState(loadOrgPayouts());
 
   // Load organizer-specific data
   useEffect(() => {
     if (organizer?.isAuthenticated && organizer?.email) {
-      setTrips(loadOrgTrips(organizer.email));
-      setBookings(loadOrgBookings(organizer.email));
+      const orgTrips = loadOrgTrips(organizer.email);
+      const orgBookings = loadOrgBookings(organizer.email);
+      setTrips(orgTrips);
+      setBookings(orgBookings);
+
+      // Lifetime "bookings via app" backs the loyalty progress bar — keep the
+      // organizer's totalBookings stat honest against their actual booking
+      // roster, then mint any newly-earned reward vouchers.
+      const lifetimeBookings = Math.max(organizer.totalBookings || 0, orgBookings.length);
+      syncOrganizerVouchers(lifetimeBookings);
+      if (lifetimeBookings > (organizer.totalBookings || 0)) {
+        const updated = { ...organizer, totalBookings: lifetimeBookings };
+        saveOrgUser(updated);
+        setOrganizer(updated);
+      }
     }
   }, [organizer?.email, organizer?.isAuthenticated]);
 
@@ -217,17 +239,84 @@ export default function OrgApp() {
     setTrips(orgTrips.filter(t => t.organizerEmail === organizer.email));
   };
 
+  // Applies an available zero-commission loyalty voucher to a specific
+  // upcoming booking — the organizer keeps 100% of that booking's payout.
+  const handleApplyLoyaltyReward = (voucherId, bookingId) => {
+    markOrganizerVoucherUsed(voucherId, bookingId);
+    const updated = bookings.map(b =>
+      (b.id === bookingId || b.bookingId === bookingId)
+        ? { ...b, commissionAmount: 0, loyaltyRewardApplied: true }
+        : b
+    );
+    setBookings(updated);
+    saveOrgBookings(updated);
+  };
+
   const handleBottomNavChange = (tab) => navigateTo(tab);
 
   const handleDashboardNavigate = (tab) => {
     if (tab === 'NewTrip') { handleNewTrip(); return; }
     if (tab === 'Notifications') {
-      const cleared = notifications.map(n => ({ ...n, read: true }));
-      setNotifications(cleared);
-      saveOrgNotifications(cleared);
+      setShowOrgNotifications(true);
       return;
     }
     navigateTo(tab);
+  };
+
+  const handleMarkNotificationRead = (id) => {
+    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    setNotifications(updated);
+    saveOrgNotifications(updated);
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    saveOrgNotifications(updated);
+  };
+
+  const handleClearNotifications = () => {
+    setNotifications([]);
+    saveOrgNotifications([]);
+  };
+
+  const handleSaveBankDetails = (bankDetails) => {
+    const updated = { ...organizer, bankDetails };
+    saveOrgUser(updated);
+    setOrganizer(updated);
+  };
+
+  // Simulates a payout request: creates a "Processing" transaction, then
+  // settles it to "Paid" a moment later — there's no real payment gateway
+  // behind this demo, so we fake the bank-settlement delay for realism.
+  const handleRequestPayout = (amount) => {
+    if (amount <= 0) return;
+    const payoutId = `PO-${Date.now()}`;
+    const method = organizer?.bankDetails?.upiId?.trim() ? 'UPI' : 'Bank Transfer';
+    const newPayout = {
+      id: payoutId,
+      amount,
+      method,
+      status: 'Processing',
+      requestedAt: new Date().toISOString(),
+      completedAt: null,
+      utr: null,
+    };
+    setPayouts(prev => {
+      const next = [...prev, newPayout];
+      saveOrgPayouts(next);
+      return next;
+    });
+
+    setTimeout(() => {
+      setPayouts(prev => {
+        const next = prev.map(p => p.id === payoutId
+          ? { ...p, status: 'Paid', completedAt: new Date().toISOString(), utr: `UTR${Math.floor(100000000000 + Math.random() * 900000000000)}` }
+          : p);
+        saveOrgPayouts(next);
+        return next;
+      });
+    }, 2200);
   };
 
   // ─── Routing render ────────────────────────────────────────────────────────
@@ -272,6 +361,7 @@ export default function OrgApp() {
         return (
           <TripFormView
             trip={null}
+            organizer={organizer}
             organizerEmail={organizer.email}
             onSave={handleSaveTrip}
             onBack={() => navigateTo('Trips')}
@@ -283,6 +373,7 @@ export default function OrgApp() {
         return (
           <TripFormView
             trip={editingTrip}
+            organizer={organizer}
             organizerEmail={organizer.email}
             onSave={handleSaveTrip}
             onBack={() => navigateTo('Trips')}
@@ -300,8 +391,9 @@ export default function OrgApp() {
             notifications={notifications}
             onNavigate={handleDashboardNavigate}
             onViewTrip={handleEditTrip}
+            onOpenLoyalty={() => setShowOrgLoyalty(true)}
+            onOpenFinancials={() => setShowOrgFinancials(true)}
             darkMode={darkMode}
-            onToggleDarkMode={handleToggleDarkMode}
           />
         ),
         Trips: (
@@ -317,6 +409,7 @@ export default function OrgApp() {
         Bookings: (
           <OrgBookingsView
             bookings={bookings}
+            onApplyLoyaltyReward={handleApplyLoyaltyReward}
             darkMode={darkMode}
           />
         ),
@@ -324,6 +417,8 @@ export default function OrgApp() {
           <OrgProfileView
             organizer={organizer}
             onLogout={handleLogout}
+            onOpenLoyalty={() => setShowOrgLoyalty(true)}
+            onOpenFinancials={() => setShowOrgFinancials(true)}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
           />
@@ -358,6 +453,76 @@ export default function OrgApp() {
             darkMode={darkMode}
           />
         )}
+
+        {/* Loyalty Rewards full-screen overlay — reachable from both the
+            Dashboard banner and the Profile menu row */}
+        <AnimatePresence>
+          {showOrgLoyalty && (
+            <motion.div
+              key="overlay-org-loyalty"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+            >
+              <OrgLoyaltyView
+                organizer={organizer}
+                onBack={() => setShowOrgLoyalty(false)}
+                onGoBookings={() => { setShowOrgLoyalty(false); navigateTo('Bookings'); }}
+                darkMode={darkMode}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notifications full-screen overlay — reachable from the Dashboard bell */}
+        <AnimatePresence>
+          {showOrgNotifications && (
+            <motion.div
+              key="overlay-org-notifications"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+            >
+              <OrgNotificationsView
+                notifications={notifications}
+                onMarkRead={handleMarkNotificationRead}
+                onMarkAllRead={handleMarkAllNotificationsRead}
+                onClear={handleClearNotifications}
+                onBack={() => setShowOrgNotifications(false)}
+                darkMode={darkMode}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Financials full-screen overlay — reachable from the Dashboard
+            revenue card and the Profile menu row */}
+        <AnimatePresence>
+          {showOrgFinancials && (
+            <motion.div
+              key="overlay-org-financials"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+            >
+              <OrgFinancialsView
+                organizer={organizer}
+                bookings={bookings}
+                payouts={payouts}
+                onSaveBankDetails={handleSaveBankDetails}
+                onRequestPayout={handleRequestPayout}
+                onBack={() => setShowOrgFinancials(false)}
+                darkMode={darkMode}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </>
     );
   };

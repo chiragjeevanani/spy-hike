@@ -1,8 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Sun, Moon } from 'lucide-react';
+import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Gift } from 'lucide-react';
+import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 
-export default function OrgDashboardView({ organizer, trips, bookings, notifications, onNavigate, onViewTrip, darkMode, onToggleDarkMode }) {
+export default function OrgDashboardView({ organizer, trips, bookings, notifications, onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, darkMode }) {
+  const loyaltyConfig = loadLoyaltyConfig();
+  const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
+  const showLoyaltyBanner = loyaltyConfig.organizer.enabled && loyaltyConfig.organizer.banner.enabled;
   const activeBookings = bookings.filter(b => b.status === 'Upcoming' || b.status === 'Completed');
   const grossRevenue = activeBookings.reduce((s, b) => s + (b.finalAmount || 0), 0);
   const totalCommission = activeBookings.reduce((s, b) => {
@@ -16,7 +20,7 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
   const unreadNotifs = notifications.filter(n => !n.read).length;
 
   const statCards = [
-    { label: `Net Revenue (Gross: ₹${grossRevenue.toLocaleString('en-IN')})`, value: `₹${netRevenue.toLocaleString('en-IN')}`, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+    { label: `Net Revenue (Gross: ₹${grossRevenue.toLocaleString('en-IN')})`, value: `₹${netRevenue.toLocaleString('en-IN')}`, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', onClick: onOpenFinancials },
     { label: 'Live Trips', value: publishedTrips.length, icon: Map, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { label: 'Upcoming Slots', value: upcomingBookings.length, icon: CalendarCheck, color: 'text-spy-orange', bg: 'bg-spy-orange/10' },
     { label: 'Avg Rating', value: organizer?.rating ? organizer.rating.toFixed(1) : '—', icon: Star, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
@@ -48,18 +52,6 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            {onToggleDarkMode && (
-              <button
-                type="button"
-                onClick={onToggleDarkMode}
-                className={`p-2.5 rounded-xl transition active:scale-90 ${
-                  darkMode ? 'bg-zinc-900 text-amber-500 hover:bg-zinc-800' : 'bg-white text-forest-600 shadow-sm hover:shadow'
-                }`}
-                title="Toggle Dark Mode"
-              >
-                {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-              </button>
-            )}
             <div className="relative">
               <button
                 type="button"
@@ -84,23 +76,70 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
         <div className="grid grid-cols-2 gap-3">
           {statCards.map((s, i) => {
             const Icon = s.icon;
+            const Tag = s.onClick ? motion.button : motion.div;
             return (
-              <motion.div
+              <Tag
                 key={s.label}
+                type={s.onClick ? 'button' : undefined}
+                id={s.onClick ? 'btn-open-financials-dashboard' : undefined}
+                onClick={s.onClick}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.07 }}
-                className={`rounded-2xl p-4 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}
+                whileTap={s.onClick ? { scale: 0.97 } : undefined}
+                className={`rounded-2xl p-4 text-left ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}
               >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${s.bg}`}>
                   <Icon size={18} className={s.color} />
                 </div>
                 <div className="text-xl font-display font-black tracking-tight">{s.value}</div>
                 <div className={`text-xs font-medium mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{s.label}</div>
-              </motion.div>
+              </Tag>
             );
           })}
         </div>
+
+        {/* Loyalty rewards banner — admin-uploaded image/copy + live progress */}
+        {showLoyaltyBanner && (
+          <motion.button
+            type="button"
+            id="btn-open-loyalty-dashboard"
+            onClick={onOpenLoyalty}
+            whileTap={{ scale: 0.99 }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative w-full h-32 rounded-2xl overflow-hidden shadow-lg text-left cursor-pointer"
+          >
+            {loyaltyConfig.organizer.banner.image ? (
+              <img src={loyaltyConfig.organizer.banner.image} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-indigo-700 to-zinc-950" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase flex items-center gap-1">
+                  <Gift size={10} /> Partner Reward
+                </span>
+                <ChevronRight size={16} className="text-white/70" />
+              </div>
+              <div>
+                <h3 className="text-sm font-display font-black text-white leading-tight">
+                  {loyaltyConfig.organizer.banner.title}
+                </h3>
+                <p className="text-[11px] text-white/75 mt-0.5">{loyaltyConfig.organizer.banner.subtitle}</p>
+
+                <div className="flex items-center gap-2 mt-2.5">
+                  <div className="flex-1 h-1.5 rounded-full bg-white/20 overflow-hidden">
+                    <div className="h-full bg-spy-orange rounded-full transition-all duration-700" style={{ width: `${loyaltyProgress.percent}%` }} />
+                  </div>
+                  <span className="text-[10px] font-bold text-white shrink-0">
+                    {loyaltyProgress.withinCycle}/{loyaltyProgress.threshold}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.button>
+        )}
 
         {/* Quick actions */}
         <div>

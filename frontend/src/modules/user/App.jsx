@@ -15,6 +15,7 @@ import WishlistView from './components/WishlistView';
 import ProfileView from './components/ProfileView';
 import BookingDetailsView from './components/BookingDetailsView';
 import OrganizerProfileView from './components/OrganizerProfileView';
+import LoyaltyRewardsView from './components/LoyaltyRewardsView';
 import MapView from './components/MapView';
 import LandingView from '../landing/LandingView';
 
@@ -29,6 +30,7 @@ import {
 } from './utils/storage';
 import { slugifyTrekName } from './utils/trekGroups';
 import { downloadTicketPDF } from './utils/ticketPdf';
+import { syncCustomerVouchers } from '../../utils/loyalty';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -183,6 +185,7 @@ export default function App() {
   const [selectedBooking, setSelectedBooking] = useState(() => getInitialStateFromUrl().selectedBooking);
   const [selectedOrganizer, setSelectedOrganizer] = useState(() => getInitialStateFromUrl().selectedOrganizer);
   const [selectedTrekName, setSelectedTrekName] = useState(() => getInitialStateFromUrl().trekName);
+  const [showLoyalty, setShowLoyalty] = useState(false);
 
   // 3. Search & Filter dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState('');
@@ -398,6 +401,8 @@ export default function App() {
 
   useEffect(() => {
     saveBookings(bookings);
+    // Mint any newly-earned loyalty vouchers whenever the booking roster grows.
+    syncCustomerVouchers(bookings);
   }, [bookings]);
 
   useEffect(() => {
@@ -636,6 +641,8 @@ export default function App() {
             onApplyCategory={handleApplyCategoryFromHome}
             onApplySearch={handleApplySearchFromHome}
             onApplyDate={setExploreDate}
+            onOpenLoyalty={() => setShowLoyalty(true)}
+            bookings={bookings}
             notifications={notifications}
             onMarkNotificationRead={handleMarkNotificationRead}
             onClearNotifications={handleClearNotifications}
@@ -696,6 +703,7 @@ export default function App() {
             onTriggerOnboarding={handleTriggerOnboardingWalkthrough}
             bookings={bookings}
             onFullscreenChange={setNavHidden}
+            onOpenLoyalty={() => setShowLoyalty(true)}
           />
         );
       default:
@@ -871,7 +879,28 @@ export default function App() {
                </motion.div>
              )}
            </AnimatePresence>
- 
+
+           {/* Dynamic Loyalty Rewards page absolute overlay */}
+           <AnimatePresence mode="wait">
+             {showLoyalty && (
+               <motion.div
+                 key="overlay-loyalty-rewards"
+                 initial={{ x: '100%' }}
+                 animate={{ x: 0 }}
+                 exit={{ x: '100%' }}
+                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                 className={`absolute inset-0 z-55 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+               >
+                 <LoyaltyRewardsView
+                   bookings={bookings}
+                   onBack={() => setShowLoyalty(false)}
+                   onGoExplore={() => { setShowLoyalty(false); navigateTo('/explore'); }}
+                   darkMode={darkMode}
+                 />
+               </motion.div>
+             )}
+           </AnimatePresence>
+
           {/* Main Tabs view renderer */}
           <div className="flex-1 flex flex-col overflow-hidden relative">
             <AnimatePresence mode="wait">

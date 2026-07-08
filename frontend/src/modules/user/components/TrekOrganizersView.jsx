@@ -10,12 +10,19 @@ import {
   Clock, Milestone, Heart, Sparkles, X, Check, Bus
 } from 'lucide-react';
 
-// Boarding cities this organizer picks travellers up from; older records
-// without the field fall back to the trek's base city.
-const getPickupPoints = (offer) =>
-  offer.pickupPoints?.length
+// Boarding cities this organizer picks travellers up from, each with its own
+// per-person price where the organizer has set one; older records without
+// per-location pricing fall back to a plain location list (no price shown).
+const getPickupPoints = (offer) => {
+  const pickup = offer.pickup || offer.pickupOptions?.[0];
+  if (pickup) {
+    return [{ location: pickup.location, price: pickup.price }];
+  }
+  const points = offer.pickupPoints?.length
     ? offer.pickupPoints
     : [offer.city || offer.location?.split(',')[0]].filter(Boolean);
+  return points.map(location => ({ location, price: null }));
+};
 
 export default function TrekOrganizersView({
   trekName,
@@ -309,12 +316,12 @@ export default function TrekOrganizersView({
                       </span>
                       {getPickupPoints(offer).map(p => (
                         <span
-                          key={p}
+                          key={p.location}
                           className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                             darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
                           }`}
                         >
-                          Ex-{p}
+                          Ex-{p.location}{p.price != null ? ` · ₹${p.price}` : ''}
                         </span>
                       ))}
                     </div>

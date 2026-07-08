@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, Bell, Star, MapPin, Sparkles, Heart, ChevronRight, ChevronDown, X, Users, Mountain, ArrowUpRight, CalendarDays
+  Search, Bell, Star, MapPin, Sparkles, Heart, ChevronRight, ChevronDown, X, Users, Mountain, ArrowUpRight, CalendarDays, Gift
 } from 'lucide-react';
 import { PROMOTIONAL_BANNERS, TRENDING_DESTINATIONS } from '../data/trips';
 import { groupTripsByTrekName } from '../utils/trekGroups';
+import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import LocationPicker from './LocationPicker';
 import TrekDatePicker from './TrekDatePicker';
 
@@ -27,6 +28,8 @@ export default function HomeView({
   onSwitchTab,
   onApplySearch,
   onApplyDate,
+  onOpenLoyalty,
+  bookings = [],
   notifications,
   onMarkNotificationRead,
   onClearNotifications,
@@ -57,6 +60,11 @@ export default function HomeView({
     try { localStorage.setItem('spyhike_location', JSON.stringify(loc)); } catch (e) {}
     setShowLocationPicker(false);
   };
+
+  // Loyalty progress — admin-controlled thresholds/reward copy/banner asset.
+  const loyaltyConfig = useMemo(() => loadLoyaltyConfig(), []);
+  const loyaltyProgress = useMemo(() => getCustomerProgress(bookings, loyaltyConfig), [bookings, loyaltyConfig]);
+  const showLoyaltyBanner = loyaltyConfig.customer.enabled && loyaltyConfig.customer.banner.enabled;
 
   // Auto-cycle banner slides every 5 seconds
   useEffect(() => {
@@ -286,6 +294,46 @@ export default function HomeView({
           ))}
         </div>
       </div>
+
+      {/* 4b. Loyalty rewards banner — admin-uploaded image/copy + live progress */}
+      {showLoyaltyBanner && (
+        <button
+          type="button"
+          id="btn-open-loyalty-home"
+          onClick={onOpenLoyalty}
+          className="mt-5 relative w-full aspect-[3/1] shrink-0 rounded-3xl overflow-hidden shadow-lg text-left cursor-pointer active:scale-[0.99] transition-transform"
+        >
+          {loyaltyConfig.customer.banner.image ? (
+            <img src={loyaltyConfig.customer.banner.image} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-forest-600 to-forest-950" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase flex items-center gap-1">
+                <Gift size={10} /> Loyalty Reward
+              </span>
+              <ChevronRight size={16} className="text-white/70" />
+            </div>
+            <div>
+              <h3 className="font-serif text-base font-semibold text-white leading-tight">
+                {loyaltyConfig.customer.banner.title}
+              </h3>
+              <p className="text-[11px] text-white/75 mt-0.5">{loyaltyConfig.customer.banner.subtitle}</p>
+
+              {/* Progress bar */}
+              <div className="flex items-center gap-2 mt-2.5">
+                <div className="flex-1 h-1.5 rounded-full bg-white/20 overflow-hidden">
+                  <div className="h-full bg-emerald-400 rounded-full transition-all duration-700" style={{ width: `${loyaltyProgress.percent}%` }} />
+                </div>
+                <span className="text-[10px] font-bold text-white shrink-0">
+                  {loyaltyProgress.withinCycle}/{loyaltyProgress.threshold}
+                </span>
+              </div>
+            </div>
+          </div>
+        </button>
+      )}
 
       {/* 5. Featured trek */}
       {featured && (

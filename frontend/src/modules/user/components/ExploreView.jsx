@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart
+  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus
 } from 'lucide-react';
 import { groupTripsByTrekName } from '../utils/trekGroups';
 
@@ -19,16 +19,41 @@ export default function ExploreView({
   darkMode
 }) {
   
+  // Budget slider ceiling — defaults to ₹400 to match this catalog's seed
+  // prices, but organizer-created trips can carry real-world per-person
+  // pricing (₹1000s via pickup options), so the ceiling scales up to fit
+  // whatever's actually listed rather than silently hiding pricier treks.
+  const priceCeiling = useMemo(
+    () => Math.max(400, ...trips.map(t => t.price || 0)),
+    [trips]
+  );
+
   // Advanced filters state
   const [showFilters, setShowFilters] = useState(false);
   const [filterDifficulty, setFilterDifficulty] = useState('All');
-  const [filterBudget, setFilterBudget] = useState(400);
+  const [filterBudget, setFilterBudget] = useState(() => Math.max(400, ...trips.map(t => t.price || 0)));
   const [filterDuration, setFilterDuration] = useState(8);
   const [filterMinSeats, setFilterMinSeats] = useState(1);
+  const [filterPickupCity, setFilterPickupCity] = useState('All');
   const [sortOption, setSortOption] = useState('Popular');
 
   // Categories quick toggles
   const categoriesList = ['All', 'Trekking', 'Hiking', 'Camping', 'Adventure Tours', 'Nature Walks', 'Weekend Trips'];
+
+  // Every pickup city any organizer offers, across all treks — powers the
+  // "Pickup City" filter below so travellers can browse by where they'll board.
+  const pickupCities = useMemo(() => {
+    const cities = new Set();
+    trips.forEach(t => {
+      const pickup = t.pickup || t.pickupOptions?.[0];
+      if (pickup) {
+        cities.add(pickup.location);
+      } else if (t.pickupPoints?.length) {
+        t.pickupPoints.forEach(p => cities.add(p));
+      }
+    });
+    return [...cities].sort();
+  }, [trips]);
 
   // Dynamic search + filters + sort core mathematical calculation.
   // Operates on one card per unique trek name (see utils/trekGroups.js) —
@@ -66,6 +91,17 @@ export default function ExploreView({
       );
     }
 
+    // 3b. Pickup city — keep the trek if ANY organizer boards from there
+    if (filterPickupCity !== 'All') {
+      result = result.filter(g =>
+        g.offers.some(o => {
+          const pickup = o.pickup || o.pickupOptions?.[0];
+          const cities = pickup ? [pickup.location] : (o.pickupPoints || []);
+          return cities.includes(filterPickupCity);
+        })
+      );
+    }
+
     // 4. Difficulty Level
     if (filterDifficulty !== 'All') {
       result = result.filter(g => g.representative.difficulty === filterDifficulty);
@@ -95,13 +131,14 @@ export default function ExploreView({
     }
 
     return result;
-  }, [trips, searchQuery, selectedCategory, selectedDate, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption]);
+  }, [trips, searchQuery, selectedCategory, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption]);
 
   const resetFilters = () => {
     setFilterDifficulty('All');
-    setFilterBudget(400);
+    setFilterBudget(priceCeiling);
     setFilterDuration(8);
     setFilterMinSeats(1);
+    setFilterPickupCity('All');
     setSortOption('Popular');
     onSetSearchQuery('');
     onSetCategory('All');
@@ -111,14 +148,15 @@ export default function ExploreView({
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (filterDifficulty !== 'All') count++;
-    if (filterBudget < 400) count++;
+    if (filterBudget < priceCeiling) count++;
     if (filterDuration < 8) count++;
     if (filterMinSeats > 1) count++;
+    if (filterPickupCity !== 'All') count++;
     if (sortOption !== 'Popular') count++;
     if (selectedCategory !== 'All') count++;
     if (selectedDate) count++;
     return count;
-  }, [filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption, selectedCategory, selectedDate]);
+  }, [filterDifficulty, filterBudget, filterDuration, filterMinSeats, filterPickupCity, sortOption, selectedCategory, selectedDate, priceCeiling]);
 
   // "Sat, 20 Aug" style label for the active departure-date chip
   const selectedDateLabel = selectedDate
@@ -172,23 +210,41 @@ export default function ExploreView({
           </button>
         </div>
 
-        {/* Active departure-date filter chip (set from the Home calendar) */}
-        {selectedDate && (
-          <div className="flex items-center gap-2 mt-4">
-            <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
-              darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
-            }`}>
-              <Calendar size={14} /> Departing {selectedDateLabel}
-              <button
-                onClick={() => onSetDate && onSetDate('')}
-                aria-label="Clear date filter"
-                className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
-                  darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
-                }`}
-              >
-                <X size={12} />
-              </button>
-            </span>
+        {/* Active departure-date / pickup-city filter chips */}
+        {(selectedDate || filterPickupCity !== 'All') && (
+          <div className="flex items-center flex-wrap gap-2 mt-4">
+            {selectedDate && (
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
+                darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
+              }`}>
+                <Calendar size={14} /> Departing {selectedDateLabel}
+                <button
+                  onClick={() => onSetDate && onSetDate('')}
+                  aria-label="Clear date filter"
+                  className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
+                    darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
+                  }`}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {filterPickupCity !== 'All' && (
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
+                darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
+              }`}>
+                <Bus size={14} /> Ex-{filterPickupCity}
+                <button
+                  onClick={() => setFilterPickupCity('All')}
+                  aria-label="Clear pickup city filter"
+                  className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
+                    darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
+                  }`}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
           </div>
         )}
 
@@ -254,6 +310,25 @@ export default function ExploreView({
                 </div>
               </div>
 
+              {/* 1b. Pickup city filter */}
+              {pickupCities.length > 0 && (
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Pickup City</label>
+                  <select
+                    value={filterPickupCity}
+                    onChange={e => setFilterPickupCity(e.target.value)}
+                    className={`w-full text-xs px-3 py-2.5 rounded-xl outline-hidden border ${
+                      darkMode ? 'bg-elegant-app border-white/10 text-zinc-200' : 'bg-gray-50 border-gray-200 text-zinc-800'
+                    }`}
+                  >
+                    <option value="All">All Cities</option>
+                    {pickupCities.map(city => (
+                      <option key={city} value={city}>Ex-{city}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* 2. Budget slider */}
               <div>
                 <div className="flex justify-between items-center mb-2">
@@ -263,7 +338,7 @@ export default function ExploreView({
                 <input
                   type="range"
                   min={40}
-                  max={400}
+                  max={priceCeiling}
                   step={10}
                   value={filterBudget}
                   onChange={e => setFilterBudget(Number(e.target.value))}
@@ -271,7 +346,7 @@ export default function ExploreView({
                 />
                 <div className="flex justify-between text-[10px] opacity-40 mt-1.5">
                   <span>₹40</span>
-                  <span>₹400</span>
+                  <span>₹{priceCeiling}</span>
                 </div>
               </div>
 
