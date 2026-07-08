@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { loadAllOrganizers } from '../utils/storage';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import TrekigoLogo from '../../../components/TrekigoLogo';
 
 export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collapsed, setCollapsed, darkMode }) {
   const [pendingCount, setPendingCount] = useState(0);
@@ -48,12 +49,10 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
       {/* Sidebar Header Brand */}
       <div className={`p-5 flex items-center justify-between border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 shadow-md">
-            <Shield className="text-[#F27D26]" size={20} />
-          </div>
+          <TrekigoLogo size={36} className="shrink-0 animate-fadeIn" />
           {!collapsed && (
             <div className="flex flex-col select-none animate-fadeIn">
-              <span className="font-display font-black text-sm tracking-tight text-slate-800 dark:text-white leading-none">Spy Hike</span>
+              <span className="font-display font-black text-sm tracking-tight text-slate-800 dark:text-white leading-none">Trekigo</span>
               <span className="text-[10px] font-bold text-[#F27D26] uppercase tracking-wider mt-1">Admin Console</span>
             </div>
           )}

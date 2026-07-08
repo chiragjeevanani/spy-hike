@@ -32,7 +32,7 @@ export const ORG_USER = {
   govtIdType: 'Aadhaar',
   govtIdNumber: '',
   yearsExperience: 5,
-  bio: 'Verified Spy Hike organizer.',
+  bio: 'Verified Trekigo organizer.',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
   rating: 4.9,
   totalTrips: 3,
@@ -64,7 +64,7 @@ export function makeLoyaltyConfig({ customerThreshold = 30, organizerThreshold =
   };
 }
 
-export function makeCustomerBooking({ id = 'b-e2e-1', bookingId = 'SH-E2E-1', travelersCount = 2, tripId = 'himalayan-ridge-pass-trek', tripName = 'Himalayan Ridge Pass Trek', status = 'Upcoming' } = {}) {
+export function makeCustomerBooking({ id = 'b-e2e-1', bookingId = 'TG-E2E-1', travelersCount = 2, tripId = 'himalayan-ridge-pass-trek', tripName = 'Himalayan Ridge Pass Trek', status = 'Upcoming' } = {}) {
   return {
     id, tripId, tripName,
     tripImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=400&q=80',
@@ -81,7 +81,7 @@ export function makeCustomerBooking({ id = 'b-e2e-1', bookingId = 'SH-E2E-1', tr
   };
 }
 
-export function makeOrgBooking({ id = 'ob-e2e-1', bookingId = 'SH-ORGE2E-1', hikersCount = 2, status = 'Upcoming' } = {}) {
+export function makeOrgBooking({ id = 'ob-e2e-1', bookingId = 'TG-ORGE2E-1', hikersCount = 2, status = 'Upcoming' } = {}) {
   return {
     id, tripId: 'org-trip-demo-1', tripName: 'Kedarkantha Winter Summit', bookingId,
     organizerEmail: ORG_USER.email,

@@ -99,7 +99,7 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
             </div>
             <div>
               <p className="text-sm font-bold">Support</p>
-              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>partners@spyhike.com · 1800-SPY-HIKE</p>
+              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>partners@trekigo.com · 1800-TREKIGO</p>
             </div>
           </div>
         </div>

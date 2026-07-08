@@ -1,9 +1,38 @@
+# Local Workspace & AI Agents Configs
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+.vscode/
+.gemini/
+.claude/
+.qoder/
+.kiro/
+.antigravityignore
+.mcp.json
+.opencode.json
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Build outputs, dumps, and temporary files
 frontend/785z15.zip
 frontend/dump/
+dist/
+build/
+out/
+
 # Added by code-review-graph
 .code-review-graph/
 
@@ -12,3 +41,22 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/playwright/.cache/
+
+# Local Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Node / package manager dependencies & logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Serverless & deployments
+.vercel/
+.serverless/

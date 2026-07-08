@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2 } from 'lucide-react';
 import { saveUserState } from '../utils/storage';
 import SwitchTransition from './SwitchTransition';
+import TrekigoLogo from '../../../components/TrekigoLogo';
 
-const ORG_USER_STORAGE_KEY = 'spyhike_org_user';
+const ORG_USER_STORAGE_KEY = 'trekigo_org_user';
 const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play, then holds briefly before redirecting
 const ROLE_TOGGLE_TRANSITION_MS = 3000; // lets the scene flip play before the login form switches role
 
@@ -30,7 +31,6 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regAge, setRegAge] = useState(24);
-  const [regGender, setRegGender] = useState('Male');
 
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -64,11 +64,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     const orgUser = {
       agencyName: loggedInUser.name,
       agencyWebsite: '',
-      socialMediaLink: 'https://instagram.com/spyhikeorganizer',
+      socialMediaLink: 'https://instagram.com/trekigoorganizer',
       govtIdType: 'Aadhaar',
       govtIdNumber: '',
       yearsExperience: 1,
-      bio: 'Verified Spy Hike organizer.',
+      bio: 'Verified Trekigo organizer.',
       verificationDocumentUrl: '',
       rating: 4.8,
       totalTrips: 0,
@@ -132,7 +132,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     }
 
     // Check if user exists in our local simulated accounts
-    if (email.toLowerCase() === 'chiragjeevanani333@gmail.com' && password === 'spyhike123') {
+    if (email.toLowerCase() === 'chiragjeevanani333@gmail.com' && password === 'trekigo123') {
       const user = {
         isAuthenticated: true,
         isOnboarded: true,
@@ -201,10 +201,9 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       isOnboarded: true,
       isOrganizer: false,
       name: 'Chirag - Mobile User',
-      email: 'chirag.mobile@spyhike.com',
+      email: 'chirag.mobile@trekigo.com',
       mobile: phone,
       age: 25,
-      gender: 'Male',
       avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
       hikingExperience: 'Intermediate',
       fitnessLevel: 'Moderate',
@@ -230,7 +229,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       email: regEmail,
       mobile: regPhone,
       age: regAge,
-      gender: regGender,
+      gender: 'Not Specified',
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
       hikingExperience: 'Beginner', // Default
       fitnessLevel: 'Moderate', // Default
@@ -252,30 +251,32 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     setTimeout(() => setMode('LOGIN_EMAIL'), 2500);
   };
 
+  const isRegister = mode === 'REGISTER';
+
   return (
-    <div className={`relative h-full flex flex-col justify-between overflow-y-auto font-sans px-6 py-8 ${
+    <div className={`relative h-full flex flex-col overflow-y-auto font-sans px-5 ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'
     }`}>
       {showOrgTransition && <SwitchTransition darkMode={darkMode} label="Switching to Organizer Panel" showScene />}
       {roleSwitchLabel && <SwitchTransition darkMode={darkMode} label={roleSwitchLabel} showScene />}
 
-      {/* Brand logo top spacing */}
-      <div className="flex flex-col items-center mt-6 mb-6">
-        <div className="w-14 h-14 bg-forest-600 rounded-2xl flex items-center justify-center shadow-lg transform rotate-6 border border-forest-400">
-          <Compass className="w-8 h-8 text-white -rotate-6" />
-        </div>
-        <h1 className="text-3xl font-display font-black mt-4 tracking-tight text-forest-600 dark:text-forest-400">
-          Spy Hike
+      {/* Brand logo — compact when in REGISTER mode */}
+      <div className={`flex flex-col items-center shrink-0 ${isRegister ? 'pt-4 pb-3' : 'pt-8 pb-6'}`}>
+        <TrekigoLogo size={isRegister ? 40 : 56} className="text-forest-600 dark:text-forest-400" />
+        <h1 className={`font-display font-black tracking-tight text-forest-600 dark:text-forest-400 ${isRegister ? 'text-2xl mt-1' : 'text-3xl mt-2'}`}>
+          Trekigo
         </h1>
-        <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-          PREMIUM OUTDOORS & ALPINE EXPLORATIONS
-        </p>
+        {!isRegister && (
+          <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+            PREMIUM OUTDOORS & ALPINE EXPLORATIONS
+          </p>
+        )}
       </div>
 
       {/* Main Container body */}
-      <div className={`w-full rounded-3xl p-6 shadow-xl ${
+      <div className={`w-full rounded-3xl shadow-xl mx-0 ${
         darkMode ? 'bg-zinc-900' : 'bg-white'
-      }`}>
+      } ${isRegister ? 'p-5' : 'p-6'}`}>
 
         {/* Errors & Confirms */}
         {errorMsg && (
@@ -402,7 +403,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               </span>
               <div className="flex justify-between font-mono text-[10px]">
                 <div>Email: <span className="text-spy-orange font-semibold">chiragjeevanani333@gmail.com</span></div>
-                <div>Pass: <span className="text-spy-orange font-semibold">spyhike123</span></div>
+                <div>Pass: <span className="text-spy-orange font-semibold">trekigo123</span></div>
               </div>
               {role === 'ORGANIZER' && (
                 <p className="mt-1.5 opacity-80">This account is pre-approved as an organizer — any other email won't pass the Organizer gate.</p>
@@ -552,24 +553,24 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         )}
 
         {mode === 'REGISTER' && (
-          <form onSubmit={handleRegister} className="space-y-3.5 max-h-[460px] overflow-y-auto no-scrollbar pointer-events-auto">
-            <h2 className="text-xl font-display font-extrabold tracking-tight text-forest-600 dark:text-forest-400">Register Account</h2>
-            <p className={`text-xs -mt-1 pb-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+          <form onSubmit={handleRegister} className="space-y-2 pointer-events-auto">
+            <h2 className="text-lg font-display font-extrabold tracking-tight text-forest-600 dark:text-forest-400">Register Account</h2>
+            <p className={`text-[11px] -mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
               Unlock onboarding maps and custom guide profiles
             </p>
 
             {/* Name */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase opacity-80">Full Name</label>
+            <div className="space-y-0.5">
+              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Full Name</label>
               <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
                 <input
                   type="text"
                   required
                   placeholder="Chirag Jeevanani"
                   value={regName}
                   onChange={e => setRegName(e.target.value)}
-                  className={`w-full text-xs pl-9 pr-4 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border ${
+                  className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
                     darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
                   }`}
                 />
@@ -577,17 +578,17 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             </div>
 
             {/* Mobile */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase opacity-80">Mobile Number</label>
+            <div className="space-y-0.5">
+              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Mobile Number</label>
               <div className="relative">
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
                 <input
                   type="tel"
                   required
                   placeholder="+91 98765 43210"
                   value={regPhone}
                   onChange={e => setRegPhone(e.target.value)}
-                  className={`w-full text-xs pl-9 pr-4 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border ${
+                  className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
                     darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
                   }`}
                 />
@@ -595,17 +596,17 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             </div>
 
             {/* Email */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase opacity-80">Email Address</label>
+            <div className="space-y-0.5">
+              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
                 <input
                   type="email"
                   required
                   placeholder="chiragjeevanani333@gmail.com"
                   value={regEmail}
                   onChange={e => setRegEmail(e.target.value)}
-                  className={`w-full text-xs pl-9 pr-4 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border ${
+                  className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
                     darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
                   }`}
                 />
@@ -613,17 +614,17 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             </div>
 
             {/* Password */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase opacity-80">Password</label>
+            <div className="space-y-0.5">
+              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="Minimum 6 characters"
                   value={regPassword}
                   onChange={e => setRegPassword(e.target.value)}
-                  className={`w-full text-xs pl-9 pr-10 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border ${
+                  className={`w-full text-xs pl-8 pr-10 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
                     darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
                   }`}
                 />
@@ -632,48 +633,31 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
                 >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
             </div>
 
-            {/* Two Column details Age & Gender */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase opacity-80">Age</label>
-                <input
-                  type="number"
-                  min={12}
-                  max={99}
-                  required
-                  value={regAge}
-                  onChange={e => setRegAge(Number(e.target.value))}
-                  className={`w-full text-xs px-3 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase opacity-80">Gender</label>
-                <select
-                  value={regGender}
-                  onChange={e => setRegGender(e.target.value)}
-                  className={`w-full text-xs px-2 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
+            {/* Age field */}
+            <div className="space-y-0.5">
+              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Age</label>
+              <input
+                type="number"
+                min={12}
+                max={99}
+                required
+                value={regAge}
+                onChange={e => setRegAge(Number(e.target.value))}
+                className={`w-full text-xs px-3 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                  darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                }`}
+              />
             </div>
 
             <button
               type="submit"
               id="btn-register-submit"
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3 rounded-xl shadow-lg mt-4 cursor-pointer"
+              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg mt-1 cursor-pointer active:scale-98 transition-all"
             >
               Complete Safe SignUp
             </button>
@@ -681,7 +665,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         )}
 
         {/* Alternate login / Register switch bottom */}
-        <div className={`mt-6 pt-5 border-t text-center text-xs ${
+        <div className={`mt-3 pt-3 border-t text-center text-xs ${
           darkMode ? 'border-zinc-800 text-zinc-400' : 'border-gray-200 text-zinc-650'
         }`}>
           {mode !== 'REGISTER' ? (
@@ -710,7 +694,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             )
           ) : (
             <p>
-              Already verified on Spy Hike?{' '}
+              Already verified on Trekigo?{' '}
               <button
                 type="button"
                 onClick={() => onSwitchToLogin ? onSwitchToLogin() : setMode('LOGIN_EMAIL')}
@@ -724,11 +708,13 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       </div>
 
       {/* Footer support coordinates */}
-      <div className={`mt-auto pt-6 text-center text-[10px] opacity-75 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-        <p className="flex items-center justify-center gap-1">
-          <Globe size={11} /> Secured server tunnel connections active
-        </p>
-      </div>
+      {!isRegister && (
+        <div className={`py-4 text-center text-[10px] opacity-75 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+          <p className="flex items-center justify-center gap-1">
+            <Globe size={11} /> Secured server tunnel connections active
+          </p>
+        </div>
+      )}
 
     </div>
   );

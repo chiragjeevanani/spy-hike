@@ -1,23 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Ban, CheckCircle, Eye, Download, X } from 'lucide-react';
-import { loadAllUsers, saveUserStatus } from '../utils/storage';
+import { Search, Ban, CheckCircle, Eye, Download, Trash2, UserPlus } from 'lucide-react';
+import { loadAllUsers, saveUserStatus, deleteUser } from '../utils/storage';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
-export default function UsersView({ darkMode }) {
+export default function UsersView({ onOpenProfile, darkMode }) {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState('All');
   const [expFilter, setExpFilter] = useState('All');
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [statusAction, setStatusAction] = useState(null); // { email, name, nextStatus }
+  const [deleteTarget, setDeleteTarget] = useState(null); // { email, name }
 
   useEffect(() => {
     setUsers(loadAllUsers());
   }, []);
 
-  const handleStatusChange = (email, currentStatus) => {
-    const nextStatus = currentStatus === 'Banned' ? 'Active' : 'Banned';
-    if (!window.confirm(`Are you sure you want to change status to ${nextStatus} for ${email}?`)) return;
-    saveUserStatus(email, nextStatus);
-    setUsers(loadAllUsers()); // refresh
+  const handleConfirmStatusChange = () => {
+    saveUserStatus(statusAction.email, statusAction.nextStatus);
+    setUsers(loadAllUsers());
+    setStatusAction(null);
+  };
+
+  const handleConfirmDelete = () => {
+    deleteUser(deleteTarget.email);
+    setUsers(loadAllUsers());
+    setDeleteTarget(null);
   };
 
   const handleExport = () => {
@@ -25,7 +32,7 @@ export default function UsersView({ darkMode }) {
   };
 
   const filteredUsers = users.filter(u => {
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || 
+    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
                         u.email.toLowerCase().includes(search.toLowerCase());
     const matchGender = genderFilter === 'All' || u.gender === genderFilter;
     const matchExp = expFilter === 'All' || u.hikingExperience === expFilter;
@@ -33,27 +40,36 @@ export default function UsersView({ darkMode }) {
   });
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${
-    darkMode 
-      ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20' 
+    darkMode
+      ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20'
       : 'bg-white border-slate-100 text-slate-800 shadow-slate-100/50'
   }`;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
-      
+
       {/* Title */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-black font-display tracking-tight text-slate-800 dark:text-white">Hikers & Users</h1>
           <p className="text-slate-400 text-xs mt-1.5 font-semibold">Manage hiker registrations, profiles, and account statuses.</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all active:scale-95"
-        >
-          <Download size={14} />
-          <span>Export Users</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => onOpenProfile()}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#F27D26] text-white active:scale-95 transition-all"
+          >
+            <UserPlus size={14} />
+            <span>Add Hiker</span>
+          </button>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all active:scale-95"
+          >
+            <Download size={14} />
+            <span>Export Users</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters bar */}
@@ -67,8 +83,8 @@ export default function UsersView({ darkMode }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={`w-full pl-9 pr-4 py-2 rounded-xl border outline-none text-xs font-semibold transition-all ${
-              darkMode 
-                ? 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-500 focus:border-[#F27D26]/60' 
+              darkMode
+                ? 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-500 focus:border-[#F27D26]/60'
                 : 'bg-slate-50 border-slate-200 text-slate-700 placeholder-slate-400 focus:border-[#F27D26]/60'
             }`}
           />
@@ -136,7 +152,7 @@ export default function UsersView({ darkMode }) {
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.email} className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors`}>
-                    
+
                     {/* User Profile */}
                     <td className="py-4 px-6 flex items-center gap-3">
                       <img
@@ -185,22 +201,29 @@ export default function UsersView({ darkMode }) {
                     {/* Actions */}
                     <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
                       <button
-                        onClick={() => setSelectedUser(user)}
+                        onClick={() => onOpenProfile(user.email)}
                         className={`p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-all`}
                         title="View Profile Details"
                       >
                         <Eye size={14} />
                       </button>
                       <button
-                        onClick={() => handleStatusChange(user.email, user.status)}
+                        onClick={() => setStatusAction({ email: user.email, name: user.name, nextStatus: user.status === 'Banned' ? 'Active' : 'Banned' })}
                         className={`p-1.5 rounded-lg border transition-all ${
-                          user.status === 'Active' 
-                            ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10' 
+                          user.status === 'Active'
+                            ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
                             : 'border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
                         }`}
                         title={user.status === 'Active' ? 'Ban Hiker' : 'Unban Hiker'}
                       >
                         {user.status === 'Active' ? <Ban size={14} /> : <CheckCircle size={14} />}
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget({ email: user.email, name: user.name })}
+                        className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
+                        title="Delete Hiker"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </td>
 
@@ -212,78 +235,31 @@ export default function UsersView({ darkMode }) {
         </div>
       </div>
 
-      {/* User Details Modal */}
-      {selectedUser && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl relative animate-scaleIn ${
-            darkMode ? 'bg-[#152243] border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-800'
-          }`}>
-            <button
-              onClick={() => setSelectedUser(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X size={18} />
-            </button>
+      <ConfirmDialog
+        open={!!statusAction}
+        title={statusAction?.nextStatus === 'Banned' ? 'Ban Hiker?' : 'Unban Hiker?'}
+        message={
+          statusAction?.nextStatus === 'Banned'
+            ? `${statusAction?.name} will be banned and unable to log in or make new bookings.`
+            : `${statusAction?.name} will regain full access to the app.`
+        }
+        confirmLabel={statusAction?.nextStatus === 'Banned' ? 'Ban' : 'Unban'}
+        tone={statusAction?.nextStatus === 'Banned' ? 'danger' : 'default'}
+        onConfirm={handleConfirmStatusChange}
+        onCancel={() => setStatusAction(null)}
+        darkMode={darkMode}
+      />
 
-            {/* Profile Avatar Card */}
-            <div className="flex flex-col items-center pb-5 mb-5 border-b border-slate-100 dark:border-slate-800">
-              <img
-                src={selectedUser.avatar}
-                alt={selectedUser.name}
-                className="w-20 h-20 rounded-full border-2 border-[#F27D26] object-cover mb-3"
-              />
-              <h3 className="font-display font-black text-lg">{selectedUser.name}</h3>
-              <span className="text-xs text-slate-400 mt-0.5 font-semibold">{selectedUser.email}</span>
-            </div>
-
-            {/* Profile metadata info */}
-            <div className="space-y-4 text-xs font-semibold">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Phone</span>
-                  <span>{selectedUser.mobile || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Age / Gender</span>
-                  <span>{selectedUser.age} Yrs / {selectedUser.gender}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Trekking Level</span>
-                  <span className="text-emerald-500">{selectedUser.hikingExperience}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Fitness Level</span>
-                  <span>{selectedUser.fitnessLevel}</span>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Emergency Contact</span>
-                <span className="text-rose-500 bg-rose-500/5 px-2.5 py-1 rounded-lg inline-block mt-0.5">
-                  {selectedUser.emergencyContact || 'Not Specified'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Bookings</span>
-                  <span>{selectedUser.bookingsCount || 0} hikes</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Status</span>
-                  <span className={selectedUser.status === 'Active' ? 'text-emerald-500' : 'text-rose-500'}>
-                    {selectedUser.status}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Hiker Account?"
+        message={`This permanently removes ${deleteTarget?.name}'s profile from the admin console.`}
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        darkMode={darkMode}
+      />
 
     </div>
   );

@@ -1,10 +1,10 @@
-const ORG_USER_KEY = 'spyhike_org_user';
-const ORG_TRIPS_KEY = 'spyhike_org_trips';
-const ORG_BOOKINGS_KEY = 'spyhike_org_bookings';
-const ORG_NOTIFICATIONS_KEY = 'spyhike_org_notifications';
-const ORG_CHATS_KEY = 'spyhike_org_chats';
-const ORG_DARK_MODE_KEY = 'spyhike_org_darkmode';
-const ORG_PAYOUTS_KEY = 'spyhike_org_payouts';
+const ORG_USER_KEY = 'trekigo_org_user';
+const ORG_TRIPS_KEY = 'trekigo_org_trips';
+const ORG_BOOKINGS_KEY = 'trekigo_org_bookings';
+const ORG_NOTIFICATIONS_KEY = 'trekigo_org_notifications';
+const ORG_CHATS_KEY = 'trekigo_org_chats';
+const ORG_DARK_MODE_KEY = 'trekigo_org_darkmode';
+const ORG_PAYOUTS_KEY = 'trekigo_org_payouts';
 
 export const DEFAULT_ORG_USER = {
   isAuthenticated: false,
@@ -90,7 +90,7 @@ const DEMO_ORG_BOOKINGS = [
     id: 'ob-demo-1',
     tripId: 'org-trip-demo-1',
     tripName: 'Kedarkantha Winter Summit',
-    bookingId: 'SH-8821-K',
+    bookingId: 'TG-8821-K',
     userName: 'Aarav Sharma',
     userEmail: 'aarav@example.com',
     userMobile: '+91 98765 43210',
@@ -153,7 +153,7 @@ export const loadOrgNotifications = () => {
   return [
     {
       id: 'on-1',
-      title: '🎉 Welcome to Spy Hike Partner Network!',
+      title: '🎉 Welcome to Trekigo Partner Network!',
       content: 'Your account is under review. Admin will approve within 24-48 hours.',
       timestamp: new Date().toISOString(),
       type: 'System',

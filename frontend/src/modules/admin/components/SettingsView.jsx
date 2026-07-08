@@ -19,14 +19,14 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
   const [maintMode, setMaintMode] = useState(false);
   const [alertDuration, setAlertDuration] = useState('24h');
   const [commissionRate, setCommissionRate] = useState(() => {
-    const stored = localStorage.getItem('spyhike_commission_rate');
+    const stored = localStorage.getItem('trekigo_commission_rate');
     return stored !== null ? Number(stored) : 10;
   });
 
   const handleCommissionChange = (value) => {
     const rate = Math.max(0, Math.min(100, Number(value) || 0));
     setCommissionRate(rate);
-    localStorage.setItem('spyhike_commission_rate', rate.toString());
+    localStorage.setItem('trekigo_commission_rate', rate.toString());
   };
 
   const handleProfileSave = (e) => {
@@ -49,7 +49,7 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
       return;
     }
     resetDemoData();
-    localStorage.removeItem('spyhike_commission_rate');
+    localStorage.removeItem('trekigo_commission_rate');
     alert('Database successfully restored to initial demo seeds! Please refresh to sync visual components.');
     window.location.reload();
   };

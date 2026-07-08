@@ -1,12 +1,12 @@
 import { HIKING_TRIPS } from '../data/trips';
 
-const USER_STORAGE_KEY = 'spyhike_user';
-const WISHLIST_STORAGE_KEY = 'spyhike_wishlist';
-const BOOKINGS_STORAGE_KEY = 'spyhike_bookings';
-const NOTIFICATIONS_STORAGE_KEY = 'spyhike_notifications';
-const CHAT_STORAGE_KEY = 'spyhike_chats';
-const TRIPS_STORAGE_KEY = 'spyhike_trips';
-const DARK_MODE_KEY = 'spyhike_darkmode';
+const USER_STORAGE_KEY = 'trekigo_user';
+const WISHLIST_STORAGE_KEY = 'trekigo_wishlist';
+const BOOKINGS_STORAGE_KEY = 'trekigo_bookings';
+const NOTIFICATIONS_STORAGE_KEY = 'trekigo_notifications';
+const CHAT_STORAGE_KEY = 'trekigo_chats';
+const TRIPS_STORAGE_KEY = 'trekigo_trips';
+const DARK_MODE_KEY = 'trekigo_darkmode';
 
 const DEFAULT_USER = {
   isAuthenticated: false, // Start as unauthenticated!
@@ -16,7 +16,6 @@ const DEFAULT_USER = {
   email: 'chiragjeevanani333@gmail.com',
   mobile: '+91 98765 43210',
   age: 24,
-  gender: 'Male',
   avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
   hikingExperience: 'Intermediate',
   fitnessLevel: 'High',
@@ -43,7 +42,7 @@ const STARTER_BOOKINGS = [
     taxAmount: 13.35,
     finalAmount: 164.65,
     status: 'Completed',
-    bookingId: 'SH-4890-C',
+    bookingId: 'TG-4890-C',
     organizerName: 'Sahyadri Rangers'
   },
   {
@@ -63,7 +62,7 @@ const STARTER_BOOKINGS = [
     taxAmount: 11.6,
     finalAmount: 140.6,
     status: 'Cancelled',
-    bookingId: 'SH-3928-X',
+    bookingId: 'TG-3928-X',
     organizerName: 'Desert Nomad Adventures'
   },
   {
@@ -78,12 +77,12 @@ const STARTER_BOOKINGS = [
     travelers: [
       { name: 'Chirag Jeevanani', age: 24, gender: 'Male', emergencyContact: '+91 98765 43219' }
     ],
-    couponUsed: 'SPYHIKE20',
+    couponUsed: 'TREKIGO20',
     couponDiscount: 69.8,
     taxAmount: 25.13,
     finalAmount: 304.33,
     status: 'Upcoming',
-    bookingId: 'SH-9921-U',
+    bookingId: 'TG-9921-U',
     organizerName: 'Himalayan Sherpa Guides'
   }
 ];
@@ -116,7 +115,7 @@ const STARTER_NOTIFICATIONS = [
   {
     id: 'n-4',
     title: '⛰️ Monsoon Specials Are Active',
-    content: 'Get flat 20% off on all Himalayan summer crossings with code SPYHIKE20.',
+    content: 'Get flat 20% off on all Himalayan summer crossings with code TREKIGO20.',
     timestamp: '2026-06-01T10:00:00Z',
     type: 'Promo',
     read: true

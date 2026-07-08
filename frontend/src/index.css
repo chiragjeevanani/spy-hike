@@ -16,16 +16,16 @@ html, body {
 }
 
 /* Restrict text selection and copy, keeping input controls selectable */
-#spyhike-app-viewport {
+#trekigo-app-viewport {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
 }
 
-#spyhike-app-viewport input,
-#spyhike-app-viewport textarea,
-#spyhike-app-viewport select {
+#trekigo-app-viewport input,
+#trekigo-app-viewport textarea,
+#trekigo-app-viewport select {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;

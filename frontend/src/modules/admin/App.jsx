@@ -11,7 +11,9 @@ import AdminSidebar from './components/AdminSidebar';
 import AdminHeader from './components/AdminHeader';
 import DashboardView from './components/DashboardView';
 import UsersView from './components/UsersView';
+import AdminUserProfileView from './components/AdminUserProfileView';
 import OrganizersView from './components/OrganizersView';
+import AdminOrganizerProfileView from './components/AdminOrganizerProfileView';
 import TripsView from './components/TripsView';
 import BookingsView from './components/BookingsView';
 import AnalyticsView from './components/AnalyticsView';
@@ -25,7 +27,9 @@ function getAdminTab(pathname) {
   const p = pathname.replace(PATH_PREFIX, '').replace(/^\//, '');
   if (!p || p === '' || p === 'dashboard') return 'Dashboard';
   if (p === 'users') return 'Users';
+  if (p.startsWith('users/')) return 'UserProfile';
   if (p === 'organizers') return 'Organizers';
+  if (p.startsWith('organizers/')) return 'OrganizerProfile';
   if (p === 'trips') return 'Trips';
   if (p === 'bookings') return 'Bookings';
   if (p === 'analytics') return 'Analytics';
@@ -36,10 +40,21 @@ function getAdminTab(pathname) {
   return 'Dashboard';
 }
 
-function tabToPath(tab) {
+// Pulls the :email (or 'new') segment out of /admin/users/:x or
+// /admin/organizers/:x — null for every other tab.
+function getProfileParam(pathname) {
+  const p = pathname.replace(PATH_PREFIX, '').replace(/^\//, '');
+  if (p.startsWith('users/')) return decodeURIComponent(p.slice('users/'.length));
+  if (p.startsWith('organizers/')) return decodeURIComponent(p.slice('organizers/'.length));
+  return null;
+}
+
+function tabToPath(tab, param) {
   if (tab === 'Dashboard') return `${PATH_PREFIX}/dashboard`;
   if (tab === 'Users') return `${PATH_PREFIX}/users`;
+  if (tab === 'UserProfile') return `${PATH_PREFIX}/users/${param ? encodeURIComponent(param) : 'new'}`;
   if (tab === 'Organizers') return `${PATH_PREFIX}/organizers`;
+  if (tab === 'OrganizerProfile') return `${PATH_PREFIX}/organizers/${param ? encodeURIComponent(param) : 'new'}`;
   if (tab === 'Trips') return `${PATH_PREFIX}/trips`;
   if (tab === 'Bookings') return `${PATH_PREFIX}/bookings`;
   if (tab === 'Analytics') return `${PATH_PREFIX}/analytics`;
@@ -54,12 +69,14 @@ export default function AdminApp() {
   const [darkMode, setDarkMode] = useState(loadAdminDarkMode());
   const [admin, setAdmin] = useState(loadAdminUser());
   const [activeTab, setActiveTab] = useState(() => getAdminTab(window.location.pathname));
+  const [profileParam, setProfileParam] = useState(() => getProfileParam(window.location.pathname));
   const [collapsed, setCollapsed] = useState(false);
 
   // Sync back-button routing
   useEffect(() => {
     const handlePop = () => {
       setActiveTab(getAdminTab(window.location.pathname));
+      setProfileParam(getProfileParam(window.location.pathname));
     };
     window.addEventListener('popstate', handlePop);
     return () => window.removeEventListener('popstate', handlePop);
@@ -71,15 +88,19 @@ export default function AdminApp() {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  const navigateTo = useCallback((tab, replace = false) => {
-    const path = tabToPath(tab);
+  const navigateTo = useCallback((tab, replace = false, param = null) => {
+    const path = tabToPath(tab, param);
     if (replace) {
       window.history.replaceState({ tab }, '', path);
     } else {
       window.history.pushState({ tab }, '', path);
     }
     setActiveTab(tab);
+    setProfileParam(param);
   }, []);
+
+  const openUserProfile = useCallback((email) => navigateTo('UserProfile', false, email), [navigateTo]);
+  const openOrganizerProfile = useCallback((email) => navigateTo('OrganizerProfile', false, email), [navigateTo]);
 
   const handleLoginSuccess = (profile) => {
     const updated = { ...profile, isAuthenticated: true };
@@ -108,9 +129,29 @@ export default function AdminApp() {
       case 'Dashboard':
         return <DashboardView onNavigate={navigateTo} darkMode={darkMode} />;
       case 'Users':
-        return <UsersView darkMode={darkMode} />;
+        return <UsersView onOpenProfile={openUserProfile} darkMode={darkMode} />;
+      case 'UserProfile':
+        return (
+          <AdminUserProfileView
+            email={profileParam === 'new' ? null : profileParam}
+            onBack={() => navigateTo('Users')}
+            onNavigateToUser={openUserProfile}
+            onNavigateToOrganizer={openOrganizerProfile}
+            darkMode={darkMode}
+          />
+        );
       case 'Organizers':
-        return <OrganizersView darkMode={darkMode} />;
+        return <OrganizersView onOpenProfile={openOrganizerProfile} darkMode={darkMode} />;
+      case 'OrganizerProfile':
+        return (
+          <AdminOrganizerProfileView
+            email={profileParam === 'new' ? null : profileParam}
+            onBack={() => navigateTo('Organizers')}
+            onNavigateToUser={openUserProfile}
+            onNavigateToOrganizer={openOrganizerProfile}
+            darkMode={darkMode}
+          />
+        );
       case 'Trips':
         return <TripsView darkMode={darkMode} />;
       case 'Bookings':
@@ -138,7 +179,11 @@ export default function AdminApp() {
 
       {/* Collapsible sidebar */}
       <AdminSidebar
-        activeTab={activeTab}
+        activeTab={
+          activeTab === 'UserProfile' ? 'Users' :
+          activeTab === 'OrganizerProfile' ? 'Organizers' :
+          activeTab
+        }
         onSelectTab={navigateTo}
         onLogout={handleLogout}
         collapsed={collapsed}
@@ -150,7 +195,11 @@ export default function AdminApp() {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         {/* Top Header */}
         <AdminHeader
-          activeTab={activeTab}
+          activeTab={
+            activeTab === 'UserProfile' ? 'Hiker Profile' :
+            activeTab === 'OrganizerProfile' ? 'Organizer Profile' :
+            activeTab
+          }
           admin={admin}
           darkMode={darkMode}
           onToggleDarkMode={handleToggleDarkMode}

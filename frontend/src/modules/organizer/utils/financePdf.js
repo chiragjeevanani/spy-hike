@@ -68,7 +68,7 @@ export function downloadFinancialReportPDF({ organizer, bookings, payouts }) {
     op(`${r} ${g} ${b} RG 0.8 w ${x1} ${yy(y1Top)} m ${x2} ${yy(y2Top)} l S`);
 
   const drawContinuationHeader = () => {
-    text(M, 36, 'SPYHIKE', { font: 'F2', size: 13, color: BROWN });
+    text(M, 36, 'TREKIGO', { font: 'F2', size: 13, color: BROWN });
     text(M + 78, 36, 'FINANCIAL REPORT (continued)', { font: 'F3', size: 8, color: MUTED });
     line(M, 46, A4_W - M, 46);
     y = 66;
@@ -85,7 +85,7 @@ export function downloadFinancialReportPDF({ organizer, bookings, payouts }) {
   };
 
   // ---------- Page 1 header ----------
-  text(M, 40, 'SPYHIKE', { font: 'F2', size: 20, color: BROWN });
+  text(M, 40, 'TREKIGO', { font: 'F2', size: 20, color: BROWN });
   text(M + 112, 40, 'FINANCIAL REPORT', { font: 'F3', size: 10, color: MUTED });
   text(M, 58, `${organizer?.agencyName || organizer?.name || 'Partner'}  -  ${organizer?.email || ''}`, { size: 9, color: MUTED });
   text(M, 72, `Generated ${new Date().toLocaleString('en-IN')}  -  Report Period: All-Time`, { size: 8, color: MUTED });
@@ -219,7 +219,7 @@ export function downloadFinancialReportPDF({ organizer, bookings, payouts }) {
   const totalPages = pagesOps.length;
   const FOOTER_PDF_Y = 24; // distance from the physical bottom edge, inside the page margin
   pagesOps.forEach((page, i) => {
-    const footerStr = `Page ${i + 1} of ${totalPages}  |  Spy Hike Partner Network - Confidential Financial Report`;
+    const footerStr = `Page ${i + 1} of ${totalPages}  |  Trekigo Partner Network - Confidential Financial Report`;
     page.push(`BT /F1 7 Tf ${MUTED[0]} ${MUTED[1]} ${MUTED[2]} rg ${M} ${FOOTER_PDF_Y} Td (${clean(footerStr)}) Tj ET`);
   });
 
@@ -266,7 +266,7 @@ export function downloadFinancialReportPDF({ organizer, bookings, payouts }) {
   const a = document.createElement('a');
   a.href = url;
   const stamp = new Date().toISOString().split('T')[0];
-  a.download = `SpyHike-Financial-Report-${(organizer?.agencyName || organizer?.name || 'Partner').replace(/[^a-zA-Z0-9]+/g, '-')}-${stamp}.pdf`;
+  a.download = `Trekigo-Financial-Report-${(organizer?.agencyName || organizer?.name || 'Partner').replace(/[^a-zA-Z0-9]+/g, '-')}-${stamp}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();

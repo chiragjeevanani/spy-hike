@@ -9,9 +9,9 @@
 // Everything lives in localStorage (same-origin, shared across /app,
 // /organizer and /admin) — no server, consistent with the rest of this demo.
 
-const CONFIG_KEY = 'spyhike_loyalty_config';
-const CUSTOMER_VOUCHERS_KEY = 'spyhike_loyalty_customer_vouchers';
-const ORG_VOUCHERS_KEY = 'spyhike_loyalty_org_vouchers';
+const CONFIG_KEY = 'trekigo_loyalty_config';
+const CUSTOMER_VOUCHERS_KEY = 'trekigo_loyalty_customer_vouchers';
+const ORG_VOUCHERS_KEY = 'trekigo_loyalty_org_vouchers';
 
 export const DEFAULT_LOYALTY_CONFIG = {
   customer: {
@@ -30,7 +30,7 @@ export const DEFAULT_LOYALTY_CONFIG = {
     enabled: true,
     thresholdBookings: 1000,
     rewardTitle: 'Zero-Commission Booking',
-    rewardDescription: 'Cross 1000 bookings via Spy Hike and earn a zero-commission credit — apply it to any upcoming booking to keep 100% of that payout.',
+    rewardDescription: 'Cross 1000 bookings via Trekigo and earn a zero-commission credit — apply it to any upcoming booking to keep 100% of that payout.',
     banner: {
       enabled: true,
       image: '',

@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Heart, Star, MapPin, Milestone, TrendingUp, ShieldCheck, Users,
-  CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText, Bus, Navigation
+  CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText, Bus, Navigation, Sparkles, ArrowRight
 } from 'lucide-react';
 
 export default function TripDetailsView({
@@ -37,7 +37,6 @@ export default function TripDetailsView({
     { label: 'Difficulty', value: trip.difficulty, icon: <Award className="w-5 h-5 text-spy-orange" /> },
     { label: 'Distance', value: `${trip.distanceKm} Km`, icon: <Milestone className="w-5 h-5 text-forest-500" /> },
     { label: 'Duration', value: `${trip.durationDays} Days`, icon: <CalendarDays className="w-5 h-5 text-forest-500" /> },
-    { label: 'Group Size', value: `Max ${trip.maxGroupSize}`, icon: <Users className="w-5 h-5 text-forest-500" /> },
     { label: 'Elevation', value: `${trip.elevationMeters}m`, icon: <TrendingUp className="w-5 h-5 text-spy-orange" /> },
   ];
 
@@ -169,58 +168,73 @@ export default function TripDetailsView({
             </div>
           </div>
 
-          {/* Boarding / pickup point supported by this organizer */}
-          <div className={`p-3.5 rounded-2xl ${darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs'}`}>
-            <span className="text-[10px] uppercase font-bold tracking-wider opacity-55 flex items-center gap-1.5">
-              <Bus size={13} className="text-forest-500" /> Pickup Available From
+          {/* Unified Expedition Logistics (Pickup & Start Point) */}
+          <div className={`p-4 rounded-2xl border ${
+            darkMode 
+              ? 'bg-zinc-900/35 border-forest-900/30 shadow-lg shadow-forest-900/5' 
+              : 'bg-white border-zinc-200 shadow-sm shadow-zinc-250/10'
+          }`}>
+            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60 flex items-center gap-1.5 mb-3.5">
+              <Milestone size={14} className="text-forest-500" /> Expedition Logistics
             </span>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {(() => {
-                const pickup = trip.pickup || trip.pickupOptions?.[0];
-                if (pickup) {
-                  return (
-                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'}`}>
-                      Ex-{pickup.location} · ₹{pickup.price}
-                    </span>
-                  );
-                }
-                const points = trip.pickupPoints?.length ? trip.pickupPoints : [trip.city || trip.location?.split(',')[0]].filter(Boolean);
-                return points.map(p => (
-                  <span key={p} className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'}`}>
-                    Ex-{p}
-                  </span>
-                ));
-              })()}
-            </div>
-            <p className={`text-[11px] leading-relaxed mt-2 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              {trip.pickup || trip.pickupOptions?.[0]
-                ? 'Per-person price from this boarding point — confirmed at checkout.'
-                : 'Board from any of these cities — transport to the trek base is arranged by the organizer.'}
-            </p>
-          </div>
 
-          {/* Trek/travel start point — exact map location set by the organizer */}
-          {trip.startPoint?.lat != null && (
-            <div className={`p-3.5 rounded-2xl flex items-center justify-between gap-3 ${darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs'}`}>
-              <div className="min-w-0">
-                <span className="text-[10px] uppercase font-bold tracking-wider opacity-55 flex items-center gap-1.5">
-                  <Navigation size={13} className="text-forest-500" /> Trek Start Point
-                </span>
-                <p className="text-xs font-bold mt-1.5 truncate">{trip.startPoint.label}</p>
-                <p className={`text-[10px] font-mono mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                  {trip.startPoint.lat.toFixed(5)}, {trip.startPoint.lng.toFixed(5)}
-                </p>
-              </div>
-              <button
-                type="button"
-                id="btn-get-directions-start-point"
-                onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${trip.startPoint.lat},${trip.startPoint.lng}`, '_blank', 'noopener,noreferrer')}
-                className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-forest-600 hover:bg-forest-700 text-white active:scale-95 transition"
-              >
-                <Navigation size={13} /> Get Directions
-              </button>
+            <div className="space-y-4">
+              {/* Pickup info */}
+              {(() => {
+                const pickupLoc = trip.pickup?.location || trip.pickupOptions?.[0]?.location || trip.pickupPoints?.[0] || trip.city || trip.location?.split(',')[0];
+                const pickupPrice = trip.pickup?.price || trip.pickupOptions?.[0]?.price;
+                if (!pickupLoc) return null;
+                return (
+                  <div className="flex gap-3">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                      darkMode ? 'bg-forest-950/40 text-forest-400' : 'bg-forest-50 text-forest-600'
+                    }`}>
+                      <Bus size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-forest-500">Boarding Point:</span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-600'
+                        }`}>
+                          Ex-{pickupLoc} {pickupPrice != null ? `· ₹${pickupPrice}` : ''}
+                        </span>
+                      </div>
+                      <p className={`text-[10px] leading-relaxed mt-1 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
+                        Shared transport to the mountain base is organized for you.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Start point / Map info */}
+              {trip.startPoint?.lat != null && (
+                <div className="flex gap-3 pt-3.5 border-t border-zinc-800/10 dark:border-zinc-850">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    darkMode ? 'bg-forest-950/40 text-forest-400' : 'bg-forest-50 text-forest-600'
+                  }`}>
+                    <Navigation size={15} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-bold text-forest-500">Trek Start Location:</span>
+                    <p className="text-xs font-extrabold mt-1 truncate">{trip.startPoint.label}</p>
+                    <p className={`text-[10px] font-mono mt-0.5 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
+                      {trip.startPoint.lat.toFixed(5)}, {trip.startPoint.lng.toFixed(5)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-get-directions-start-point"
+                    onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${trip.startPoint.lat},${trip.startPoint.lng}`, '_blank', 'noopener,noreferrer')}
+                    className="shrink-0 self-center flex items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider bg-forest-600 hover:bg-forest-700 text-white active:scale-95 transition cursor-pointer"
+                  >
+                    <Navigation size={11} /> Directions
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* 3. TRIP INFOMATION STATS GRID */}
@@ -536,9 +550,13 @@ export default function TripDetailsView({
         <button
           id="btn-details-book-now"
           onClick={() => onTriggerBooking(trip)}
-          className="bg-forest-600 hover:bg-forest-700 text-white font-bold px-6 py-3.5 rounded-2xl shadow-lg border border-forest-500 flex items-center justify-center gap-1.5 animate-pulse-subtle active:scale-95 cursor-pointer"
+          className={`px-8 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-2 cursor-pointer ${
+            darkMode
+              ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
+              : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
+          }`}
         >
-          Book Expedition Now
+          Book Expedition Now <ArrowRight size={13} />
         </button>
       </div>
 

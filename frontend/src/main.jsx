@@ -10,6 +10,8 @@ const routePath = window.location.pathname;
 const isAdminPath = routePath === '/admin' || routePath.startsWith('/admin/');
 const isOrganizerPath = routePath === '/organizer' || routePath.startsWith('/organizer/');
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 async function bootstrap() {
   let AppComponent;
   if (isAdminPath) {
@@ -25,7 +27,9 @@ async function bootstrap() {
 
   createRoot(document.getElementById('root')).render(
     <StrictMode>
-      <AppComponent />
+      <ErrorBoundary>
+        <AppComponent />
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

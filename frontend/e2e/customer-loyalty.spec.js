@@ -7,9 +7,9 @@ test.use({ viewport: { width: 480, height: 900 } });
 // so a voucher should already be minted the moment Home mounts.
 async function seedAtMilestone(page) {
   await seedLocalStorage(page, {
-    spyhike_loyalty_config: makeLoyaltyConfig({ customerThreshold: 2 }),
-    spyhike_user: CUSTOMER_USER,
-    spyhike_bookings: [makeCustomerBooking({ travelersCount: 2 })],
+    trekigo_loyalty_config: makeLoyaltyConfig({ customerThreshold: 2 }),
+    trekigo_user: CUSTOMER_USER,
+    trekigo_bookings: [makeCustomerBooking({ travelersCount: 2 })],
   });
 }
 
@@ -21,7 +21,7 @@ test.describe('Customer — Loyalty Rewards', () => {
     await expect(page.locator('#btn-open-loyalty-home')).toBeVisible();
     await expect(page.getByText('2/2')).toBeVisible();
 
-    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('spyhike_loyalty_customer_vouchers')));
+    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_customer_vouchers')));
     expect(vouchers).toHaveLength(1);
     expect(vouchers[0].status).toBe('available');
   });
@@ -61,11 +61,11 @@ test.describe('Customer — Loyalty Rewards', () => {
     await page.click('#btn-booking-done-finish', { force: true });
     await page.waitForTimeout(300);
 
-    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('spyhike_loyalty_customer_vouchers')));
+    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_customer_vouchers')));
     expect(vouchers[0].status).toBe('used');
     expect(vouchers[0].usedRef).toBeTruthy();
 
-    const bookings = await page.evaluate(() => JSON.parse(localStorage.getItem('spyhike_bookings')));
+    const bookings = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_bookings')));
     const freeBooking = bookings.find(b => b.bookingId === vouchers[0].usedRef);
     expect(freeBooking).toBeTruthy();
     expect(freeBooking.finalAmount).toBe(0);
@@ -74,15 +74,15 @@ test.describe('Customer — Loyalty Rewards', () => {
 
   test('below-threshold progress shows remaining count, not a false reward', async ({ page }) => {
     await seedLocalStorage(page, {
-      spyhike_loyalty_config: makeLoyaltyConfig({ customerThreshold: 30 }),
-      spyhike_user: CUSTOMER_USER,
-      spyhike_bookings: [makeCustomerBooking({ travelersCount: 2 })],
+      trekigo_loyalty_config: makeLoyaltyConfig({ customerThreshold: 30 }),
+      trekigo_user: CUSTOMER_USER,
+      trekigo_bookings: [makeCustomerBooking({ travelersCount: 2 })],
     });
     await page.goto('/app');
 
     await expect(page.getByText('2/30')).toBeVisible();
     const vouchers = await page.evaluate(() => {
-      const raw = localStorage.getItem('spyhike_loyalty_customer_vouchers');
+      const raw = localStorage.getItem('trekigo_loyalty_customer_vouchers');
       return raw ? JSON.parse(raw) : [];
     });
     expect(vouchers).toHaveLength(0);

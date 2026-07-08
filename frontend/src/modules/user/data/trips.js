@@ -14,7 +14,7 @@ export const PROMOTIONAL_BANNERS = [
     subtitle: 'Conquer the Snow Peaks',
     tag: 'Trending Adventure',
     discount: 'Flat 20% Off',
-    code: 'SPYHIKE20',
+    code: 'TREKIGO20',
     img: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80',
     tripId: 'himalayan-ridge-pass-trek'
   },

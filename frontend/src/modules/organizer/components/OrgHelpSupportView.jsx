@@ -4,7 +4,7 @@ import {
   ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, AlertCircle, LifeBuoy, Send, CheckCircle2, Clock
 } from 'lucide-react';
 
-const TICKETS_KEY = 'spyhike_org_support_tickets';
+const TICKETS_KEY = 'trekigo_org_support_tickets';
 
 const loadTickets = () => {
   try {
@@ -23,7 +23,7 @@ const FAQS = [
   },
   {
     q: 'How is the platform commission calculated?',
-    a: 'Commission is a flat percentage (set by Spy Hike, visible on every booking\'s payout breakdown) deducted from the gross booking amount. Zero-commission loyalty rewards can offset this on individual bookings.',
+    a: 'Commission is a flat percentage (set by Trekigo, visible on every booking\'s payout breakdown) deducted from the gross booking amount. Zero-commission loyalty rewards can offset this on individual bookings.',
   },
   {
     q: 'Can I edit a trip after it has active bookings?',
@@ -86,7 +86,7 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
 
         {/* Quick contact */}
         <div className="grid grid-cols-3 gap-2.5">
-          <a href="mailto:partners@spyhike.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
+          <a href="mailto:partners@trekigo.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
             <Mail size={18} className="text-spy-orange" />
             <span className="text-[10px] font-semibold">Email</span>
           </a>
@@ -126,7 +126,7 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
             <input
               type="text"
               required
-              placeholder="e.g. Payout missing for SH-8821-K"
+              placeholder="e.g. Payout missing for TG-8821-K"
               value={title}
               onChange={e => setTitle(e.target.value)}
               className={inputCls}

@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import {
-  ArrowLeft, Download, MessageSquare, Star, Receipt, ShieldAlert
+  ArrowLeft, Download, MessageSquare, Star, Receipt, ShieldAlert,
+  Phone, Mail, Globe, User, ExternalLink
 } from 'lucide-react';
 import TravelTicket from './TravelTicket';
 import { downloadTicketPDF } from '../utils/ticketPdf';
@@ -11,6 +12,7 @@ export default function BookingDetailsView({
   onBack,
   onModifyBookingStatus,
   onContactOrganizer,
+  onViewOrganizerProfile,
   onDownloadInvoice,
   onRateHike,
   darkMode
@@ -93,6 +95,58 @@ export default function BookingDetailsView({
             <div className="border-t border-dashed border-zinc-200 dark:border-white/10 my-2 pt-2 flex justify-between font-black text-sm">
               <span>Total Value Cleared</span>
               <span className={`font-sans ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{booking.finalAmount}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Organizing Agency & Support Info */}
+        <div className={`p-4 rounded-2xl border space-y-4 ${
+          darkMode ? 'bg-zinc-900/40 border-white/5 shadow-lg shadow-forest-900/5' : 'bg-white border-zinc-200/60 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85 flex items-center gap-1.5">
+              <User size={14} className="text-forest-400" /> Organizing Agency
+            </h4>
+            <button
+              type="button"
+              onClick={() => onViewOrganizerProfile(booking.organizerName)}
+              className="text-[10px] font-black uppercase tracking-wider text-forest-500 hover:underline cursor-pointer flex items-center gap-0.5 bg-transparent border-0 outline-hidden"
+            >
+              View Profile <ExternalLink size={10} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-black text-white ${
+              darkMode ? 'bg-forest-950/40 border border-forest-500/25 text-forest-400' : 'bg-forest-50 border border-forest-500/20 text-forest-600'
+            }`}>
+              {booking.organizerName ? booking.organizerName.substring(0, 2).toUpperCase() : 'TG'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h5 className="text-xs font-bold leading-tight truncate">{booking.organizerName}</h5>
+              <p className="text-[10px] text-emerald-500 flex items-center gap-0.5 mt-0.5 font-bold">
+                ★ Verified Partner
+              </p>
+            </div>
+          </div>
+
+          {/* Contact Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-dashed border-zinc-200 dark:border-white/10">
+            <div className="flex items-center gap-2">
+              <Phone size={12} className="text-forest-400 shrink-0" />
+              <div className="text-[11px]">
+                <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone</span>
+                <span className="font-bold font-sans">{booking.organizerPhone || '+91 98765 43210'}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Mail size={12} className="text-forest-400 shrink-0" />
+              <div className="text-[11px]">
+                <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email</span>
+                <span className="font-bold truncate max-w-[150px] block">
+                  {booking.organizerEmail || `support@${booking.organizerName.toLowerCase().replace(/\s+/g, '')}.com`}
+                </span>
+              </div>
             </div>
           </div>
         </div>

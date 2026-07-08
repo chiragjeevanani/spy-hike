@@ -40,7 +40,7 @@ export default function LoyaltyRewardsView({ bookings = [], onBack, onGoExplore,
         </button>
         <div>
           <h2 className="text-sm font-display font-black tracking-tight">Loyalty Rewards</h2>
-          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">SPY HIKE ADVENTURER PERKS</p>
+          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">TREKIGO ADVENTURER PERKS</p>
         </div>
       </div>
 

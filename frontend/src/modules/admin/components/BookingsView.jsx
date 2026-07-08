@@ -158,7 +158,7 @@ export default function BookingsView({ darkMode }) {
                     
                     {/* Booking ID */}
                     <td className="py-4 px-6 text-[#F27D26] font-mono">
-                      {b.bookingId || 'SH-DEMO'}
+                      {b.bookingId || 'TG-DEMO'}
                     </td>
 
                     {/* Trip Name */}
@@ -244,7 +244,7 @@ export default function BookingsView({ darkMode }) {
               <FileText className="text-[#F27D26] bg-orange-500/10 p-2 rounded-xl shrink-0" size={36} />
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none">Booking Receipt</span>
-                <h3 className="font-display font-black text-base mt-1">{selectedBooking.bookingId || 'SH-DEMO-R'}</h3>
+                <h3 className="font-display font-black text-base mt-1">{selectedBooking.bookingId || 'TG-DEMO-R'}</h3>
               </div>
             </div>
 

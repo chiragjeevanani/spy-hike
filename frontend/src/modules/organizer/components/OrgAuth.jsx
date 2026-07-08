@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe, Instagram } from 'lucide-react';
 import { saveOrgUser } from '../utils/storage';
+import TrekigoLogo from '../../../components/TrekigoLogo';
 
 export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   const [formData, setFormData] = useState({
@@ -80,10 +81,10 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
 
       // Store account for future logins
       try {
-        const stored = localStorage.getItem('spyhike_org_accounts');
+        const stored = localStorage.getItem('trekigo_org_accounts');
         const accounts = stored ? JSON.parse(stored) : [];
-        accounts.push({ ...newUser, password: formData.password });
-        localStorage.setItem('spyhike_org_accounts', JSON.stringify(accounts));
+        accounts.push({ email: formData.email, password: formData.password, name: formData.name });
+        localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
       } catch (e) {}
 
       setLoading(false);
@@ -91,17 +92,17 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     }
   };
 
-  const inputCls = `w-full px-4 py-3 rounded-xl text-sm font-medium border outline-none transition-all duration-200 ${
+  const inputCls = `w-full px-3.5 py-2.2 rounded-xl text-xs font-medium border outline-none transition-all duration-200 ${
     darkMode
       ? 'bg-zinc-900 border-white/10 text-white placeholder-white/30 focus:border-spy-orange/60 focus:ring-1 focus:ring-spy-orange/20'
       : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder-zinc-400 focus:border-spy-orange/60 focus:ring-1 focus:ring-spy-orange/20'
   }`;
 
-  const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
+  const labelCls = `text-[10px] font-bold tracking-wide uppercase mb-0.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
 
   const renderRegisterStep = () => {
     if (step === 1) return (
-      <div className="space-y-4">
+      <div className="space-y-2.5">
         <div>
           <label className={labelCls}>Full Name *</label>
           <div className="relative">
@@ -137,7 +138,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     );
 
     if (step === 2) return (
-      <div className="space-y-4">
+      <div className="space-y-2.5">
         <div>
           <label className={labelCls}>Agency / Company Name *</label>
           <div className="relative">
@@ -165,13 +166,13 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         </div>
         <div>
           <label className={labelCls}>About Your Agency</label>
-          <textarea className={`${inputCls} resize-none`} rows={3} placeholder="Brief description of your services..." value={formData.bio} onChange={e => handleChange('bio', e.target.value)} />
+          <textarea className={`${inputCls} resize-none`} rows={2} placeholder="Brief description of your services..." value={formData.bio} onChange={e => handleChange('bio', e.target.value)} />
         </div>
       </div>
     );
 
     if (step === 3) return (
-      <div className="space-y-4">
+      <div className="space-y-2.5">
         <div className={`p-3 rounded-xl text-xs leading-relaxed ${darkMode ? 'bg-spy-orange/10 border border-spy-orange/20 text-amber-300' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
           <div className="flex gap-2 items-start">
             <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -200,7 +201,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           </div>
         </div>
         <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-          By registering, you agree to Spy Hike's Partner Terms of Service. All ID information is encrypted and secure.
+          By registering, you agree to Trekigo's Partner Terms of Service. All ID information is encrypted and secure.
         </p>
       </div>
     );
@@ -210,26 +211,24 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     <div className={`h-full flex flex-col overflow-y-auto font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
       
       {/* Header branding banner */}
-      <div className="relative overflow-hidden">
-        <div className={`px-6 pt-6 pb-8 ${darkMode ? 'bg-gradient-to-br from-zinc-900 via-zinc-950 to-[#0d1a0f]' : 'bg-gradient-to-br from-orange-50 to-amber-50'}`}>
+      <div className="relative overflow-hidden shrink-0">
+        <div className={`px-6 pt-5 pb-5 ${darkMode ? 'bg-gradient-to-br from-zinc-900 via-zinc-950 to-[#0d1a0f]' : 'bg-gradient-to-br from-orange-50 to-amber-50'}`}>
           <div className="absolute top-4 right-4">
             <span className="bg-spy-orange text-white text-[9px] font-black tracking-widest px-2.5 py-1 rounded-full">ORGANIZER</span>
           </div>
           
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg ${darkMode ? 'bg-spy-orange/20 border border-spy-orange/30' : 'bg-white shadow-orange-100'}`}>
-            <Building2 size={26} className="text-spy-orange" />
-          </div>
-          <h1 className="text-2xl font-display font-black tracking-tight">
+          <TrekigoLogo size={40} className="mb-2" />
+          <h1 className="text-xl font-display font-black tracking-tight">
             Become a Partner
           </h1>
-          <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+          <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
             Join our verified organizer network
           </p>
         </div>
       </div>
 
       {/* Form body */}
-      <div className="flex-1 px-6 py-6 space-y-5">
+      <div className="flex-1 px-5 py-3 space-y-3">
         
         {/* Step indicator for registration */}
         <div className="flex items-center gap-2 mb-2">
@@ -242,7 +241,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           ))}
         </div>
 
-        <p className={`text-xs font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+        <p className={`text-[11px] font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
           Step {step} of {totalSteps} — {step === 1 ? 'Personal Info' : step === 2 ? 'Agency Details' : 'Verification'}
         </p>
 
@@ -269,7 +268,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           type="button"
           onClick={handleRegisterStep}
           disabled={loading}
-          className="w-full bg-spy-orange hover:bg-[#d96d1a] disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 shadow-lg shadow-spy-orange/20"
+          className="w-full bg-spy-orange hover:bg-[#d96d1a] disabled:opacity-50 text-white font-bold py-2.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 shadow-lg shadow-spy-orange/20"
         >
           {loading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -282,7 +281,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         </button>
 
         {/* Switch mode link */}
-        <p className={`text-center text-sm ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+        <p className={`text-center text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
           Already a partner?{' '}
           <button
             type="button"

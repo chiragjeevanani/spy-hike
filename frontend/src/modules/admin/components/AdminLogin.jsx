@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Shield, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import TrekigoLogo from '../../../components/TrekigoLogo';
 
 export default function AdminLogin({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -21,17 +22,17 @@ export default function AdminLogin({ onLoginSuccess }) {
     // Simulate login lag
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    if (email === 'admin@spyhike.com' && password === 'admin123') {
+    if (email === 'admin@trekigo.com' && password === 'admin123') {
       const adminProfile = {
         isAuthenticated: true,
-        email: 'admin@spyhike.com',
+        email: 'admin@trekigo.com',
         name: 'System Administrator',
         avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
         role: 'Super Admin',
       };
       onLoginSuccess(adminProfile);
     } else {
-      setError('Invalid admin credentials. Use admin@spyhike.com / admin123');
+      setError('Invalid admin credentials. Use admin@trekigo.com / admin123');
     }
     setLoading(false);
   };
@@ -46,11 +47,9 @@ export default function AdminLogin({ onLoginSuccess }) {
         
         {/* Branding header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-slate-900/10">
-            <Shield className="text-[#F27D26]" size={32} />
-          </div>
+          <TrekigoLogo size={64} className="mx-auto mb-4" />
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">
-            Spy Hike Console
+            Trekigo Console
           </div>
           <h1 className="text-2xl font-bold text-slate-800 font-display">Administrator Portal</h1>
           <p className="text-sm text-slate-400 mt-1.5">Sign in to manage users, organizers, and platform settings</p>
@@ -74,7 +73,7 @@ export default function AdminLogin({ onLoginSuccess }) {
                 type="email"
                 required
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400/15 outline-none bg-slate-50/50 text-slate-800 text-sm font-medium transition-all"
-                placeholder="admin@spyhike.com"
+                placeholder="admin@trekigo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -124,7 +123,7 @@ export default function AdminLogin({ onLoginSuccess }) {
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 text-[11px] text-slate-500 leading-relaxed">
             <span className="font-semibold text-slate-600">Quick Demo Access:</span>
             <div className="mt-1 flex justify-between font-mono text-[10px]">
-              <div>Email: <span className="text-[#F27D26] font-semibold">admin@spyhike.com</span></div>
+              <div>Email: <span className="text-[#F27D26] font-semibold">admin@trekigo.com</span></div>
               <div>Secret: <span className="text-[#F27D26] font-semibold">admin123</span></div>
             </div>
           </div>

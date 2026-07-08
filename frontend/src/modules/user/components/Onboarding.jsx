@@ -90,56 +90,58 @@ export default function Onboarding({ onComplete, darkMode }) {
       </div>
 
       {/* Main card box containing onboarding details */}
-      <div className={`relative px-6 pb-8 pt-24 mt-20 md:mt-24 rounded-t-[32px] shadow-2xl flex-1 flex flex-col justify-end z-10 ${
+      <div className={`relative px-6 py-6 rounded-t-[32px] shadow-2xl h-[56%] mt-auto flex flex-col justify-between z-10 ${
         darkMode ? 'bg-gradient-to-b from-zinc-950 to-zinc-900 border-t border-zinc-850' : 'bg-gradient-to-b from-slate-50 to-white'
       }`}>
         
-        {/* Animated Icon badge */}
-        <div className="flex justify-start mb-6">
-          <motion.div
-            key={currentSlide}
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-            className={`p-3.5 rounded-2xl flex justify-center items-center shadow-lg ${
-              darkMode ? 'bg-zinc-900' : 'bg-white'
-            }`}
-          >
-            {current.icon}
-          </motion.div>
-        </div>
-
-        {/* Text information */}
-        <div className="space-y-3 mb-10">
-          <AnimatePresence mode="wait">
-            <motion.h2
-              key={`h-${currentSlide}`}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="text-2xl font-display font-black tracking-tight leading-tight"
+        <div>
+          {/* Animated Icon badge */}
+          <div className="flex justify-start mb-4">
+            <motion.div
+              key={currentSlide}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+              className={`p-3.5 rounded-2xl flex justify-center items-center shadow-lg ${
+                darkMode ? 'bg-zinc-900' : 'bg-white'
+              }`}
             >
-              {current.title}
-            </motion.h2>
-          </AnimatePresence>
+              {current.icon}
+            </motion.div>
+          </div>
 
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={`p-${currentSlide}`}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-650'}`}
-            >
-              {current.description}
-            </motion.p>
-          </AnimatePresence>
+          {/* Text information */}
+          <div className="space-y-2.5">
+            <AnimatePresence mode="wait">
+              <motion.h2
+                key={`h-${currentSlide}`}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-2xl font-display font-black tracking-tight leading-tight"
+              >
+                {current.title}
+              </motion.h2>
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={`p-${currentSlide}`}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-650'}`}
+              >
+                {current.description}
+              </motion.p>
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Controls slide switcher bottom row */}
-        <div className="flex justify-between items-center mt-auto">
+        <div className="flex justify-between items-center mt-2">
           {/* Progress dots */}
           <div className="flex gap-2">
             {slides.map((_, idx) => (
@@ -159,7 +161,7 @@ export default function Onboarding({ onComplete, darkMode }) {
             type="button"
             id="onboarding-next-btn"
             onClick={handleNext}
-            className="flex items-center gap-2 bg-forest-600 hover:bg-forest-700 text-white font-semibold px-6 py-3 rounded-2xl shadow-lg border border-forest-500 active:scale-95"
+            className="flex items-center gap-2 bg-forest-600 hover:bg-forest-700 text-white font-semibold px-6 py-3 rounded-2xl shadow-lg border border-forest-500 active:scale-95 cursor-pointer"
           >
             {currentSlide === slides.length - 1 ? 'Get Started' : 'Next'}
             <ArrowRight size={18} />

@@ -15,7 +15,7 @@ import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 // Mirrors Auth.jsx — the organizer panel runs as an independent mini-SPA with
 // its own session storage, so switching modules means seeding that store and
 // doing a hard navigation to /organizer.
-const ORG_USER_STORAGE_KEY = 'spyhike_org_user';
+const ORG_USER_STORAGE_KEY = 'trekigo_org_user';
 const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play before handing off
 
 export default function ProfileView({
@@ -77,7 +77,7 @@ export default function ProfileView({
 
   // Support Chat
   const [supportChats, setSupportChats] = useState([
-    { sender: 'bot', text: 'Hello Chirag! Welcome to Spy Hike Helpdesk. How can we optimize your trekking experience today?', time: '11:10 AM' }
+    { sender: 'bot', text: 'Hello Chirag! Welcome to Trekigo Helpdesk. How can we optimize your trekking experience today?', time: '11:10 AM' }
   ]);
   const [chatInput, setChatInput] = useState('');
 
@@ -157,7 +157,7 @@ export default function ProfileView({
       govtIdType: 'Aadhaar',
       govtIdNumber: '',
       yearsExperience: 1,
-      bio: 'Verified Spy Hike organizer.',
+      bio: 'Verified Trekigo organizer.',
       verificationDocumentUrl: '',
       rating: 4.8,
       totalTrips: 0,
@@ -433,17 +433,7 @@ export default function ProfileView({
                   <ChevronRight size={17} className="opacity-40" />
                 </button>
 
-                <button
-                  onClick={() => setCurrentSub('LIVE_CHAT_SUPPORT')}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <MessageSquare size={19} className="text-spy-orange" /> Helpdesk Live Chat
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
+
 
                 {/* Restart onboarding tutorial */}
                 <button
@@ -766,7 +756,7 @@ export default function ProfileView({
             )}
 
             <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              By applying, you agree to Spy Hike's Partner Terms of Service. All ID information is encrypted and secure.
+              By applying, you agree to Trekigo's Partner Terms of Service. All ID information is encrypted and secure.
             </p>
           </div>
 
@@ -1054,7 +1044,7 @@ export default function ProfileView({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Coupon SPYHIKE20 dynamic logic error"
+                  placeholder="e.g. Coupon TREKIGO20 dynamic logic error"
                   value={ticketTitle}
                   onChange={e => setTicketTitle(e.target.value)}
                   className={subInputCls}
@@ -1105,7 +1095,7 @@ export default function ProfileView({
                 <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: How soon can I cancel my trek departure?</p>
                 <p className="leading-relaxed pb-2">A: Full booking refund settlements are executed up to 15 days before the departure slot.</p>
                 <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: Are park mountain permits physical documents?</p>
-                <p className="leading-relaxed">A: No, Spy Hike coordinates verified digital QR pass entries directly with forest control gates.</p>
+                <p className="leading-relaxed">A: No, Trekigo coordinates verified digital QR pass entries directly with forest control gates.</p>
               </div>
             </div>
           </div>
@@ -1194,7 +1184,7 @@ export default function ProfileView({
       <ConfirmDialog
         open={showLogoutConfirm}
         title="Log Out?"
-        message="Are you sure you want to log out of your Spy Hike account?"
+        message="Are you sure you want to log out of your Trekigo account?"
         confirmLabel="Log Out"
         onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
         onCancel={() => setShowLogoutConfirm(false)}

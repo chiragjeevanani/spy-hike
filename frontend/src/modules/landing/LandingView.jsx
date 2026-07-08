@@ -7,6 +7,7 @@ import {
   Users, Clock, ShieldCheck, CheckCircle2, MessageSquare, 
   Settings, QrCode, ArrowUpRight, ChevronDown
 } from 'lucide-react';
+import TrekigoLogo from '../../components/TrekigoLogo';
 import { HIKING_TRIPS, CATEGORIES_LIST } from '../user/data/trips';
 
 export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, onLaunchOrganizer, onLaunchAdmin }) {
@@ -96,7 +97,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
       name: "Priya Patel",
       role: "Advanced Mountaineer",
       avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80",
-      comment: "Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Spy Hike provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.",
+      comment: "Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Trekigo provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.",
       rating: 5,
       trek: "Himalayan Ridge Pass Trek"
     },
@@ -150,8 +151,8 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
   // FAQs
   const faqs = [
     {
-      q: "What makes Spy Hike different from other booking systems?",
-      a: "Spy Hike is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists."
+      q: "What makes Trekigo different from other booking systems?",
+      a: "Trekigo is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists."
     },
     {
       q: "Is the payment gateway secure?",
@@ -159,7 +160,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
     },
     {
       q: "How does the AI Recommendation Engine work?",
-      a: "By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Spy Hike automatically matches you with hikes that align with your safety limits."
+      a: "By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Trekigo automatically matches you with hikes that align with your safety limits."
     }
   ];
 
@@ -241,11 +242,9 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               whileTap={{ scale: 0.98 }}
               className="flex items-center gap-3 cursor-pointer group"
             >
-              <div className="w-10 h-10 rounded-xl bg-forest-500 dark:bg-elegant-green flex items-center justify-center shadow-lg shadow-forest-500/25">
-                <Compass className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-500" />
-              </div>
+              <TrekigoLogo size={32} className="text-forest-600 dark:text-elegant-green" />
               <span className="font-display font-bold text-2xl tracking-tight bg-gradient-to-r from-forest-700 via-forest-500 to-spy-orange dark:from-white dark:to-elegant-text bg-clip-text text-transparent">
-                Spy Hike
+                Trekigo
               </span>
             </motion.div>
 
@@ -391,7 +390,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
               className="text-lg text-zinc-600 dark:text-elegant-text/70 max-w-2xl mx-auto lg:mx-0 mb-10 leading-relaxed font-normal"
             >
-              Spy Hike connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.
+              Trekigo connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.
             </motion.p>
 
             <motion.div 
@@ -782,7 +781,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               className="text-center max-w-3xl mx-auto mb-16"
             >
               <motion.h2 variants={staggerItem} className="font-display font-bold text-3xl sm:text-4xl mb-4">
-                Spy Hike Portal Ecosystem
+                Trekigo Portal Ecosystem
               </motion.h2>
               <motion.p variants={staggerItem} className="text-zinc-600 dark:text-elegant-text/75">
                 Our application features separate sandboxes representing key roles in the adventure marketplace. Try out each layout.
@@ -972,11 +971,9 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
         <footer className="w-full border-t border-zinc-200 dark:border-elegant-border bg-[#F6F1E5] dark:bg-elegant-bg transition-colors duration-300 py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={onLaunchApp}>
-              <div className="w-9 h-9 rounded-lg bg-forest-500 dark:bg-elegant-green flex items-center justify-center shadow-lg shadow-forest-500/25">
-                <Compass className="w-5.5 h-5.5 text-white" />
-              </div>
+              <TrekigoLogo size={28} className="text-forest-600 dark:text-elegant-green" />
               <span className="font-display font-black text-xl tracking-tight bg-gradient-to-r from-forest-700 via-forest-500 to-spy-orange dark:from-white dark:to-elegant-text bg-clip-text text-transparent">
-                Spy Hike
+                Trekigo
               </span>
             </div>
 
@@ -989,7 +986,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
 
             <div className="text-center md:text-right">
               <span className="text-[11px] text-zinc-400 block mb-1">
-                © 2026 Spy Hike. Built with React 19, Tailwind v4 & Motion v12.
+                © 2026 Trekigo. Built with React 19, Tailwind v4 & Motion v12.
               </span>
               <span className="text-[10px] text-zinc-400/60 block">
                 All coordinates, safety logs, and agencies are simulated for demo compliance.

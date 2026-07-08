@@ -515,7 +515,17 @@ export default function App() {
   };
 
   // Handle finalize successful booking setup
-  const handleFinalizeBookingSetup = (resolvedBooking) => {
+  const handleFinalizeBookingSetup = (rawBooking) => {
+    // Stamp the booker's identity onto the record — without this, the booking
+    // has no userEmail/userName at all, which breaks admin's per-user booking
+    // history (it can't tell who booked what).
+    const resolvedBooking = {
+      ...rawBooking,
+      userEmail: user.email,
+      userName: user.name || 'Chirag Jeevanani',
+      hikersCount: rawBooking.hikersCount ?? rawBooking.travelersCount,
+    };
+
     // 1. Append booking object to local roster list
     setBookings(prev => [resolvedBooking, ...prev]);
 
@@ -833,6 +843,10 @@ export default function App() {
                      }
                      alert(`Connecting to ${b.organizerName} Support... Tapping "Chat Guide" inside Bookings will open the console chat drawer directly.`);
                      setSelectedBooking(null);
+                   }}
+                   onViewOrganizerProfile={(name) => {
+                     setSelectedBooking(null);
+                     navigateTo(`/organizers/${encodeURIComponent(name)}`);
                    }}
                    onDownloadInvoice={(b) => downloadTicketPDF(b)}
                    onRateHike={(b) => {

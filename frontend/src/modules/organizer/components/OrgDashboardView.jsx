@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Gift } from 'lucide-react';
+import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Gift, ScanBarcode } from 'lucide-react';
 import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 
-export default function OrgDashboardView({ organizer, trips, bookings, notifications, onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, darkMode }) {
+export default function OrgDashboardView({ organizer, trips, bookings, notifications, onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, onOpenScanner, darkMode }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const showLoyaltyBanner = loyaltyConfig.organizer.enabled && loyaltyConfig.organizer.banner.enabled;
@@ -52,6 +52,16 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Scan ticket button */}
+            <button
+              type="button"
+              onClick={onOpenScanner}
+              className={`p-2.5 rounded-xl transition ${darkMode ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-white shadow-sm hover:shadow'}`}
+              title="Scan ticket"
+            >
+              <ScanBarcode size={18} className="text-spy-orange" />
+            </button>
+
             <div className="relative">
               <button
                 type="button"

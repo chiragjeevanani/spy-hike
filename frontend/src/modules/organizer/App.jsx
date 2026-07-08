@@ -23,6 +23,7 @@ import OrgProfileView from './components/OrgProfileView';
 import OrgLoyaltyView from './components/OrgLoyaltyView';
 import OrgNotificationsView from './components/OrgNotificationsView';
 import OrgFinancialsView from './components/OrgFinancialsView';
+import OrgScannerView from './components/OrgScannerView';
 
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ export default function OrgApp() {
   const [showOrgLoyalty, setShowOrgLoyalty] = useState(false);
   const [showOrgNotifications, setShowOrgNotifications] = useState(false);
   const [showOrgFinancials, setShowOrgFinancials] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
 
   // Load organizer-specific data
@@ -160,10 +162,10 @@ export default function OrgApp() {
     // /app/login screen sees an already-authenticated user and bounces
     // straight past the login form into the Traveller Home tab.
     try {
-      const rawUser = localStorage.getItem('spyhike_user');
+      const rawUser = localStorage.getItem('trekigo_user');
       if (rawUser) {
         const travellerUser = JSON.parse(rawUser);
-        localStorage.setItem('spyhike_user', JSON.stringify({ ...travellerUser, isAuthenticated: false }));
+        localStorage.setItem('trekigo_user', JSON.stringify({ ...travellerUser, isAuthenticated: false }));
       }
     } catch (e) {}
 
@@ -187,13 +189,13 @@ export default function OrgApp() {
     // Merge into global trips storage (shared with user app)
     let allTrips;
     try {
-      const stored = localStorage.getItem('spyhike_trips');
+      const stored = localStorage.getItem('trekigo_trips');
       allTrips = stored ? JSON.parse(stored) : [];
     } catch { allTrips = []; }
     const idx = allTrips.findIndex(t => t.id === savedTrip.id);
     if (idx >= 0) allTrips[idx] = savedTrip;
     else allTrips.unshift(savedTrip);
-    localStorage.setItem('spyhike_trips', JSON.stringify(allTrips));
+    localStorage.setItem('trekigo_trips', JSON.stringify(allTrips));
 
     // Also update organizer-specific trips
     let orgTrips = loadOrgTrips();
@@ -227,10 +229,10 @@ export default function OrgApp() {
     if (!window.confirm('Delete this trip? This cannot be undone.')) return;
     // Remove from global storage
     try {
-      const stored = localStorage.getItem('spyhike_trips');
+      const stored = localStorage.getItem('trekigo_trips');
       if (stored) {
         const all = JSON.parse(stored).filter(t => t.id !== tripId);
-        localStorage.setItem('spyhike_trips', JSON.stringify(all));
+        localStorage.setItem('trekigo_trips', JSON.stringify(all));
       }
     } catch {}
     // Remove from org trips
@@ -393,6 +395,7 @@ export default function OrgApp() {
             onViewTrip={handleEditTrip}
             onOpenLoyalty={() => setShowOrgLoyalty(true)}
             onOpenFinancials={() => setShowOrgFinancials(true)}
+            onOpenScanner={() => setShowScanner(true)}
             darkMode={darkMode}
           />
         ),
@@ -523,6 +526,25 @@ export default function OrgApp() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Scanner full-screen overlay */}
+        <AnimatePresence>
+          {showScanner && (
+            <motion.div
+              key="overlay-org-scanner"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="absolute inset-0 z-50"
+            >
+              <OrgScannerView
+                onBack={() => setShowScanner(false)}
+                darkMode={darkMode}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </>
     );
   };
@@ -538,7 +560,7 @@ export default function OrgApp() {
       )}
 
       <div
-        id="spyhike-org-viewport"
+        id="trekigo-org-viewport"
         className={`relative w-full h-screen md:max-w-[400px] md:shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
           darkMode ? 'bg-elegant-app text-white shadow-[#050807]/90' : 'bg-[#FAF8F2] text-zinc-800 shadow-zinc-200/40'
         }`}

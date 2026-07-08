@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, Bell, Star, MapPin, Sparkles, Heart, ChevronRight, ChevronDown, X, Users, Mountain, ArrowUpRight, CalendarDays, Gift
+  Search, Bell, Star, MapPin, Heart, ChevronRight, ChevronDown, X, Users, Mountain, ArrowUpRight, CalendarDays, Gift
 } from 'lucide-react';
 import { PROMOTIONAL_BANNERS, TRENDING_DESTINATIONS } from '../data/trips';
 import { groupTripsByTrekName } from '../utils/trekGroups';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import LocationPicker from './LocationPicker';
 import TrekDatePicker from './TrekDatePicker';
+import TrekigoLogo from '../../../components/TrekigoLogo';
 
 // Persisted chosen location (city / GPS). Google Maps API will later power the
 // live search + reverse-geocoding inside LocationPicker.
 const loadLocation = () => {
   try {
-    const v = localStorage.getItem('spyhike_location');
+    const v = localStorage.getItem('trekigo_location');
     if (v) return JSON.parse(v);
   } catch (e) {}
   return { label: 'India' };
@@ -57,7 +58,7 @@ export default function HomeView({
 
   const handleSelectLocation = (loc) => {
     setLocation(loc);
-    try { localStorage.setItem('spyhike_location', JSON.stringify(loc)); } catch (e) {}
+    try { localStorage.setItem('trekigo_location', JSON.stringify(loc)); } catch (e) {}
     setShowLocationPicker(false);
   };
 
@@ -99,27 +100,7 @@ export default function HomeView({
   // trek collapse into a single browsable entry (see utils/trekGroups.js).
   const trekGroups = useMemo(() => groupTripsByTrekName(trips), [trips]);
 
-  // AI-Style recommendation core logic:
-  // Match hikes based on user fitness and hiking experience
-  // Beginner experience -> Easy diff hikes
-  // Intermediate -> Easy and Moderate hikes
-  // Advanced -> Moderate and Difficult hikes
-  const getSmartRecommendations = () => {
-    let experienceMatched = trekGroups;
-    if (user.hikingExperience === 'Beginner') {
-      experienceMatched = trekGroups.filter(g => g.representative.difficulty === 'Easy');
-    } else if (user.hikingExperience === 'Intermediate') {
-      experienceMatched = trekGroups.filter(g => g.representative.difficulty === 'Easy' || g.representative.difficulty === 'Moderate');
-    } else if (user.hikingExperience === 'Advanced') {
-      experienceMatched = trekGroups.filter(g => g.representative.difficulty === 'Moderate' || g.representative.difficulty === 'Difficult');
-    }
 
-    // fallback to list all if none or empty
-    if (experienceMatched.length === 0) return trekGroups.slice(0, 2);
-    return experienceMatched.slice(0, 3);
-  };
-
-  const recommendedTreks = getSmartRecommendations();
   const unreadNotifications = notifications.filter(n => !n.read);
 
   // First trek headlines the "Featured trek" hero; the rest fill "Popular Treks".
@@ -140,11 +121,9 @@ export default function HomeView({
       
       {/* 1. Brand header */}
       <div className="flex items-center justify-between pt-5 pb-1 gap-2">
-        <button onClick={() => onSwitchTab('Profile')} className="flex items-center gap-2 cursor-pointer active:scale-95 transition min-w-0">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm shrink-0 ${darkMode ? 'bg-elegant-green' : 'bg-forest-600'}`}>
-            <Mountain size={18} className="text-white" />
-          </div>
-          <span className="text-lg font-serif font-semibold tracking-tight truncate">Spy Hike</span>
+        <button onClick={() => onSwitchTab('Profile')} className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition min-w-0">
+          <TrekigoLogo size={36} className="shrink-0" />
+          <span className="text-lg font-serif font-semibold tracking-tight truncate">Trekigo</span>
         </button>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -435,68 +414,7 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 7. AI Recommendations System Block */}
-      <div className={`mt-8 rounded-3xl p-4 relative overflow-hidden backdrop-blur-md ${
-        darkMode
-          ? 'bg-gradient-to-tr from-elegant-card to-elegant-app'
-          : 'bg-gradient-to-tr from-white to-forest-50'
-      }`}>
-        
-        {/* Glow vector circle */}
-        <div className="absolute -right-6 -bottom-6 w-16 h-16 bg-elegant-green/10 rounded-full blur-lg pointer-events-none" />
 
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-1 text-[11px] font-display font-medium text-forest-600 dark:text-[#E0E5E2]">
-            <Sparkles size={12} className="text-spy-orange animate-pulse" />
-            <span className="font-black uppercase tracking-wider">AI Recommendations</span>
-          </div>
-          <span className={`text-[7px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
-            darkMode ? 'bg-elegant-green text-white' : 'bg-forest-100'
-          }`}>
-            MATCH: {user.hikingExperience.toUpperCase()}
-          </span>
-        </div>
-
-        <p className={`text-[9.5px] leading-normal mb-2.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-650'}`}>
-          Based on your fitness <span className="font-semibold text-[#F27D26]">({user.fitnessLevel} Level)</span> and hiking experience, we recommend:
-        </p>
-
-        {/* Recommendations list */}
-        <div className="space-y-1.5">
-          {recommendedTreks.map((group, idx) => {
-            const trip = group.representative;
-            return (
-              <motion.div
-                key={`ai-${group.trekName}`}
-                onClick={() => onSelectTrek(group.trekName)}
-                whileHover={{ x: 3, scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.04, duration: 0.25 }}
-                className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-all ${
-                  darkMode ? 'bg-elegant-app/60 hover:bg-elegant-app' : 'bg-white hover:bg-white shadow-xs'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <img src={trip.coverImage} alt="" className="w-8 h-8 rounded-md object-cover text-xs" />
-                  <div>
-                    <h4 className="text-[11px] font-bold font-display line-clamp-1">{trip.name}</h4>
-                    <p className="text-[8px] text-zinc-500 flex items-center gap-0.5">
-                      <MapPin size={8} /> {trip.city}, {trip.state}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className="text-[9px] font-extrabold text-[#F27D26] font-sans block">From ₹{group.minPrice}</span>
-                  <span className="text-[7.5px] opacity-65 font-medium">{trip.durationDays} Days</span>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* 8. Trending Destinations Grid */}
       <div className="mt-8">

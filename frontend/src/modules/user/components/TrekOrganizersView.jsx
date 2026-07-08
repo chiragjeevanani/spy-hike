@@ -7,7 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Search, SlidersHorizontal, Star, MapPin, ShieldCheck, Users,
-  Clock, Milestone, Heart, Sparkles, X, Check, Bus
+  Clock, Milestone, Heart, Sparkles, X, Check, Bus, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // Boarding cities this organizer picks travellers up from, each with its own
@@ -37,6 +37,81 @@ export default function TrekOrganizersView({
   const [showFilters, setShowFilters] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [sortOption, setSortOption] = useState('PriceLowToHigh');
+  const [selectedFilterDate, setSelectedFilterDate] = useState('');
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  // Get all unique departure dates offered by the different organizers for this trek
+  const allDepartureDates = useMemo(() => {
+    const dates = new Set();
+    offers.forEach(o => {
+      if (o.departureDates) {
+        o.departureDates.forEach(d => {
+          if (d >= todayStr) {
+            dates.add(d);
+          }
+        });
+      }
+    });
+    return Array.from(dates).sort();
+  }, [offers, todayStr]);
+
+  // Calendar month/year navigation state
+  const [calYear, setCalYear] = useState(() => {
+    const firstDate = allDepartureDates[0] || todayStr;
+    return parseInt(firstDate.split('-')[0]);
+  });
+  const [calMonth, setCalMonth] = useState(() => {
+    const firstDate = allDepartureDates[0] || todayStr;
+    return parseInt(firstDate.split('-')[1]) - 1;
+  });
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+  const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
+
+  const daysInMonth = getDaysInMonth(calYear, calMonth);
+  const firstDayIndex = getFirstDayOfMonth(calYear, calMonth);
+
+  const prevMonth = () => {
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear(prev => prev - 1);
+    } else {
+      setCalMonth(prev => prev - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear(prev => prev + 1);
+    } else {
+      setCalMonth(prev => prev + 1);
+    }
+  };
+
+  const calendarCells = useMemo(() => {
+    const cells = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({ day: null, dateStr: null });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const monthStr = String(calMonth + 1).padStart(2, '0');
+      const dayStr = String(day).padStart(2, '0');
+      const dateStr = `${calYear}-${monthStr}-${dayStr}`;
+      cells.push({ day, dateStr });
+    }
+    return cells;
+  }, [calYear, calMonth, daysInMonth, firstDayIndex]);
 
   const representative = useMemo(
     () => [...offers].sort((a, b) => b.rating - a.rating)[0],
@@ -55,6 +130,10 @@ export default function TrekOrganizersView({
       result = result.filter(o => o.organizer.verified);
     }
 
+    if (selectedFilterDate) {
+      result = result.filter(o => o.departureDates && o.departureDates.includes(selectedFilterDate));
+    }
+
     if (sortOption === 'PriceLowToHigh') {
       result.sort((a, b) => a.price - b.price);
     } else if (sortOption === 'PriceHighToLow') {
@@ -66,15 +145,19 @@ export default function TrekOrganizersView({
     }
 
     return result;
-  }, [offers, searchQuery, verifiedOnly, sortOption]);
+  }, [offers, searchQuery, verifiedOnly, selectedFilterDate, sortOption]);
 
   const resetFilters = () => {
     setSearchQuery('');
     setVerifiedOnly(false);
     setSortOption('PriceLowToHigh');
+    setSelectedFilterDate('');
+    const firstDate = allDepartureDates[0] || todayStr;
+    setCalYear(parseInt(firstDate.split('-')[0]));
+    setCalMonth(parseInt(firstDate.split('-')[1]) - 1);
   };
 
-  const activeFiltersCount = (verifiedOnly ? 1 : 0) + (sortOption !== 'PriceLowToHigh' ? 1 : 0);
+  const activeFiltersCount = (verifiedOnly ? 1 : 0) + (sortOption !== 'PriceLowToHigh' ? 1 : 0) + (selectedFilterDate ? 1 : 0);
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
@@ -118,12 +201,11 @@ export default function TrekOrganizersView({
 
         {/* 2. Shared trek stats row (same route across all organizers) */}
         <div className="px-4 -mt-3 relative z-10">
-          <div className={`grid grid-cols-4 gap-2 p-2 rounded-2xl shadow-sm ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+          <div className={`grid grid-cols-3 gap-2 p-2 rounded-2xl shadow-sm ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
             {[
               { label: 'Difficulty', value: representative.difficulty },
               { label: 'Duration', value: `${representative.durationDays}D` },
-              { label: 'Distance', value: `${representative.distanceKm}km` },
-              { label: 'Max Group', value: representative.maxGroupSize }
+              { label: 'Distance', value: `${representative.distanceKm}km` }
             ].map((st, i) => (
               <div key={i} className="flex flex-col items-center text-center py-1">
                 <span className={`text-[11px] font-black font-display ${darkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{st.value}</span>
@@ -206,6 +288,97 @@ export default function TrekOrganizersView({
                       <option value="HighestRated">Highest Rated</option>
                       <option value="Popular">Most Reviewed</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-70 block">Departure Date (Organizer Batches Only)</label>
+                      {selectedFilterDate && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFilterDate('')}
+                          className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
+                        >
+                          Clear Date
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className={`p-4 rounded-2xl border ${
+                      darkMode ? 'bg-zinc-950/60 border-zinc-850' : 'bg-gray-100/50 border-zinc-200'
+                    }`}>
+                      {/* Header */}
+                      <div className="flex items-center justify-between mb-4">
+                        <button
+                          type="button"
+                          onClick={prevMonth}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center border active:scale-95 transition cursor-pointer ${
+                            darkMode ? 'bg-zinc-950/60 border-white/5 hover:bg-zinc-900 text-zinc-300' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+                          }`}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span className="text-xs font-black font-display tracking-tight text-center flex-1">
+                          {monthNames[calMonth]} {calYear}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={nextMonth}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center border active:scale-95 transition cursor-pointer ${
+                            darkMode ? 'bg-zinc-950/60 border-white/5 hover:bg-zinc-900 text-zinc-300' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+                          }`}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+
+                      {/* Weekdays */}
+                      <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                        {dayNames.map(day => (
+                          <span key={day} className="text-[9px] font-bold uppercase opacity-40">
+                            {day}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Days grid */}
+                      <div className="grid grid-cols-7 gap-1.5 text-center">
+                        {calendarCells.map((cell, idx) => {
+                          if (cell.day === null) {
+                            return <div key={`empty-${idx}`} />;
+                          }
+
+                          const isAvailable = allDepartureDates.includes(cell.dateStr);
+                          const isPast = cell.dateStr < todayStr;
+                          const isSelectable = isAvailable && !isPast;
+                          const isSelected = selectedFilterDate === cell.dateStr;
+
+                          return (
+                            <button
+                              key={cell.dateStr}
+                              type="button"
+                              disabled={!isSelectable}
+                              onClick={() => setSelectedFilterDate(cell.dateStr)}
+                              className={`h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+                                isSelectable
+                                  ? isSelected
+                                    ? darkMode
+                                      ? 'bg-forest-500 text-white font-black shadow-md border border-forest-400 cursor-pointer'
+                                      : 'bg-forest-600 text-white font-black shadow-md cursor-pointer'
+                                    : darkMode
+                                    ? 'bg-forest-950/30 border border-forest-500/30 text-forest-400 hover:bg-forest-900/50 hover:border-forest-500/60 font-bold cursor-pointer'
+                                    : 'bg-forest-50 border border-forest-500/20 text-forest-700 hover:bg-forest-100/70 hover:border-forest-500/50 font-bold cursor-pointer'
+                                  : darkMode
+                                  ? 'text-zinc-650 opacity-20 cursor-not-allowed'
+                                  : 'text-zinc-300 opacity-40 cursor-not-allowed'
+                              }`}
+                            >
+                              {cell.day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   <button

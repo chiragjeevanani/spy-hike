@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, ArrowRight, Calendar, Users, FileText, Ticket, CreditCard, CheckCircle2,
-  Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, Gift, Bus
+  Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus
 } from 'lucide-react';
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
 
@@ -63,6 +63,9 @@ export default function BookingFlow({
   onConfirmBooking,
   darkMode
 }) {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
   const [step, setStep] = useState(1);
   
   // State variables for Wizard
@@ -99,6 +102,63 @@ export default function BookingFlow({
     ? trip.departureDates
     : ['2026-07-10', '2026-07-20', '2026-08-05', '2026-08-20', '2026-09-02'];
 
+
+
+  // Calendar states
+  const [calYear, setCalYear] = useState(() => {
+    const initialDateStr = selectedDate || availableDates.find(dt => dt >= todayStr) || availableDates[0];
+    return initialDateStr ? parseInt(initialDateStr.split('-')[0]) : new Date().getFullYear();
+  });
+  
+  const [calMonth, setCalMonth] = useState(() => {
+    const initialDateStr = selectedDate || availableDates.find(dt => dt >= todayStr) || availableDates[0];
+    return initialDateStr ? parseInt(initialDateStr.split('-')[1]) - 1 : new Date().getMonth();
+  });
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+  const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
+
+  const daysInMonth = getDaysInMonth(calYear, calMonth);
+  const firstDayIndex = getFirstDayOfMonth(calYear, calMonth);
+
+  const prevMonth = () => {
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear(prev => prev - 1);
+    } else {
+      setCalMonth(prev => prev - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear(prev => prev + 1);
+    } else {
+      setCalMonth(prev => prev + 1);
+    }
+  };
+
+  const calendarCells = useMemo(() => {
+    const cells = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({ day: null, dateStr: null });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const monthStr = String(calMonth + 1).padStart(2, '0');
+      const dayStr = String(day).padStart(2, '0');
+      const dateStr = `${calYear}-${monthStr}-${dayStr}`;
+      cells.push({ day, dateStr });
+    }
+    return cells;
+  }, [calYear, calMonth, daysInMonth, firstDayIndex]);
+
   // Single pickup boarding point this organizer supports. Legacy trips saved
   // before this existed (or with the older multi-location format) fall back
   // to the first pickup option or the trip's flat price.
@@ -123,10 +183,15 @@ export default function BookingFlow({
     }
   }, [travelersCount]);
 
-  // Set default initial date
+  // Set default initial date (first upcoming available date)
   useEffect(() => {
     if (!selectedDate) {
-      setSelectedDate(availableDates[0]);
+      const upcoming = availableDates.find(dt => dt >= todayStr);
+      if (upcoming) {
+        setSelectedDate(upcoming);
+      } else {
+        setSelectedDate(availableDates[0]);
+      }
     }
   }, []);
 
@@ -150,9 +215,9 @@ export default function BookingFlow({
     setCouponSuccess('');
     
     const formatted = couponCode.toUpperCase().trim();
-    if (formatted === 'SPYHIKE20') {
+    if (formatted === 'TREKIGO20') {
       setDiscountPercent(20);
-      setAppliedCoupon('SPYHIKE20');
+      setAppliedCoupon('TREKIGO20');
       setCouponSuccess('Success! Coupon applied: 20% Discount.');
       setShowConfetti(true);
     } else if (formatted === 'VALLEY50') {
@@ -166,7 +231,7 @@ export default function BookingFlow({
       setCouponSuccess('Success! Coupon applied: 15% off.');
       setShowConfetti(true);
     } else {
-      setCouponError('Invalid coupon code. Try SPYHIKE20.');
+      setCouponError('Invalid coupon code. Try TREKIGO20.');
     }
   };
 
@@ -186,11 +251,11 @@ export default function BookingFlow({
       setIsProcessingPayment(false);
       setPaymentFinished(true);
       
-      const storedRate = localStorage.getItem('spyhike_commission_rate');
+      const storedRate = localStorage.getItem('trekigo_commission_rate');
       const commissionRate = storedRate !== null ? Number(storedRate) : 10;
       const commissionAmount = Math.round((finalPayAmount * commissionRate / 100) * 100) / 100;
 
-      const newBookingId = `SH-${Math.floor(1000 + Math.random() * 9000)}-U`;
+      const newBookingId = `TG-${Math.floor(1000 + Math.random() * 9000)}-U`;
       const finalBookingObject = {
         id: 'b-' + Date.now(),
         tripId: trip.id,
@@ -284,60 +349,95 @@ export default function BookingFlow({
               <h2 className="text-base font-display font-black">Expedition Details</h2>
             </div>
             
-            {/* 1. Date selection list */}
+            {/* 1. Date selection calendar */}
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-2">Select Roster Departure Date</label>
-              <div className="space-y-2 max-h-[190px] overflow-y-auto no-scrollbar pr-0.5">
-                {availableDates.map(dt => {
-                  const isSelected = selectedDate === dt;
-                  const dateObj = new Date(dt);
-                  const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
-                  const dayNum = dateObj.toLocaleDateString('en-IN', { day: 'numeric' });
-                  const monthName = dateObj.toLocaleDateString('en-IN', { month: 'short' });
-                  const yearNum = dateObj.toLocaleDateString('en-IN', { year: 'numeric' });
+              <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-2">Select Departure Date (Available Calendar Slots)</label>
+              
+              <div className={`p-4 rounded-2xl border ${
+                darkMode ? 'bg-zinc-900/30 border-white/5' : 'bg-white border-zinc-200'
+              }`}>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    type="button"
+                    onClick={prevMonth}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center border active:scale-95 transition cursor-pointer ${
+                      darkMode ? 'bg-zinc-950/60 border-white/5 hover:bg-zinc-900 text-zinc-300' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+                    }`}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="text-xs font-black font-display tracking-tight text-center flex-1">
+                    {monthNames[calMonth]} {calYear}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={nextMonth}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center border active:scale-95 transition cursor-pointer ${
+                      darkMode ? 'bg-zinc-950/60 border-white/5 hover:bg-zinc-900 text-zinc-300' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+                    }`}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
 
-                  return (
-                    <label
-                      key={dt}
-                      onClick={() => setSelectedDate(dt)}
-                      className={`p-2.5 rounded-xl flex items-center justify-between cursor-pointer transition-all border ${
-                        isSelected
-                          ? darkMode
-                            ? 'bg-forest-950/30 border-forest-500 shadow-md text-white'
-                            : 'bg-forest-50/70 border-forest-500 shadow-xs text-forest-900 font-bold'
-                          : darkMode
-                          ? 'bg-zinc-900/30 border-white/5 hover:bg-zinc-900/60 hover:border-white/10 text-zinc-300'
-                          : 'bg-white border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 text-zinc-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex flex-col items-center justify-center text-center shrink-0 ${
-                          isSelected
-                            ? darkMode ? 'bg-forest-600/30 text-forest-400 border border-forest-500/20' : 'bg-forest-600 text-white'
-                            : darkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-gray-100 text-zinc-500 border border-zinc-200'
-                        }`}>
-                          <span className="text-[7px] uppercase font-black tracking-wider leading-none">{monthName}</span>
-                          <span className="text-[12px] font-black leading-none mt-0.5">{dayNum}</span>
-                        </div>
+                {/* Weekdays */}
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                  {dayNames.map(day => (
+                    <span key={day} className="text-[9px] font-bold uppercase opacity-40">
+                      {day}
+                    </span>
+                  ))}
+                </div>
 
-                        <div className="flex flex-col">
-                          <span className="text-[11px] font-bold font-sans">
-                            {dayName}, {dayNum} {monthName} {yearNum}
-                          </span>
-                        </div>
-                      </div>
+                {/* Days grid */}
+                <div className="grid grid-cols-7 gap-1.5 text-center">
+                  {calendarCells.map((cell, idx) => {
+                    if (cell.day === null) {
+                      return <div key={`empty-${idx}`} />;
+                    }
 
-                      <input
-                        type="radio"
-                        name="expedition-dates"
-                        checked={isSelected}
-                        onChange={() => setSelectedDate(dt)}
-                        className="accent-forest-500 pointer-events-auto w-3.5 h-3.5 cursor-pointer"
-                      />
-                    </label>
-                  );
-                })}
+                    const isAvailable = availableDates.includes(cell.dateStr);
+                    const isPast = cell.dateStr < todayStr;
+                    const isSelectable = isAvailable && !isPast;
+                    const isSelected = selectedDate === cell.dateStr;
+
+                    return (
+                      <button
+                        key={cell.dateStr}
+                        type="button"
+                        disabled={!isSelectable}
+                        onClick={() => setSelectedDate(cell.dateStr)}
+                        className={`h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+                          isSelectable
+                            ? isSelected
+                              ? darkMode
+                                ? 'bg-forest-500 text-white font-black shadow-md border border-forest-400 cursor-pointer'
+                                : 'bg-forest-600 text-white font-black shadow-md cursor-pointer'
+                              : darkMode
+                              ? 'bg-forest-950/30 border border-forest-500/30 text-forest-400 hover:bg-forest-900/50 hover:border-forest-500/60 font-bold cursor-pointer'
+                              : 'bg-forest-50 border border-forest-500/20 text-forest-700 hover:bg-forest-100/70 hover:border-forest-500/50 font-bold cursor-pointer'
+                            : darkMode
+                            ? 'text-zinc-650 opacity-20 cursor-not-allowed'
+                            : 'text-zinc-300 opacity-40 cursor-not-allowed'
+                        }`}
+                      >
+                        {cell.day}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+              
+              {/* Selected date preview */}
+              {selectedDate && (
+                <div className="mt-2.5 flex items-center justify-between text-[11px] font-medium opacity-80 px-1">
+                  <span>Selected Date:</span>
+                  <span className="font-bold text-forest-600 dark:text-forest-400">
+                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* 1b. Pickup location — fixed, single boarding point set by the organizer */}
@@ -364,7 +464,7 @@ export default function BookingFlow({
                     <Users size={14} className="text-forest-500" /> Travelers Count
                   </h3>
                   <p className="text-[9px] text-zinc-500 mt-0.5">
-                    Max: {trip.maxGroupSize} • Seats Left: {trip.availableSeats}
+                    Seats Left: {trip.availableSeats}
                   </p>
                 </div>
 
@@ -528,7 +628,7 @@ export default function BookingFlow({
                       Free Booking Reward Available!
                     </span>
                     <p className="text-[10px] opacity-70 mt-0.5 leading-relaxed">
-                      You've earned a free booking through Spy Hike Loyalty Rewards. Apply it to make this booking ₹0.
+                      You've earned a free booking through Trekigo Loyalty Rewards. Apply it to make this booking ₹0.
                     </p>
                   </div>
                 </div>
@@ -558,7 +658,7 @@ export default function BookingFlow({
               <form onSubmit={handleValidateCoupon} className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="CODE (e.g. SPYHIKE20)"
+                  placeholder="CODE (e.g. TREKIGO20)"
                   value={couponCode}
                   onChange={e => setCouponCode(e.target.value)}
                   className={`flex-1 text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 uppercase tracking-widest ${
@@ -585,7 +685,7 @@ export default function BookingFlow({
               
               {!appliedCoupon && (
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pt-1">
-                  {['SPYHIKE20', 'GHATS15'].map(cp => (
+                  {['TREKIGO20', 'GHATS15'].map(cp => (
                     <button
                       key={cp}
                       type="button"
@@ -744,8 +844,10 @@ export default function BookingFlow({
             <button
               type="button"
               onClick={() => setStep(prev => prev - 1)}
-              className={`flex-1 py-3 text-xs font-bold rounded-xl border text-center transition ${
-                darkMode ? 'bg-zinc-905 border-zinc-800 text-zinc-400' : 'bg-white border-gray-200'
+              className={`w-24 py-3.5 text-xs font-bold rounded-2xl border text-center transition-all duration-300 active:scale-95 cursor-pointer ${
+                darkMode 
+                  ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50' 
+                  : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50 hover:border-zinc-300'
               }`}
             >
               Back
@@ -756,7 +858,11 @@ export default function BookingFlow({
             type="button"
             id={`btn-booking-step-${step}-continue`}
             onClick={() => setStep(prev => prev + 1)}
-            className="flex-1 bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-xs"
+            className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
+              darkMode
+                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
+                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
+            }`}
           >
             Continue
             <ArrowRight size={14} />
@@ -769,8 +875,10 @@ export default function BookingFlow({
           <button
             type="button"
             onClick={() => setStep(2)}
-            className={`w-24 py-4 text-xs font-bold rounded-xl border text-center transition ${
-              darkMode ? 'bg-zinc-905 border-zinc-800 text-zinc-400' : 'bg-white border-gray-200'
+            className={`w-24 py-4 text-xs font-bold rounded-2xl border text-center transition-all duration-300 active:scale-95 cursor-pointer ${
+              darkMode 
+                ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50' 
+                : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'
             }`}
           >
             Back
@@ -780,10 +888,18 @@ export default function BookingFlow({
             id="btn-pay-and-confirm"
             disabled={isProcessingPayment}
             onClick={handleProcessPayment}
-            className={`flex-1 font-black py-4 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-md text-white ${
-              useLoyaltyReward ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-forest-600 hover:bg-forest-700'
+            className={`flex-1 py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
+              isProcessingPayment 
+                ? 'opacity-50 cursor-not-allowed' 
+                : ''
             } ${
-              isProcessingPayment ? 'opacity-50 cursor-not-allowed' : 'active:scale-98 cursor-pointer'
+              useLoyaltyReward
+                ? darkMode
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/60 hover:border-emerald-400 shadow-lg shadow-emerald-900/10'
+                  : 'bg-emerald-50/60 border-emerald-500/30 text-emerald-700 hover:bg-emerald-100/90 hover:border-emerald-500 shadow-md shadow-emerald-950/5'
+                : darkMode
+                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
+                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
             }`}
           >
             {useLoyaltyReward
@@ -799,7 +915,11 @@ export default function BookingFlow({
             type="button"
             id="btn-booking-done-finish"
             onClick={handleFinishAndReturn}
-            className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-4 rounded-xl text-center text-xs"
+            className={`w-full py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
+              darkMode
+                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
+                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
+            }`}
           >
             Access Bookings Dashboard
           </button>

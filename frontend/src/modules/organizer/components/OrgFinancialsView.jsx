@@ -250,7 +250,7 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
             <div className={`p-4 rounded-2xl flex gap-2.5 text-xs leading-relaxed ${darkMode ? 'bg-zinc-900/60 text-zinc-400' : 'bg-white text-zinc-500 shadow-sm'}`}>
               <FileText size={14} className="text-spy-orange shrink-0 mt-0.5" />
               <span>
-                Spy Hike charges a {(COMMISSION_RATE * 100).toFixed(0)}% platform commission per booking. Funds move from
+                Trekigo charges a {(COMMISSION_RATE * 100).toFixed(0)}% platform commission per booking. Funds move from
                 "Pending Settlement" to your "Available Balance" once a trip is marked Completed. Zero-commission
                 loyalty credits skip this deduction entirely.
               </span>

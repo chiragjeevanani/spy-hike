@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Star, ShieldCheck, MapPin, Award, Compass, Heart, Users, ChevronRight, BookOpen, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Star, ShieldCheck, MapPin, Award, Compass, Heart, Users, ChevronRight, BookOpen, Image as ImageIcon, Phone, Mail, Globe } from 'lucide-react';
 
 export default function OrganizerProfileView({
   organizer,
@@ -49,7 +49,7 @@ export default function OrganizerProfileView({
         </button>
         <div>
           <h2 className="text-sm font-display font-black tracking-tight">Organizer Profile</h2>
-          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">SPY HIKE VERIFIED PARTNER</p>
+          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">TREKIGO VERIFIED PARTNER</p>
         </div>
       </div>
 
@@ -190,6 +190,45 @@ export default function OrganizerProfileView({
                           <span>{cap}</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Contact details */}
+                  <div className="space-y-2.5 pt-3 border-t border-zinc-800/10 dark:border-zinc-850">
+                    <h3 className="text-xs font-display font-bold uppercase tracking-wider opacity-85">Contact details</h3>
+                    <div className={`p-3.5 rounded-2xl space-y-3 border ${
+                      darkMode ? 'bg-zinc-900/35 border-forest-900/30' : 'bg-white border-zinc-200 shadow-xs'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <Phone size={14} className="text-forest-400 shrink-0" />
+                        <div className="text-xs">
+                          <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone Number</span>
+                          <span className="font-bold font-sans">{organizer.phone || '+91 98765 43210'}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 pt-2.5 border-t border-zinc-850/5 dark:border-white/5">
+                        <Mail size={14} className="text-forest-400 shrink-0" />
+                        <div className="text-xs">
+                          <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email Address</span>
+                          <span className="font-bold truncate block">
+                            {organizer.email || `support@${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 pt-2.5 border-t border-zinc-850/5 dark:border-white/5">
+                        <Globe size={14} className="text-forest-400 shrink-0" />
+                        <div className="text-xs">
+                          <span className="opacity-50 block text-[8px] uppercase tracking-wider">Website</span>
+                          <a 
+                            href={`https://www.${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="font-bold text-forest-500 hover:underline cursor-pointer"
+                          >
+                            {`www.${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

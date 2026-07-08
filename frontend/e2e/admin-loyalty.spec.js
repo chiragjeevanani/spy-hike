@@ -4,7 +4,7 @@ test.use({ viewport: { width: 1280, height: 900 } });
 
 async function loginAsAdmin(page) {
   await page.goto('/admin/login');
-  await page.fill('input[type="email"]', 'admin@spyhike.com');
+  await page.fill('input[type="email"]', 'admin@trekigo.com');
   await page.fill('input[type="password"]', 'admin123');
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(/\/admin\/dashboard/);
@@ -37,7 +37,7 @@ test.describe('Admin — Loyalty Program', () => {
     await page.getByRole('button', { name: 'Save Loyalty Settings' }).click();
     await expect(page.getByRole('button', { name: 'Saved!' })).toBeVisible();
 
-    const configAfterSave = await page.evaluate(() => JSON.parse(localStorage.getItem('spyhike_loyalty_config')));
+    const configAfterSave = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_config')));
     expect(configAfterSave.customer.thresholdPersons).toBe(12);
     expect(configAfterSave.organizer.thresholdBookings).toBe(250);
 
@@ -60,9 +60,9 @@ test.describe('Admin — Loyalty Program', () => {
 
   test('quick voucher insight tiles reflect ledger counts', async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('spyhike_loyalty_customer_vouchers', JSON.stringify([
+      localStorage.setItem('trekigo_loyalty_customer_vouchers', JSON.stringify([
         { id: 'v1', earnedAt: new Date().toISOString(), milestoneNumber: 1, status: 'available', usedRef: null },
-        { id: 'v2', earnedAt: new Date().toISOString(), milestoneNumber: 2, status: 'used', usedRef: 'SH-1', usedAt: new Date().toISOString() },
+        { id: 'v2', earnedAt: new Date().toISOString(), milestoneNumber: 2, status: 'used', usedRef: 'TG-1', usedAt: new Date().toISOString() },
       ]));
     });
     await loginAsAdmin(page);

@@ -1,40 +1,71 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Check, X, Eye, Star, Globe, Phone, FileText } from 'lucide-react';
-import { loadAllOrganizers, saveOrganizerStatus } from '../utils/storage';
+import { Check, X, Eye, Star, Globe, Trash2, UserPlus } from 'lucide-react';
+import { loadAllOrganizers, saveOrganizerStatus, deleteOrganizerAccount } from '../utils/storage';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
-export default function OrganizersView({ darkMode }) {
+export default function OrganizersView({ onOpenProfile, darkMode }) {
   const [organizers, setOrganizers] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState('Pending'); // 'Pending' or 'All'
-  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [approvalAction, setApprovalAction] = useState(null); // { email, name, approve, reject }
+  const [deleteTarget, setDeleteTarget] = useState(null); // { email, name }
 
   useEffect(() => {
     setOrganizers(loadAllOrganizers());
   }, []);
 
-  const handleApprovalAction = (email, approve, reject) => {
-    const actionText = approve ? 'Approve' : (reject ? 'Reject' : 'Toggle Status');
-    if (!window.confirm(`Are you sure you want to ${actionText} this organizer account?`)) return;
-    
+  const handleConfirmApproval = () => {
+    const { email, approve, reject } = approvalAction;
     saveOrganizerStatus(email, approve, reject);
-    setOrganizers(loadAllOrganizers()); // refresh
+    setOrganizers(loadAllOrganizers());
+    setApprovalAction(null);
+  };
+
+  const handleConfirmDelete = () => {
+    deleteOrganizerAccount(deleteTarget.email);
+    setOrganizers(loadAllOrganizers());
+    setDeleteTarget(null);
   };
 
   const pendingList = organizers.filter(o => o.isPendingApproval && !o.isApproved);
   const allList = organizers;
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${
-    darkMode 
-      ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20' 
+    darkMode
+      ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20'
       : 'bg-white border-slate-100 text-slate-800 shadow-slate-100/50'
   }`;
 
+  const approvalDialogCopy = () => {
+    if (!approvalAction) return {};
+    if (approvalAction.approve) return { title: 'Approve Organizer?', message: `${approvalAction.name} will become a verified partner and can start posting trips.`, confirmLabel: 'Approve', tone: 'default' };
+    if (approvalAction.reject) return { title: 'Reject Application?', message: `${approvalAction.name}'s partner application will be rejected.`, confirmLabel: 'Reject', tone: 'danger' };
+    return {
+      title: approvalAction.currentlyApproved ? 'Suspend Organizer?' : 'Activate Organizer?',
+      message: approvalAction.currentlyApproved
+        ? `${approvalAction.name} will be suspended and unable to post new trips or receive bookings.`
+        : `${approvalAction.name} will regain full partner access.`,
+      confirmLabel: approvalAction.currentlyApproved ? 'Suspend' : 'Activate',
+      tone: approvalAction.currentlyApproved ? 'danger' : 'default',
+    };
+  };
+  const dialogCopy = approvalDialogCopy();
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
-      
+
       {/* Title */}
-      <div>
-        <h1 className="text-2xl font-black font-display tracking-tight text-slate-800 dark:text-white">Organizer Approvals</h1>
-        <p className="text-slate-400 text-xs mt-1.5 font-semibold">Review organizer registrations, license details, and manage active status.</p>
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-black font-display tracking-tight text-slate-800 dark:text-white">Organizer Approvals</h1>
+          <p className="text-slate-400 text-xs mt-1.5 font-semibold">Review organizer registrations, license details, and manage active status.</p>
+        </div>
+        <button
+          onClick={() => onOpenProfile()}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#F27D26] text-white active:scale-95 transition-all"
+        >
+          <UserPlus size={14} />
+          <span>Add Organizer</span>
+        </button>
       </div>
 
       {/* Tab Segment Toggles */}
@@ -42,8 +73,8 @@ export default function OrganizersView({ darkMode }) {
         <button
           onClick={() => setActiveSubTab('Pending')}
           className={`pb-3 text-xs font-black uppercase tracking-wider transition-all relative ${
-            activeSubTab === 'Pending' 
-              ? 'text-[#F27D26]' 
+            activeSubTab === 'Pending'
+              ? 'text-[#F27D26]'
               : 'text-slate-400 hover:text-slate-600'
           }`}
         >
@@ -56,8 +87,8 @@ export default function OrganizersView({ darkMode }) {
         <button
           onClick={() => setActiveSubTab('All')}
           className={`pb-3 text-xs font-black uppercase tracking-wider transition-all relative ml-6 ${
-            activeSubTab === 'All' 
-              ? 'text-[#F27D26]' 
+            activeSubTab === 'All'
+              ? 'text-[#F27D26]'
               : 'text-slate-400 hover:text-slate-600'
           }`}
         >
@@ -78,7 +109,7 @@ export default function OrganizersView({ darkMode }) {
           ) : (
             pendingList.map((org) => (
               <div key={org.email} className={cardCls}>
-                
+
                 {/* Header */}
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex gap-3">
@@ -124,7 +155,7 @@ export default function OrganizersView({ darkMode }) {
                 {/* Footer buttons */}
                 <div className="flex gap-3 mt-4">
                   <button
-                    onClick={() => setSelectedOrg(org)}
+                    onClick={() => onOpenProfile(org.email)}
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-500"
                   >
                     <Eye size={13} />
@@ -132,7 +163,7 @@ export default function OrganizersView({ darkMode }) {
                   </button>
 
                   <button
-                    onClick={() => handleApprovalAction(org.email, false, true)}
+                    onClick={() => setApprovalAction({ email: org.email, name: org.agencyName, approve: false, reject: true })}
                     className="flex items-center justify-center p-2 rounded-xl border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
                     title="Reject Application"
                   >
@@ -140,7 +171,7 @@ export default function OrganizersView({ darkMode }) {
                   </button>
 
                   <button
-                    onClick={() => handleApprovalAction(org.email, true, false)}
+                    onClick={() => setApprovalAction({ email: org.email, name: org.agencyName, approve: true, reject: false })}
                     className="flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/10 transition-all active:scale-95"
                   >
                     <Check size={14} className="mr-1" />
@@ -174,7 +205,7 @@ export default function OrganizersView({ darkMode }) {
               }`}>
                 {allList.map((org) => (
                   <tr key={org.email} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
-                    
+
                     {/* Agency name */}
                     <td className="py-4 px-6 flex items-center gap-3">
                       <img
@@ -225,23 +256,31 @@ export default function OrganizersView({ darkMode }) {
                     {/* Action toggles */}
                     <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
                       <button
-                        onClick={() => setSelectedOrg(org)}
+                        onClick={() => onOpenProfile(org.email)}
                         className="p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-all"
                         title="View Profile Details"
                       >
                         <Eye size={14} />
                       </button>
-                      
+
                       <button
-                        onClick={() => handleApprovalAction(org.email, false, false)}
+                        onClick={() => setApprovalAction({ email: org.email, name: org.agencyName, approve: false, reject: false, currentlyApproved: org.isApproved })}
                         className={`p-1.5 rounded-lg border text-xs font-bold transition-all ${
-                          org.isApproved 
-                            ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10' 
+                          org.isApproved
+                            ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
                             : 'border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
                         }`}
                         title={org.isApproved ? 'Suspend Partner' : 'Approve Partner'}
                       >
                         {org.isApproved ? 'Suspend' : 'Activate'}
+                      </button>
+
+                      <button
+                        onClick={() => setDeleteTarget({ email: org.email, name: org.agencyName })}
+                        className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
+                        title="Delete Organizer"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </td>
 
@@ -253,81 +292,27 @@ export default function OrganizersView({ darkMode }) {
         </div>
       )}
 
-      {/* Details modal overlay */}
-      {selectedOrg && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl relative animate-scaleIn ${
-            darkMode ? 'bg-[#152243] border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-800'
-          }`}>
-            <button
-              onClick={() => setSelectedOrg(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X size={18} />
-            </button>
+      <ConfirmDialog
+        open={!!approvalAction}
+        title={dialogCopy.title}
+        message={dialogCopy.message}
+        confirmLabel={dialogCopy.confirmLabel}
+        tone={dialogCopy.tone}
+        onConfirm={handleConfirmApproval}
+        onCancel={() => setApprovalAction(null)}
+        darkMode={darkMode}
+      />
 
-            {/* Profile Avatar Card */}
-            <div className="flex flex-col items-center pb-5 mb-5 border-b border-slate-100 dark:border-slate-800">
-              <img
-                src={selectedOrg.avatar}
-                alt={selectedOrg.agencyName}
-                className="w-20 h-20 rounded-xl border-2 border-[#F27D26] object-cover mb-3"
-              />
-              <h3 className="font-display font-black text-lg">{selectedOrg.agencyName}</h3>
-              <span className="text-xs text-slate-400 mt-0.5 font-semibold">Rep: {selectedOrg.name}</span>
-            </div>
-
-            {/* Profile metadata info */}
-            <div className="space-y-4 text-xs font-semibold">
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">About Agency</span>
-                <p className="leading-relaxed bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-lg text-slate-500 dark:text-slate-400">
-                  {selectedOrg.bio || 'No agency bio has been configured.'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Phone</span>
-                  <span>{selectedOrg.mobile || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Email Address</span>
-                  <span>{selectedOrg.email}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Experience Years</span>
-                  <span>{selectedOrg.yearsExperience} Years</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Government ID</span>
-                  <span className="text-rose-500">{selectedOrg.govtIdType}: {selectedOrg.govtIdNumber}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Agency Rating</span>
-                  <span className="flex items-center gap-1">
-                    <Star size={11} className="text-amber-400 fill-amber-400" />
-                    {selectedOrg.rating || 'N/A'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Approval Status</span>
-                  <span className={selectedOrg.isApproved ? 'text-emerald-500' : 'text-amber-500'}>
-                    {selectedOrg.isApproved ? 'Approved' : 'Pending Review'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Organizer Account?"
+        message={`This permanently removes ${deleteTarget?.name}'s partner account. Their posted trips and past bookings will remain for records.`}
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        darkMode={darkMode}
+      />
 
     </div>
   );
