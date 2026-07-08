@@ -75,6 +75,19 @@ export default function ProfileView({
   });
   const [orgFormError, setOrgFormError] = useState('');
 
+  // Check if this traveller already has an organizer account (approved OR pending).
+  // Reading localStorage here is cheaper than adding a prop and stays in sync
+  // even if the user registered as an organizer in a previous session.
+  const isExistingOrganizer = (() => {
+    try {
+      const raw = localStorage.getItem(ORG_USER_STORAGE_KEY);
+      if (!raw) return false;
+      const org = JSON.parse(raw);
+      // Must at least be onboarded — covers both approved and pending-approval states
+      return !!(org?.isOnboarded && (org?.email === user?.email || org?.isAuthenticated));
+    } catch { return false; }
+  })();
+
   // Support Chat
   const [supportChats, setSupportChats] = useState([
     { sender: 'bot', text: 'Hello Chirag! Welcome to Trekigo Helpdesk. How can we optimize your trekking experience today?', time: '11:10 AM' }
@@ -386,7 +399,8 @@ export default function ProfileView({
                   }`}
                 >
                   <span className="flex items-center gap-3">
-                    <Building2 size={19} className="text-spy-orange" /> Become an Organizer
+                    <Building2 size={19} className="text-spy-orange" />
+                    {isExistingOrganizer ? 'Switch to Organizer' : 'Become an Organizer'}
                   </span>
                   <ChevronRight size={17} className="opacity-40" />
                 </button>

@@ -7,6 +7,9 @@ import OrgHelpSupportView from './OrgHelpSupportView';
 import OrgAboutView from './OrgAboutView';
 import { saveOrgUser } from '../utils/storage';
 import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
+import SwitchTransition from '../../user/components/SwitchTransition';
+
+const TRAVELLER_TRANSITION_MS = 3000;
 
 export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, darkMode, onToggleDarkMode }) {
   const loyaltyConfig = loadLoyaltyConfig();
@@ -15,6 +18,12 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpSupport, setShowHelpSupport] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [travSwitching, setTravSwitching] = useState(false);
+
+  const handleSwitchToTraveller = () => {
+    setTravSwitching(true);
+    setTimeout(() => { window.location.href = '/app'; }, TRAVELLER_TRANSITION_MS);
+  };
   const [form, setForm] = useState({
     name: organizer?.name || '',
     agencyName: organizer?.agencyName || '',
@@ -53,6 +62,7 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
 
   return (
     <div className={`h-full flex flex-col overflow-y-auto font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
+      {travSwitching && <SwitchTransition darkMode={darkMode} label="Switching to Traveller" showScene />}
       
       {/* Profile header */}
       <div className={`relative px-5 pt-5 pb-6 ${darkMode ? 'bg-gradient-to-b from-zinc-900 to-transparent' : 'bg-gradient-to-b from-orange-50 to-transparent'}`}>
@@ -220,6 +230,22 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
             <span className="flex items-center gap-3">
               <Info size={16} className="text-spy-orange" />
               <span className="text-sm font-semibold">About</span>
+            </span>
+            <ChevronRight size={16} className="opacity-40" />
+          </button>
+
+          {/* Switch to Traveller */}
+          <button
+            type="button"
+            id="btn-switch-to-traveller"
+            onClick={handleSwitchToTraveller}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 border-b transition ${
+              darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <User size={16} className="text-forest-500" />
+              <span className="text-sm font-semibold">Switch to Traveller</span>
             </span>
             <ChevronRight size={16} className="opacity-40" />
           </button>
