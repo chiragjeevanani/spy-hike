@@ -105,7 +105,7 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
         </div>
       </div>
 
-      {/* Simulate approval (dev helper) */}
+      {/* Re-check approval status (approval is admin-driven) */}
       <div className="px-6 pb-8 mt-2 space-y-3">
         <button
           type="button"
@@ -118,7 +118,7 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
           Check Approval Status
         </button>
         <p className={`text-center text-[10px] ${darkMode ? 'text-zinc-700' : 'text-zinc-400'}`}>
-          Simulate approval: this button auto-approves in demo mode
+          We'll email you the moment an admin approves your application.
         </p>
       </div>
     </div>

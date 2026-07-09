@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Shield, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import TrekigoLogo from '../../../components/TrekigoLogo';
+import authApi from '../../../lib/authApi';
 
 export default function AdminLogin({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -18,23 +19,17 @@ export default function AdminLogin({ onLoginSuccess }) {
 
     setLoading(true);
     setError('');
-    
-    // Simulate login lag
-    await new Promise((resolve) => setTimeout(resolve, 800));
 
-    if (email === 'admin@trekigo.com' && password === 'admin123') {
-      const adminProfile = {
-        isAuthenticated: true,
-        email: 'admin@trekigo.com',
-        name: 'System Administrator',
-        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-        role: 'Super Admin',
-      };
-      onLoginSuccess(adminProfile);
-    } else {
-      setError('Invalid admin credentials. Use admin@trekigo.com / admin123');
+    try {
+      // authApi persists the admin JWT; the returned account carries the
+      // display role ("Super Admin"), name, avatar, and isAuthenticated flag.
+      const admin = await authApi.loginAdmin(email, password);
+      onLoginSuccess({ ...admin, role: admin.displayRole || 'Super Admin' });
+    } catch (err) {
+      setError(err?.message || 'Invalid admin credentials. Use admin@trekigo.com / admin123');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

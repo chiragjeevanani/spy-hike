@@ -10,6 +10,7 @@ import {
   loadOrgPayouts, saveOrgPayouts,
 } from './utils/storage';
 import { syncOrganizerVouchers, markOrganizerVoucherUsed } from '../../utils/loyalty';
+import authApi from '../../lib/authApi';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -174,14 +175,20 @@ export default function OrgApp() {
 
   const handleToggleDarkMode = () => setDarkMode(p => !p);
 
-  // Simulate admin approval on "Check Status" click
-  const handleCheckApproval = () => {
-    const updated = { ...organizer, isApproved: true, isPendingApproval: false };
+  // Re-fetch the real approval status from the API on "Check Status" click.
+  // Approval is admin-driven — this no longer self-approves; it reflects
+  // whatever an admin has (or hasn't) done in the admin console.
+  const handleCheckApproval = async () => {
+    const fresh = await authApi.fetchMe();
+    if (!fresh) return; // token expired → the auth gate will bounce to login
+    const updated = { ...organizer, ...fresh };
     saveOrgUser(updated);
     setOrganizer(updated);
-    setTrips(loadOrgTrips(updated.email));
-    setBookings(loadOrgBookings(updated.email));
-    navigateTo('Dashboard', true);
+    if (updated.isApproved) {
+      setTrips(loadOrgTrips(updated.email));
+      setBookings(loadOrgBookings(updated.email));
+      navigateTo('Dashboard', true);
+    }
   };
 
   // Trip CRUD

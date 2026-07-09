@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe, Instagram } from 'lucide-react';
 import { saveOrgUser } from '../utils/storage';
+import authApi from '../../../lib/authApi';
 import TrekigoLogo from '../../../components/TrekigoLogo';
 
 export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
@@ -47,48 +48,34 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
       setError('');
       setStep(prev => prev + 1);
     } else {
-      // Final step - register
+      // Final step - register via the API. The backend always creates the
+      // organizer as pending (isApproved:false) — approval is admin-only.
       if (!formData.govtIdNumber) {
         setError('Government ID is required for verification.');
         return;
       }
       setLoading(true);
-      await new Promise(r => setTimeout(r, 1200));
-
-      const newUser = {
-        isAuthenticated: true,
-        isOnboarded: true,
-        isApproved: false,
-        isPendingApproval: true,
-        name: formData.name,
-        email: formData.email,
-        mobile: formData.mobile,
-        agencyName: formData.agencyName,
-        agencyWebsite: formData.agencyWebsite,
-        socialMediaLink: formData.socialMediaLink,
-        govtIdType: formData.govtIdType,
-        govtIdNumber: formData.govtIdNumber,
-        yearsExperience: parseInt(formData.yearsExperience) || 1,
-        bio: formData.bio,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=F27D26&color=fff`,
-        rating: 0,
-        totalTrips: 0,
-        totalBookings: 0,
-        rememberMe: false,
-      };
-
-      saveOrgUser(newUser);
-
-      // Store account for future logins
       try {
-        const stored = localStorage.getItem('trekigo_org_accounts');
-        const accounts = stored ? JSON.parse(stored) : [];
-        accounts.push({ email: formData.email, password: formData.password, name: formData.name });
-        localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
-      } catch (e) {}
-
-      setLoading(false);
-      onSuccess(newUser);
+        const organizer = await authApi.registerOrganizer({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          mobile: formData.mobile,
+          agencyName: formData.agencyName,
+          agencyWebsite: formData.agencyWebsite,
+          socialMediaLink: formData.socialMediaLink,
+          govtIdType: formData.govtIdType,
+          govtIdNumber: formData.govtIdNumber,
+          yearsExperience: parseInt(formData.yearsExperience) || 1,
+          bio: formData.bio,
+        });
+        saveOrgUser({ ...organizer, rememberMe: false });
+        onSuccess(organizer);
+      } catch (err) {
+        setError(err?.message || 'Registration failed. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 

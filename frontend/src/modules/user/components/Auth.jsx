@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2 } from 'lucide-react';
-import { saveUserState } from '../utils/storage';
+import authApi from '../../../lib/authApi';
 import SwitchTransition from './SwitchTransition';
 import TrekigoLogo from '../../../components/TrekigoLogo';
+
+// Turns an ApiClientError (or any error) into a user-facing message.
+const errText = (err, fallback) => err?.message || fallback;
 
 const ORG_USER_STORAGE_KEY = 'trekigo_org_user';
 const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play, then holds briefly before redirecting
@@ -39,6 +42,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [successMsg, setSuccessMsg] = useState('');
   const [showOrgTransition, setShowOrgTransition] = useState(false);
   const [roleSwitchLabel, setRoleSwitchLabel] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Start OTP timer if confirm screen
   useEffect(() => {
@@ -51,61 +55,17 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     return () => clearInterval(interval);
   }, [mode, otpTimer]);
 
-  // Mirrors this account into the organizer panel's own session storage and
-  // hands off to /organizer — the two modules run as independent mini-SPAs
-  // (see main.jsx path-prefix routing) with no shared auth context.
-  const redirectToOrganizerPanel = (loggedInUser) => {
-    let existingOrg = {};
-    try {
-      const val = localStorage.getItem(ORG_USER_STORAGE_KEY);
-      if (val) existingOrg = JSON.parse(val);
-    } catch (e) {}
-
-    const orgUser = {
-      agencyName: loggedInUser.name,
-      agencyWebsite: '',
-      socialMediaLink: 'https://instagram.com/trekigoorganizer',
-      govtIdType: 'Aadhaar',
-      govtIdNumber: '',
-      yearsExperience: 1,
-      bio: 'Verified Trekigo organizer.',
-      verificationDocumentUrl: '',
-      rating: 4.8,
-      totalTrips: 0,
-      totalBookings: 0,
-      coreCapabilities: ['Certified Trek Leader'],
-      ...existingOrg,
-      // Being flagged isOrganizer means this account is already a vetted
-      // organizer, so it skips the fresh-signup onboarding/approval gates.
-      isAuthenticated: true,
-      isOnboarded: true,
-      isApproved: true,
-      isPendingApproval: false,
-      name: loggedInUser.name,
-      email: loggedInUser.email,
-      mobile: loggedInUser.mobile,
-      avatar: loggedInUser.avatar,
-      rememberMe,
-    };
-    localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser));
+  // Persists the real organizer account (returned by the API) into the
+  // organizer panel's own session storage and hands off to /organizer — the
+  // two modules run as independent mini-SPAs (see main.jsx path-prefix
+  // routing) with no shared auth context. The org account already carries
+  // isApproved/isPendingApproval, so OrgApp routes to dashboard vs. pending.
+  const redirectToOrganizerPanel = (organizerAccount) => {
+    localStorage.setItem(
+      ORG_USER_STORAGE_KEY,
+      JSON.stringify({ ...organizerAccount, rememberMe }),
+    );
     window.location.href = '/organizer';
-  };
-
-  // Routes a successfully-authenticated account to the right portal based on
-  // the selected role tab, gating Organizer access on the isOrganizer flag.
-  const completeLogin = (loggedInUser) => {
-    if (role === 'ORGANIZER') {
-      if (!loggedInUser.isOrganizer) {
-        setErrorMsg("This account isn't registered as an organizer yet. Switch to Traveller sign-in, or apply from the Organizer Panel.");
-        return;
-      }
-      setSuccessMsg('Organizer access verified! Redirecting to your dashboard...');
-      saveUserState(loggedInUser);
-      setShowOrgTransition(true);
-      setTimeout(() => redirectToOrganizerPanel(loggedInUser), ORGANIZER_TRANSITION_MS);
-      return;
-    }
-    onSuccess(loggedInUser);
   };
 
   // Plays the same blur+pill transition briefly when toggling between the
@@ -121,7 +81,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     }, ROLE_TOGGLE_TRANSITION_MS);
   };
 
-  const handleLoginEmail = (e) => {
+  const handleLoginEmail = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -131,89 +91,67 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       return;
     }
 
-    // Check if user exists in our local simulated accounts
-    if (email.toLowerCase() === 'chiragjeevanani333@gmail.com' && password === 'trekigo123') {
-      const user = {
-        isAuthenticated: true,
-        isOnboarded: true,
-        isOrganizer: true,
-        name: 'Chirag Jeevanani',
-        email: email,
-        mobile: '+91 98765 43210',
-        age: 24,
-        gender: 'Male',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        hikingExperience: 'Intermediate',
-        fitnessLevel: 'High',
-        emergencyContact: 'Asha Jeevanani (+91 98765 43219)',
-        rememberMe,
-      };
-      completeLogin(user);
-    } else {
-      // Create user on the fly or log in as standard adventurer
-      const standardUser = {
-        isAuthenticated: true,
-        isOnboarded: true,
-        isOrganizer: false,
-        name: email.split('@')[0].toUpperCase(),
-        email: email,
-        mobile: '+1 (555) 019-2834',
-        age: 28,
-        gender: 'Male',
-        avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80',
-        hikingExperience: 'Beginner',
-        fitnessLevel: 'Moderate',
-        emergencyContact: 'Emergency Contact (+1 555-010-0000)',
-        rememberMe,
-      };
+    setSubmitting(true);
+    try {
       if (role === 'ORGANIZER') {
-        completeLogin(standardUser);
+        // Organizer login hits the organizer endpoint directly — it fails if
+        // this account isn't registered as an organizer.
+        const organizer = await authApi.loginOrganizer(email, password);
+        setSuccessMsg('Organizer access verified! Redirecting to your dashboard...');
+        setShowOrgTransition(true);
+        setTimeout(() => redirectToOrganizerPanel(organizer), ORGANIZER_TRANSITION_MS);
       } else {
+        const user = await authApi.loginCustomer(email, password);
         setSuccessMsg('Logged in successfully!');
-        setTimeout(() => completeLogin(standardUser), 600);
+        onSuccess({ ...user, rememberMe });
       }
+    } catch (err) {
+      setErrorMsg(
+        role === 'ORGANIZER' && err?.status === 401
+          ? "Invalid organizer credentials. If you're a new agency, apply from the Organizer Panel."
+          : errText(err, 'Sign in failed. Please try again.'),
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleSendOTP = (e) => {
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     if (!phone || phone.length < 9) {
       setErrorMsg('Please enter a valid mobile number.');
       return;
     }
-    setOtpTimer(30);
-    setMode('OTP_CONFIRM');
-    setSuccessMsg('Simulated OTP sent to your device!');
-  };
-
-  const handleOTPVerify = (e) => {
-    e.preventDefault();
-    if (otpCode !== '123456' && otpCode.length > 0 && otpCode !== '1234') {
-      setErrorMsg('Incorrect OTP. Use 1234 or leave empty.');
-      return;
+    setSubmitting(true);
+    try {
+      await authApi.requestOtp(phone);
+      setOtpTimer(30);
+      setMode('OTP_CONFIRM');
+      setSuccessMsg('OTP sent to your device! (demo code: 123456)');
+    } catch (err) {
+      setErrorMsg(errText(err, 'Could not send OTP. Please try again.'));
+    } finally {
+      setSubmitting(false);
     }
-    setSuccessMsg('Mobile OTP Verified!');
-
-    // Auto logged in user
-    const user = {
-      isAuthenticated: true,
-      isOnboarded: true,
-      isOrganizer: false,
-      name: 'Chirag - Mobile User',
-      email: 'chirag.mobile@trekigo.com',
-      mobile: phone,
-      age: 25,
-      avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
-      hikingExperience: 'Intermediate',
-      fitnessLevel: 'Moderate',
-      emergencyContact: 'Family Member (+91 90000 11111)',
-      rememberMe,
-    };
-    setTimeout(() => completeLogin(user), 800);
   };
 
-  const handleRegister = (e) => {
+  const handleOTPVerify = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSubmitting(true);
+    try {
+      const user = await authApi.verifyOtp(phone, otpCode || '123456');
+      setSuccessMsg('Mobile OTP Verified!');
+      onSuccess({ ...user, rememberMe });
+    } catch (err) {
+      setErrorMsg(errText(err, 'Incorrect OTP. Use 123456.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     if (!regName || !regEmail || !regPassword || !regPhone) {
@@ -221,24 +159,23 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       return;
     }
 
-    const newUser = {
-      isAuthenticated: true,
-      isOnboarded: false, // Redirect to Onboarding Flow!
-      isOrganizer: false,
-      name: regName,
-      email: regEmail,
-      mobile: regPhone,
-      age: regAge,
-      gender: 'Not Specified',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      hikingExperience: 'Beginner', // Default
-      fitnessLevel: 'Moderate', // Default
-      emergencyContact: 'Unassigned Emergency Contact',
-      rememberMe,
-    };
-    
-    setSuccessMsg('Registration Success! Opening onboarding guide...');
-    setTimeout(() => onSuccess(newUser), 1000);
+    setSubmitting(true);
+    try {
+      const newUser = await authApi.registerCustomer({
+        name: regName,
+        email: regEmail,
+        password: regPassword,
+        mobile: regPhone,
+        age: regAge,
+      });
+      setSuccessMsg('Registration Success! Opening onboarding guide...');
+      // New accounts start un-onboarded → onSuccess routes into the guide.
+      onSuccess({ ...newUser, rememberMe });
+    } catch (err) {
+      setErrorMsg(errText(err, 'Registration failed. Please try again.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleForgotPass = (e) => {
@@ -372,11 +309,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             <button
               type="submit"
               id="btn-login-email-submit"
-              className={`w-full text-white font-bold py-3.5 rounded-xl shadow-lg mt-4 cursor-pointer active:scale-98 ${
+              disabled={submitting}
+              className={`w-full text-white font-bold py-3.5 rounded-xl shadow-lg mt-4 cursor-pointer active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed ${
                 role === 'ORGANIZER' ? 'bg-spy-orange hover:bg-[#d96d1a]' : 'bg-forest-600 hover:bg-forest-700'
               }`}
             >
-              {role === 'ORGANIZER' ? 'Sign In to Organizer Panel' : 'Sign In'}
+              {submitting ? 'Signing In…' : role === 'ORGANIZER' ? 'Sign In to Organizer Panel' : 'Sign In'}
             </button>
 
             <button
@@ -448,9 +386,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             <button
               type="submit"
               id="btn-send-otp-submit"
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer"
+              disabled={submitting}
+              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Send OTP Code
+              {submitting ? 'Sending…' : 'Send OTP Code'}
             </button>
           </form>
         )}
@@ -503,9 +442,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             <button
               type="submit"
               id="btn-verify-otp-submit"
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer active:scale-98"
+              disabled={submitting}
+              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Verify OTP & Sign In
+              {submitting ? 'Verifying…' : 'Verify OTP & Sign In'}
             </button>
           </form>
         )}
@@ -657,9 +597,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             <button
               type="submit"
               id="btn-register-submit"
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg mt-1 cursor-pointer active:scale-98 transition-all"
+              disabled={submitting}
+              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg mt-1 cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Complete Safe SignUp
+              {submitting ? 'Creating Account…' : 'Complete Safe SignUp'}
             </button>
           </form>
         )}
