@@ -10,6 +10,7 @@ import Trip from './models/Trip.js';
 import Category from './models/Category.js';
 import { hashPassword } from './utils/password.js';
 import { slugify } from './utils/slug.js';
+import { provisionDepartures } from './services/inventoryService.js';
 // The frontend trip catalog is pure data (no JSX/asset imports), so the seed
 // imports it directly to stay in lock-step with what the app shipped.
 import { HIKING_TRIPS } from '../../frontend/src/modules/user/data/trips.js';
@@ -157,6 +158,8 @@ async function upsertTrips() {
   for (const t of HIKING_TRIPS) {
     const doc = toTripDoc(t);
     await Trip.updateOne({ _id: doc._id }, { $set: doc }, { upsert: true });
+    // Provision per-date seat inventory for each seeded trip.
+    await provisionDepartures(doc);
   }
 }
 

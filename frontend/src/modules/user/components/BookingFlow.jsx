@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
 import { loadCoupons, validateCouponCode, markCouponUsed } from '../../../utils/coupons';
+import tripsApi from '../../../lib/tripsApi';
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -140,6 +141,40 @@ export default function BookingFlow({
     ? trip.departureDates
     : ['2026-07-10', '2026-07-20', '2026-08-05', '2026-08-20', '2026-09-02'];
 
+  // Live per-date seat availability from the API (Phase 3). Map of
+  // "YYYY-MM-DD" → availableSeats. Empty until the fetch resolves; while empty
+  // the calendar falls back to date-only availability (no seat gating), so an
+  // offline/legacy trip still books.
+  const [seatsByDate, setSeatsByDate] = useState({});
+  const [departuresLoaded, setDeparturesLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!trip.id) return;
+    tripsApi
+      .getTripDepartures(trip.id)
+      .then((departures) => {
+        if (cancelled) return;
+        const map = {};
+        departures.forEach((d) => { map[d.date] = d.availableSeats; });
+        setSeatsByDate(map);
+        setDeparturesLoaded(true);
+      })
+      .catch(() => { if (!cancelled) setDeparturesLoaded(false); });
+    return () => { cancelled = true; };
+  }, [trip.id]);
+
+  // Seats remaining on a given date (null when unknown → don't gate on seats).
+  const seatsForDate = (dateStr) => (dateStr in seatsByDate ? seatsByDate[dateStr] : null);
+  const isSoldOut = (dateStr) => {
+    const s = seatsForDate(dateStr);
+    return s !== null && s <= 0;
+  };
+  const selectedSeatsLeft = selectedDate ? seatsForDate(selectedDate) : null;
+  // The capacity the traveler-count steppers cap against: the selected
+  // departure's live seats when known, else the trip-level number.
+  const effectiveSeats = selectedSeatsLeft !== null ? selectedSeatsLeft : trip.availableSeats;
+
 
 
   // Calendar states
@@ -220,7 +255,7 @@ export default function BookingFlow({
       const cur = prev[tierId] || 0;
       const next = cur === 0 ? meta.min : cur + meta.step;
       const others = travelersCount - cur;
-      if (others + next > trip.availableSeats) return prev;
+      if (others + next > effectiveSeats) return prev;
       return { ...prev, [tierId]: next };
     });
   };
@@ -235,6 +270,14 @@ export default function BookingFlow({
       return { ...prev, [tierId]: next < meta.min ? 0 : next };
     });
   };
+
+  // If the selected departure is sold out, clear the traveler selection so the
+  // count reads 0 and Continue is blocked — you can't book a full batch.
+  useEffect(() => {
+    if (departuresLoaded && effectiveSeats <= 0 && travelersCount > 0) {
+      setTierCounts({});
+    }
+  }, [departuresLoaded, effectiveSeats]);
 
   // Sync travelers count with list array size
   useEffect(() => {
@@ -252,17 +295,18 @@ export default function BookingFlow({
     }
   }, [travelersCount]);
 
-  // Set default initial date (first upcoming available date)
+  // Set default initial date: the first upcoming date that still has seats
+  // (re-runs once live availability loads, so we never default to a sold-out
+  // batch). Falls back to the first upcoming/any date when seat data is absent.
   useEffect(() => {
-    if (!selectedDate) {
-      const upcoming = availableDates.find(dt => dt >= todayStr);
-      if (upcoming) {
-        setSelectedDate(upcoming);
-      } else {
-        setSelectedDate(availableDates[0]);
-      }
+    const upcoming = availableDates.filter(dt => dt >= todayStr);
+    const bookable = upcoming.find(dt => !isSoldOut(dt)) || availableDates.find(dt => !isSoldOut(dt));
+    const fallback = upcoming[0] || availableDates[0];
+    const target = bookable || fallback;
+    if (!selectedDate || isSoldOut(selectedDate)) {
+      if (target) setSelectedDate(target);
     }
-  }, []);
+  }, [departuresLoaded]);
 
   // Confetti timeout auto-reset
   useEffect(() => {
@@ -470,7 +514,8 @@ export default function BookingFlow({
 
                     const isAvailable = availableDates.includes(cell.dateStr);
                     const isPast = cell.dateStr < todayStr;
-                    const isSelectable = isAvailable && !isPast;
+                    const soldOut = isAvailable && isSoldOut(cell.dateStr);
+                    const isSelectable = isAvailable && !isPast && !soldOut;
                     const isSelected = selectedDate === cell.dateStr;
 
                     return (
@@ -478,8 +523,9 @@ export default function BookingFlow({
                         key={cell.dateStr}
                         type="button"
                         disabled={!isSelectable}
+                        title={soldOut ? 'Sold out' : undefined}
                         onClick={() => setSelectedDate(cell.dateStr)}
-                        className={`h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+                        className={`relative h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
                           isSelectable
                             ? isSelected
                               ? darkMode
@@ -488,6 +534,10 @@ export default function BookingFlow({
                               : darkMode
                               ? 'bg-forest-950/30 border border-forest-500/30 text-forest-400 hover:bg-forest-900/50 hover:border-forest-500/60 font-bold cursor-pointer'
                               : 'bg-forest-50 border border-forest-500/20 text-forest-700 hover:bg-forest-100/70 hover:border-forest-500/50 font-bold cursor-pointer'
+                            : soldOut
+                            ? (darkMode
+                              ? 'text-zinc-600 line-through opacity-45 cursor-not-allowed'
+                              : 'text-zinc-400 line-through opacity-60 cursor-not-allowed')
                             : darkMode
                             ? 'text-zinc-650 opacity-20 cursor-not-allowed'
                             : 'text-zinc-300 opacity-40 cursor-not-allowed'
@@ -503,7 +553,18 @@ export default function BookingFlow({
               {/* Selected date preview */}
               {selectedDate && (
                 <div className="mt-2.5 flex items-center justify-between text-[11px] font-medium opacity-80 px-1">
-                  <span>Selected Date:</span>
+                  <span className="flex items-center gap-1.5">
+                    Selected Date:
+                    {selectedSeatsLeft !== null && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        selectedSeatsLeft <= 3
+                          ? 'bg-rose-500/10 text-rose-500'
+                          : 'bg-forest-500/10 text-forest-600 dark:text-forest-400'
+                      }`}>
+                        {selectedSeatsLeft} seat{selectedSeatsLeft === 1 ? '' : 's'} left
+                      </span>
+                    )}
+                  </span>
                   <span className="font-bold text-forest-600 dark:text-forest-400">
                     {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
@@ -537,14 +598,14 @@ export default function BookingFlow({
                 <h3 className="text-xs font-bold flex items-center gap-1.5">
                   <Users size={14} className="text-forest-500" /> Traveler Type & Count
                 </h3>
-                <span className="text-[9px] text-zinc-500">Seats Left: {trip.availableSeats}</span>
+                <span className="text-[9px] text-zinc-500">Seats Left: {effectiveSeats}</span>
               </div>
 
               <div className="space-y-2.5">
                 {tierBreakdown.map(tier => {
                   const meta = getTierMeta(tier);
                   const nextIfIncremented = tier.count === 0 ? meta.min : tier.count + meta.step;
-                  const wouldExceedCapacity = (travelersCount - tier.count + nextIfIncremented) > trip.availableSeats;
+                  const wouldExceedCapacity = (travelersCount - tier.count + nextIfIncremented) > effectiveSeats;
                   return (
                     <div
                       key={tier.id}

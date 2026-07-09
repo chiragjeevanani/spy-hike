@@ -15,6 +15,8 @@ export const tripsApi = {
     return api.get(`/trips${qs ? `?${qs}` : ''}`, { auth: false }).then((r) => r.trips);
   },
   getTrip: (id) => api.get(`/trips/${encodeURIComponent(id)}`, { auth: false }).then((r) => r.trip),
+  getTripDepartures: (id) =>
+    api.get(`/trips/${encodeURIComponent(id)}/departures`, { auth: false }).then((r) => r.departures),
   getTrekOffers: (trekId) => api.get(`/treks/${encodeURIComponent(trekId)}/offers`, { auth: false }),
   listCategories: () => api.get('/categories', { auth: false }).then((r) => r.categories),
 

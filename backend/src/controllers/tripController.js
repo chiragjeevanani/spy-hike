@@ -4,6 +4,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify, makeTripId } from '../utils/slug.js';
 import { validateTripPayload, groupTripsByTrek } from '../services/tripService.js';
+import { provisionDepartures, getDepartures } from '../services/inventoryService.js';
 
 // ─── Public catalog ────────────────────────────────────────────────────────
 
@@ -35,6 +36,13 @@ export const getTrip = asyncHandler(async (req, res) => {
   const trip = await Trip.findById(req.params.id);
   if (!trip) throw ApiError.notFound('Trip not found');
   res.json({ trip: trip.toPublicJSON() });
+});
+
+// GET /trips/:id/departures — per-date batches with live seat availability.
+export const getTripDepartures = asyncHandler(async (req, res) => {
+  const trip = await Trip.findById(req.params.id);
+  if (!trip) throw ApiError.notFound('Trip not found');
+  res.json({ departures: await getDepartures(trip._id) });
 });
 
 // GET /treks/:trekId/offers — every published organizer offering of one trek,
@@ -114,6 +122,7 @@ export const createTrip = asyncHandler(async (req, res) => {
     ...fields,
     status: req.body.status === 'Published' ? 'Published' : 'Draft',
   });
+  await provisionDepartures(trip);
   res.status(201).json({ trip: trip.toPublicJSON() });
 });
 
@@ -128,6 +137,7 @@ export const updateTrip = asyncHandler(async (req, res) => {
   Object.assign(trip, fields);
   if (req.body.status) trip.status = req.body.status;
   await trip.save();
+  await provisionDepartures(trip);
   res.json({ trip: trip.toPublicJSON() });
 });
 
