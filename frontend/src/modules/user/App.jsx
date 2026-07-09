@@ -32,6 +32,7 @@ import { slugifyTrekName } from './utils/trekGroups';
 import { downloadTicketPDF } from './utils/ticketPdf';
 import { syncCustomerVouchers } from '../../utils/loyalty';
 import tripsApi from '../../lib/tripsApi';
+import bookingsApi from '../../lib/bookingsApi';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -432,6 +433,20 @@ export default function App() {
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+
+  // Hydrate this customer's bookings from the API once authenticated. Only
+  // replaces state when the API returns some (so localStorage-seeded specs and
+  // the offline fallback keep working); the saveBookings effect mirrors them
+  // back to localStorage for the synchronous route-parser.
+  useEffect(() => {
+    if (!user.isAuthenticated) return;
+    let cancelled = false;
+    bookingsApi
+      .listMine()
+      .then((list) => { if (!cancelled && Array.isArray(list) && list.length) setBookings(list); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user.isAuthenticated]);
 
   useEffect(() => {
     saveDarkMode(darkMode);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Calendar, IndianRupee, User, Eye, X, FileText, TrendingUp } from 'lucide-react';
-import { loadAllBookings, saveBookingStatusAdmin } from '../utils/storage';
+import bookingsApi from '../../../lib/bookingsApi';
 
 export default function BookingsView({ darkMode }) {
   const [bookings, setBookings] = useState([]);
@@ -8,14 +8,16 @@ export default function BookingsView({ darkMode }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedBooking, setSelectedBooking] = useState(null);
 
+  const refresh = () => bookingsApi.listAll().then(setBookings).catch(() => setBookings([]));
+
   useEffect(() => {
-    setBookings(loadAllBookings());
+    refresh();
   }, []);
 
-  const handleCancelBooking = (bookingId) => {
+  const handleCancelBooking = async (bookingId) => {
     if (!window.confirm(`Are you sure you want to cancel booking ${bookingId}? This will notify the hiker and update status to Cancelled.`)) return;
-    saveBookingStatusAdmin(bookingId, 'Cancelled');
-    setBookings(loadAllBookings()); // refresh
+    await bookingsApi.adminSetStatus(bookingId, 'Cancelled');
+    await refresh();
   };
 
   const filteredBookings = bookings.filter(b => {

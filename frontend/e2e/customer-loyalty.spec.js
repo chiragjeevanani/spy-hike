@@ -1,7 +1,22 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, request as pwRequest } from '@playwright/test';
 import { CUSTOMER_USER, makeLoyaltyConfig, makeCustomerBooking, seedLocalStorage } from './fixtures/seed.js';
 
+const API = 'http://localhost:4000/api/v1';
+
 test.use({ viewport: { width: 480, height: 900 } });
+
+// Registers a unique customer via the API and returns a { token, user } pair.
+// Booking now goes through the authenticated API, so the checkout test needs a
+// real session; a fresh user also keeps its server-side bookings isolated from
+// other specs sharing the in-memory backend.
+async function freshCustomer() {
+  const ctx = await pwRequest.newContext();
+  const email = `loyalty-${Date.now()}@example.com`;
+  const res = await ctx.post(`${API}/auth/register`, { data: { name: 'Loyalty Hiker', email, password: 'pass1234' } });
+  const body = await res.json();
+  await ctx.dispose();
+  return { token: body.token, user: { ...CUSTOMER_USER, email, name: 'Loyalty Hiker' } };
+}
 
 // Threshold=2 with a single 2-traveler booking lands exactly on a milestone,
 // so a voucher should already be minted the moment Home mounts.
@@ -40,7 +55,16 @@ test.describe('Customer — Loyalty Rewards', () => {
   });
 
   test('redeeming the reward in checkout zeroes the booking and consumes the voucher', async ({ page }) => {
-    await seedAtMilestone(page);
+    // Real authenticated session (booking goes through the API now) + the
+    // seeded milestone so a voucher is available to redeem.
+    const { token, user } = await freshCustomer();
+    await seedLocalStorage(page, {
+      trekigo_loyalty_config: makeLoyaltyConfig({ customerThreshold: 2 }),
+      trekigo_user: user,
+      trekigo_bookings: [makeCustomerBooking({ travelersCount: 2 })],
+    });
+    // The JWT is a raw string (apiClient reads it verbatim, not JSON-parsed).
+    await page.addInitScript((t) => localStorage.setItem('trekigo_auth_token', t), token);
     await page.goto('/app/trip/himalayan-ridge-pass-trek');
 
     await page.click('#btn-details-book-now', { force: true });

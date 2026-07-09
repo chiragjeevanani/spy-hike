@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Shield, RotateCcw, Save, User, Eye, EyeOff } from 'lucide-react';
 import { resetDemoData } from '../utils/storage';
+import bookingsApi from '../../../lib/bookingsApi';
 
 export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
   const [profile, setProfile] = useState({
@@ -8,7 +9,7 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
     email: admin.email,
     avatar: admin.avatar,
   });
-  
+
   const [passwords, setPasswords] = useState({
     current: '',
     newPass: '',
@@ -18,15 +19,20 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
   const [showPassword, setShowPassword] = useState(false);
   const [maintMode, setMaintMode] = useState(false);
   const [alertDuration, setAlertDuration] = useState('24h');
-  const [commissionRate, setCommissionRate] = useState(() => {
-    const stored = localStorage.getItem('trekigo_commission_rate');
-    return stored !== null ? Number(stored) : 10;
-  });
+  // Commission rate is the platform's authoritative money-split setting,
+  // stored server-side (AdminConfig) and snapshotted onto each booking.
+  const [commissionRate, setCommissionRate] = useState(10);
+
+  useEffect(() => {
+    bookingsApi.getConfig()
+      .then((cfg) => setCommissionRate(cfg.commissionRate))
+      .catch(() => {});
+  }, []);
 
   const handleCommissionChange = (value) => {
     const rate = Math.max(0, Math.min(100, Number(value) || 0));
     setCommissionRate(rate);
-    localStorage.setItem('trekigo_commission_rate', rate.toString());
+    bookingsApi.updateConfig({ commissionRate: rate }).catch(() => {});
   };
 
   const handleProfileSave = (e) => {

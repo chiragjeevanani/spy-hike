@@ -12,6 +12,7 @@ import {
 import { syncOrganizerVouchers, markOrganizerVoucherUsed } from '../../utils/loyalty';
 import authApi from '../../lib/authApi';
 import tripsApi from '../../lib/tripsApi';
+import bookingsApi from '../../lib/bookingsApi';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -76,12 +77,16 @@ export default function OrgApp() {
   const [showScanner, setShowScanner] = useState(false);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
 
-  // Load organizer-specific data. Trips come from the API (this organizer's
-  // own listings); bookings remain local until Phase 5.
+  // Load organizer-specific data. Trips + bookings come from the API for a
+  // real (token-backed) session; both fall back to localStorage so the
+  // seeded/offline paths keep working.
   useEffect(() => {
     if (organizer?.isAuthenticated && organizer?.email) {
       if (organizer.isApproved) {
         tripsApi.listOrganizerTrips().then(setTrips).catch(() => setTrips(loadOrgTrips(organizer.email)));
+        bookingsApi.listOrganizer()
+          .then((list) => { if (Array.isArray(list) && list.length) setBookings(list); })
+          .catch(() => {});
       }
       const orgBookings = loadOrgBookings(organizer.email);
       setBookings(orgBookings);

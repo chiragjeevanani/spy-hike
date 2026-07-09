@@ -4,6 +4,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import {
   listOrganizerTrips, createTrip, updateTrip, setOrganizerTripStatus, deleteOrganizerTrip,
 } from '../controllers/tripController.js';
+import { listOrganizerBookings } from '../controllers/bookingController.js';
 
 // Organizer-scoped routes. Everything requires an authenticated organizer;
 // approved-only features additionally pass requireApprovedOrganizer.
@@ -28,5 +29,7 @@ router.post('/organizer/trips', requireApprovedOrganizer, createTrip);
 router.put('/organizer/trips/:id', requireApprovedOrganizer, updateTrip);
 router.patch('/organizer/trips/:id/status', requireApprovedOrganizer, setOrganizerTripStatus);
 router.delete('/organizer/trips/:id', requireApprovedOrganizer, deleteOrganizerTrip);
+
+router.get('/organizer/bookings', requireApprovedOrganizer, listOrganizerBookings);
 
 export default router;

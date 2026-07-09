@@ -11,3 +11,12 @@ export const slugify = (str) =>
 // e.g. "himalayan-ridge-pass-trek-l9x2a1". Keeps ids human-readable while
 // staying unique across multiple organizers listing the same trek.
 export const makeTripId = (name) => `${slugify(name)}-${Date.now().toString(36)}`;
+
+// Customer-facing booking code in the frontend's "TG-XXXX-X" format
+// (4 digits + a letter), e.g. "TG-9921-U". Uniqueness is enforced by the
+// caller retrying on the rare collision.
+export const makeBookingId = () => {
+  const digits = Math.floor(1000 + Math.random() * 9000);
+  const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+  return `TG-${digits}-${letter}`;
+};

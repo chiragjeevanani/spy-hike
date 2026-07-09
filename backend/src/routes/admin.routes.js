@@ -5,6 +5,8 @@ import { listAllTrips, adminSetTripStatus, adminDeleteTrip } from '../controller
 import {
   listCoupons, createCoupon, updateCoupon, toggleCouponStatus, deleteCoupon,
 } from '../controllers/couponController.js';
+import { listAllBookings, adminSetBookingStatus } from '../controllers/bookingController.js';
+import { getAdminConfig, updateAdminConfig } from '../controllers/configController.js';
 
 // Everything under here requires an authenticated admin.
 const router = Router();
@@ -23,5 +25,11 @@ router.post('/admin/coupons', createCoupon);
 router.put('/admin/coupons/:id', updateCoupon);
 router.patch('/admin/coupons/:id/toggle', toggleCouponStatus);
 router.delete('/admin/coupons/:id', deleteCoupon);
+
+router.get('/admin/bookings', listAllBookings);
+router.patch('/admin/bookings/:id/status', adminSetBookingStatus);
+
+router.get('/admin/config', getAdminConfig);
+router.patch('/admin/config', updateAdminConfig);
 
 export default router;

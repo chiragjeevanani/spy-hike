@@ -7,6 +7,7 @@ import {
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
 import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
+import bookingsApi from '../../../lib/bookingsApi';
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -131,6 +132,7 @@ export default function BookingFlow({
   const [paymentGateway, setPaymentGateway] = useState('Razorpay');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentFinished, setPaymentFinished] = useState(false);
+  const [bookingError, setBookingError] = useState('');
   
   // Constructed ticket fields once succeeded
   const [createdBooking, setCreatedBooking] = useState(null);
@@ -366,57 +368,38 @@ export default function BookingFlow({
   const taxAmountValue = useLoyaltyReward ? 0 : Math.round(((baseCostTotal - appliedDiscountValue) * 0.05) * 100) / 100; // 5% flat local tax
   const finalPayAmount = useLoyaltyReward ? 0 : Math.round((baseCostTotal - appliedDiscountValue + taxAmountValue) * 100) / 100;
 
-  const handleProcessPayment = () => {
+  const handleProcessPayment = async () => {
     setIsProcessingPayment(true);
-    setCouponError('');
+    setBookingError('');
 
-    // Simulate 2s loader representing bank gateway routing
-    setTimeout(() => {
-      setIsProcessingPayment(false);
-      setPaymentFinished(true);
-      
-      const storedRate = localStorage.getItem('trekigo_commission_rate');
-      const commissionRate = storedRate !== null ? Number(storedRate) : 10;
-      const commissionAmount = Math.round((finalPayAmount * commissionRate / 100) * 100) / 100;
-
-      const newBookingId = `TG-${Math.floor(1000 + Math.random() * 9000)}-U`;
-      const finalBookingObject = {
-        id: 'b-' + Date.now(),
+    try {
+      // The server computes all pricing/commission authoritatively, reserves
+      // the departure seats, runs the (stubbed) payment, and owns the
+      // bookingId — we send only the selection and render what comes back.
+      const booking = await bookingsApi.create({
         tripId: trip.id,
-        tripName: trip.name,
-        tripImage: trip.coverImage,
-        tripLocation: trip.location,
-        bookingDate: new Date().toISOString().split('T')[0],
-        selectedDate: selectedDate,
-        pickupLocation: pickup?.location || trip.city || trip.location?.split(',')[0],
-        pickupPrice: unitPrice,
-        travelersCount: travelersCount,
-        travelers: travelersList,
-        travelerBreakdown: tierBreakdown
+        selectedDate,
+        selections: tierBreakdown
           .filter(t => t.count > 0)
-          .map(t => ({ id: t.id, label: t.label, count: t.count, perPersonPrice: t.perPersonPrice, subtotal: t.subtotal })),
-        couponUsed: appliedCoupon,
-        couponDiscount: appliedDiscountValue,
-        taxAmount: taxAmountValue,
-        finalAmount: finalPayAmount,
-        commissionRate: commissionRate,
-        commissionAmount: commissionAmount,
-        status: 'Upcoming',
-        bookingId: newBookingId,
-        organizerName: trip.organizer.name,
-        loyaltyRewardApplied: useLoyaltyReward,
-      };
+          .map(t => ({ id: t.id, label: t.label, count: t.count })),
+        travelers: travelersList,
+        couponCode: appliedCoupon || undefined,
+        useLoyaltyReward,
+      });
 
-      // Consume the voucher now that the free booking is confirmed.
+      // Consume the client-side loyalty voucher (Phase 7 moves this server-side).
       if (useLoyaltyReward && availableVoucher) {
-        markCustomerVoucherUsed(availableVoucher.id, newBookingId);
+        markCustomerVoucherUsed(availableVoucher.id, booking.bookingId);
       }
-      // Coupon redemption (usedCount) is recorded server-side when the booking
-      // is created through the API in Phase 5.
 
-      setCreatedBooking(finalBookingObject);
+      setPaymentFinished(true);
+      setCreatedBooking(booking);
       setStep(4); // Success is now Step 4
-    }, 2000);
+    } catch (err) {
+      setBookingError(err?.message || 'Payment failed. Please try again.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const handleFinishAndReturn = () => {
@@ -926,6 +909,12 @@ export default function BookingFlow({
               <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/35 flex items-center justify-center gap-3">
                 <div className="w-3.5 h-3.5 rounded-full border-2 border-spy-orange border-t-transparent animate-spin" />
                 <span className="text-xs font-semibold text-spy-orange">Routing secure tokens via {paymentGateway}...</span>
+              </div>
+            )}
+
+            {bookingError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/35 text-xs font-semibold text-rose-500 text-center">
+                {bookingError}
               </div>
             )}
           </div>
