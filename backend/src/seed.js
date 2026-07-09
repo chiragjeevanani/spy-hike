@@ -6,7 +6,29 @@ import { connectDB, disconnectDB } from './config/db.js';
 import User from './models/User.js';
 import Organizer from './models/Organizer.js';
 import Admin from './models/Admin.js';
+import Trip from './models/Trip.js';
+import Category from './models/Category.js';
 import { hashPassword } from './utils/password.js';
+import { slugify } from './utils/slug.js';
+// The frontend trip catalog is pure data (no JSX/asset imports), so the seed
+// imports it directly to stay in lock-step with what the app shipped.
+import { HIKING_TRIPS } from '../../frontend/src/modules/user/data/trips.js';
+
+// Canonical, reconciled category set: the customer-facing list (with its
+// lucide icons) plus the organizer form's extra categories, unified so both
+// apps can share one source (context.md §5/§10.11).
+const CANONICAL_CATEGORIES = [
+  { _id: 'Trekking', label: 'Trekking', icon: 'Mountain', order: 1 },
+  { _id: 'Hiking', label: 'Hiking', icon: 'Compass', order: 2 },
+  { _id: 'Camping', label: 'Camping', icon: 'Tent', order: 3 },
+  { _id: 'Adventure Tours', label: 'Adventure Tours', icon: 'Flame', order: 4 },
+  { _id: 'Nature Walks', label: 'Nature Walks', icon: 'Trees', order: 5 },
+  { _id: 'Weekend Trips', label: 'Weekend Trips', icon: 'CalendarDays', order: 6 },
+  { _id: 'Summit', label: 'Summit', icon: 'Mountain', order: 7 },
+  { _id: 'Desert', label: 'Desert', icon: 'Sun', order: 8 },
+  { _id: 'Wildlife', label: 'Wildlife', icon: 'Bird', order: 9 },
+  { _id: 'Cultural', label: 'Cultural', icon: 'Landmark', order: 10 },
+];
 
 async function upsertUser() {
   const email = 'chiragjeevanani333@gmail.com';
@@ -83,11 +105,69 @@ async function upsertAdmin() {
   });
 }
 
+async function upsertCategories() {
+  for (const c of CANONICAL_CATEGORIES) {
+    await Category.updateOne({ _id: c._id }, { $set: c }, { upsert: true });
+  }
+}
+
+// Maps a frontend HIKING_TRIPS entry onto a Trip document. Seed trips use the
+// legacy `pickupPoints` array (no separate pickup fee), so `pickup` is left
+// unset and the tier prices stand alone — matching current display behavior.
+function toTripDoc(t) {
+  return {
+    _id: t.id,
+    trekId: slugify(t.name),
+    organizerEmail: `${slugify(t.organizer?.name || 'partner')}@seed.trekigo.local`,
+    organizer: t.organizer,
+    name: t.name,
+    location: t.location,
+    state: t.state,
+    city: t.city,
+    pricingTiers: t.pricingTiers || [],
+    startPoint: t.startPoint,
+    departureDates: t.departureDates || [],
+    price: t.price,
+    difficulty: t.difficulty,
+    durationDays: t.durationDays,
+    maxGroupSize: t.maxGroupSize,
+    availableSeats: t.availableSeats,
+    distanceKm: t.distanceKm,
+    elevationMeters: t.elevationMeters,
+    category: t.category,
+    featured: !!t.featured,
+    coverImage: t.coverImage,
+    galleryImages: t.galleryImages || [],
+    description: t.description,
+    highlights: t.highlights || [],
+    included: t.included || [],
+    notIncluded: t.notIncluded || [],
+    safetyGuidelines: t.safetyGuidelines || [],
+    cancellationPolicy: t.cancellationPolicy || [],
+    itinerary: t.itinerary || [],
+    faqs: t.faqs || [],
+    status: 'Published',
+    rating: t.rating || 0,
+    reviewsCount: t.reviewsCount || 0,
+    reviews: t.reviews || [],
+  };
+}
+
+async function upsertTrips() {
+  for (const t of HIKING_TRIPS) {
+    const doc = toTripDoc(t);
+    await Trip.updateOne({ _id: doc._id }, { $set: doc }, { upsert: true });
+  }
+}
+
 async function seed() {
   await connectDB();
   await upsertUser();
   await upsertOrganizers();
   await upsertAdmin();
+  await upsertCategories();
+  await upsertTrips();
+  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${HIKING_TRIPS.length} trips`);
   console.log('✓ Seed complete:');
   console.log('  customer  chiragjeevanani333@gmail.com / trekigo123');
   console.log('  organizer chiragjeevanani333@gmail.com / trekigo123  (approved)');
@@ -106,4 +186,4 @@ if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
     });
 }
 
-export { seed, upsertUser, upsertOrganizers, upsertAdmin };
+export { seed, upsertUser, upsertOrganizers, upsertAdmin, upsertCategories, upsertTrips };

@@ -11,7 +11,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { upsertUser, upsertOrganizers, upsertAdmin } from './seed.js';
+import { upsertUser, upsertOrganizers, upsertAdmin, upsertCategories, upsertTrips } from './seed.js';
 
 async function start() {
   const mongod = await MongoMemoryServer.create();
@@ -21,7 +21,9 @@ async function start() {
   await upsertUser();
   await upsertOrganizers();
   await upsertAdmin();
-  console.log('✓ Demo accounts seeded');
+  await upsertCategories();
+  await upsertTrips();
+  console.log('✓ Demo accounts + trip catalog seeded');
 
   const app = createApp();
   const server = app.listen(env.port, () => {

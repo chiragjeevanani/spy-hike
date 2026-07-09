@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { requireAuth, requireRole, requireApprovedOrganizer } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import {
+  listOrganizerTrips, createTrip, updateTrip, setOrganizerTripStatus, deleteOrganizerTrip,
+} from '../controllers/tripController.js';
 
 // Organizer-scoped routes. Everything requires an authenticated organizer;
 // approved-only features additionally pass requireApprovedOrganizer.
@@ -18,5 +21,12 @@ router.get(
     res.json({ ok: true, organizerId: req.organizer._id.toString() });
   }),
 );
+
+// Trip management — approved organizers only.
+router.get('/organizer/trips', requireApprovedOrganizer, listOrganizerTrips);
+router.post('/organizer/trips', requireApprovedOrganizer, createTrip);
+router.put('/organizer/trips/:id', requireApprovedOrganizer, updateTrip);
+router.patch('/organizer/trips/:id/status', requireApprovedOrganizer, setOrganizerTripStatus);
+router.delete('/organizer/trips/:id', requireApprovedOrganizer, deleteOrganizerTrip);
 
 export default router;

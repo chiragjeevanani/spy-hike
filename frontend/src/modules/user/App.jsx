@@ -31,6 +31,7 @@ import {
 import { slugifyTrekName } from './utils/trekGroups';
 import { downloadTicketPDF } from './utils/ticketPdf';
 import { syncCustomerVouchers } from '../../utils/loyalty';
+import tripsApi from '../../lib/tripsApi';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -416,6 +417,21 @@ export default function App() {
   useEffect(() => {
     saveTrips(trips);
   }, [trips]);
+
+  // Hydrate the catalog from the API on mount. Trips become the source of
+  // truth (published only); the saveTrips effect above mirrors them into
+  // localStorage so the synchronous route-parser (loadTrips) stays in sync.
+  // Falls back silently to the seeded/local trips if the backend is offline.
+  useEffect(() => {
+    let cancelled = false;
+    tripsApi
+      .listTrips({ limit: 100 })
+      .then((apiTrips) => {
+        if (!cancelled && Array.isArray(apiTrips) && apiTrips.length) setTrips(apiTrips);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     saveDarkMode(darkMode);

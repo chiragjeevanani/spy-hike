@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Compass, Pause, Play, Trash2, MapPin, Star, Users, Clock, Eye, X } from 'lucide-react';
-import { loadAllTrips, saveTripStatus, deleteTripAdmin } from '../utils/storage';
+import tripsApi from '../../../lib/tripsApi';
 
 export default function TripsView({ darkMode }) {
   const [trips, setTrips] = useState([]);
@@ -9,21 +9,23 @@ export default function TripsView({ darkMode }) {
   const [diffFilter, setDiffFilter] = useState('All');
   const [selectedTrip, setSelectedTrip] = useState(null);
 
+  const refresh = () => tripsApi.listAllTrips().then(setTrips).catch(() => setTrips([]));
+
   useEffect(() => {
-    setTrips(loadAllTrips());
+    refresh();
   }, []);
 
-  const handleToggleStatus = (tripId, currentStatus) => {
+  const handleToggleStatus = async (tripId, currentStatus) => {
     const nextStatus = currentStatus === 'Published' ? 'Paused' : 'Published';
     if (!window.confirm(`Are you sure you want to change status to "${nextStatus}" for this trip?`)) return;
-    saveTripStatus(tripId, nextStatus);
-    setTrips(loadAllTrips()); // refresh
+    await tripsApi.adminSetTripStatus(tripId, nextStatus);
+    await refresh();
   };
 
-  const handleDelete = (tripId) => {
+  const handleDelete = async (tripId) => {
     if (!window.confirm('CRITICAL: Delete this trip listing permanently? This cannot be undone.')) return;
-    deleteTripAdmin(tripId);
-    setTrips(loadAllTrips()); // refresh
+    await tripsApi.adminDeleteTrip(tripId);
+    await refresh();
   };
 
   const filteredTrips = trips.filter(t => {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
+import catalogRoutes from './catalog.routes.js';
 import organizerRoutes from './organizer.routes.js';
 import adminRoutes from './admin.routes.js';
 
@@ -10,6 +11,7 @@ const router = Router();
 
 router.use(healthRoutes);
 router.use(authRoutes);
+router.use(catalogRoutes);
 router.use(organizerRoutes);
 router.use(adminRoutes);
 

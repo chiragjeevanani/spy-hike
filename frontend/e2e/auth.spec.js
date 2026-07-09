@@ -78,14 +78,17 @@ test.describe('Phase 1 — Organizer registration → pending approval', () => {
   test('new organizer registers and lands on the pending-approval screen (no self-approve)', async ({ page }) => {
     const email = `e2e-org-${Date.now()}@example.com`;
 
-    // Fresh context shows onboarding first; completing it marks isOnboarded
-    // and bounces to login. Returning to /organizer/register then shows the
-    // registration form (mirrors the real two-visit journey).
+    // Mark organizer onboarding done (unauthenticated) so /organizer/register
+    // shows the registration form directly — same localStorage-seeding pattern
+    // the other specs use, avoiding the fragile onboarding-redirect race.
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'trekigo_org_user',
+        JSON.stringify({ isOnboarded: true, isAuthenticated: false, isApproved: false, isPendingApproval: false }),
+      );
+    });
     await page.goto('/organizer/register');
-    const skip = page.getByRole('button', { name: /^skip$/i });
-    if (await skip.count()) { await skip.first().click(); await page.waitForTimeout(800); }
-    await page.goto('/organizer/register');
-    await page.waitForTimeout(500);
+    await expect(page.locator('input[placeholder="Your full name"]')).toBeVisible({ timeout: 10000 });
 
     // Step 1 — personal info
     await page.fill('input[placeholder="Your full name"]', 'E2E Org Owner');

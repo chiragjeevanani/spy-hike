@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import {
   loadOrgUser, saveOrgUser,
-  loadOrgTrips, saveOrgTrips,
+  loadOrgTrips,
   loadOrgBookings, saveOrgBookings,
   loadOrgNotifications, saveOrgNotifications,
   loadOrgDarkMode, saveOrgDarkMode,
@@ -11,6 +11,7 @@ import {
 } from './utils/storage';
 import { syncOrganizerVouchers, markOrganizerVoucherUsed } from '../../utils/loyalty';
 import authApi from '../../lib/authApi';
+import tripsApi from '../../lib/tripsApi';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -75,12 +76,14 @@ export default function OrgApp() {
   const [showScanner, setShowScanner] = useState(false);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
 
-  // Load organizer-specific data
+  // Load organizer-specific data. Trips come from the API (this organizer's
+  // own listings); bookings remain local until Phase 5.
   useEffect(() => {
     if (organizer?.isAuthenticated && organizer?.email) {
-      const orgTrips = loadOrgTrips(organizer.email);
+      if (organizer.isApproved) {
+        tripsApi.listOrganizerTrips().then(setTrips).catch(() => setTrips(loadOrgTrips(organizer.email)));
+      }
       const orgBookings = loadOrgBookings(organizer.email);
-      setTrips(orgTrips);
       setBookings(orgBookings);
 
       // Lifetime "bookings via app" backs the loyalty progress bar — keep the
@@ -143,7 +146,7 @@ export default function OrgApp() {
     if (!orgUser.isApproved && orgUser.isPendingApproval) {
       navigateTo('Pending', true);
     } else {
-      setTrips(loadOrgTrips(orgUser.email));
+      tripsApi.listOrganizerTrips().then(setTrips).catch(() => setTrips(loadOrgTrips(orgUser.email)));
       setBookings(loadOrgBookings(orgUser.email));
       navigateTo('Dashboard', true);
     }
@@ -185,35 +188,35 @@ export default function OrgApp() {
     saveOrgUser(updated);
     setOrganizer(updated);
     if (updated.isApproved) {
-      setTrips(loadOrgTrips(updated.email));
+      tripsApi.listOrganizerTrips().then(setTrips).catch(() => {});
       setBookings(loadOrgBookings(updated.email));
       navigateTo('Dashboard', true);
     }
   };
 
-  // Trip CRUD
-  const handleSaveTrip = (savedTrip) => {
-    // Merge into global trips storage (shared with user app)
-    let allTrips;
+  // Re-fetch this organizer's trips from the API (source of truth).
+  const refreshOrgTrips = useCallback(async () => {
     try {
-      const stored = localStorage.getItem('trekigo_trips');
-      allTrips = stored ? JSON.parse(stored) : [];
-    } catch { allTrips = []; }
-    const idx = allTrips.findIndex(t => t.id === savedTrip.id);
-    if (idx >= 0) allTrips[idx] = savedTrip;
-    else allTrips.unshift(savedTrip);
-    localStorage.setItem('trekigo_trips', JSON.stringify(allTrips));
+      setTrips(await tripsApi.listOrganizerTrips());
+    } catch { /* keep current state on transient failure */ }
+  }, []);
 
-    // Also update organizer-specific trips
-    let orgTrips = loadOrgTrips();
-    const orgIdx = orgTrips.findIndex(t => t.id === savedTrip.id);
-    if (orgIdx >= 0) orgTrips[orgIdx] = savedTrip;
-    else orgTrips.unshift(savedTrip);
-    saveOrgTrips(orgTrips);
-    setTrips(orgTrips.filter(t => t.organizerEmail === organizer.email));
-
-    setEditingTrip(null);
-    navigateTo('Trips', false);
+  // Trip CRUD — the API owns id/trekId/organizer snapshot/price; TripFormView
+  // passes the full form payload and the backend rebuilds the canonical trip.
+  const handleSaveTrip = async (savedTrip) => {
+    try {
+      if (editingTrip?.id) {
+        await tripsApi.updateTrip(editingTrip.id, savedTrip);
+      } else {
+        await tripsApi.createTrip(savedTrip);
+      }
+      await refreshOrgTrips();
+      setEditingTrip(null);
+      navigateTo('Trips', false);
+    } catch (err) {
+      const detail = err?.details ? Object.values(err.details).join('\n') : err?.message;
+      alert(`Could not save trip:\n${detail || 'Unknown error'}`);
+    }
   };
 
   const handleEditTrip = (trip) => {
@@ -226,26 +229,24 @@ export default function OrgApp() {
     navigateTo('NewTrip', false);
   };
 
-  const handleToggleTripStatus = (trip) => {
+  const handleToggleTripStatus = async (trip) => {
     const newStatus = trip.status === 'Published' ? 'Paused' : 'Published';
-    const updated = { ...trip, status: newStatus };
-    handleSaveTrip(updated);
+    try {
+      await tripsApi.setTripStatus(trip.id, newStatus);
+      await refreshOrgTrips();
+    } catch (err) {
+      alert(`Could not update status: ${err?.message || 'Unknown error'}`);
+    }
   };
 
-  const handleDeleteTrip = (tripId) => {
+  const handleDeleteTrip = async (tripId) => {
     if (!window.confirm('Delete this trip? This cannot be undone.')) return;
-    // Remove from global storage
     try {
-      const stored = localStorage.getItem('trekigo_trips');
-      if (stored) {
-        const all = JSON.parse(stored).filter(t => t.id !== tripId);
-        localStorage.setItem('trekigo_trips', JSON.stringify(all));
-      }
-    } catch {}
-    // Remove from org trips
-    const orgTrips = loadOrgTrips().filter(t => t.id !== tripId);
-    saveOrgTrips(orgTrips);
-    setTrips(orgTrips.filter(t => t.organizerEmail === organizer.email));
+      await tripsApi.deleteTrip(tripId);
+      await refreshOrgTrips();
+    } catch (err) {
+      alert(`Could not delete trip: ${err?.message || 'Unknown error'}`);
+    }
   };
 
   // Applies an available zero-commission loyalty voucher to a specific
