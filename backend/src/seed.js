@@ -8,6 +8,7 @@ import Organizer from './models/Organizer.js';
 import Admin from './models/Admin.js';
 import Trip from './models/Trip.js';
 import Category from './models/Category.js';
+import Coupon from './models/Coupon.js';
 import { hashPassword } from './utils/password.js';
 import { slugify } from './utils/slug.js';
 import { provisionDepartures } from './services/inventoryService.js';
@@ -112,6 +113,19 @@ async function upsertCategories() {
   }
 }
 
+// The three promo codes referenced by the customer home-feed banners.
+const SEED_COUPONS = [
+  { _id: 'cp-seed-1', code: 'TREKIGO20', type: 'percentage', value: 20, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
+  { _id: 'cp-seed-2', code: 'VALLEY50', type: 'flat', value: 50, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
+  { _id: 'cp-seed-3', code: 'GHATS15', type: 'percentage', value: 15, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
+];
+
+async function upsertCoupons() {
+  for (const c of SEED_COUPONS) {
+    await Coupon.updateOne({ _id: c._id }, { $setOnInsert: c }, { upsert: true });
+  }
+}
+
 // Maps a frontend HIKING_TRIPS entry onto a Trip document. Seed trips use the
 // legacy `pickupPoints` array (no separate pickup fee), so `pickup` is left
 // unset and the tier prices stand alone — matching current display behavior.
@@ -169,8 +183,9 @@ async function seed() {
   await upsertOrganizers();
   await upsertAdmin();
   await upsertCategories();
+  await upsertCoupons();
   await upsertTrips();
-  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${HIKING_TRIPS.length} trips`);
+  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} trips`);
   console.log('✓ Seed complete:');
   console.log('  customer  chiragjeevanani333@gmail.com / trekigo123');
   console.log('  organizer chiragjeevanani333@gmail.com / trekigo123  (approved)');
@@ -189,4 +204,4 @@ if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
     });
 }
 
-export { seed, upsertUser, upsertOrganizers, upsertAdmin, upsertCategories, upsertTrips };
+export { seed, upsertUser, upsertOrganizers, upsertAdmin, upsertCategories, upsertCoupons, upsertTrips };

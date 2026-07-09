@@ -5,7 +5,7 @@ import {
   Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus
 } from 'lucide-react';
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
-import { loadCoupons, validateCouponCode, markCouponUsed } from '../../../utils/coupons';
+import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
 
 // Confetti Popper Animation component for successful coupon redeem
@@ -115,9 +115,11 @@ export default function BookingFlow({
     { name: 'Chirag Jeevanani', age: 24, gender: 'Male', emergencyContact: '+91 98765 43219' }
   ]);
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState('');       // applied code (display)
+  const [appliedCouponData, setAppliedCouponData] = useState(null); // coupon object for client-side recompute
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
+  const [quickCoupons, setQuickCoupons] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
 
   // Loyalty reward — an earned free-booking voucher, if any, can be applied
@@ -323,29 +325,43 @@ export default function BookingFlow({
   };
 
   // Up to 3 currently-active admin coupons, offered as quick-apply chips.
-  const quickCoupons = loadCoupons().filter(c => c.status === 'Active').slice(0, 3);
+  useEffect(() => {
+    let cancelled = false;
+    couponsApi.listActive()
+      .then(list => { if (!cancelled) setQuickCoupons(list.slice(0, 3)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
-  const handleValidateCoupon = (e) => {
+  const handleValidateCoupon = async (e) => {
     e.preventDefault();
     setCouponError('');
     setCouponSuccess('');
 
-    const result = validateCouponCode(couponCode, baseCostTotal);
-    if (result.ok) {
-      setAppliedCoupon(result.coupon.code);
-      setCouponSuccess(result.message);
-      setShowConfetti(true);
-    } else {
+    try {
+      const result = await couponsApi.validate(couponCode, baseCostTotal);
+      if (result.ok) {
+        // Store the coupon object so the discount recomputes client-side as the
+        // booking amount changes (server stays the authority at booking time).
+        setAppliedCoupon(result.coupon.code);
+        setAppliedCouponData(result.coupon);
+        setCouponSuccess(result.message);
+        setShowConfetti(true);
+      } else {
+        setAppliedCoupon('');
+        setAppliedCouponData(null);
+        setCouponError(result.message);
+      }
+    } catch (err) {
       setAppliedCoupon('');
-      setCouponError(result.message);
+      setAppliedCouponData(null);
+      setCouponError(err?.message || 'Could not validate coupon.');
     }
   };
 
-  // Math totals calculation — re-validated against live coupon data (admin
-  // may flat/percentage-price it, cap it, or it may have expired mid-session).
-  const appliedDiscountValue = appliedCoupon
-    ? (validateCouponCode(appliedCoupon, baseCostTotal).discountAmount || 0)
-    : 0;
+  // Discount recomputed from the applied coupon against the live base cost
+  // (re-checks the min-booking gate too, via computeDiscount).
+  const appliedDiscountValue = appliedCouponData ? computeDiscount(appliedCouponData, baseCostTotal) : 0;
   // A redeemed loyalty voucher comps the entire booking — no tax, no charge.
   const taxAmountValue = useLoyaltyReward ? 0 : Math.round(((baseCostTotal - appliedDiscountValue) * 0.05) * 100) / 100; // 5% flat local tax
   const finalPayAmount = useLoyaltyReward ? 0 : Math.round((baseCostTotal - appliedDiscountValue + taxAmountValue) * 100) / 100;
@@ -395,11 +411,8 @@ export default function BookingFlow({
       if (useLoyaltyReward && availableVoucher) {
         markCustomerVoucherUsed(availableVoucher.id, newBookingId);
       }
-
-      // Track the redemption against the admin-managed coupon record.
-      if (appliedCoupon) {
-        markCouponUsed(appliedCoupon);
-      }
+      // Coupon redemption (usedCount) is recorded server-side when the booking
+      // is created through the API in Phase 5.
 
       setCreatedBooking(finalBookingObject);
       setStep(4); // Success is now Step 4

@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   TicketPercent, Plus, Search, Pencil, Trash2, Pause, Play, X, Percent, IndianRupee, Sparkles
 } from 'lucide-react';
-import {
-  loadCoupons, createCoupon, updateCoupon, toggleCouponStatus, deleteCoupon
-} from '../../../utils/coupons';
+import couponsApi from '../../../lib/couponsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 
 const emptyForm = () => ({
@@ -29,7 +27,7 @@ export default function CouponsView({ darkMode }) {
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const refresh = () => setCoupons(loadCoupons());
+  const refresh = () => couponsApi.list().then(setCoupons).catch(() => setCoupons([]));
   useEffect(() => { refresh(); }, []);
 
   const openCreate = () => {
@@ -53,7 +51,7 @@ export default function CouponsView({ darkMode }) {
 
   const closeModal = () => setEditingCoupon(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const code = form.code.trim().toUpperCase();
     const value = Number(form.value);
@@ -76,23 +74,31 @@ export default function CouponsView({ darkMode }) {
       expiresAt: form.expiresAt,
     };
 
-    if (isNew) {
-      createCoupon(fields);
-    } else {
-      updateCoupon(editingCoupon.id, fields);
+    try {
+      if (isNew) {
+        await couponsApi.create(fields);
+      } else {
+        await couponsApi.update(editingCoupon.id, fields);
+      }
+      await refresh();
+      closeModal();
+    } catch (err) {
+      setFormError(err?.message || 'Could not save coupon.');
     }
-    refresh();
-    closeModal();
   };
 
-  const handleToggleStatus = (coupon) => {
-    toggleCouponStatus(coupon.id);
-    refresh();
+  const handleToggleStatus = async (coupon) => {
+    try {
+      await couponsApi.toggle(coupon.id);
+      await refresh();
+    } catch (err) {
+      alert(err?.message || 'Could not change coupon status.');
+    }
   };
 
-  const handleConfirmDelete = () => {
-    deleteCoupon(deleteTarget.id);
-    refresh();
+  const handleConfirmDelete = async () => {
+    await couponsApi.remove(deleteTarget.id);
+    await refresh();
     setDeleteTarget(null);
   };
 
