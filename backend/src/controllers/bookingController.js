@@ -112,6 +112,31 @@ export const listOrganizerBookings = asyncHandler(async (req, res) => {
   res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
 });
 
+// POST /organizer/bookings/:bookingId/checkin — scan-to-check-in at the
+// trailhead. Idempotent-safe: an already-checked-in ticket returns 200 with
+// alreadyCheckedIn:true (and the original time) rather than erroring, so a
+// double-scan is harmless. Only the trip's own organizer can check a ticket
+// in, and a cancelled booking can't be boarded.
+export const checkinBooking = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ bookingId: req.params.bookingId });
+  if (!booking) throw ApiError.notFound('No booking found for this ticket');
+  if (booking.organizerEmail !== req.organizer.email) {
+    throw ApiError.forbidden('This ticket belongs to another organizer');
+  }
+  if (booking.status === 'Cancelled') {
+    throw ApiError.badRequest('This booking was cancelled and cannot be checked in');
+  }
+
+  if (booking.checkedInAt) {
+    return res.json({ booking: booking.toPublicJSON(), alreadyCheckedIn: true });
+  }
+
+  booking.checkedInAt = new Date().toISOString();
+  booking.checkedInBy = req.organizer.email;
+  await booking.save();
+  res.json({ booking: booking.toPublicJSON(), alreadyCheckedIn: false });
+});
+
 // GET /admin/bookings — all bookings.
 export const listAllBookings = asyncHandler(async (req, res) => {
   const bookings = await Booking.find().sort({ createdAt: -1 });

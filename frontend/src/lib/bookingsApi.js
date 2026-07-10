@@ -17,6 +17,8 @@ export const bookingsApi = {
 
   // ─── Organizer ───
   listOrganizer: () => api.get('/organizer/bookings').then((r) => r.bookings),
+  // Scan-to-check-in. Resolves to { booking, alreadyCheckedIn }.
+  checkin: (bookingId) => api.post(`/organizer/bookings/${encodeURIComponent(bookingId)}/checkin`),
 
   // ─── Admin ───
   listAll: () => api.get('/admin/bookings').then((r) => r.bookings),

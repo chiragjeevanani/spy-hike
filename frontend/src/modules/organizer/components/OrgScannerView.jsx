@@ -4,28 +4,9 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import {
   X, ScanBarcode, CheckCircle2, XCircle, User, MapPin,
   Calendar, Users, CreditCard, Phone, Mail,
-  Ticket, AlertTriangle, Hash, RefreshCw
+  Ticket, AlertTriangle, Hash, RefreshCw, Clock
 } from 'lucide-react';
-
-// ─── Booking lookup ─────────────────────────────────────────────────────────
-// Searches all localStorage keys that might hold bookings.
-function findBookingById(bookingId) {
-  const id = (bookingId || '').trim().toUpperCase();
-  const keys = ['trekigo_bookings', 'trekigo_org_bookings'];
-  for (const key of keys) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const list = JSON.parse(raw);
-      if (!Array.isArray(list)) continue;
-      const found = list.find(
-        b => (b.bookingId || b.id || '').toString().toUpperCase() === id
-      );
-      if (found) return found;
-    } catch {}
-  }
-  return null;
-}
+import bookingsApi from '../../../lib/bookingsApi';
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -44,7 +25,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── Booking Result Card ───────────────────────────────────────────────────────
-function BookingCard({ booking, darkMode }) {
+function BookingCard({ booking, darkMode, alreadyCheckedIn }) {
   const rows = [
     { icon: User,       label: 'Hiker',      value: booking.userName || booking.travelers?.[0]?.name || '—' },
     { icon: Mail,       label: 'Email',      value: booking.userEmail || '—' },
@@ -82,6 +63,27 @@ function BookingCard({ booking, darkMode }) {
           </div>
           <div className="p-2.5 rounded-xl shrink-0 bg-emerald-500/10">
             <CheckCircle2 size={22} className="text-emerald-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Check-in status banner */}
+      <div className="px-5 pt-4">
+        <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${
+          alreadyCheckedIn
+            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+        }`}>
+          {alreadyCheckedIn ? <Clock size={15} className="shrink-0" /> : <CheckCircle2 size={15} className="shrink-0" />}
+          <div className="min-w-0">
+            <p className="text-xs font-bold">
+              {alreadyCheckedIn ? 'Already checked in' : 'Checked in ✓'}
+            </p>
+            {booking.checkedInAt && (
+              <p className="text-[10px] opacity-80">
+                {new Date(booking.checkedInAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -135,16 +137,43 @@ export default function OrgScannerView({ onBack, darkMode }) {
   const readerRef = useRef(null);
   const [phase, setPhase]       = useState('scanning'); // scanning | found | error | camError
   const [booking, setBooking]   = useState(null);
+  const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
   const [errMsg, setErrMsg]     = useState('');
   const [camErr, setCamErr]     = useState('');
+  const [manualCode, setManualCode] = useState('');
+  const [checking, setChecking] = useState(false);
 
   const stopScanner = useCallback(() => {
     try { readerRef.current?.reset(); } catch {}
   }, []);
 
+  // Scanning a ticket checks the booking in through the API. The server is the
+  // source of truth: it verifies the ticket belongs to this organizer's trip,
+  // rejects cancelled tickets, and is idempotent (a second scan just reports
+  // alreadyCheckedIn). Used by both the camera and the manual-entry fallback.
+  const handleCheckIn = useCallback(async (rawCode) => {
+    const code = (rawCode || '').trim().toUpperCase();
+    if (!code) return;
+    stopScanner();
+    setChecking(true);
+    setErrMsg('');
+    try {
+      const result = await bookingsApi.checkin(code);
+      setBooking(result.booking);
+      setAlreadyCheckedIn(!!result.alreadyCheckedIn);
+      setPhase('found');
+    } catch (err) {
+      setErrMsg(err?.message || `Could not check in ticket: ${code}`);
+      setPhase('error');
+    } finally {
+      setChecking(false);
+    }
+  }, [stopScanner]);
+
   const startScanner = useCallback(() => {
     setPhase('scanning');
     setBooking(null);
+    setAlreadyCheckedIn(false);
     setErrMsg('');
     setCamErr('');
 
@@ -161,16 +190,7 @@ export default function OrgScannerView({ onBack, darkMode }) {
           videoRef.current,
           (res) => {
             if (!res) return;
-            const code = res.getText();
-            stopScanner();
-            const found = findBookingById(code);
-            if (found) {
-              setBooking(found);
-              setPhase('found');
-            } else {
-              setErrMsg(`No booking found for code: ${code}`);
-              setPhase('error');
-            }
+            handleCheckIn(res.getText());
           }
         );
       })
@@ -178,7 +198,7 @@ export default function OrgScannerView({ onBack, darkMode }) {
         setCamErr(e.message || 'Camera access denied. Please allow camera permissions.');
         setPhase('camError');
       });
-  }, [stopScanner]);
+  }, [stopScanner, handleCheckIn]);
 
   useEffect(() => {
     startScanner();
@@ -261,6 +281,32 @@ export default function OrgScannerView({ onBack, darkMode }) {
         </div>
       </div>
 
+      {/* Manual entry fallback — always available (cameras fail, and it's the
+          quickest path on desktop). Enter the booking id from the ticket. */}
+      {(phase === 'scanning' || phase === 'camError') && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); handleCheckIn(manualCode); }}
+          className="mx-5 mb-3 flex gap-2"
+        >
+          <input
+            id="scanner-manual-code"
+            type="text"
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value)}
+            placeholder="Enter booking ID (e.g. TG-9921-U)"
+            className="flex-1 px-3.5 py-2.5 rounded-xl text-xs font-mono uppercase tracking-wider bg-zinc-900 border border-zinc-800 text-white placeholder:normal-case placeholder:tracking-normal placeholder:text-zinc-500 outline-none focus:border-spy-orange/60"
+          />
+          <button
+            id="scanner-manual-checkin"
+            type="submit"
+            disabled={checking || !manualCode.trim()}
+            className="px-4 rounded-xl text-xs font-bold bg-spy-orange hover:bg-[#d96d1a] text-white disabled:opacity-50 transition active:scale-95"
+          >
+            {checking ? '…' : 'Check In'}
+          </button>
+        </form>
+      )}
+
       {/* Camera error banner */}
       {phase === 'camError' && (
         <div className="mx-5 mb-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex gap-3 items-start">
@@ -301,7 +347,7 @@ export default function OrgScannerView({ onBack, darkMode }) {
           {/* Found */}
           {phase === 'found' && booking && (
             <motion.div key="found" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-              <BookingCard booking={booking} darkMode={darkMode} />
+              <BookingCard booking={booking} darkMode={darkMode} alreadyCheckedIn={alreadyCheckedIn} />
               <button onClick={startScanner}
                 className="w-full flex items-center justify-center gap-2 bg-spy-orange hover:bg-[#d96d1a] text-white text-sm font-bold py-3 rounded-2xl shadow-lg shadow-spy-orange/20 transition active:scale-95">
                 <ScanBarcode size={16} /> Scan Another Ticket
