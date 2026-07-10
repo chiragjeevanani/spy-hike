@@ -6,6 +6,10 @@ import {
 } from '../controllers/tripController.js';
 import { listOrganizerBookings, checkinBooking, redeemOrganizerReward } from '../controllers/bookingController.js';
 import { getOrganizerLoyalty } from '../controllers/loyaltyController.js';
+import {
+  listOrganizerNotifications, markOrganizerNotificationRead, markAllOrganizerNotificationsRead,
+} from '../controllers/notificationController.js';
+import { listOrganizerChats, sendOrganizerMessage } from '../controllers/chatController.js';
 
 // Organizer-scoped routes. Everything requires an authenticated organizer;
 // approved-only features additionally pass requireApprovedOrganizer.
@@ -36,5 +40,13 @@ router.post('/organizer/bookings/:bookingId/checkin', requireApprovedOrganizer, 
 router.post('/organizer/bookings/:bookingId/redeem-reward', requireApprovedOrganizer, redeemOrganizerReward);
 
 router.get('/organizer/loyalty', requireApprovedOrganizer, getOrganizerLoyalty);
+
+// Notifications + chats don't require approval (a pending organizer can still
+// receive/read platform notices).
+router.get('/organizer/notifications', listOrganizerNotifications);
+router.patch('/organizer/notifications/read-all', markAllOrganizerNotificationsRead);
+router.patch('/organizer/notifications/:id/read', markOrganizerNotificationRead);
+router.get('/organizer/chats', requireApprovedOrganizer, listOrganizerChats);
+router.post('/organizer/chats/:chatId/messages', requireApprovedOrganizer, sendOrganizerMessage);
 
 export default router;

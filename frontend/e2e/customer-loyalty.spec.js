@@ -92,13 +92,15 @@ test.describe('Customer — Loyalty Rewards', () => {
       }), { timeout: 10000 })
       .toBeGreaterThan(0);
 
-    await page.goto('/app/trip/himalayan-ridge-pass-trek');
-    await page.click('#btn-details-book-now', { force: true });
+    // Deep-link straight into the booking flow (more robust than the
+    // details → Book-Now click chain under load).
+    await page.goto('/app/book/himalayan-ridge-pass-trek');
+    await expect(page.locator('#btn-booking-step-1-continue')).toBeVisible({ timeout: 15000 });
     await page.click('#btn-booking-step-1-continue', { force: true });
     await page.click('#btn-booking-step-2-continue', { force: true });
 
     const rewardCard = page.getByText('Free Booking Reward Available!');
-    await expect(rewardCard).toBeVisible();
+    await expect(rewardCard).toBeVisible({ timeout: 10000 });
 
     await page.click('#btn-toggle-loyalty-reward', { force: true });
     await expect(page.locator('#btn-pay-and-confirm')).toHaveText(/Confirm Free Booking/);

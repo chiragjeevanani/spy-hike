@@ -3,6 +3,7 @@ import {
   listTrips, getTrip, getTripDepartures, getTrekOffers, listCategories,
 } from '../controllers/tripController.js';
 import { listActiveCoupons, validateCouponEndpoint } from '../controllers/couponController.js';
+import { listTripReviews } from '../controllers/reviewController.js';
 
 // Public, unauthenticated catalog endpoints consumed by the customer app.
 const router = Router();
@@ -10,6 +11,7 @@ const router = Router();
 router.get('/trips', listTrips);
 router.get('/trips/:id', getTrip);
 router.get('/trips/:id/departures', getTripDepartures);
+router.get('/trips/:id/reviews', listTripReviews);
 router.get('/treks/:trekId/offers', getTrekOffers);
 router.get('/categories', listCategories);
 

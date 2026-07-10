@@ -8,6 +8,7 @@ import {
 import { listAllBookings, adminSetBookingStatus } from '../controllers/bookingController.js';
 import { getAdminConfig, updateAdminConfig } from '../controllers/configController.js';
 import { getAdminLoyaltyConfig, updateAdminLoyaltyConfig } from '../controllers/loyaltyController.js';
+import { createBroadcast, listBroadcasts } from '../controllers/broadcastController.js';
 
 // Everything under here requires an authenticated admin.
 const router = Router();
@@ -35,5 +36,8 @@ router.patch('/admin/config', updateAdminConfig);
 
 router.get('/admin/loyalty/config', getAdminLoyaltyConfig);
 router.patch('/admin/loyalty/config', updateAdminLoyaltyConfig);
+
+router.post('/admin/broadcast', createBroadcast);
+router.get('/admin/broadcasts', listBroadcasts);
 
 export default router;

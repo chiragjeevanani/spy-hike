@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Megaphone, Send, Clock, Info, Copy } from 'lucide-react';
-import { broadcastNotification, loadBroadcastHistory } from '../utils/storage';
+import socialApi from '../../../lib/socialApi';
 
 export default function BroadcastView({ darkMode }) {
   const [title, setTitle] = useState('');
@@ -10,9 +10,8 @@ export default function BroadcastView({ darkMode }) {
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setBroadcasts(loadBroadcastHistory());
-  }, []);
+  const refresh = () => socialApi.listBroadcasts().then(setBroadcasts).catch(() => setBroadcasts([]));
+  useEffect(() => { refresh(); }, []);
 
   const handleBroadcast = async (e) => {
     e.preventDefault();
@@ -26,17 +25,18 @@ export default function BroadcastView({ darkMode }) {
     }
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-
-    broadcastNotification(title, content, type, target);
-    
-    // reset form
-    setTitle('');
-    setContent('');
-    setLoading(false);
-    
-    // refresh list
-    setBroadcasts(loadBroadcastHistory());
+    try {
+      // Server records the announcement and fans out a notification to every
+      // recipient in the target audience.
+      await socialApi.broadcast({ title, content, type, target });
+      setTitle('');
+      setContent('');
+      await refresh();
+    } catch (err) {
+      alert(err?.message || 'Could not send announcement.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleApplyTemplate = (tpl) => {

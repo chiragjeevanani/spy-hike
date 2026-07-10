@@ -12,6 +12,8 @@ import { markCouponUsed } from '../services/couponService.js';
 import {
   getAvailableVoucher, markVoucherUsed, syncCustomerVouchers, syncOrganizerVouchers,
 } from '../services/loyaltyService.js';
+import { notifyCustomer, notifyOrganizer } from '../services/notificationService.js';
+import { findOrCreateChat } from './chatController.js';
 import { paymentProvider } from '../integrations/payments.js';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -103,6 +105,29 @@ export const createBooking = asyncHandler(async (req, res) => {
     if (loyaltyVoucher) await markVoucherUsed(loyaltyVoucher, booking.bookingId);
     await syncCustomerVouchers(booking.userEmail);
     if (trip.organizerEmail) await syncOrganizerVouchers(trip.organizerEmail);
+
+    // Notify both sides and seed an organizer welcome chat (context.md §7).
+    await notifyCustomer(booking.userEmail, {
+      title: '⛰️ Permit Slot Secured!',
+      content: `Your pass to ${trip.name} is active for ${selectedDate}. Booking ID: ${booking.bookingId}`,
+      type: 'Booking',
+    });
+    if (trip.organizerEmail) {
+      await notifyOrganizer(trip.organizerEmail, {
+        title: '🎒 New Booking Received',
+        content: `${booking.userName} booked ${trip.name} (${booking.travelersCount} traveler${booking.travelersCount === 1 ? '' : 's'}) for ${selectedDate}.`,
+        type: 'Booking',
+      });
+      const chat = await findOrCreateChat({ trip, userEmail: booking.userEmail, userName: booking.userName });
+      if (chat.messages.length === 0) {
+        chat.messages.push({
+          sender: 'organizer',
+          text: `Hi ${booking.userName?.split(' ')[0] || 'there'}! Thanks for booking ${trip.name}. We'll share prep details soon — reach out any time.`,
+          timestamp: new Date(),
+        });
+        await chat.save();
+      }
+    }
 
     res.status(201).json({ booking: booking.toPublicJSON() });
   } catch (err) {

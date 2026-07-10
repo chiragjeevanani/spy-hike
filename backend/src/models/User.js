@@ -22,6 +22,7 @@ const userSchema = new mongoose.Schema(
     isOnboarded: { type: Boolean, default: false },
     status: { type: String, enum: ['Active', 'Banned'], default: 'Active' },
     authProvider: { type: String, enum: ['password', 'otp', 'google'], default: 'password' },
+    wishlist: { type: [String], default: [] }, // bookmarked trip ids
   },
   { timestamps: true },
 );

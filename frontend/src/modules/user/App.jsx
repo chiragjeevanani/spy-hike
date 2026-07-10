@@ -33,6 +33,7 @@ import { downloadTicketPDF } from './utils/ticketPdf';
 import { syncCustomerVouchers, hydrateCustomerLoyalty } from '../../utils/loyalty';
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
+import socialApi from '../../lib/socialApi';
 import { getToken } from '../../lib/apiClient';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
@@ -452,18 +453,32 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user.isAuthenticated]);
 
+  // Hydrate wishlist / notifications / chats from the API for a real (token)
+  // session. Notifications + the welcome chat are emitted server-side on
+  // booking, so re-run when the booking roster changes. Tokenless (seeded)
+  // sessions keep their localStorage state.
+  useEffect(() => {
+    if (!user.isAuthenticated || !getToken()) return;
+    let cancelled = false;
+    socialApi.getWishlist().then((w) => { if (!cancelled && Array.isArray(w)) setWishlist(w); }).catch(() => {});
+    socialApi.getNotifications().then((n) => { if (!cancelled && Array.isArray(n) && n.length) setNotifications(n); }).catch(() => {});
+    socialApi.getChats().then((c) => { if (!cancelled && Array.isArray(c) && c.length) setChats(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [user.isAuthenticated, bookings.length]);
+
   useEffect(() => {
     saveDarkMode(darkMode);
   }, [darkMode]);
 
   // Core Actions
   const handleToggleWishlist = (tripId) => {
-    const isSaved = wishlist.includes(tripId);
-    if (isSaved) {
-      setWishlist(prev => prev.filter(id => id !== tripId));
-    } else {
-      setWishlist(prev => [...prev, tripId]);
-    }
+    const next = wishlist.includes(tripId)
+      ? wishlist.filter(id => id !== tripId)
+      : [...wishlist, tripId];
+    setWishlist(next);
+    // Persist to the API for a real session (localStorage mirror still updates
+    // via the saveWishlist effect for the offline/seeded path).
+    if (getToken()) socialApi.setWishlist(next).catch(() => {});
   };
 
   const handleApplyCategoryFromHome = (catName) => {
@@ -519,7 +534,7 @@ export default function App() {
   };
 
   // Add review to data dynamically so it displays inside reviews tab instantly
-  const handleAddReviewToTrip = (tripId, rating, comment) => {
+  const handleAddReviewToTrip = (tripId, rating, comment, bookingId) => {
     const newRatingReview = {
       id: 'rev-' + Date.now(),
       userName: user.name || 'Chirag Jeevanani',
@@ -529,24 +544,26 @@ export default function App() {
       date: new Date().toISOString().split('T')[0]
     };
 
+    // Optimistic local update (immediate UX + offline path).
     const updatedTrips = trips.map(item => {
       if (item.id === tripId) {
         const updatedReviewsList = [newRatingReview, ...item.reviews];
-        // Calculate newly averaged ratings value
         const totalRatingPoints = updatedReviewsList.reduce((acc, r) => acc + r.rating, 0);
         const newAveragedRating = Math.round((totalRatingPoints / updatedReviewsList.length) * 10) / 10;
-
-        return {
-          ...item,
-          reviews: updatedReviewsList,
-          reviewsCount: updatedReviewsList.length,
-          rating: newAveragedRating
-        };
+        return { ...item, reviews: updatedReviewsList, reviewsCount: updatedReviewsList.length, rating: newAveragedRating };
       }
       return item;
     });
-
     setTrips(updatedTrips);
+
+    // Persist server-side (the trip's rollups are recomputed authoritatively);
+    // refresh the catalog so the averaged rating reflects the server.
+    if (getToken() && bookingId) {
+      socialApi.createReview(bookingId, { rating, comment })
+        .then(() => tripsApi.listTrips({ limit: 100 }))
+        .then((apiTrips) => { if (Array.isArray(apiTrips) && apiTrips.length) setTrips(apiTrips); })
+        .catch(() => {});
+    }
   };
 
   // Handle finalize successful booking setup
@@ -563,6 +580,12 @@ export default function App() {
 
     // 1. Append booking object to local roster list
     setBookings(prev => [resolvedBooking, ...prev]);
+
+    // For a real (token) session the server already emits the booking
+    // notifications + welcome chat, and the social hydration effect (keyed on
+    // bookings.length) pulls them in — so skip the local fabrication to avoid
+    // duplicates. The offline/seeded path still builds them below.
+    if (getToken()) { navigateTo('/bookings'); return; }
 
     // 2. Generate customized push alerts inside Notification Center stream
     const confirmAlert = {
@@ -637,6 +660,7 @@ export default function App() {
 
   const handleMarkNotificationRead = (id) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (getToken()) socialApi.markNotificationRead(id).catch(() => {});
   };
 
   const handleClearNotifications = () => {
@@ -894,7 +918,7 @@ export default function App() {
                      }
                      const commentInput = prompt('Write a comment about this trek:');
                      if (commentInput !== null) {
-                       handleAddReviewToTrip(b.tripId, ratingVal, commentInput || 'Incredible experience!');
+                       handleAddReviewToTrip(b.tripId, ratingVal, commentInput || 'Incredible experience!', b.bookingId);
                        alert('Review logged and average rating updated successfully!');
                      }
                    }}

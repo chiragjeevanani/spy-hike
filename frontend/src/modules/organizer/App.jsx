@@ -14,6 +14,7 @@ import authApi from '../../lib/authApi';
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
 import loyaltyApi from '../../lib/loyaltyApi';
+import socialApi from '../../lib/socialApi';
 import { getToken } from '../../lib/apiClient';
 
 import OrgOnboarding from './components/OrgOnboarding';
@@ -98,8 +99,15 @@ export default function OrgApp() {
       // roster, then mint any newly-earned reward vouchers. A real session
       // pulls the server's authoritative voucher ledger; otherwise mint locally.
       const lifetimeBookings = Math.max(organizer.totalBookings || 0, orgBookings.length);
-      if (getToken()) hydrateOrganizerLoyalty();
-      else syncOrganizerVouchers(lifetimeBookings);
+      if (getToken()) {
+        hydrateOrganizerLoyalty();
+        // Pull server-emitted notifications (e.g. "New Booking Received").
+        socialApi.getOrganizerNotifications()
+          .then((list) => { if (Array.isArray(list) && list.length) setNotifications(list); })
+          .catch(() => {});
+      } else {
+        syncOrganizerVouchers(lifetimeBookings);
+      }
       if (lifetimeBookings > (organizer.totalBookings || 0)) {
         const updated = { ...organizer, totalBookings: lifetimeBookings };
         saveOrgUser(updated);
@@ -300,6 +308,7 @@ export default function OrgApp() {
     const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
     setNotifications(updated);
     saveOrgNotifications(updated);
+    if (getToken()) socialApi.markOrganizerNotificationRead(id).catch(() => {});
   };
 
   const handleMarkAllNotificationsRead = () => {

@@ -104,7 +104,7 @@ export default function BookingsView({
     e.preventDefault();
     if (!reviewBooking) return;
 
-    onAddReview(reviewBooking.tripId, reviewRating, reviewComment.trim());
+    onAddReview(reviewBooking.tripId, reviewRating, reviewComment.trim(), reviewBooking.bookingId);
     alert('Thank you! Your verified hiking rating has been registered successfully.');
     setReviewBooking(null);
     setReviewComment('');
