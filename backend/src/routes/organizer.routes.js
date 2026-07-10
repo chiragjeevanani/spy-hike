@@ -10,6 +10,9 @@ import {
   listOrganizerNotifications, markOrganizerNotificationRead, markAllOrganizerNotificationsRead,
 } from '../controllers/notificationController.js';
 import { listOrganizerChats, sendOrganizerMessage } from '../controllers/chatController.js';
+import {
+  getOrganizerFinancials, listOrganizerPayouts, requestPayout, updateBankDetails,
+} from '../controllers/financialsController.js';
 
 // Organizer-scoped routes. Everything requires an authenticated organizer;
 // approved-only features additionally pass requireApprovedOrganizer.
@@ -48,5 +51,10 @@ router.patch('/organizer/notifications/read-all', markAllOrganizerNotificationsR
 router.patch('/organizer/notifications/:id/read', markOrganizerNotificationRead);
 router.get('/organizer/chats', requireApprovedOrganizer, listOrganizerChats);
 router.post('/organizer/chats/:chatId/messages', requireApprovedOrganizer, sendOrganizerMessage);
+
+router.get('/organizer/financials', requireApprovedOrganizer, getOrganizerFinancials);
+router.get('/organizer/payouts', requireApprovedOrganizer, listOrganizerPayouts);
+router.post('/organizer/payouts', requireApprovedOrganizer, requestPayout);
+router.patch('/organizer/bank-details', requireApprovedOrganizer, updateBankDetails);
 
 export default router;

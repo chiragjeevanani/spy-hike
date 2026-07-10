@@ -639,11 +639,26 @@ export default function App() {
 
   // Switch Booking slot states (e.g. Cancel slots)
   const handleModifyBookingStatus = (bookingId, status) => {
-    setBookings(prev => prev.map(b => 
+    setBookings(prev => prev.map(b =>
       b.id === bookingId ? { ...b, status: status } : b
     ));
 
-    // send notification
+    // For a real session, cancellation is server-authoritative: it computes the
+    // policy refund, frees the seats, and emits the notification. Refresh
+    // bookings + notifications from the API afterward.
+    if (status === 'Cancelled' && getToken()) {
+      const bObj = bookings.find(b => b.id === bookingId);
+      bookingsApi.cancel(bObj?.bookingId || bObj?.id || bookingId)
+        .then(() => Promise.all([bookingsApi.listMine(), socialApi.getNotifications()]))
+        .then(([bs, ns]) => {
+          if (Array.isArray(bs)) setBookings(bs);
+          if (Array.isArray(ns)) setNotifications(ns);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    // Offline/seeded fallback: fabricate the cancellation notice locally.
     if (status === 'Cancelled') {
       const bObj = bookings.find(b => b.id === bookingId);
       const cancelNotify = {

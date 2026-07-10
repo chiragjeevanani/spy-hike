@@ -41,6 +41,10 @@ const bookingSchema = new mongoose.Schema(
     organizerPayout: Number,
     loyaltyRewardApplied: { type: Boolean, default: false }, // customer free booking
     organizerRewardApplied: { type: Boolean, default: false }, // organizer zero-commission
+    // Refund snapshot on cancellation (policy-driven).
+    refundAmount: { type: Number, default: 0 },
+    refundPercent: { type: Number, default: 0 },
+    cancelledAt: { type: String, default: null },
     paymentRef: String,
     status: { type: String, enum: ['Upcoming', 'Completed', 'Cancelled'], default: 'Upcoming' },
     // Phase 6 (check-in) fields, present but unused until then.

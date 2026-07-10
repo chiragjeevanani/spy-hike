@@ -8,6 +8,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { makeBookingId } from '../utils/slug.js';
 import { computeBookingPricing } from '../services/pricingService.js';
 import { reserveSeats, releaseSeats } from '../services/inventoryService.js';
+import { computeRefund } from '../services/refundService.js';
 import { markCouponUsed } from '../services/couponService.js';
 import {
   getAvailableVoucher, markVoucherUsed, syncCustomerVouchers, syncOrganizerVouchers,
@@ -147,6 +148,45 @@ export const listMyBookings = asyncHandler(async (req, res) => {
 export const getMyBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({ userEmail: req.user.email, ...idMatch(req.params.id) });
   if (!booking) throw ApiError.notFound('Booking not found');
+  res.json({ booking: booking.toPublicJSON() });
+});
+
+// POST /bookings/:id/cancel — the customer cancels an upcoming booking. Applies
+// the policy-driven refund, frees the reserved seats, and notifies both sides.
+// Cancelling drops the booking's payout from the organizer's balance (the
+// financials derive from non-cancelled bookings).
+export const cancelBooking = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ userEmail: req.user.email, ...idMatch(req.params.id) });
+  if (!booking) throw ApiError.notFound('Booking not found');
+  if (booking.status !== 'Upcoming') {
+    throw ApiError.badRequest(`A ${booking.status.toLowerCase()} booking cannot be cancelled`);
+  }
+
+  const { refundAmount, refundPercent } = await computeRefund(booking.finalAmount, booking.selectedDate);
+  booking.status = 'Cancelled';
+  booking.refundAmount = refundAmount;
+  booking.refundPercent = refundPercent;
+  booking.cancelledAt = new Date().toISOString();
+  await booking.save();
+
+  // Return the seats to the departure inventory.
+  await releaseSeats(booking.tripId, booking.selectedDate, booking.travelersCount);
+
+  await notifyCustomer(booking.userEmail, {
+    title: '⚠️ Booking Cancelled',
+    content: refundAmount > 0
+      ? `${booking.tripName} (${booking.bookingId}) was cancelled. A refund of ₹${refundAmount} (${refundPercent}%) is being processed.`
+      : `${booking.tripName} (${booking.bookingId}) was cancelled. Per the cancellation policy, no refund applies.`,
+    type: 'Booking',
+  });
+  if (booking.organizerEmail) {
+    await notifyOrganizer(booking.organizerEmail, {
+      title: '❌ Booking Cancelled',
+      content: `${booking.userName} cancelled ${booking.tripName} for ${booking.selectedDate}. Seats have been released.`,
+      type: 'Booking',
+    });
+  }
+
   res.json({ booking: booking.toPublicJSON() });
 });
 

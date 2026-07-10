@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createBooking, listMyBookings, getMyBooking } from '../controllers/bookingController.js';
+import { createBooking, listMyBookings, getMyBooking, cancelBooking } from '../controllers/bookingController.js';
 import { createReview } from '../controllers/reviewController.js';
 import { getWishlist, setWishlist } from '../controllers/wishlistController.js';
 import {
@@ -16,6 +16,7 @@ const customerOnly = [requireAuth, requireRole('customer')];
 router.post('/bookings', ...customerOnly, createBooking);
 router.get('/bookings', ...customerOnly, listMyBookings);
 router.get('/bookings/:id', ...customerOnly, getMyBooking);
+router.post('/bookings/:id/cancel', ...customerOnly, cancelBooking);
 router.post('/bookings/:bookingId/review', ...customerOnly, createReview);
 
 router.get('/wishlist', ...customerOnly, getWishlist);

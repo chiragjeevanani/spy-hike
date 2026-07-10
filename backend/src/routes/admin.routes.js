@@ -9,6 +9,7 @@ import { listAllBookings, adminSetBookingStatus } from '../controllers/bookingCo
 import { getAdminConfig, updateAdminConfig } from '../controllers/configController.js';
 import { getAdminLoyaltyConfig, updateAdminLoyaltyConfig } from '../controllers/loyaltyController.js';
 import { createBroadcast, listBroadcasts } from '../controllers/broadcastController.js';
+import { listAllPayouts, settlePayout } from '../controllers/financialsController.js';
 
 // Everything under here requires an authenticated admin.
 const router = Router();
@@ -39,5 +40,8 @@ router.patch('/admin/loyalty/config', updateAdminLoyaltyConfig);
 
 router.post('/admin/broadcast', createBroadcast);
 router.get('/admin/broadcasts', listBroadcasts);
+
+router.get('/admin/payouts', listAllPayouts);
+router.patch('/admin/payouts/:id', settlePayout);
 
 export default router;

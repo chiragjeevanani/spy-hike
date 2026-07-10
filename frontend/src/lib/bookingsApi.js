@@ -14,6 +14,17 @@ export const bookingsApi = {
   create: (payload) => api.post('/bookings', payload).then((r) => r.booking),
   listMine: () => api.get('/bookings').then((r) => r.bookings),
   getMine: (id) => api.get(`/bookings/${encodeURIComponent(id)}`).then((r) => r.booking),
+  cancel: (id) => api.post(`/bookings/${encodeURIComponent(id)}/cancel`).then((r) => r.booking),
+
+  // ─── Organizer financials & payouts ───
+  getFinancials: () => api.get('/organizer/financials'),
+  listPayouts: () => api.get('/organizer/payouts').then((r) => r.payouts),
+  requestPayout: (amount) => api.post('/organizer/payouts', { amount }).then((r) => r.payout),
+  saveBankDetails: (bankDetails) => api.patch('/organizer/bank-details', bankDetails).then((r) => r.organizer),
+
+  // ─── Admin payouts ───
+  adminListPayouts: () => api.get('/admin/payouts').then((r) => r.payouts),
+  adminSettlePayout: (id, action) => api.patch(`/admin/payouts/${encodeURIComponent(id)}`, { action }).then((r) => r.payout),
 
   // ─── Organizer ───
   listOrganizer: () => api.get('/organizer/bookings').then((r) => r.bookings),

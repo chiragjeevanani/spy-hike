@@ -90,6 +90,9 @@ export default function OrgApp() {
         bookingsApi.listOrganizer()
           .then((list) => { if (Array.isArray(list) && list.length) setBookings(list); })
           .catch(() => {});
+        if (getToken()) {
+          bookingsApi.listPayouts().then((list) => { if (Array.isArray(list)) setPayouts(list); }).catch(() => {});
+        }
       }
       const orgBookings = loadOrgBookings(organizer.email);
       setBookings(orgBookings);
@@ -326,30 +329,28 @@ export default function OrgApp() {
     const updated = { ...organizer, bankDetails };
     saveOrgUser(updated);
     setOrganizer(updated);
+    // Persist to the API for a real session.
+    if (getToken()) bookingsApi.saveBankDetails(bankDetails).catch(() => {});
   };
 
-  // Simulates a payout request: creates a "Processing" transaction, then
-  // settles it to "Paid" a moment later — there's no real payment gateway
-  // behind this demo, so we fake the bank-settlement delay for realism.
+  // Requests a payout. A real session records it server-side (validated against
+  // the available balance) and awaits admin settlement; the offline/seeded path
+  // fakes the settlement delay.
   const handleRequestPayout = (amount) => {
     if (amount <= 0) return;
+
+    if (getToken()) {
+      bookingsApi.requestPayout(amount)
+        .then(() => bookingsApi.listPayouts())
+        .then((list) => { if (Array.isArray(list)) { setPayouts(list); saveOrgPayouts(list); } })
+        .catch((err) => alert(err?.message || 'Could not request payout.'));
+      return;
+    }
+
     const payoutId = `PO-${Date.now()}`;
     const method = organizer?.bankDetails?.upiId?.trim() ? 'UPI' : 'Bank Transfer';
-    const newPayout = {
-      id: payoutId,
-      amount,
-      method,
-      status: 'Processing',
-      requestedAt: new Date().toISOString(),
-      completedAt: null,
-      utr: null,
-    };
-    setPayouts(prev => {
-      const next = [...prev, newPayout];
-      saveOrgPayouts(next);
-      return next;
-    });
-
+    const newPayout = { id: payoutId, amount, method, status: 'Processing', requestedAt: new Date().toISOString(), completedAt: null, utr: null };
+    setPayouts(prev => { const next = [...prev, newPayout]; saveOrgPayouts(next); return next; });
     setTimeout(() => {
       setPayouts(prev => {
         const next = prev.map(p => p.id === payoutId
