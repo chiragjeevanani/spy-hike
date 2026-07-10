@@ -10,6 +10,7 @@ import { getAdminConfig, updateAdminConfig } from '../controllers/configControll
 import { getAdminLoyaltyConfig, updateAdminLoyaltyConfig } from '../controllers/loyaltyController.js';
 import { createBroadcast, listBroadcasts } from '../controllers/broadcastController.js';
 import { listAllPayouts, settlePayout } from '../controllers/financialsController.js';
+import { getAnalytics } from '../controllers/analyticsController.js';
 
 // Everything under here requires an authenticated admin.
 const router = Router();
@@ -43,5 +44,7 @@ router.get('/admin/broadcasts', listBroadcasts);
 
 router.get('/admin/payouts', listAllPayouts);
 router.patch('/admin/payouts/:id', settlePayout);
+
+router.get('/admin/analytics', getAnalytics);
 
 export default router;

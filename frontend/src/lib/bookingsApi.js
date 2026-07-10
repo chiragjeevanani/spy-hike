@@ -39,6 +39,9 @@ export const bookingsApi = {
   // ─── Admin platform config (commission / tax) ───
   getConfig: () => api.get('/admin/config').then((r) => r.config),
   updateConfig: (payload) => api.patch('/admin/config', payload).then((r) => r.config),
+
+  // ─── Admin analytics ───
+  getAnalytics: () => api.get('/admin/analytics'),
 };
 
 export default bookingsApi;

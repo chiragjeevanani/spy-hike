@@ -8,12 +8,14 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-import { 
-  loadAllUsers, loadAllOrganizers, loadAllTrips, loadAllBookings 
-} from '../utils/storage';
-import { 
-  REVENUE_TREND_DATA, TRIP_CATEGORY_DATA, RECENT_LOGS 
+import bookingsApi from '../../../lib/bookingsApi';
+import {
+  REVENUE_TREND_DATA, TRIP_CATEGORY_DATA, RECENT_LOGS
 } from '../utils/mockData';
+
+// Palette for the category donut when data comes from the API (which returns
+// name/value only).
+const CATEGORY_COLORS = ['#F27D26', '#3B82F6', '#10B981', '#8B5CF6', '#06B6D4', '#EAB308', '#EC4899', '#F43F5E', '#14B8A6', '#A855F7'];
 
 export default function DashboardView({ onNavigate, darkMode }) {
   const [stats, setStats] = useState({
@@ -25,31 +27,30 @@ export default function DashboardView({ onNavigate, darkMode }) {
     trips: 0,
     pendingOrgs: 0
   });
+  const [revenueTrend, setRevenueTrend] = useState(REVENUE_TREND_DATA);
+  const [categoryData, setCategoryData] = useState(TRIP_CATEGORY_DATA);
 
   useEffect(() => {
-    const users = loadAllUsers();
-    const organizers = loadAllOrganizers();
-    const trips = loadAllTrips();
-    const bookings = loadAllBookings();
-
-    const activeBookings = bookings.filter(b => b.status === 'Completed' || b.status === 'Upcoming');
-    const totalRevenue = activeBookings.reduce((sum, b) => sum + (parseFloat(b.finalAmount) || 0), 0);
-    const totalCommission = activeBookings.reduce((sum, b) => {
-      const commission = b.commissionAmount !== undefined ? b.commissionAmount : (parseFloat(b.finalAmount) * 0.1);
-      return sum + commission;
-    }, 0);
-
-    const pending = organizers.filter(o => o.isPendingApproval && !o.isApproved).length;
-
-    setStats({
-      users: users.length,
-      organizers: organizers.length,
-      bookings: bookings.length,
-      revenue: Math.round(totalRevenue),
-      commission: Math.round(totalCommission),
-      trips: trips.length,
-      pendingOrgs: pending
-    });
+    // Real platform aggregates from the API (falls back to the static mock
+    // series if the backend is unavailable).
+    bookingsApi.getAnalytics()
+      .then((a) => {
+        const o = a.overview;
+        setStats({
+          users: o.users,
+          organizers: o.organizers,
+          bookings: o.bookings,
+          revenue: o.gmv,
+          commission: o.commission,
+          trips: o.trips,
+          pendingOrgs: o.pendingOrgs,
+        });
+        if (a.revenueTrend?.length) setRevenueTrend(a.revenueTrend);
+        if (a.categoryDist?.length) {
+          setCategoryData(a.categoryDist.map((c, i) => ({ ...c, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] })));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${
@@ -129,7 +130,7 @@ export default function DashboardView({ onNavigate, darkMode }) {
           </div>
           <div className="flex-1 w-full text-xs font-semibold">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={REVENUE_TREND_DATA} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={revenueTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#F27D26" stopOpacity={0.2}/>
@@ -158,7 +159,7 @@ export default function DashboardView({ onNavigate, darkMode }) {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={TRIP_CATEGORY_DATA}
+                  data={categoryData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -166,7 +167,7 @@ export default function DashboardView({ onNavigate, darkMode }) {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {TRIP_CATEGORY_DATA.map((entry, idx) => (
+                  {categoryData.map((entry, idx) => (
                     <Cell key={`cell-${idx}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -181,7 +182,7 @@ export default function DashboardView({ onNavigate, darkMode }) {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-400">
-            {TRIP_CATEGORY_DATA.map((item, idx) => (
+            {categoryData.map((item, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                 <span className="truncate">{item.name} ({item.value}%)</span>

@@ -1,18 +1,40 @@
-import React from 'react';
-import { 
+import React, { useState, useEffect } from 'react';
+import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-import { 
-  REVENUE_TREND_DATA, TRIP_CATEGORY_DATA, DIFFICULTY_DIST_DATA, 
-  STATE_POPULARITY_DATA, TOP_ORGANIZERS_DATA, BOOKING_STATUS_DATA 
+import bookingsApi from '../../../lib/bookingsApi';
+import {
+  REVENUE_TREND_DATA, TRIP_CATEGORY_DATA, DIFFICULTY_DIST_DATA,
+  STATE_POPULARITY_DATA, TOP_ORGANIZERS_DATA, BOOKING_STATUS_DATA
 } from '../utils/mockData';
 
+const STATUS_COLORS = { Upcoming: '#F27D26', Completed: '#10B981', Cancelled: '#EF4444' };
+
 export default function AnalyticsView({ darkMode }) {
+  const [revenueTrend, setRevenueTrend] = useState(REVENUE_TREND_DATA);
+  const [stateData, setStateData] = useState(STATE_POPULARITY_DATA);
+  const [topOrganizers, setTopOrganizers] = useState(TOP_ORGANIZERS_DATA);
+  const [bookingStatus, setBookingStatus] = useState(BOOKING_STATUS_DATA);
+
+  useEffect(() => {
+    // Real aggregates from the API (falls back to the static mock series).
+    bookingsApi.getAnalytics()
+      .then((a) => {
+        if (a.revenueTrend?.length) setRevenueTrend(a.revenueTrend);
+        if (a.stateDist?.length) setStateData(a.stateDist);
+        if (a.topOrganizers?.length) setTopOrganizers(a.topOrganizers);
+        if (a.bookingStatus?.length) {
+          setBookingStatus(a.bookingStatus.map((s) => ({ ...s, color: STATUS_COLORS[s.name] || '#94A3B8' })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm flex flex-col h-[340px] ${
-    darkMode 
-      ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20' 
+    darkMode
+      ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20'
       : 'bg-white border-slate-100 text-slate-800 shadow-slate-100/50'
   }`;
 
@@ -36,7 +58,7 @@ export default function AnalyticsView({ darkMode }) {
           </div>
           <div className="flex-1 w-full text-[10px] font-bold">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={REVENUE_TREND_DATA} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={revenueTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#F27D26" stopOpacity={0.2}/>
@@ -61,7 +83,7 @@ export default function AnalyticsView({ darkMode }) {
           </div>
           <div className="flex-1 w-full text-[10px] font-bold">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={REVENUE_TREND_DATA} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={revenueTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#1e293b" : "#f1f5f9"} />
                 <XAxis dataKey="month" stroke={darkMode ? "#64748b" : "#94a3b8"} />
                 <YAxis stroke={darkMode ? "#64748b" : "#94a3b8"} />
@@ -80,7 +102,7 @@ export default function AnalyticsView({ darkMode }) {
           </div>
           <div className="flex-1 w-full text-[10px] font-bold">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={REVENUE_TREND_DATA} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <LineChart data={revenueTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#1e293b" : "#f1f5f9"} />
                 <XAxis dataKey="month" stroke={darkMode ? "#64748b" : "#94a3b8"} />
                 <YAxis stroke={darkMode ? "#64748b" : "#94a3b8"} />
@@ -99,7 +121,7 @@ export default function AnalyticsView({ darkMode }) {
           </div>
           <div className="flex-1 w-full text-[10px] font-bold">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={TOP_ORGANIZERS_DATA} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <BarChart data={topOrganizers} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#1e293b" : "#f1f5f9"} />
                 <XAxis type="number" stroke={darkMode ? "#64748b" : "#94a3b8"} />
                 <YAxis dataKey="name" type="category" stroke={darkMode ? "#64748b" : "#94a3b8"} width={110} />
@@ -118,7 +140,7 @@ export default function AnalyticsView({ darkMode }) {
           </div>
           <div className="flex-1 w-full text-[10px] font-bold">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={STATE_POPULARITY_DATA} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={stateData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#1e293b" : "#f1f5f9"} />
                 <XAxis dataKey="state" stroke={darkMode ? "#64748b" : "#94a3b8"} />
                 <YAxis stroke={darkMode ? "#64748b" : "#94a3b8"} />
@@ -139,7 +161,7 @@ export default function AnalyticsView({ darkMode }) {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={BOOKING_STATUS_DATA}
+                  data={bookingStatus}
                   cx="50%"
                   cy="50%"
                   innerRadius={50}
@@ -147,7 +169,7 @@ export default function AnalyticsView({ darkMode }) {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {BOOKING_STATUS_DATA.map((entry, idx) => (
+                  {bookingStatus.map((entry, idx) => (
                     <Cell key={`cell-${idx}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -162,7 +184,7 @@ export default function AnalyticsView({ darkMode }) {
             </div>
           </div>
           <div className="flex justify-around text-[10px] font-bold text-slate-400">
-            {BOOKING_STATUS_DATA.map((item, idx) => (
+            {bookingStatus.map((item, idx) => (
               <div key={idx} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                 <span>{item.name} ({item.value}%)</span>
