@@ -1,6 +1,24 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, request as pwRequest } from '@playwright/test';
+
+const API = 'http://localhost:4000/api/v1';
 
 test.use({ viewport: { width: 1280, height: 900 } });
+
+// The loyalty config is now a shared server singleton; reset it to defaults
+// before each test so these config assertions are deterministic regardless of
+// what other specs did to it.
+test.beforeEach(async () => {
+  const ctx = await pwRequest.newContext();
+  const token = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@trekigo.com', password: 'admin123' } })).json()).token;
+  await ctx.patch(`${API}/admin/loyalty/config`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      customer: { enabled: true, thresholdPersons: 30, rewardTitle: 'Free Trek Booking', rewardDescription: 'Book 30 travelers cumulatively.', banner: { enabled: true, image: '', title: 'Trek 30, Get 1 Free!', subtitle: 'Every 30 travelers you book unlocks one free adventure.' } },
+      organizer: { enabled: true, thresholdBookings: 1000, rewardTitle: 'Zero-Commission Booking', rewardDescription: 'Cross 1000 bookings.', banner: { enabled: true, image: '', title: '1000 Bookings Milestone', subtitle: 'Every 1000 trips hosted unlocks a free booking.' } },
+    },
+  });
+  await ctx.dispose();
+});
 
 async function loginAsAdmin(page) {
   await page.goto('/admin/login');

@@ -30,9 +30,10 @@ import {
 } from './utils/storage';
 import { slugifyTrekName } from './utils/trekGroups';
 import { downloadTicketPDF } from './utils/ticketPdf';
-import { syncCustomerVouchers } from '../../utils/loyalty';
+import { syncCustomerVouchers, hydrateCustomerLoyalty } from '../../utils/loyalty';
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
+import { getToken } from '../../lib/apiClient';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -403,8 +404,11 @@ export default function App() {
 
   useEffect(() => {
     saveBookings(bookings);
-    // Mint any newly-earned loyalty vouchers whenever the booking roster grows.
-    syncCustomerVouchers(bookings);
+    // For a real (token) session, pull the server's authoritative voucher
+    // ledger into the cache; otherwise mint client-side from the local roster
+    // (offline/seeded). Re-runs whenever the booking roster changes.
+    if (getToken()) hydrateCustomerLoyalty();
+    else syncCustomerVouchers(bookings);
   }, [bookings]);
 
   useEffect(() => {

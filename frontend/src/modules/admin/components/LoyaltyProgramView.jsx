@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Gift, Award, Users, Building2, Image as ImageIcon, Upload, Trash2, Save,
   Sparkles, Ticket, CheckCircle2, Clock
 } from 'lucide-react';
 import {
-  loadLoyaltyConfig, saveLoyaltyConfig, loadCustomerVouchers, loadOrganizerVouchers
+  loadLoyaltyConfig, saveLoyaltyConfigApi, hydrateLoyaltyConfig,
+  loadCustomerVouchers, loadOrganizerVouchers,
 } from '../../../utils/loyalty';
 
 // Reads a dropped/selected image file into a base64 data URI — this demo has
@@ -21,14 +22,24 @@ export default function LoyaltyProgramView({ darkMode }) {
   const [savedFlash, setSavedFlash] = useState(false);
   const customerFileRef = useRef(null);
   const organizerFileRef = useRef(null);
+  // Tracks whether the admin has started editing — so the async config
+  // hydration below never clobbers an in-progress edit if it resolves late.
+  const editedRef = useRef(false);
+
+  // Pull the server's authoritative config into the cache + local state.
+  useEffect(() => {
+    hydrateLoyaltyConfig().then((cfg) => { if (cfg && !editedRef.current) setConfig(loadLoyaltyConfig()); });
+  }, []);
 
   const customerVouchers = loadCustomerVouchers();
   const organizerVouchers = loadOrganizerVouchers();
 
   const updateSide = (side, patch) => {
+    editedRef.current = true;
     setConfig(prev => ({ ...prev, [side]: { ...prev[side], ...patch } }));
   };
   const updateBanner = (side, patch) => {
+    editedRef.current = true;
     setConfig(prev => ({ ...prev, [side]: { ...prev[side], banner: { ...prev[side].banner, ...patch } } }));
   };
 
@@ -42,11 +53,15 @@ export default function LoyaltyProgramView({ darkMode }) {
     updateBanner(side, { image: dataUrl });
   };
 
-  const handleSave = () => {
-    const saved = saveLoyaltyConfig(config);
-    setConfig(saved);
-    setSavedFlash(true);
-    setTimeout(() => setSavedFlash(false), 2200);
+  const handleSave = async () => {
+    try {
+      const saved = await saveLoyaltyConfigApi({ customer: config.customer, organizer: config.organizer });
+      setConfig(loadLoyaltyConfig());
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2200);
+    } catch (err) {
+      alert(err?.message || 'Could not save loyalty settings.');
+    }
   };
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${

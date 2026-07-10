@@ -11,6 +11,10 @@ const API_PORT = 4000;
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false, // specs share localStorage-seeding conventions; keep runs predictable
+  // One worker: all specs share a single in-memory backend, and a few mutate
+  // singletons (loyalty/commission config). Serial execution keeps runs
+  // deterministic.
+  workers: 1,
   retries: 0,
   reporter: [['list']],
   use: {

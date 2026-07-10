@@ -9,6 +9,9 @@
 // Everything lives in localStorage (same-origin, shared across /app,
 // /organizer and /admin) — no server, consistent with the rest of this demo.
 
+import loyaltyApi from '../lib/loyaltyApi';
+import { getToken } from '../lib/apiClient';
+
 const CONFIG_KEY = 'trekigo_loyalty_config';
 const CUSTOMER_VOUCHERS_KEY = 'trekigo_loyalty_customer_vouchers';
 const ORG_VOUCHERS_KEY = 'trekigo_loyalty_org_vouchers';
@@ -121,8 +124,13 @@ export const computeLifetimePersons = (bookings = []) =>
     .filter(b => b.status !== 'Cancelled')
     .reduce((sum, b) => sum + (b.travelersCount || b.travelers?.length || 0), 0);
 
-export const syncCustomerVouchers = (bookings, config = loadLoyaltyConfig()) =>
-  syncVouchers(CUSTOMER_VOUCHERS_KEY, computeLifetimePersons(bookings), config.customer.thresholdPersons);
+// For a real (token-backed) session the server is authoritative — it mints
+// vouchers on booking and hydrateCustomerLoyalty() pulls them into the cache,
+// so we must NOT also mint client-side. Only the offline/seeded path mints.
+export const syncCustomerVouchers = (bookings, config = loadLoyaltyConfig()) => {
+  if (getToken()) return loadVouchers(CUSTOMER_VOUCHERS_KEY);
+  return syncVouchers(CUSTOMER_VOUCHERS_KEY, computeLifetimePersons(bookings), config.customer.thresholdPersons);
+};
 
 export const loadCustomerVouchers = () => loadVouchers(CUSTOMER_VOUCHERS_KEY);
 
@@ -156,8 +164,10 @@ export const getCustomerProgress = (bookings, config = loadLoyaltyConfig()) => {
 
 // ─── Organizer-side (bookings via app) ─────────────────────────────────────
 
-export const syncOrganizerVouchers = (lifetimeBookings, config = loadLoyaltyConfig()) =>
-  syncVouchers(ORG_VOUCHERS_KEY, lifetimeBookings, config.organizer.thresholdBookings);
+export const syncOrganizerVouchers = (lifetimeBookings, config = loadLoyaltyConfig()) => {
+  if (getToken()) return loadVouchers(ORG_VOUCHERS_KEY);
+  return syncVouchers(ORG_VOUCHERS_KEY, lifetimeBookings, config.organizer.thresholdBookings);
+};
 
 export const loadOrganizerVouchers = () => loadVouchers(ORG_VOUCHERS_KEY);
 
@@ -171,3 +181,48 @@ export const getOrganizerProgress = (lifetimeBookings, config = loadLoyaltyConfi
   const threshold = config.organizer.thresholdBookings;
   return { lifetime: lifetimeBookings, threshold, ...computeCycleProgress(lifetimeBookings, threshold) };
 };
+
+// ─── API hydration (server → localStorage cache) ────────────────────────────
+// These pull the server's authoritative config + voucher ledger into the same
+// localStorage keys the synchronous readers above use. Called on app mount and
+// after a booking. No-op (keeps the seeded/offline cache) when not signed in.
+
+export async function hydrateLoyaltyConfig() {
+  try {
+    const config = await loyaltyApi.getConfig();
+    if (config) saveVouchersConfig(config);
+    return config;
+  } catch { return null; }
+}
+
+// Writes a server config into the cache without stamping updatedAt anew.
+function saveVouchersConfig(config) {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(mergeConfig(config)));
+}
+
+export async function hydrateCustomerLoyalty() {
+  if (!getToken()) return null;
+  try {
+    const [config, me] = await Promise.all([loyaltyApi.getConfig(), loyaltyApi.getCustomerLoyalty()]);
+    if (config) saveVouchersConfig(config);
+    if (Array.isArray(me?.vouchers)) saveVouchers(CUSTOMER_VOUCHERS_KEY, me.vouchers);
+    return me;
+  } catch { return null; }
+}
+
+export async function hydrateOrganizerLoyalty() {
+  if (!getToken()) return null;
+  try {
+    const [config, data] = await Promise.all([loyaltyApi.getConfig(), loyaltyApi.getOrganizerLoyalty()]);
+    if (config) saveVouchersConfig(config);
+    if (Array.isArray(data?.vouchers)) saveVouchers(ORG_VOUCHERS_KEY, data.vouchers);
+    return data;
+  } catch { return null; }
+}
+
+// Admin: persist config to the server and refresh the local cache.
+export async function saveLoyaltyConfigApi(config) {
+  const saved = await loyaltyApi.adminUpdateConfig(config);
+  saveVouchersConfig(saved);
+  return saved;
+}

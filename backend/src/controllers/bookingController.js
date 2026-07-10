@@ -9,6 +9,9 @@ import { makeBookingId } from '../utils/slug.js';
 import { computeBookingPricing } from '../services/pricingService.js';
 import { reserveSeats, releaseSeats } from '../services/inventoryService.js';
 import { markCouponUsed } from '../services/couponService.js';
+import {
+  getAvailableVoucher, markVoucherUsed, syncCustomerVouchers, syncOrganizerVouchers,
+} from '../services/loyaltyService.js';
 import { paymentProvider } from '../integrations/payments.js';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -44,7 +47,17 @@ export const createBooking = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Select a valid departure date');
   }
 
-  const pricing = await computeBookingPricing(trip, { selections, couponCode, useLoyaltyReward });
+  // A loyalty free-booking must be backed by a real, available voucher —
+  // the server (not the client) decides whether the reward applies.
+  let loyaltyVoucher = null;
+  if (useLoyaltyReward) {
+    loyaltyVoucher = await getAvailableVoucher('customer', req.user.email);
+    if (!loyaltyVoucher) throw ApiError.badRequest('No loyalty reward available on your account');
+  }
+
+  const pricing = await computeBookingPricing(trip, {
+    selections, couponCode, useLoyaltyReward: !!loyaltyVoucher,
+  });
 
   // Atomically reserve seats on the chosen departure.
   const departure = await reserveSeats(trip._id, selectedDate, pricing.travelersCount);
@@ -84,6 +97,12 @@ export const createBooking = asyncHandler(async (req, res) => {
     if (trip.organizerEmail) {
       await Organizer.updateOne({ email: trip.organizerEmail }, { $inc: { totalBookings: 1 } });
     }
+
+    // Consume the redeemed loyalty voucher, then mint any newly-earned
+    // milestone vouchers for both the customer and the organizer.
+    if (loyaltyVoucher) await markVoucherUsed(loyaltyVoucher, booking.bookingId);
+    await syncCustomerVouchers(booking.userEmail);
+    if (trip.organizerEmail) await syncOrganizerVouchers(trip.organizerEmail);
 
     res.status(201).json({ booking: booking.toPublicJSON() });
   } catch (err) {
@@ -135,6 +154,31 @@ export const checkinBooking = asyncHandler(async (req, res) => {
   booking.checkedInBy = req.organizer.email;
   await booking.save();
   res.json({ booking: booking.toPublicJSON(), alreadyCheckedIn: false });
+});
+
+// POST /organizer/bookings/:bookingId/redeem-reward — applies an available
+// zero-commission voucher to one of the organizer's bookings, zeroing its
+// commission so the organizer keeps 100% of that payout.
+export const redeemOrganizerReward = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ bookingId: req.params.bookingId });
+  if (!booking) throw ApiError.notFound('Booking not found');
+  if (booking.organizerEmail !== req.organizer.email) {
+    throw ApiError.forbidden('This booking belongs to another organizer');
+  }
+  if (booking.organizerRewardApplied) {
+    throw ApiError.badRequest('A reward has already been applied to this booking');
+  }
+
+  const voucher = await getAvailableVoucher('organizer', req.organizer.email);
+  if (!voucher) throw ApiError.badRequest('No zero-commission reward available');
+
+  booking.commissionAmount = 0;
+  booking.organizerPayout = booking.finalAmount;
+  booking.organizerRewardApplied = true;
+  await booking.save();
+  await markVoucherUsed(voucher, booking.bookingId);
+
+  res.json({ booking: booking.toPublicJSON() });
 });
 
 // GET /admin/bookings — all bookings.

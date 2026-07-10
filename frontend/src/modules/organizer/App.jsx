@@ -9,10 +9,12 @@ import {
   loadOrgDarkMode, saveOrgDarkMode,
   loadOrgPayouts, saveOrgPayouts,
 } from './utils/storage';
-import { syncOrganizerVouchers, markOrganizerVoucherUsed } from '../../utils/loyalty';
+import { syncOrganizerVouchers, markOrganizerVoucherUsed, hydrateOrganizerLoyalty } from '../../utils/loyalty';
 import authApi from '../../lib/authApi';
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
+import loyaltyApi from '../../lib/loyaltyApi';
+import { getToken } from '../../lib/apiClient';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -93,9 +95,11 @@ export default function OrgApp() {
 
       // Lifetime "bookings via app" backs the loyalty progress bar — keep the
       // organizer's totalBookings stat honest against their actual booking
-      // roster, then mint any newly-earned reward vouchers.
+      // roster, then mint any newly-earned reward vouchers. A real session
+      // pulls the server's authoritative voucher ledger; otherwise mint locally.
       const lifetimeBookings = Math.max(organizer.totalBookings || 0, orgBookings.length);
-      syncOrganizerVouchers(lifetimeBookings);
+      if (getToken()) hydrateOrganizerLoyalty();
+      else syncOrganizerVouchers(lifetimeBookings);
       if (lifetimeBookings > (organizer.totalBookings || 0)) {
         const updated = { ...organizer, totalBookings: lifetimeBookings };
         saveOrgUser(updated);
@@ -255,8 +259,22 @@ export default function OrgApp() {
   };
 
   // Applies an available zero-commission loyalty voucher to a specific
-  // upcoming booking — the organizer keeps 100% of that booking's payout.
-  const handleApplyLoyaltyReward = (voucherId, bookingId) => {
+  // booking — the organizer keeps 100% of that booking's payout. Real sessions
+  // redeem server-side (which verifies the voucher and zeroes commission);
+  // offline/seeded falls back to the local ledger.
+  const handleApplyLoyaltyReward = async (voucherId, bookingId) => {
+    if (getToken()) {
+      try {
+        await loyaltyApi.organizerRedeemReward(bookingId);
+        await refreshOrgTrips().catch(() => {});
+        bookingsApi.listOrganizer().then((list) => { if (list?.length) setBookings(list); }).catch(() => {});
+        await hydrateOrganizerLoyalty();
+        return;
+      } catch (err) {
+        alert(err?.message || 'Could not apply reward.');
+        return;
+      }
+    }
     markOrganizerVoucherUsed(voucherId, bookingId);
     const updated = bookings.map(b =>
       (b.id === bookingId || b.bookingId === bookingId)

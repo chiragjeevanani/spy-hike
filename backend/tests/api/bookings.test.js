@@ -135,9 +135,16 @@ describe('Booking creation & pricing', () => {
   it('a loyalty-reward booking is fully comped (tax + final = 0)', async () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
+    const admin = await adminToken();
     const trip = await makeTrip(org);
+
+    // Server verifies a real voucher now: lower the threshold and book once to
+    // mint one, then redeem it on the next booking.
+    await request(app).patch('/api/v1/admin/loyalty/config').set('Authorization', `Bearer ${admin}`).send({ customer: { thresholdPersons: 1, enabled: true } });
+    await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{}] });
+
     const res = await book(cust, {
-      tripId: trip.id, selectedDate: '2026-08-01',
+      tripId: trip.id, selectedDate: '2026-08-15',
       selections: [{ label: 'Solo', count: 1 }], travelers: [{}], useLoyaltyReward: true,
     });
     expect(res.body.booking.finalAmount).toBe(0);

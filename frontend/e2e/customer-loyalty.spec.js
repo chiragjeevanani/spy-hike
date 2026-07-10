@@ -45,6 +45,15 @@ test.describe('Customer — Loyalty Rewards', () => {
     await seedAtMilestone(page);
     await page.goto('/app');
 
+    // Wait for the client-side mint to settle before navigating, so "unlocked"
+    // is reliably present (the mint runs in a mount effect).
+    await expect
+      .poll(async () => page.evaluate(() => {
+        const raw = localStorage.getItem('trekigo_loyalty_customer_vouchers');
+        return raw ? JSON.parse(raw).filter((v) => v.status === 'available').length : 0;
+      }), { timeout: 10000 })
+      .toBeGreaterThan(0);
+
     await page.getByText('Profile', { exact: true }).click();
     await expect(page.getByText('Free booking unlocked')).toBeVisible();
 
@@ -55,18 +64,35 @@ test.describe('Customer — Loyalty Rewards', () => {
   });
 
   test('redeeming the reward in checkout zeroes the booking and consumes the voucher', async ({ page }) => {
-    // Real authenticated session (booking goes through the API now) + the
-    // seeded milestone so a voucher is available to redeem.
-    const { token, user } = await freshCustomer();
-    await seedLocalStorage(page, {
-      trekigo_loyalty_config: makeLoyaltyConfig({ customerThreshold: 2 }),
-      trekigo_user: user,
-      trekigo_bookings: [makeCustomerBooking({ travelersCount: 2 })],
+    // Server-verified reward now: lower the threshold, mint a real voucher via
+    // an API booking, then redeem it through the UI.
+    const ctx = await pwRequest.newContext();
+    const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@trekigo.com', password: 'admin123' } })).json()).token;
+    await ctx.patch(`${API}/admin/loyalty/config`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { customer: { enabled: true, thresholdPersons: 2 } } });
+    const email = `loyalty-${Date.now()}@example.com`;
+    const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Loyalty Hiker', email, password: 'pass1234' } })).json()).token;
+    // A 2-traveler booking crosses threshold=2 → mints one server voucher.
+    await ctx.post(`${API}/bookings`, {
+      headers: { Authorization: `Bearer ${custToken}` },
+      data: { tripId: 'himalayan-ridge-pass-trek', selectedDate: '2026-07-20', selections: [{ label: 'Solo', count: 2 }], travelers: [{}, {}] },
     });
-    // The JWT is a raw string (apiClient reads it verbatim, not JSON-parsed).
-    await page.addInitScript((t) => localStorage.setItem('trekigo_auth_token', t), token);
-    await page.goto('/app/trip/himalayan-ridge-pass-trek');
+    await ctx.dispose();
 
+    await page.addInitScript((data) => {
+      localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, name: 'Loyalty Hiker', email: data.email }));
+      localStorage.setItem('trekigo_auth_token', data.token);
+    }, { email, token: custToken });
+
+    // Home first so the server voucher hydrates into the local cache.
+    await page.goto('/app');
+    await expect
+      .poll(async () => page.evaluate(() => {
+        const raw = localStorage.getItem('trekigo_loyalty_customer_vouchers');
+        return raw ? JSON.parse(raw).filter((v) => v.status === 'available').length : 0;
+      }), { timeout: 10000 })
+      .toBeGreaterThan(0);
+
+    await page.goto('/app/trip/himalayan-ridge-pass-trek');
     await page.click('#btn-details-book-now', { force: true });
     await page.click('#btn-booking-step-1-continue', { force: true });
     await page.click('#btn-booking-step-2-continue', { force: true });
@@ -78,22 +104,21 @@ test.describe('Customer — Loyalty Rewards', () => {
     await expect(page.locator('#btn-pay-and-confirm')).toHaveText(/Confirm Free Booking/);
 
     await page.click('#btn-pay-and-confirm', { force: true });
-    await expect(page.getByText('Booking Succeeded!')).toBeVisible({ timeout: 5000 });
-
-    // This is the step that actually commits the new booking into app state
-    // (and from there into localStorage) — the success screen alone doesn't.
+    await expect(page.getByText('Booking Succeeded!')).toBeVisible({ timeout: 10000 });
     await page.click('#btn-booking-done-finish', { force: true });
-    await page.waitForTimeout(300);
 
-    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_customer_vouchers')));
-    expect(vouchers[0].status).toBe('used');
-    expect(vouchers[0].usedRef).toBeTruthy();
-
-    const bookings = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_bookings')));
-    const freeBooking = bookings.find(b => b.bookingId === vouchers[0].usedRef);
-    expect(freeBooking).toBeTruthy();
-    expect(freeBooking.finalAmount).toBe(0);
-    expect(freeBooking.loyaltyRewardApplied).toBe(true);
+    // Poll until the consumed voucher + comped booking land in the cache
+    // (re-hydration after the booking is async).
+    await expect
+      .poll(async () => page.evaluate(() => {
+        const vraw = localStorage.getItem('trekigo_loyalty_customer_vouchers');
+        const braw = localStorage.getItem('trekigo_bookings');
+        const used = (vraw ? JSON.parse(vraw) : []).find((v) => v.status === 'used');
+        if (!used) return null;
+        const free = (braw ? JSON.parse(braw) : []).find((b) => b.bookingId === used.usedRef);
+        return free ? { finalAmount: free.finalAmount, applied: free.loyaltyRewardApplied } : null;
+      }), { timeout: 10000 })
+      .toEqual({ finalAmount: 0, applied: true });
   });
 
   test('below-threshold progress shows remaining count, not a false reward', async ({ page }) => {
