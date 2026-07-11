@@ -13,31 +13,13 @@ export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
 
   const handleSend = () => {
     if (!inputText.trim() || !selectedChat) return;
-    const newMsg = {
-      id: `oc-msg-${Date.now()}`,
-      sender: 'organizer',
-      text: inputText.trim(),
-      timestamp: new Date().toISOString(),
-    };
-    onSendMessage(selectedChat.tripId, newMsg);
+    onSendMessage(selectedChat.id, inputText.trim());
     setInputText('');
-    // Simulate user reply after 2s
-    setTimeout(() => {
-      const replies = [
-        'Thank you for the quick response!',
-        'Got it, I\'ll be prepared.',
-        'Great, see you at the base!',
-        'Thanks! Can you clarify the pickup point?',
-      ];
-      const replyMsg = {
-        id: `oc-reply-${Date.now()}`,
-        sender: 'user',
-        text: replies[Math.floor(Math.random() * replies.length)],
-        timestamp: new Date().toISOString(),
-      };
-      onSendMessage(selectedChat.tripId, replyMsg);
-    }, 2000 + Math.random() * 1000);
   };
+
+  const avatarFor = (chat) =>
+    chat.userAvatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.userName || 'Hiker')}&background=F27D26&color=fff`;
 
   const formatTime = (ts) => {
     const d = new Date(ts);
@@ -45,7 +27,7 @@ export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
   };
 
   if (selectedChat) {
-    const chat = chats.find(c => c.tripId === selectedChat.tripId) || selectedChat;
+    const chat = chats.find(c => c.id === selectedChat.id) || selectedChat;
     return (
       <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
         {/* Chat header */}
@@ -53,7 +35,7 @@ export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
           <button type="button" onClick={() => setSelectedChat(null)} className={`p-2 rounded-xl ${darkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
             <ArrowLeft size={17} />
           </button>
-          <img src={chat.userAvatar} alt={chat.userName} className="w-10 h-10 rounded-full object-cover" />
+          <img src={avatarFor(chat)} alt={chat.userName} className="w-10 h-10 rounded-full object-cover" />
           <div>
             <p className="font-bold text-sm">{chat.userName}</p>
             <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chat.tripName}</p>
@@ -130,7 +112,7 @@ export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
             const unread = chat.messages.filter(m => m.sender === 'user' && !m.read).length;
             return (
               <motion.div
-                key={chat.tripId}
+                key={chat.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
@@ -140,7 +122,7 @@ export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
                 }`}
               >
                 <div className="relative">
-                  <img src={chat.userAvatar} alt={chat.userName} className="w-12 h-12 rounded-full object-cover" />
+                  <img src={avatarFor(chat)} alt={chat.userName} className="w-12 h-12 rounded-full object-cover" />
                   {unread > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-spy-orange text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-zinc-950">
                       {unread}

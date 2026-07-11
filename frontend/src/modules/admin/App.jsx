@@ -16,6 +16,7 @@ import OrganizersView from './components/OrganizersView';
 import AdminOrganizerProfileView from './components/AdminOrganizerProfileView';
 import TripsView from './components/TripsView';
 import BookingsView from './components/BookingsView';
+import PayoutsView from './components/PayoutsView';
 import CouponsView from './components/CouponsView';
 import AnalyticsView from './components/AnalyticsView';
 import BroadcastView from './components/BroadcastView';
@@ -33,6 +34,7 @@ function getAdminTab(pathname) {
   if (p.startsWith('organizers/')) return 'OrganizerProfile';
   if (p === 'trips') return 'Trips';
   if (p === 'bookings') return 'Bookings';
+  if (p === 'payouts') return 'Payouts';
   if (p === 'coupons') return 'Coupons';
   if (p === 'analytics') return 'Analytics';
   if (p === 'broadcast') return 'Broadcast';
@@ -59,6 +61,7 @@ function tabToPath(tab, param) {
   if (tab === 'OrganizerProfile') return `${PATH_PREFIX}/organizers/${param ? encodeURIComponent(param) : 'new'}`;
   if (tab === 'Trips') return `${PATH_PREFIX}/trips`;
   if (tab === 'Bookings') return `${PATH_PREFIX}/bookings`;
+  if (tab === 'Payouts') return `${PATH_PREFIX}/payouts`;
   if (tab === 'Coupons') return `${PATH_PREFIX}/coupons`;
   if (tab === 'Analytics') return `${PATH_PREFIX}/analytics`;
   if (tab === 'Broadcast') return `${PATH_PREFIX}/broadcast`;
@@ -159,6 +162,8 @@ export default function AdminApp() {
         return <TripsView darkMode={darkMode} />;
       case 'Bookings':
         return <BookingsView darkMode={darkMode} />;
+      case 'Payouts':
+        return <PayoutsView darkMode={darkMode} />;
       case 'Coupons':
         return <CouponsView darkMode={darkMode} />;
       case 'Analytics':

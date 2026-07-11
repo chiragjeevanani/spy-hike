@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map } from 'lucide-react';
 import PhoneFrame from './components/PhoneFrame';
@@ -682,6 +682,24 @@ export default function App() {
     setNotifications([]);
   };
 
+  // Sends a customer chat message to the organizer. For a real (token) session
+  // this posts to the API (which creates the thread if needed) and swaps in the
+  // authoritative chat; it resolves to that chat. Returns null for the
+  // offline/seeded path so BookingsView keeps its local simulated reply.
+  const handleSendChatMessage = useCallback(async (tripId, text) => {
+    if (!getToken()) return null;
+    try {
+      const chat = await socialApi.sendMessage(tripId, text);
+      setChats((prev) => {
+        const exists = prev.some((c) => c.tripId === chat.tripId);
+        return exists ? prev.map((c) => (c.tripId === chat.tripId ? chat : c)) : [...prev, chat];
+      });
+      return chat;
+    } catch {
+      return null;
+    }
+  }, []);
+
   // Gather user drafted comments metadata
   const getUserDraftedReviews = () => {
     const list = [];
@@ -758,6 +776,7 @@ export default function App() {
             onSelectTrip={(t) => navigateTo(`/trip/${t.id}`)}
             chats={chats}
             onSaveChats={setChats}
+            onSendChatMessage={handleSendChatMessage}
             onModifyBookingStatus={handleModifyBookingStatus}
             onAddReview={handleAddReviewToTrip}
             onSelectBooking={(b) => navigateTo(`/booking/${b.id}`)}

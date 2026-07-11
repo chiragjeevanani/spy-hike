@@ -117,11 +117,25 @@ describe('Organizer financials & payouts', () => {
     expect(fin.body.financials.available).toBe(945);
   });
 
-  it('requests a payout capped at the balance; over-request is rejected', async () => {
+  const setBank = (org) => request(app).patch('/api/v1/organizer/bank-details').set('Authorization', `Bearer ${org}`)
+    .send({ accountHolderName: 'Guides Ltd', bankName: 'HDFC', ifsc: 'HDFC0001', accountNumber: '1234567890' });
+
+  it('blocks a payout request when no payout method is configured (400)', async () => {
+    const org = await approvedOrganizerToken();
+    const cust = await customerToken();
+    const trip = await makeTrip(org, [30]);
+    await book(cust, trip.id, dateInDays(30));
+    const res = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 100 });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/bank account|upi/i);
+  });
+
+  it('requests a payout (with a reference + bank snapshot) capped at the balance', async () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org, [30]);
     await book(cust, trip.id, dateInDays(30)); // available 945
+    await setBank(org);
 
     const over = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 5000 });
     expect(over.status).toBe(400);
@@ -129,29 +143,87 @@ describe('Organizer financials & payouts', () => {
     const ok = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 500 });
     expect(ok.status).toBe(201);
     expect(ok.body.payout.status).toBe('Processing');
+    expect(ok.body.payout.reference).toMatch(/^PO-\d{4}-\d{6}$/);
+    expect(ok.body.payout.bank.accountNumberMasked).toBe('••••7890');
 
-    // The pending payout reduces available.
     const fin = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
     expect(fin.body.financials.available).toBe(445);
   });
 
-  it('admin settles a payout to Paid with a UTR', async () => {
+  it('admin settles a payout to Paid with a UTR and notifies the organizer', async () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const admin = await adminToken();
     const trip = await makeTrip(org, [30]);
     await book(cust, trip.id, dateInDays(30));
+    await setBank(org);
     const req = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 500 });
 
     const settle = await request(app).patch(`/api/v1/admin/payouts/${req.body.payout.id}`).set('Authorization', `Bearer ${admin}`).send({ action: 'approve' });
     expect(settle.status).toBe(200);
     expect(settle.body.payout.status).toBe('Paid');
     expect(settle.body.payout.utr).toBeTruthy();
+
+    const notifs = await request(app).get('/api/v1/organizer/notifications').set('Authorization', `Bearer ${org}`);
+    expect(notifs.body.notifications.some((n) => /Payout Settled/i.test(n.title))).toBe(true);
+  });
+
+  it('rejecting a payout records the reason and frees the balance back', async () => {
+    const org = await approvedOrganizerToken();
+    const cust = await customerToken();
+    const admin = await adminToken();
+    const trip = await makeTrip(org, [30]);
+    await book(cust, trip.id, dateInDays(30)); // available 945
+    await setBank(org);
+    const req = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 500 });
+
+    const rej = await request(app).patch(`/api/v1/admin/payouts/${req.body.payout.id}`).set('Authorization', `Bearer ${admin}`).send({ action: 'reject', reason: 'KYC mismatch' });
+    expect(rej.body.payout.status).toBe('Rejected');
+    expect(rej.body.payout.rejectionReason).toBe('KYC mismatch');
+
+    // Rejected amount returns to available.
+    const fin = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
+    expect(fin.body.financials.available).toBe(945);
+  });
+
+  it('cannot settle an already-settled payout (400)', async () => {
+    const org = await approvedOrganizerToken();
+    const cust = await customerToken();
+    const admin = await adminToken();
+    const trip = await makeTrip(org, [30]);
+    await book(cust, trip.id, dateInDays(30));
+    await setBank(org);
+    const req = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 500 });
+    await request(app).patch(`/api/v1/admin/payouts/${req.body.payout.id}`).set('Authorization', `Bearer ${admin}`).send({ action: 'approve' });
+    const again = await request(app).patch(`/api/v1/admin/payouts/${req.body.payout.id}`).set('Authorization', `Bearer ${admin}`).send({ action: 'reject' });
+    expect(again.status).toBe(400);
+  });
+
+  it('admin payout list returns a report summary and supports status filtering', async () => {
+    const org = await approvedOrganizerToken();
+    const cust = await customerToken();
+    const admin = await adminToken();
+    const trip = await makeTrip(org, [30, 40]);
+    await book(cust, trip.id, dateInDays(30));
+    await book(cust, trip.id, dateInDays(40));
+    await setBank(org);
+    const p1 = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 300 });
+    await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 200 });
+    await request(app).patch(`/api/v1/admin/payouts/${p1.body.payout.id}`).set('Authorization', `Bearer ${admin}`).send({ action: 'approve' });
+
+    const all = await request(app).get('/api/v1/admin/payouts').set('Authorization', `Bearer ${admin}`);
+    expect(all.body.summary.paidAmount).toBe(300);
+    expect(all.body.summary.pendingAmount).toBe(200);
+    expect(all.body.summary.totalCount).toBe(2);
+
+    const paidOnly = await request(app).get('/api/v1/admin/payouts?status=Paid').set('Authorization', `Bearer ${admin}`);
+    expect(paidOnly.body.payouts).toHaveLength(1);
+    expect(paidOnly.body.payouts[0].status).toBe('Paid');
   });
 
   it('saves organizer bank details', async () => {
     const org = await approvedOrganizerToken();
-    const res = await request(app).patch('/api/v1/organizer/bank-details').set('Authorization', `Bearer ${org}`).send({ accountHolderName: 'Guides Ltd', ifsc: 'HDFC0001', accountNumber: '1234567890' });
+    const res = await setBank(org);
     expect(res.status).toBe(200);
     expect(res.body.organizer.bankDetails.accountHolderName).toBe('Guides Ltd');
   });

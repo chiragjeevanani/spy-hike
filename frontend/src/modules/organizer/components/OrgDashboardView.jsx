@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Gift, ScanBarcode } from 'lucide-react';
+import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Gift, ScanBarcode, MessageCircle } from 'lucide-react';
 import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 
-export default function OrgDashboardView({ organizer, trips, bookings, notifications, onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, onOpenScanner, darkMode }) {
+export default function OrgDashboardView({ organizer, trips, bookings, notifications, chats = [], onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, onOpenScanner, onOpenChats, darkMode }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const showLoyaltyBanner = loyaltyConfig.organizer.enabled && loyaltyConfig.organizer.banner.enabled;
@@ -18,6 +18,7 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
   const upcomingBookings = bookings.filter(b => b.status === 'Upcoming');
   const publishedTrips = trips.filter(t => t.status === 'Published');
   const unreadNotifs = notifications.filter(n => !n.read).length;
+  const unreadChats = chats.reduce((s, c) => s + (c.messages || []).filter(m => m.sender === 'user' && !m.read).length, 0);
 
   const statCards = [
     { label: `Net Revenue (Gross: ₹${grossRevenue.toLocaleString('en-IN')})`, value: `₹${netRevenue.toLocaleString('en-IN')}`, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', onClick: onOpenFinancials },
@@ -61,6 +62,23 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
             >
               <ScanBarcode size={18} className="text-spy-orange" />
             </button>
+
+            {/* Messages */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={onOpenChats}
+                className={`p-2.5 rounded-xl transition ${darkMode ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-white shadow-sm hover:shadow'}`}
+                title="Messages"
+              >
+                <MessageCircle size={18} className={darkMode ? 'text-white/70' : 'text-zinc-600'} />
+              </button>
+              {unreadChats > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-spy-orange text-white text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-zinc-950">
+                  {unreadChats}
+                </span>
+              )}
+            </div>
 
             <div className="relative">
               <button

@@ -10,6 +10,7 @@ export default function BookingsView({
   onSelectTrip,
   chats,
   onSaveChats,
+  onSendChatMessage,
   onModifyBookingStatus,
   onAddReview,
   onSelectBooking,
@@ -53,27 +54,45 @@ export default function BookingsView({
   const handleSendChatMessage = () => {
     if (!chatInputText.trim() || !activeChatSession) return;
 
+    const text = chatInputText.trim();
+    const tripId = activeChatSession.tripId;
     const userMsg = {
       id: 'm-u-' + Date.now(),
       sender: 'user',
-      text: chatInputText.trim(),
+      text,
       timestamp: new Date().toISOString()
     };
 
+    // Optimistically show the sent message right away.
     const updatedSession = {
       ...activeChatSession,
       messages: [...activeChatSession.messages, userMsg]
     };
-
-    const updatedChatsList = chats.map(c => 
-      c.tripId === activeChatSession.tripId ? updatedSession : c
-    );
-
-    onSaveChats(updatedChatsList);
+    onSaveChats(chats.map(c => (c.tripId === tripId ? updatedSession : c)));
     setActiveChatSession(updatedSession);
     setChatInputText('');
 
-    // Trigger simulated companion counselor bot response after 1s
+    // Real (token) session: deliver to the organizer via the API and swap in the
+    // authoritative thread. The App-level handler updates the chats list; here we
+    // just reflect the server thread in the open drawer.
+    const result = onSendChatMessage?.(tripId, text);
+    if (result && typeof result.then === 'function') {
+      result.then((serverChat) => {
+        if (serverChat) {
+          setActiveChatSession(serverChat);
+        } else {
+          simulateOrganizerReply(tripId, updatedSession);
+        }
+      });
+      return;
+    }
+
+    // Offline/seeded fallback: simulate an organizer reply locally.
+    simulateOrganizerReply(tripId, updatedSession);
+  };
+
+  // Local-only stand-in used when there's no live backend session.
+  const simulateOrganizerReply = (tripId, baseSession) => {
     setTimeout(() => {
       const respAnswers = [
         "That sounds perfect! Our team will log this adjustment.",
@@ -81,21 +100,14 @@ export default function BookingsView({
         "We are clear to go. Please don't forget waterproof gear!",
         "Understood. We'll update the group details in the morning."
       ];
-      const randomAnswer = respAnswers[Math.floor(Math.random() * respAnswers.length)];
-
       const botMsg = {
         id: 'm-b-' + Date.now(),
         sender: 'organizer',
-        text: randomAnswer,
+        text: respAnswers[Math.floor(Math.random() * respAnswers.length)],
         timestamp: new Date().toISOString()
       };
-
-      const finalSession = {
-        ...updatedSession,
-        messages: [...updatedSession.messages, botMsg]
-      };
-
-      onSaveChats(chats.map(c => c.tripId === activeChatSession.tripId ? finalSession : c));
+      const finalSession = { ...baseSession, messages: [...baseSession.messages, botMsg] };
+      onSaveChats(chats.map(c => (c.tripId === tripId ? finalSession : c)));
       setActiveChatSession(finalSession);
     }, 1200);
   };

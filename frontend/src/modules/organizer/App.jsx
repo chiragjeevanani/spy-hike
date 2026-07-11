@@ -30,6 +30,7 @@ import OrgLoyaltyView from './components/OrgLoyaltyView';
 import OrgNotificationsView from './components/OrgNotificationsView';
 import OrgFinancialsView from './components/OrgFinancialsView';
 import OrgScannerView from './components/OrgScannerView';
+import OrgChatsView from './components/OrgChatsView';
 
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
@@ -78,6 +79,8 @@ export default function OrgApp() {
   const [showOrgNotifications, setShowOrgNotifications] = useState(false);
   const [showOrgFinancials, setShowOrgFinancials] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showOrgChats, setShowOrgChats] = useState(false);
+  const [chats, setChats] = useState([]);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
 
   // Load organizer-specific data. Trips + bookings come from the API for a
@@ -107,6 +110,10 @@ export default function OrgApp() {
         // Pull server-emitted notifications (e.g. "New Booking Received").
         socialApi.getOrganizerNotifications()
           .then((list) => { if (Array.isArray(list) && list.length) setNotifications(list); })
+          .catch(() => {});
+        // Pull two-way customer↔organizer chat threads.
+        socialApi.getOrganizerChats()
+          .then((list) => { if (Array.isArray(list)) setChats(list); })
           .catch(() => {});
       } else {
         syncOrganizerVouchers(lifetimeBookings);
@@ -325,6 +332,15 @@ export default function OrgApp() {
     saveOrgNotifications([]);
   };
 
+  // Reply in a customer↔organizer thread. Sends to the API and swaps in the
+  // returned (authoritative) chat so the new message shows immediately.
+  const handleSendOrgMessage = (chatId, text) => {
+    if (!text?.trim()) return;
+    socialApi.sendOrganizerMessage(chatId, text.trim())
+      .then((chat) => setChats((prev) => prev.map((c) => (c.id === chat.id ? chat : c))))
+      .catch((err) => alert(err?.message || 'Could not send message.'));
+  };
+
   const handleSaveBankDetails = (bankDetails) => {
     const updated = { ...organizer, bankDetails };
     saveOrgUser(updated);
@@ -437,6 +453,8 @@ export default function OrgApp() {
             onOpenLoyalty={() => setShowOrgLoyalty(true)}
             onOpenFinancials={() => setShowOrgFinancials(true)}
             onOpenScanner={() => setShowScanner(true)}
+            onOpenChats={() => setShowOrgChats(true)}
+            chats={chats}
             darkMode={darkMode}
           />
         ),
@@ -583,6 +601,33 @@ export default function OrgApp() {
                 onBack={() => setShowScanner(false)}
                 darkMode={darkMode}
               />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Messages full-screen overlay — customer↔organizer chat threads */}
+        <AnimatePresence>
+          {showOrgChats && (
+            <motion.div
+              key="overlay-org-chats"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+            >
+              <div className={`shrink-0 px-4 pt-4 pb-2 ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowOrgChats(false)}
+                  className={`text-xs font-bold flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}
+                >
+                  ← Back
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                <OrgChatsView chats={chats} onSendMessage={handleSendOrgMessage} darkMode={darkMode} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

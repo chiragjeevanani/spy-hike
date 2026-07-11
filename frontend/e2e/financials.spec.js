@@ -79,11 +79,23 @@ test('organizer earns, requests a payout, and admin settles it to Paid', async (
   const fin = await (await ctx.get(`${API}/organizer/financials`, orgAuth)).json();
   expect(fin.financials.available).toBe(945);
 
+  // A payout method is required before requesting — configure a bank account.
+  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Fin Guides', bankName: 'HDFC', ifsc: 'HDFC0001', accountNumber: '1234567890' } });
+
   const payout = (await (await ctx.post(`${API}/organizer/payouts`, { ...orgAuth, data: { amount: 500 } })).json()).payout;
   expect(payout.status).toBe('Processing');
+  expect(payout.reference).toMatch(/^PO-\d{4}-\d{6}$/);
+  expect(payout.bank.accountNumberMasked).toBe('••••7890');
 
   const settled = (await (await ctx.patch(`${API}/admin/payouts/${payout.id}`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { action: 'approve' } })).json()).payout;
   expect(settled.status).toBe('Paid');
   expect(settled.utr).toBeTruthy();
+  expect(settled.settledBy).toBe(DEMO_ADMIN.email);
+
+  // Admin payout list now carries a report summary + supports status filtering.
+  const adminAuth = { headers: { Authorization: `Bearer ${adminToken}` } };
+  const report = await (await ctx.get(`${API}/admin/payouts?status=Paid`, adminAuth)).json();
+  expect(report.summary.paidCount).toBeGreaterThanOrEqual(1);
+  expect(report.payouts.every((p) => p.status === 'Paid')).toBe(true);
   await ctx.dispose();
 });
