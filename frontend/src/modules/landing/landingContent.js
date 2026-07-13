@@ -133,3 +133,28 @@ export function mergeLandingContent(partial) {
   }
   return out;
 }
+
+// ─── Offline-first localStorage cache ───────────────────────────────────────
+// Same-origin localStorage is shared across the /app and /admin SPAs, so an
+// admin edit is visible to the public page in the same browser even when the
+// backend is unreachable. The API (when up) stays the source of truth and
+// refreshes this cache. Mirrors the loyalty-config caching pattern.
+
+export const LANDING_CONTENT_KEY = 'trekigo_landing_content';
+
+export function loadLandingContentLocal() {
+  try {
+    const raw = localStorage.getItem(LANDING_CONTENT_KEY);
+    return mergeLandingContent(raw ? JSON.parse(raw) : null);
+  } catch {
+    return mergeLandingContent(null);
+  }
+}
+
+export function saveLandingContentLocal(content) {
+  try {
+    localStorage.setItem(LANDING_CONTENT_KEY, JSON.stringify(content));
+  } catch {
+    /* ignore storage failures (private mode, quota, etc.) */
+  }
+}

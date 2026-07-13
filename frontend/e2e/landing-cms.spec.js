@@ -34,6 +34,29 @@ test('admin edits the hero headline in the CMS and it shows on the landing page'
   await expect(page.getByRole('heading', { level: 1 })).toContainText(highlight, { timeout: 10000 });
 });
 
+test('save degrades to local (no error dialog) when the backend is unreachable', async ({ page }) => {
+  await adminConsoleLogin(page);
+  await page.goto('/admin/landing');
+
+  // Any native alert (e.g. the old "Failed to fetch") should fail the test.
+  let dialogShown = false;
+  page.on('dialog', async (d) => { dialogShown = true; await d.dismiss(); });
+
+  // Simulate the backend being down for the save call only (login + GET already
+  // happened). The PATCH to the CMS endpoint is aborted → fetch rejects.
+  await page.route('**/admin/landing-content', (route) =>
+    route.request().method() === 'PATCH' ? route.abort() : route.continue());
+
+  const logo = page.locator('label', { hasText: 'Title (highlighted)' }).locator('input');
+  await expect(logo).toBeVisible({ timeout: 10000 });
+  await logo.fill(`Offline Peaks ${Date.now().toString().slice(-4)}`);
+
+  await page.getByRole('button', { name: /Save Changes/i }).click();
+  // Persists locally and says so — no crash, no "Failed to fetch" popup.
+  await expect(page.getByRole('button', { name: /Saved locally/i })).toBeVisible({ timeout: 10000 });
+  expect(dialogShown).toBe(false);
+});
+
 test('hiding a section in the CMS removes it from the landing page', async ({ page }) => {
   await adminConsoleLogin(page);
   await page.goto('/admin/landing');

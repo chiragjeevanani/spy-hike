@@ -136,6 +136,7 @@ export default function LandingCmsView({ darkMode }) {
   const [openSection, setOpenSection] = useState('hero');
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [savedMode, setSavedMode] = useState('synced'); // 'synced' | 'local'
 
   useEffect(() => {
     landingApi.adminGetContent()
@@ -163,12 +164,13 @@ export default function LandingCmsView({ darkMode }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const content = await landingApi.adminUpdateContent(draft);
+      // Offline-first: always persists locally; syncs to the server when the
+      // backend is reachable. Never hard-fails on a network error.
+      const { content, synced } = await landingApi.saveContent(draft);
       const m = mergeLandingContent(content);
       setDraft(m); setSaved(JSON.stringify(m));
-      setJustSaved(true); setTimeout(() => setJustSaved(false), 2000);
-    } catch (err) {
-      alert(err?.message || 'Could not save landing content.');
+      setSavedMode(synced ? 'synced' : 'local');
+      setJustSaved(true); setTimeout(() => setJustSaved(false), 2600);
     } finally { setSaving(false); }
   };
 
@@ -187,7 +189,14 @@ export default function LandingCmsView({ darkMode }) {
           <h1 className="text-2xl font-black font-display tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
             <LayoutTemplate className="text-[#F27D26]" size={22} /> Landing Page
           </h1>
-          <p className="text-slate-400 text-xs mt-1 font-semibold">Edit every section of the public marketing page. {dirty ? <span className="text-amber-500">Unsaved changes</span> : 'All changes saved'}.</p>
+          <p className="text-slate-400 text-xs mt-1 font-semibold">
+            Edit every section of the public marketing page.{' '}
+            {dirty
+              ? <span className="text-amber-500">Unsaved changes</span>
+              : savedMode === 'local'
+                ? <span className="text-amber-500">Saved locally — backend offline, changes aren’t live for other visitors yet</span>
+                : 'All changes saved'}.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <a href="/" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all">
@@ -196,9 +205,11 @@ export default function LandingCmsView({ darkMode }) {
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
-            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all active:scale-95 ${justSaved ? 'bg-emerald-500' : 'bg-[#F27D26] hover:bg-[#d96d1a]'} disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all active:scale-95 ${justSaved ? (savedMode === 'local' ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-[#F27D26] hover:bg-[#d96d1a]'} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {justSaved ? <><Check size={14} /> Saved</> : saving ? 'Saving…' : <><Save size={14} /> Save Changes</>}
+            {justSaved
+              ? <><Check size={14} /> {savedMode === 'local' ? 'Saved locally' : 'Saved'}</>
+              : saving ? 'Saving…' : <><Save size={14} /> Save Changes</>}
           </button>
         </div>
       </div>

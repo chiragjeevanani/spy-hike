@@ -35,6 +35,7 @@ import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
+import { loadLandingContentLocal } from '../landing/landingContent';
 import { getToken } from '../../lib/apiClient';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
@@ -175,9 +176,10 @@ export default function App() {
   const [bookings, setBookings] = useState(() => loadBookings());
   const [notifications, setNotifications] = useState(() => loadNotifications());
   const [chats, setChats] = useState(() => loadChats());
-  // Admin-managed marketing content for the public landing page. null until the
-  // public endpoint responds; LandingView falls back to built-in defaults.
-  const [landingContent, setLandingContent] = useState(null);
+  // Admin-managed marketing content for the public landing page. Seeded from
+  // the same-origin localStorage cache (so offline admin edits show at once),
+  // then refreshed from the public endpoint when the backend is reachable.
+  const [landingContent, setLandingContent] = useState(loadLandingContentLocal);
   const [trips, setTrips] = useState(() => loadTrips());
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
