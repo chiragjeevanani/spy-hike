@@ -9,8 +9,12 @@ import {
 } from 'lucide-react';
 import TrekigoLogo from '../../components/TrekigoLogo';
 import { HIKING_TRIPS, CATEGORIES_LIST } from '../user/data/trips';
+import { mergeLandingContent, resolveIcon } from './landingContent';
 
-export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, onLaunchOrganizer, onLaunchAdmin }) {
+export default function LandingView({ content, darkMode, onToggleDarkMode, onLaunchApp, onLaunchOrganizer, onLaunchAdmin }) {
+  // All copy/lists come from the admin-managed CMS content, deep-merged over
+  // the built-in defaults so every field is present even on a partial payload.
+  const C = mergeLandingContent(content);
   const scrollContainerRef = useRef(null);
   const scrollContentRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -59,110 +63,26 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
     ? HIKING_TRIPS.slice(0, 4) 
     : HIKING_TRIPS.filter(t => t.category === activeCategory).slice(0, 4);
 
-  // Features List
-  const features = [
-    {
-      icon: <Settings className="w-6 h-6 text-spy-orange" />,
-      title: "AI Recommendation Engine",
-      desc: "Tailors trek difficulty options dynamically based on your physical fitness level and alpine experience."
-    },
-    {
-      icon: <ShieldCheck className="w-6 h-6 text-emerald-500" />,
-      title: "Verified Agency Guides",
-      desc: "Connect directly with local Sherpa guides carrying government-audited permits and zero-accident safety records."
-    },
-    {
-      icon: <QrCode className="w-6 h-6 text-[#4A90E2]" />,
-      title: "Instant Permit Booking",
-      desc: "Secure high-altitude transit passes in a streamlined 3-step wizard with simulated Razorpay checkouts."
-    },
-    {
-      icon: <MessageSquare className="w-6 h-6 text-purple-500" />,
-      title: "Real-time Coordinator Chat",
-      desc: "Direct communication line with guides and coordinators to plan gear lists and coordinate base assembly."
-    }
-  ];
+  // Features come straight from the CMS; the icon key + color resolve to a
+  // lucide component at render time.
+  const features = C.features.items;
+  const testimonials = C.testimonials.items;
+  const faqs = C.faq.items;
 
-  // Testimonials
-  const testimonials = [
-    {
-      name: "Chirag Jeevanani",
-      role: "Intermediate Trekker",
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
-      comment: "The AI recommendation matched me perfectly with the Western Ghats Monsoon Trail. Using the 3-step checkout was incredibly seamless, and the ticket QR code was instantly generated!",
-      rating: 5,
-      trek: "Western Ghats Monsoon Trail"
-    },
-    {
-      name: "Priya Patel",
-      role: "Advanced Mountaineer",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80",
-      comment: "Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Trekigo provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.",
-      rating: 5,
-      trek: "Himalayan Ridge Pass Trek"
-    },
-    {
-      name: "Aarav Sharma",
-      role: "Weekend Explorer",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-      comment: "I loved the Jaisalmer Desert Camp. Being able to chat directly with Desert Nomad Adventures beforehand to verify standard gear rentals was very reassuring. No hassle whatsoever.",
-      rating: 4,
-      trek: "Stargazing Desert Camp & Trek"
-    }
-  ];
-
-  // Portals gateways
-  const portals = [
-    {
-      id: 'hiker',
-      title: "Hiker Mobile App",
-      badge: "Sandbox Enabled",
-      desc: "Explore mountain expeditions, toggle wishlist items, customize add-ons, pay via simulated gateways, and manage live ticket bookings.",
-      cta: "Launch Hiker App",
-      action: onLaunchApp,
-      color: "from-spy-orange to-orange-600",
-      shadow: "shadow-spy-orange/20",
-      features: ["AI Trek Matching", "3-Step Fast Checkout", "Direct Guide Chat", "Notifications Bell"]
-    },
-    {
-      id: 'organizer',
-      title: "Organizer Portal",
-      badge: "Agency Access",
-      desc: "Designed for local trekking agencies. Publish multi-day itineraries, manage seat inventory, upload dynamic photo galleries, and coordinate with hikers.",
-      cta: "Launch Organizer Portal",
-      action: onLaunchOrganizer,
-      color: "from-forest-500 to-forest-700",
-      shadow: "shadow-forest-500/20",
-      features: ["Dynamic Hike Form Builder", "Booking Roster Trackers", "Simulated Hiker Reply Chat", "Verification Wizard"]
-    },
-    {
-      id: 'admin',
-      title: "Admin Console",
-      badge: "Platform Control",
-      desc: "Central moderation panel. Review agency registrations, verify legal credentials, audit active listings, and analyze site-wide booking revenue.",
-      cta: "Launch Admin Console",
-      action: onLaunchAdmin,
-      color: "from-zinc-700 to-zinc-900 dark:from-zinc-800 dark:to-zinc-950",
-      shadow: "shadow-zinc-700/25",
-      features: ["Agency Approval System", "Global Trip Moderation", "Hiker Roster Audits", "Platform Revenue Insights"]
-    }
-  ];
-
-  // FAQs
-  const faqs = [
-    {
-      q: "What makes Trekigo different from other booking systems?",
-      a: "Trekigo is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists."
-    },
-    {
-      q: "Is the payment gateway secure?",
-      a: "Yes! For demonstration purposes, we integrate a simulated Razorpay payment flow which matches the exact steps of a real bank transaction without using real funds."
-    },
-    {
-      q: "How does the AI Recommendation Engine work?",
-      a: "By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Trekigo automatically matches you with hikes that align with your safety limits."
-    }
-  ];
+  // The three portals are keyed — each binds to a real launch action + brand
+  // gradient here, while their copy (title/badge/desc/cta/features) is editable.
+  const PORTAL_STYLE = {
+    hiker: { action: onLaunchApp, color: 'from-spy-orange to-orange-600', shadow: 'shadow-spy-orange/20' },
+    organizer: { action: onLaunchOrganizer, color: 'from-forest-500 to-forest-700', shadow: 'shadow-forest-500/20' },
+    admin: { action: onLaunchAdmin, color: 'from-zinc-700 to-zinc-900 dark:from-zinc-800 dark:to-zinc-950', shadow: 'shadow-zinc-700/25' },
+  };
+  const portals = C.portals.items.map((p) => ({
+    ...p,
+    id: p.key,
+    action: PORTAL_STYLE[p.key]?.action || onLaunchApp,
+    color: PORTAL_STYLE[p.key]?.color || 'from-spy-orange to-orange-600',
+    shadow: PORTAL_STYLE[p.key]?.shadow || 'shadow-spy-orange/20',
+  }));
 
   // Framer Motion Animation Presets
   const staggerContainer = {
@@ -244,22 +164,22 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
             >
               <TrekigoLogo size={32} className="text-forest-600 dark:text-elegant-green" />
               <span className="font-display font-bold text-2xl tracking-tight bg-gradient-to-r from-forest-700 via-forest-500 to-spy-orange dark:from-white dark:to-elegant-text bg-clip-text text-transparent">
-                Trekigo
+                {C.header.logoText}
               </span>
             </motion.div>
 
             {/* Desktop Navigation Links with sliding underline animation */}
             <nav className="hidden md:flex items-center gap-8" onMouseLeave={() => setHoveredLink(null)}>
-              {['features', 'expeditions', 'gateways', 'testimonials', 'faq'].map((link) => (
-                <a 
-                  key={link}
-                  href={`#${link}`} 
-                  onMouseEnter={() => setHoveredLink(link)}
+              {C.header.navLinks.map((link) => (
+                <a
+                  key={link.href + link.label}
+                  href={link.href}
+                  onMouseEnter={() => setHoveredLink(link.href)}
                   className="relative text-sm font-semibold tracking-wide py-2 text-zinc-600 dark:text-elegant-text/80 hover:text-spy-orange dark:hover:text-white transition-colors duration-250 capitalize"
                 >
-                  {link}
-                  {hoveredLink === link && (
-                    <motion.span 
+                  {link.label}
+                  {hoveredLink === link.href && (
+                    <motion.span
                       layoutId="navUnderline"
                       className="absolute bottom-0 left-0 right-0 h-0.5 bg-spy-orange rounded-full"
                       transition={{ type: "spring", stiffness: 380, damping: 26 }}
@@ -290,7 +210,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
                 whileTap={{ scale: 0.97 }}
                 className="px-5 py-2.5 rounded-xl bg-forest-500 hover:bg-forest-600 text-white font-semibold text-sm flex items-center gap-2 transition-all cursor-pointer"
               >
-                Launch App
+                {C.header.ctaLabel}
                 <ArrowUpRight className="w-4 h-4" />
               </motion.button>
             </div>
@@ -322,14 +242,14 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
                 transition={{ duration: 0.3, ease: "easeInOut" }}
                 className="md:hidden border-b border-zinc-200 dark:border-elegant-border bg-[#EAE2D0]/95 dark:bg-elegant-bg/95 backdrop-blur-md px-4 py-6 flex flex-col gap-4 overflow-hidden"
               >
-                {['features', 'expeditions', 'gateways', 'testimonials', 'faq'].map((link) => (
-                  <a 
-                    key={link}
-                    href={`#${link}`} 
-                    onClick={() => setMobileMenuOpen(false)} 
+                {C.header.navLinks.map((link) => (
+                  <a
+                    key={link.href + link.label}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
                     className="text-base font-semibold text-zinc-700 dark:text-white capitalize"
                   >
-                    {link}
+                    {link.label}
                   </a>
                 ))}
                 <hr className="border-zinc-200 dark:border-elegant-border" />
@@ -369,28 +289,28 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-forest-500/10 dark:bg-forest-500/15 border border-forest-500/20 text-forest-700 dark:text-[#6f9780] text-xs font-semibold uppercase tracking-wider mb-6"
             >
               <Flame className="w-3.5 h-3.5 text-spy-orange animate-pulse" />
-              Conquer Himalayan Altitudes
+              {C.hero.badge}
             </motion.div>
-            
-            <motion.h1 
+
+            <motion.h1
               initial={{ opacity: 0, y: 35 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
               className="font-display font-bold text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none mb-6"
             >
-              Conquer High Peaks with{"   "}
+              {C.hero.titleLead}{" "}
               <span className="relative inline-block bg-gradient-to-r from-spy-orange via-orange-500 to-forest-500 bg-clip-text text-transparent">
-                Verified Guides
+                {C.hero.titleHighlight}
               </span>
             </motion.h1>
 
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
               className="text-lg text-zinc-600 dark:text-elegant-text/70 max-w-2xl mx-auto lg:mx-0 mb-10 leading-relaxed font-normal"
             >
-              Trekigo connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.
+              {C.hero.subtitle}
             </motion.p>
 
             <motion.div 
@@ -409,7 +329,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
                 whileTap={{ scale: 0.97 }}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-forest-500 hover:bg-forest-600 text-white font-semibold flex items-center justify-center gap-3 shadow-xl shadow-forest-500/35 transition-all cursor-pointer"
               >
-                Launch Hiker App
+                {C.hero.primaryCta}
                 <Compass className="w-5 h-5 animate-spin-slow" />
               </motion.button>
               
@@ -423,7 +343,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
                 whileTap={{ scale: 0.97 }}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white dark:bg-elegant-card text-zinc-800 dark:text-white border border-zinc-200 dark:border-elegant-border hover:border-zinc-400 dark:hover:border-[#6f9780]/40 font-semibold flex items-center justify-center gap-3 shadow-lg shadow-zinc-200/20 transition-all cursor-pointer"
               >
-                Organizer Panel
+                {C.hero.secondaryCta}
                 <ArrowUpRight className="w-5 h-5 text-zinc-400" />
               </motion.button>
             </motion.div>
@@ -435,11 +355,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               transition={{ delay: 0.6, duration: 0.8 }}
               className="mt-12 grid grid-cols-3 gap-6 border-t border-zinc-200 dark:border-elegant-border pt-8 max-w-lg mx-auto lg:mx-0"
             >
-              {[
-                { label: "4.9★", sub: "Hiker Rating" },
-                { label: "100%", sub: "Verified Guides" },
-                { label: "0%", sub: "Middlemen Fee" }
-              ].map((metric, i) => (
+              {C.hero.metrics.map((metric, i) => (
                 <div key={i}>
                   <motion.h4 
                     initial={{ scale: 0.95 }}
@@ -571,18 +487,19 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
         </section>
 
         {/* 3. STAGGERED FADE-IN APP FEATURES SECTION */}
+        {C.features.visible && (
         <section id="features" className="w-full border-t border-zinc-200 dark:border-elegant-border/80 py-24 bg-[#EDE6D4]/50 dark:bg-elegant-card/10 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div 
+            <motion.div
               {...scrollTriggerSettings}
               variants={staggerContainer}
               className="text-center max-w-3xl mx-auto mb-16"
             >
               <motion.h2 variants={staggerItem} className="font-display font-bold text-3xl sm:text-4xl mb-4">
-                Smart Trek Platform Features
+                {C.features.heading}
               </motion.h2>
               <motion.p variants={staggerItem} className="text-zinc-600 dark:text-elegant-text/75 leading-relaxed">
-                Engineered to offer safe, transparent, and direct connections to high-elevation guides and local trek guides.
+                {C.features.subheading}
               </motion.p>
             </motion.div>
 
@@ -592,12 +509,14 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               variants={staggerContainer}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
             >
-              {features.map((feat, idx) => (
-                <motion.div 
+              {features.map((feat, idx) => {
+                const Icon = resolveIcon(feat.icon);
+                return (
+                <motion.div
                   key={idx}
                   variants={staggerItem}
-                  whileHover={{ 
-                    y: -8, 
+                  whileHover={{
+                    y: -8,
                     scale: 1.02,
                     borderColor: "rgba(242, 125, 38, 0.4)",
                     boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.1)"
@@ -605,26 +524,29 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
                   transition={{ type: "spring", stiffness: 120, damping: 15 }}
                   className="p-8 rounded-2xl bg-[#FCFAF2] dark:bg-elegant-card border border-zinc-200/60 dark:border-elegant-border/80 shadow-md hover:shadow-xl transition-all duration-300"
                 >
-                  <motion.div 
+                  <motion.div
                     whileHover={{ rotate: 15, scale: 1.1 }}
                     className="w-12 h-12 rounded-xl bg-forest-500/10 dark:bg-elegant-green/20 flex items-center justify-center mb-6"
                   >
-                    {feat.icon}
+                    <Icon className={`w-6 h-6 ${feat.iconColor || 'text-spy-orange'}`} />
                   </motion.div>
                   <h3 className="font-display font-bold text-lg mb-3">{feat.title}</h3>
                   <p className="text-sm text-zinc-500 dark:text-elegant-text/60 leading-relaxed">{feat.desc}</p>
                 </motion.div>
-              ))}
+                );
+              })}
             </motion.div>
           </div>
         </section>
+        )}
 
         {/* 4. EXPEDITIONS PREVIEW (DYNAMIC CATALOG WITH ANIMEPRESENCE) */}
+        {C.expeditions.visible && (
         <section id="expeditions" className="w-full py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
             <div>
-              <h2 className="font-display font-bold text-3xl sm:text-4xl mb-3">Popular Expeditions</h2>
-              <p className="text-zinc-600 dark:text-elegant-text/70">View our active treks directly managed by local registered agencies.</p>
+              <h2 className="font-display font-bold text-3xl sm:text-4xl mb-3">{C.expeditions.heading}</h2>
+              <p className="text-zinc-600 dark:text-elegant-text/70">{C.expeditions.subheading}</p>
             </div>
             
             {/* Filter Pills with animated background bubble */}
@@ -767,24 +689,26 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
               whileTap={{ scale: 0.96 }}
               className="px-6 py-3.5 rounded-xl border border-forest-500/35 hover:bg-forest-500/10 text-forest-700 dark:text-[#6f9780] font-semibold text-sm cursor-pointer transition-all"
             >
-              Explore Full Catalog
+              {C.expeditions.ctaLabel}
             </motion.button>
           </div>
         </section>
+        )}
 
         {/* 5. IMMERSIVE PORTAL GATEWAYS WITH HOVER BLUR GLOW */}
+        {C.portals.visible && (
         <section id="gateways" className="w-full border-t border-zinc-200 dark:border-elegant-border/80 py-24 bg-[#EDE6D4]/50 dark:bg-elegant-card/10 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div 
+            <motion.div
               {...scrollTriggerSettings}
               variants={staggerContainer}
               className="text-center max-w-3xl mx-auto mb-16"
             >
               <motion.h2 variants={staggerItem} className="font-display font-bold text-3xl sm:text-4xl mb-4">
-                Trekigo Portal Ecosystem
+                {C.portals.heading}
               </motion.h2>
               <motion.p variants={staggerItem} className="text-zinc-600 dark:text-elegant-text/75">
-                Our application features separate sandboxes representing key roles in the adventure marketplace. Try out each layout.
+                {C.portals.subheading}
               </motion.p>
             </motion.div>
 
@@ -859,19 +783,21 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
             </motion.div>
           </div>
         </section>
+        )}
 
         {/* 6. TESTIMONIALS WITH CASCADING ENTRY */}
+        {C.testimonials.visible && (
         <section id="testimonials" className="w-full py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
+          <motion.div
             {...scrollTriggerSettings}
             variants={staggerContainer}
             className="text-center max-w-3xl mx-auto mb-16"
           >
             <motion.h2 variants={staggerItem} className="font-display font-bold text-3xl sm:text-4xl mb-4">
-              Loved by Outdoor Trekkers
+              {C.testimonials.heading}
             </motion.h2>
             <motion.p variants={staggerItem} className="text-zinc-600 dark:text-elegant-text/75">
-              Here is what genuine outdoor lovers have to say about booking high-altitude passes and coordinates.
+              {C.testimonials.subheading}
             </motion.p>
           </motion.div>
 
@@ -913,16 +839,18 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
             ))}
           </motion.div>
         </section>
+        )}
 
         {/* 7. FAQ ACCORDION WITH SLIDING DRAWER & CARET ANIMATION */}
+        {C.faq.visible && (
         <section id="faq" className="w-full border-t border-zinc-200 dark:border-elegant-border/80 py-24 bg-[#EDE6D4]/50 dark:bg-elegant-card/10 transition-colors duration-300">
           <div className="max-w-3xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <h2 className="font-display font-bold text-3xl sm:text-4xl mb-4">
-                Frequently Asked Questions
+                {C.faq.heading}
               </h2>
               <p className="text-zinc-600 dark:text-elegant-text/75">
-                Have questions? We have compiled standard logistical queries for your review.
+                {C.faq.subheading}
               </p>
             </div>
 
@@ -966,6 +894,7 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
             </div>
           </div>
         </section>
+        )}
 
         {/* FOOTER */}
         <footer className="w-full border-t border-zinc-200 dark:border-elegant-border bg-[#F6F1E5] dark:bg-elegant-bg transition-colors duration-300 py-16">
@@ -973,23 +902,22 @@ export default function LandingView({ darkMode, onToggleDarkMode, onLaunchApp, o
             <div className="flex items-center gap-3 cursor-pointer group" onClick={onLaunchApp}>
               <TrekigoLogo size={28} className="text-forest-600 dark:text-elegant-green" />
               <span className="font-display font-black text-xl tracking-tight bg-gradient-to-r from-forest-700 via-forest-500 to-spy-orange dark:from-white dark:to-elegant-text bg-clip-text text-transparent">
-                Trekigo
+                {C.header.logoText}
               </span>
             </div>
 
             <div className="flex flex-wrap justify-center gap-8 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              <a href="#features" className="hover:text-spy-orange">Features</a>
-              <a href="#expeditions" className="hover:text-spy-orange">Expeditions</a>
-              <a href="#gateways" className="hover:text-spy-orange">Portals</a>
-              <a href="#testimonials" className="hover:text-spy-orange">Reviews</a>
+              {C.footer.links.map((link) => (
+                <a key={link.href + link.label} href={link.href} className="hover:text-spy-orange">{link.label}</a>
+              ))}
             </div>
 
             <div className="text-center md:text-right">
               <span className="text-[11px] text-zinc-400 block mb-1">
-                © 2026 Trekigo. Built with React 19, Tailwind v4 & Motion v12.
+                {C.footer.copyright}
               </span>
               <span className="text-[10px] text-zinc-400/60 block">
-                All coordinates, safety logs, and agencies are simulated for demo compliance.
+                {C.footer.subtext}
               </span>
             </div>
           </div>

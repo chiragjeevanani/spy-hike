@@ -34,6 +34,7 @@ import { syncCustomerVouchers, hydrateCustomerLoyalty } from '../../utils/loyalt
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
+import landingApi from '../../lib/landingApi';
 import { getToken } from '../../lib/apiClient';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
@@ -174,6 +175,9 @@ export default function App() {
   const [bookings, setBookings] = useState(() => loadBookings());
   const [notifications, setNotifications] = useState(() => loadNotifications());
   const [chats, setChats] = useState(() => loadChats());
+  // Admin-managed marketing content for the public landing page. null until the
+  // public endpoint responds; LandingView falls back to built-in defaults.
+  const [landingContent, setLandingContent] = useState(null);
   const [trips, setTrips] = useState(() => loadTrips());
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
@@ -465,6 +469,14 @@ export default function App() {
     socialApi.getChats().then((c) => { if (!cancelled && Array.isArray(c) && c.length) setChats(c); }).catch(() => {});
     return () => { cancelled = true; };
   }, [user.isAuthenticated, bookings.length]);
+
+  // Public landing-page content — fetched once on mount (no auth) so the
+  // marketing page reflects whatever the admin has published in the CMS.
+  useEffect(() => {
+    let cancelled = false;
+    landingApi.getContent().then((c) => { if (!cancelled && c) setLandingContent(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     saveDarkMode(darkMode);
@@ -816,6 +828,7 @@ export default function App() {
 
   return activeTab === 'Landing' ? (
     <LandingView
+      content={landingContent}
       darkMode={darkMode}
       onToggleDarkMode={handleToggleDarkMode}
       onLaunchApp={() => navigateTo('/')}

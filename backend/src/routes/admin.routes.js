@@ -7,6 +7,7 @@ import {
 } from '../controllers/couponController.js';
 import { listAllBookings, adminSetBookingStatus } from '../controllers/bookingController.js';
 import { getAdminConfig, updateAdminConfig } from '../controllers/configController.js';
+import { getAdminLandingContent, updateAdminLandingContent } from '../controllers/landingController.js';
 import { getAdminLoyaltyConfig, updateAdminLoyaltyConfig } from '../controllers/loyaltyController.js';
 import { createBroadcast, listBroadcasts } from '../controllers/broadcastController.js';
 import { listAllPayouts, settlePayout } from '../controllers/financialsController.js';
@@ -35,6 +36,9 @@ router.patch('/admin/bookings/:id/status', adminSetBookingStatus);
 
 router.get('/admin/config', getAdminConfig);
 router.patch('/admin/config', updateAdminConfig);
+
+router.get('/admin/landing-content', getAdminLandingContent);
+router.patch('/admin/landing-content', updateAdminLandingContent);
 
 router.get('/admin/loyalty/config', getAdminLoyaltyConfig);
 router.patch('/admin/loyalty/config', updateAdminLoyaltyConfig);

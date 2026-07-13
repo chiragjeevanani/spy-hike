@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Building2, Compass,
   Ticket, TicketPercent, BarChart3, Megaphone, Gift, Settings,
-  LogOut, Shield, ChevronLeft, Menu, Banknote
+  LogOut, Shield, ChevronLeft, Menu, Banknote, LayoutTemplate
 } from 'lucide-react';
 import { loadAllOrganizers } from '../utils/storage';
 import ConfirmDialog from '../../../components/ConfirmDialog';
@@ -37,6 +37,7 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
     { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'Broadcast', label: 'Broadcast', icon: Megaphone },
     { id: 'Loyalty', label: 'Loyalty', icon: Gift },
+    { id: 'Landing', label: 'Landing Page', icon: LayoutTemplate },
     { id: 'Settings', label: 'Settings', icon: Settings },
   ];
 

@@ -21,6 +21,7 @@ import CouponsView from './components/CouponsView';
 import AnalyticsView from './components/AnalyticsView';
 import BroadcastView from './components/BroadcastView';
 import LoyaltyProgramView from './components/LoyaltyProgramView';
+import LandingCmsView from './components/LandingCmsView';
 import SettingsView from './components/SettingsView';
 
 const PATH_PREFIX = '/admin';
@@ -39,6 +40,7 @@ function getAdminTab(pathname) {
   if (p === 'analytics') return 'Analytics';
   if (p === 'broadcast') return 'Broadcast';
   if (p === 'loyalty') return 'Loyalty';
+  if (p === 'landing') return 'Landing';
   if (p === 'settings') return 'Settings';
   if (p === 'login') return 'Login';
   return 'Dashboard';
@@ -66,6 +68,7 @@ function tabToPath(tab, param) {
   if (tab === 'Analytics') return `${PATH_PREFIX}/analytics`;
   if (tab === 'Broadcast') return `${PATH_PREFIX}/broadcast`;
   if (tab === 'Loyalty') return `${PATH_PREFIX}/loyalty`;
+  if (tab === 'Landing') return `${PATH_PREFIX}/landing`;
   if (tab === 'Settings') return `${PATH_PREFIX}/settings`;
   if (tab === 'Login') return `${PATH_PREFIX}/login`;
   return `${PATH_PREFIX}/dashboard`;
@@ -172,6 +175,8 @@ export default function AdminApp() {
         return <BroadcastView darkMode={darkMode} />;
       case 'Loyalty':
         return <LoyaltyProgramView darkMode={darkMode} />;
+      case 'Landing':
+        return <LandingCmsView darkMode={darkMode} />;
       case 'Settings':
         return <SettingsView admin={admin} darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode} />;
       default:
