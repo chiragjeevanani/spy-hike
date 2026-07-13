@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe, Instagram } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe, Instagram, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { saveOrgUser } from '../utils/storage';
 import authApi from '../../../lib/authApi';
+import usePhoneVerification from '../../../lib/usePhoneVerification';
 import TrekigoLogo from '../../../components/TrekigoLogo';
 
 export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
@@ -23,6 +24,8 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // registration multi-step: 1=personal, 2=agency, 3=verification
+  // Phone OTP verification — required in step 1 before advancing.
+  const phoneVerify = usePhoneVerification(formData.mobile);
 
   const totalSteps = 3;
 
@@ -35,6 +38,10 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     if (step < totalSteps) {
       if (step === 1 && (!formData.name || !formData.email || !formData.mobile || !formData.password)) {
         setError('Please fill in all required fields.');
+        return;
+      }
+      if (step === 1 && !phoneVerify.verified) {
+        setError('Please verify your mobile number with the OTP before continuing.');
         return;
       }
       if (step === 2 && !formData.agencyName) {
@@ -61,6 +68,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           email: formData.email,
           password: formData.password,
           mobile: formData.mobile,
+          phoneToken: phoneVerify.token,
           agencyName: formData.agencyName,
           agencyWebsite: formData.agencyWebsite,
           socialMediaLink: formData.socialMediaLink,
@@ -105,11 +113,49 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           </div>
         </div>
         <div>
-          <label className={labelCls}>Mobile Number *</label>
-          <div className="relative">
-            <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="tel" className={`${inputCls} pl-10`} placeholder="+91 XXXXX XXXXX" value={formData.mobile} onChange={e => handleChange('mobile', e.target.value)} />
+          <label className={`${labelCls} flex items-center gap-1`}>
+            Mobile Number *
+            {phoneVerify.verified && (
+              <span className="text-emerald-500 flex items-center gap-0.5 font-bold normal-case tracking-normal"><CheckCircle2 size={11} /> Verified</span>
+            )}
+          </label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input type="tel" className={`${inputCls} pl-10 disabled:opacity-70`} placeholder="+91 XXXXX XXXXX" value={formData.mobile} disabled={phoneVerify.verified} onChange={e => handleChange('mobile', e.target.value)} />
+            </div>
+            {!phoneVerify.sent && !phoneVerify.verified && (
+              <button
+                type="button"
+                onClick={() => phoneVerify.send()}
+                disabled={phoneVerify.busy}
+                className="shrink-0 px-3 rounded-xl text-[11px] font-bold border border-spy-orange/40 text-spy-orange hover:bg-spy-orange/10 disabled:opacity-60 transition-all"
+              >
+                {phoneVerify.busy ? '…' : 'Send OTP'}
+              </button>
+            )}
           </div>
+          {phoneVerify.sent && !phoneVerify.verified && (
+            <div className="flex gap-2 mt-2">
+              <div className="relative flex-1">
+                <ShieldCheck size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input type="text" inputMode="numeric" maxLength={6} className={`${inputCls} pl-10 tracking-[0.3em]`} placeholder="Enter OTP (123456)" value={phoneVerify.code} onChange={e => phoneVerify.setCode(e.target.value)} />
+              </div>
+              <button
+                type="button"
+                onClick={() => phoneVerify.verify()}
+                disabled={phoneVerify.busy}
+                className="shrink-0 px-4 rounded-xl text-[11px] font-bold bg-spy-orange hover:bg-[#d96d1a] text-white disabled:opacity-60 transition-all"
+              >
+                {phoneVerify.busy ? '…' : 'Verify'}
+              </button>
+            </div>
+          )}
+          {(phoneVerify.error || phoneVerify.info) && (
+            <p className={`text-[10px] font-semibold mt-1 ${phoneVerify.error ? 'text-red-500' : 'text-emerald-500'}`}>
+              {phoneVerify.error || phoneVerify.info}
+            </p>
+          )}
         </div>
         <div>
           <label className={labelCls}>Password *</label>

@@ -35,6 +35,36 @@ test.describe('Phase 1 — Customer auth', () => {
     expect(token).toBeTruthy();
   });
 
+  test('new customer must verify mobile via OTP before signing up', async ({ page }) => {
+    const email = `e2e-hiker-${Date.now()}@example.com`;
+    // Seed an onboarded-but-unauthenticated session so /app/register shows the
+    // registration form directly (same pattern as the organizer spec).
+    await page.addInitScript(() => {
+      localStorage.setItem('trekigo_user', JSON.stringify({ isOnboarded: true, isAuthenticated: false }));
+    });
+    await page.goto('/app/register');
+    await expect(page.getByText('Register Account')).toBeVisible({ timeout: 10000 });
+
+    await page.fill('input[placeholder="Chirag Jeevanani"]', 'E2E Hiker');
+    await page.fill('input[placeholder="+91 98765 43210"]', '9876543210');
+    await page.fill('input[placeholder="chiragjeevanani333@gmail.com"]', email);
+    await page.fill('input[placeholder="Minimum 6 characters"]', 'pass1234');
+
+    // Sign-up is blocked until the mobile is verified.
+    await expect(page.locator('#btn-register-submit')).toBeDisabled();
+
+    await page.click('#btn-reg-send-otp');
+    await page.fill('input[placeholder="Enter OTP (123456)"]', '123456');
+    await page.click('#btn-reg-verify-otp');
+    await expect(page.getByText('Verified', { exact: true })).toBeVisible({ timeout: 10000 });
+
+    await expect(page.locator('#btn-register-submit')).toBeEnabled();
+    await page.click('#btn-register-submit');
+
+    // Registration succeeded → JWT stored for the new account.
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('trekigo_auth_token'))).not.toBeNull();
+  });
+
   test('wrong credentials show an error and do not authenticate', async ({ page }) => {
     await page.goto('/app/login');
     await dismissOnboarding(page);
@@ -90,11 +120,15 @@ test.describe('Phase 1 — Organizer registration → pending approval', () => {
     await page.goto('/organizer/register');
     await expect(page.locator('input[placeholder="Your full name"]')).toBeVisible({ timeout: 10000 });
 
-    // Step 1 — personal info
+    // Step 1 — personal info + mobile OTP verification (required to continue)
     await page.fill('input[placeholder="Your full name"]', 'E2E Org Owner');
     await page.fill('input[placeholder="your@email.com"]', email);
-    await page.fill('input[placeholder="+91 XXXXX XXXXX"]', '+91 90000 12345');
+    await page.fill('input[placeholder="+91 XXXXX XXXXX"]', '9876543210');
     await page.fill('input[placeholder="Min 8 characters"]', 'pass1234');
+    await page.getByRole('button', { name: 'Send OTP' }).click();
+    await page.fill('input[placeholder="Enter OTP (123456)"]', '123456');
+    await page.getByRole('button', { name: 'Verify' }).click();
+    await expect(page.getByText('Verified', { exact: true })).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: /continue/i }).click();
 
     // Step 2 — agency details

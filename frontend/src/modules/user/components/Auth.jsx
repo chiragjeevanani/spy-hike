@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2 } from 'lucide-react';
+import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import authApi from '../../../lib/authApi';
+import usePhoneVerification from '../../../lib/usePhoneVerification';
 import SwitchTransition from './SwitchTransition';
 import TrekigoLogo from '../../../components/TrekigoLogo';
 
@@ -34,6 +35,9 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regAge, setRegAge] = useState(24);
+  // Phone OTP verification for the signup flow — the number must be confirmed
+  // before an account can be created.
+  const regPhoneVerify = usePhoneVerification(regPhone);
 
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -158,6 +162,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       setErrorMsg('Please specify all required fields.');
       return;
     }
+    if (!regPhoneVerify.verified) {
+      setErrorMsg('Please verify your mobile number with the OTP before signing up.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -166,6 +174,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         email: regEmail,
         password: regPassword,
         mobile: regPhone,
+        phoneToken: regPhoneVerify.token,
         age: regAge,
       });
       setSuccessMsg('Registration Success! Opening onboarding guide...');
@@ -517,22 +526,77 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               </div>
             </div>
 
-            {/* Mobile */}
+            {/* Mobile + OTP verification */}
             <div className="space-y-0.5">
-              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Mobile Number</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
-                <input
-                  type="tel"
-                  required
-                  placeholder="+91 98765 43210"
-                  value={regPhone}
-                  onChange={e => setRegPhone(e.target.value)}
-                  className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                />
+              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider flex items-center gap-1">
+                Mobile Number
+                {regPhoneVerify.verified && (
+                  <span className="text-emerald-500 flex items-center gap-0.5 font-bold normal-case tracking-normal">
+                    <CheckCircle2 size={11} /> Verified
+                  </span>
+                )}
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    value={regPhone}
+                    disabled={regPhoneVerify.verified}
+                    onChange={e => setRegPhone(e.target.value)}
+                    className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border disabled:opacity-70 ${
+                      darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                    }`}
+                  />
+                </div>
+                {!regPhoneVerify.sent && !regPhoneVerify.verified && (
+                  <button
+                    type="button"
+                    id="btn-reg-send-otp"
+                    onClick={() => regPhoneVerify.send()}
+                    disabled={regPhoneVerify.busy}
+                    className="shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold border border-forest-500/40 text-forest-600 dark:text-forest-400 hover:bg-forest-500/10 disabled:opacity-60 transition-all"
+                  >
+                    {regPhoneVerify.busy ? '…' : 'Send OTP'}
+                  </button>
+                )}
               </div>
+
+              {/* OTP code entry appears after the code is sent */}
+              {regPhoneVerify.sent && !regPhoneVerify.verified && (
+                <div className="flex gap-2 pt-1.5">
+                  <div className="relative flex-1">
+                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="Enter OTP (123456)"
+                      value={regPhoneVerify.code}
+                      onChange={e => regPhoneVerify.setCode(e.target.value)}
+                      className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border tracking-[0.3em] ${
+                        darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                      }`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-reg-verify-otp"
+                    onClick={() => regPhoneVerify.verify()}
+                    disabled={regPhoneVerify.busy}
+                    className="shrink-0 px-4 py-2 rounded-xl text-[11px] font-bold bg-forest-600 hover:bg-forest-700 text-white disabled:opacity-60 transition-all"
+                  >
+                    {regPhoneVerify.busy ? '…' : 'Verify'}
+                  </button>
+                </div>
+              )}
+              {(regPhoneVerify.error || regPhoneVerify.info) && (
+                <p className={`text-[10px] font-semibold pt-1 ${regPhoneVerify.error ? 'text-red-500' : 'text-emerald-500'}`}>
+                  {regPhoneVerify.error || regPhoneVerify.info}
+                </p>
+              )}
             </div>
 
             {/* Email */}
@@ -597,10 +661,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             <button
               type="submit"
               id="btn-register-submit"
-              disabled={submitting}
+              disabled={submitting || !regPhoneVerify.verified}
               className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg mt-1 cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {submitting ? 'Creating Account…' : 'Complete Safe SignUp'}
+              {submitting ? 'Creating Account…' : regPhoneVerify.verified ? 'Complete Safe SignUp' : 'Verify Mobile to Continue'}
             </button>
           </form>
         )}

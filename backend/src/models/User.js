@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String }, // absent for OTP/Google-only accounts
     mobile: { type: String, trim: true, default: '' },
+    mobileVerified: { type: Boolean, default: false }, // phone confirmed via OTP
     age: { type: Number, default: 24 },
     gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Male' },
     avatar: { type: String, default: '' },
@@ -40,6 +41,7 @@ userSchema.methods.toPublicJSON = function toPublicJSON({ isOrganizer = false } 
     name: this.name,
     email: this.email,
     mobile: this.mobile,
+    mobileVerified: this.mobileVerified,
     age: this.age,
     gender: this.gender,
     avatar: this.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.name)}&background=2D5A27&color=fff`,

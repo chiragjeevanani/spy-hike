@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import Organizer from '../models/Organizer.js';
 import Admin from '../models/Admin.js';
 import { hashPassword, comparePassword } from '../utils/password.js';
-import { signToken } from '../utils/jwt.js';
+import { signToken, signPhoneToken, verifyPhoneToken } from '../utils/jwt.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { otpProvider } from '../integrations/otp.js';
@@ -21,10 +21,19 @@ async function hasOrganizerAccount(email) {
   return !!(await Organizer.exists({ email: email.toLowerCase() }));
 }
 
+// True when a phone-verification token proves the given mobile passed OTP.
+// Registration stays backward-compatible: without a token the account is simply
+// created unverified (mobileVerified:false).
+function isPhoneVerified(mobile, phoneToken) {
+  if (!phoneToken || !mobile) return false;
+  const verifiedMobile = verifyPhoneToken(phoneToken);
+  return !!verifiedMobile && verifiedMobile === mobile;
+}
+
 // ─── Customer ────────────────────────────────────────────────────────────────
 
 export const registerCustomer = asyncHandler(async (req, res) => {
-  const { name, email, password, mobile, age, gender } = req.body;
+  const { name, email, password, mobile, age, gender, phoneToken } = req.body;
   if (!name || !email || !password) {
     throw ApiError.badRequest('name, email and password are required');
   }
@@ -34,6 +43,7 @@ export const registerCustomer = asyncHandler(async (req, res) => {
     email,
     passwordHash,
     mobile,
+    mobileVerified: isPhoneVerified(mobile, phoneToken),
     age,
     gender,
     authProvider: 'password',
@@ -56,6 +66,18 @@ export const requestOtp = asyncHandler(async (req, res) => {
   if (!mobile) throw ApiError.badRequest('mobile is required');
   const result = await otpProvider.sendOtp(mobile);
   res.json({ ok: true, ...result });
+});
+
+// POST /auth/phone/verify { mobile, code } — confirm a phone number during
+// signup. Returns a short-lived phoneToken the register call passes back to
+// prove the number was verified. Unlike /auth/otp/verify this neither creates
+// nor logs in an account; it only vouches for the mobile.
+export const verifyPhone = asyncHandler(async (req, res) => {
+  const { mobile, code } = req.body;
+  if (!mobile) throw ApiError.badRequest('mobile is required');
+  const ok = await otpProvider.verifyOtp(mobile, code);
+  if (!ok) throw ApiError.unauthorized('Incorrect OTP');
+  res.json({ ok: true, mobile, phoneToken: signPhoneToken(mobile) });
 });
 
 export const verifyOtp = asyncHandler(async (req, res) => {
@@ -99,7 +121,7 @@ export const googleAuth = asyncHandler(async (req, res) => {
 export const registerOrganizer = asyncHandler(async (req, res) => {
   const {
     name, email, password, mobile, agencyName, agencyWebsite, socialMediaLink,
-    govtIdType, govtIdNumber, yearsExperience, bio,
+    govtIdType, govtIdNumber, yearsExperience, bio, phoneToken,
   } = req.body;
   if (!name || !email || !password || !agencyName) {
     throw ApiError.badRequest('name, email, password and agencyName are required');
@@ -109,6 +131,7 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
   const organizer = await Organizer.create({
     name, email, passwordHash, mobile, agencyName, agencyWebsite, socialMediaLink,
     govtIdType, govtIdNumber, yearsExperience, bio,
+    mobileVerified: isPhoneVerified(mobile, phoneToken),
     isApproved: false,
     isPendingApproval: true,
   });

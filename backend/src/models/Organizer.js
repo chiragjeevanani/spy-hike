@@ -22,6 +22,7 @@ const organizerSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     mobile: { type: String, trim: true, default: '' },
+    mobileVerified: { type: Boolean, default: false }, // phone confirmed via OTP
     agencyName: { type: String, default: '' },
     agencyWebsite: { type: String, default: '' },
     socialMediaLink: { type: String, default: '' },
@@ -58,6 +59,7 @@ organizerSchema.methods.toPublicJSON = function toPublicJSON() {
     name: this.name,
     email: this.email,
     mobile: this.mobile,
+    mobileVerified: this.mobileVerified,
     agencyName: this.agencyName,
     agencyWebsite: this.agencyWebsite,
     socialMediaLink: this.socialMediaLink,

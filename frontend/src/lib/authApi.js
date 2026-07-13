@@ -24,6 +24,10 @@ export const authApi = {
   requestOtp: (mobile) => api.post('/auth/otp/request', { mobile }, { auth: false }),
   verifyOtp: (mobile, code, name) =>
     api.post('/auth/otp/verify', { mobile, code, name }, { auth: false }).then(accept),
+  // Signup phone verification: confirms the number and returns a short-lived
+  // phoneToken to pass to register (does not create/log in an account).
+  verifyPhone: (mobile, code) =>
+    api.post('/auth/phone/verify', { mobile, code }, { auth: false }),
   googleAuth: (token) => api.post('/auth/google', { token }, { auth: false }).then(accept),
 
   // ─── Organizer ───
