@@ -16,6 +16,7 @@ import bookingsApi from '../../lib/bookingsApi';
 import loyaltyApi from '../../lib/loyaltyApi';
 import socialApi from '../../lib/socialApi';
 import { getToken } from '../../lib/apiClient';
+import { initPushNotifications } from '../../utils/pushNotifications';
 import { useToast } from '../../components/ToastProvider';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -154,6 +155,11 @@ export default function OrgApp() {
       window.location.href = SHARED_LOGIN_PATH;
     }
   }, [organizer.isOnboarded, organizer.isAuthenticated, activeTab]);
+
+  // Opt into web push once signed in — no-ops silently if unsupported/denied.
+  useEffect(() => {
+    if (organizer.isAuthenticated) initPushNotifications();
+  }, [organizer.isAuthenticated]);
 
   const navigateTo = useCallback((tab, replace = false, tripId = null) => {
     const path = tabToPath(tab, tripId);

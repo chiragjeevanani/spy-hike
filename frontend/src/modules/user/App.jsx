@@ -38,6 +38,7 @@ import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
 import { loadLandingContentLocal } from '../landing/landingContent';
 import { getToken } from '../../lib/apiClient';
+import { initPushNotifications } from '../../utils/pushNotifications';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -448,6 +449,11 @@ export default function App() {
   useEffect(() => {
     saveUserState(user);
   }, [user]);
+
+  // Opt into web push once signed in — no-ops silently if unsupported/denied.
+  useEffect(() => {
+    if (user.isAuthenticated) initPushNotifications();
+  }, [user.isAuthenticated]);
 
   useEffect(() => {
     saveWishlist(wishlist);

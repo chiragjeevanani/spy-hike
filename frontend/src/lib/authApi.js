@@ -39,6 +39,7 @@ export const authApi = {
   updateProfileVerify: (payload) => api.post('/auth/profile/update-verify', payload).then(accept),
   changePassword: (currentPassword, newPassword) => api.patch('/auth/password/change', { currentPassword, newPassword }),
   resetPasswordOtp: (payload) => api.post('/auth/password/reset-otp', payload),
+  updateFcmToken: (fcmToken) => api.post('/auth/fcm-token', { fcmToken }),
 
   // ─── Organizer ───
   registerOrganizer: (payload) =>
