@@ -24,6 +24,7 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const FCM_TOKEN_STORAGE_KEY = 'trekigo_fcm_token';
 
 let initPromise = null;
 
@@ -51,5 +52,8 @@ async function run() {
   const app = initializeApp(firebaseConfig);
   const messaging = getMessaging(app);
   const fcmToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
-  if (fcmToken) await authApi.updateFcmToken(fcmToken);
+  if (fcmToken) {
+    localStorage.setItem(FCM_TOKEN_STORAGE_KEY, fcmToken);
+    await authApi.updateFcmToken(fcmToken);
+  }
 }
