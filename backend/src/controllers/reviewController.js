@@ -40,6 +40,9 @@ export const createReview = asyncHandler(async (req, res) => {
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
     throw ApiError.badRequest('rating must be between 1 and 5');
   }
+  if (!req.body.comment?.trim()) {
+    throw ApiError.badRequest('A review comment is required');
+  }
 
   const user = await User.findById(req.user.sub);
   const review = await Review.create({
@@ -49,7 +52,7 @@ export const createReview = asyncHandler(async (req, res) => {
     userName: user?.name || booking.userName || 'Traveller',
     userAvatar: user?.avatar || '',
     rating,
-    comment: req.body.comment || '',
+    comment: req.body.comment.trim(),
     date: todayStr(),
   });
 

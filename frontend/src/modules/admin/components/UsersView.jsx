@@ -1,34 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Ban, CheckCircle, Eye, Download, Trash2, UserPlus } from 'lucide-react';
 import { loadAllUsers, saveUserStatus, deleteUser } from '../utils/storage';
+import adminApi from '../../../lib/adminApi';
+import { getToken } from '../../../lib/apiClient';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
 
 export default function UsersView({ onOpenProfile, darkMode }) {
   const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState('All');
   const [expFilter, setExpFilter] = useState('All');
-  const [statusAction, setStatusAction] = useState(null); // { email, name, nextStatus }
-  const [deleteTarget, setDeleteTarget] = useState(null); // { email, name }
+  const [statusAction, setStatusAction] = useState(null); // { id, email, name, nextStatus }
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, email, name }
+  const toast = useToast();
 
-  useEffect(() => {
-    setUsers(loadAllUsers());
-  }, []);
-
-  const handleConfirmStatusChange = () => {
-    saveUserStatus(statusAction.email, statusAction.nextStatus);
-    setUsers(loadAllUsers());
-    setStatusAction(null);
+  const refresh = () => {
+    setLoading(true);
+    if (getToken()) {
+      adminApi.listUsers()
+        .then((list) => setUsers(Array.isArray(list) ? list : loadAllUsers()))
+        .catch(() => setUsers(loadAllUsers()))
+        .finally(() => setLoading(false));
+    } else {
+      setUsers(loadAllUsers());
+      setLoading(false);
+    }
   };
 
-  const handleConfirmDelete = () => {
-    deleteUser(deleteTarget.email);
-    setUsers(loadAllUsers());
+  useEffect(() => { refresh(); }, []);
+
+  const handleConfirmStatusChange = async () => {
+    if (getToken() && statusAction.id) {
+      try { await adminApi.setUserStatus(statusAction.id, statusAction.nextStatus); toast.success('Hiker status updated.'); }
+      catch (err) { toast.error(err?.message || 'Could not update status.'); }
+    } else {
+      saveUserStatus(statusAction.email, statusAction.nextStatus);
+    }
+    setStatusAction(null);
+    refresh();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (getToken() && deleteTarget.id) {
+      try { await adminApi.deleteUser(deleteTarget.id); toast.success('Hiker account deleted.'); }
+      catch (err) { toast.error(err?.message || 'Could not delete hiker.'); }
+    } else {
+      deleteUser(deleteTarget.email);
+    }
     setDeleteTarget(null);
+    refresh();
   };
 
   const handleExport = () => {
-    alert('Exporting users list as CSV... (Simulated download complete)');
+    toast.success('Exporting users list as CSV... (Simulated download complete)');
   };
 
   const filteredUsers = users.filter(u => {
@@ -143,7 +169,36 @@ export default function UsersView({ onOpenProfile, darkMode }) {
             <tbody className={`divide-y text-xs font-semibold ${
               darkMode ? 'divide-slate-850' : 'divide-slate-100'
             }`}>
-              {filteredUsers.length === 0 ? (
+              {loading ? (
+                [1, 2, 3].map((n) => (
+                  <tr key={n} className="animate-pulse-subtle">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full skeleton-loader shrink-0" />
+                        <div className="flex flex-col gap-1.5 w-24">
+                          <div className="h-3 rounded-md skeleton-loader w-full" />
+                          <div className="h-2 rounded-md skeleton-loader w-2/3" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex flex-col gap-1.5 w-20">
+                        <div className="h-3 rounded-md skeleton-loader w-full" />
+                        <div className="h-2 rounded-md skeleton-loader w-2/3" />
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="h-4 rounded-full skeleton-loader w-14" />
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="h-4 rounded-full skeleton-loader w-12" />
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <div className="h-8 rounded-lg skeleton-loader w-16 ml-auto" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="text-center py-10 text-slate-400">
                     No users matching criteria found.
@@ -201,14 +256,14 @@ export default function UsersView({ onOpenProfile, darkMode }) {
                     {/* Actions */}
                     <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
                       <button
-                        onClick={() => onOpenProfile(user.email)}
+                        onClick={() => onOpenProfile(/^[0-9a-f]{24}$/i.test(user.id) ? user.id : user.email)}
                         className={`p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-all`}
                         title="View Profile Details"
                       >
                         <Eye size={14} />
                       </button>
                       <button
-                        onClick={() => setStatusAction({ email: user.email, name: user.name, nextStatus: user.status === 'Banned' ? 'Active' : 'Banned' })}
+                        onClick={() => setStatusAction({ id: user.id, email: user.email, name: user.name, nextStatus: user.status === 'Banned' ? 'Active' : 'Banned' })}
                         className={`p-1.5 rounded-lg border transition-all ${
                           user.status === 'Active'
                             ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
@@ -219,7 +274,7 @@ export default function UsersView({ onOpenProfile, darkMode }) {
                         {user.status === 'Active' ? <Ban size={14} /> : <CheckCircle size={14} />}
                       </button>
                       <button
-                        onClick={() => setDeleteTarget({ email: user.email, name: user.name })}
+                        onClick={() => setDeleteTarget({ id: user.id, email: user.email, name: user.name })}
                         className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
                         title="Delete Hiker"
                       >

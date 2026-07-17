@@ -50,7 +50,7 @@ export function downloadPayoutReceiptPDF(payout) {
   const statusColor = payout.status === 'Paid' ? GREEN : payout.status === 'Rejected' ? RED : AMBER;
 
   // Header
-  text(M, 52, 'TREKIGO', { font: 'F2', size: 18, color: BROWN });
+  text(M, 52, 'FINDYOURTREK', { font: 'F2', size: 18, color: BROWN });
   text(M + 92, 52, 'ORGANIZER PAYOUT RECEIPT', { font: 'F3', size: 9, color: MUTED });
   text(M, 66, `Generated on ${new Date().toISOString().split('T')[0]}`, { size: 8, color: MUTED });
 
@@ -115,9 +115,9 @@ export function downloadPayoutReceiptPDF(payout) {
 
   // Footer
   y += 40;
-  text(M, y, 'This is a system-generated payout receipt from the Trekigo platform.', { size: 8, color: MUTED });
+  text(M, y, 'This is a system-generated payout receipt from the Find Your Trek platform.', { size: 8, color: MUTED });
   y += 12;
-  text(M, y, 'For settlement queries, contact partners@trekigo.com quoting the reference above.', { size: 8, color: MUTED });
+  text(M, y, 'For settlement queries, contact partners@findyourtrek.com quoting the reference above.', { size: 8, color: MUTED });
 
   // Assemble
   const stream = ops.join('\n');
@@ -142,7 +142,7 @@ export function downloadPayoutReceiptPDF(payout) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Trekigo-Payout-${payout.reference || payout.id}.pdf`;
+  a.download = `Find Your Trek-Payout-${payout.reference || payout.id}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();

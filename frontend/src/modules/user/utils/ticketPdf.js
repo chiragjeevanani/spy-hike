@@ -21,7 +21,7 @@ const clean = (value) =>
     .replace(/\)/g, '\\)');
 
 // Same seed logic as the on-screen TravelTicket barcode.
-const barcodePattern = (seed = 'TREKIGO') => {
+const barcodePattern = (seed = 'FINDYOURTREK') => {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = ((h * 31 + seed.charCodeAt(i)) & 0x7fffffff) >>> 0;
   const bars = [];
@@ -69,7 +69,7 @@ export function downloadTicketPDF(booking) {
   const stubX = M + TICKET_W - 130;
 
   // ---------- Page header ----------
-  text(M, 52, 'TREKIGO', { font: 'F2', size: 18, color: BROWN });
+  text(M, 52, 'FINDYOURTREK', { font: 'F2', size: 18, color: BROWN });
   text(M + 92, 52, 'TREK BOARDING PASS', { font: 'F3', size: 9, color: MUTED });
   text(M, 66, `Generated on ${new Date().toISOString().split('T')[0]}`, { size: 8, color: MUTED });
 
@@ -80,7 +80,7 @@ export function downloadTicketPDF(booking) {
   rect(M, T, TICKET_W, TH, CARD);
   // Header band
   rect(M, T, TICKET_W, 30, BROWN);
-  text(M + 14, T + 20, 'TREKIGO  //  TREK BOARDING PASS', { font: 'F2', size: 10, color: [1, 1, 1] });
+  text(M + 14, T + 20, 'FINDYOURTREK  //  TREK BOARDING PASS', { font: 'F2', size: 10, color: [1, 1, 1] });
   text(stubX + 14, T + 20, 'TREK PASS', { font: 'F3', size: 8, color: [1, 1, 1] });
   // Stub perforation
   dashedLine(stubX, T + 30, stubX, T + TH);
@@ -212,7 +212,7 @@ export function downloadTicketPDF(booking) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Trekigo-Ticket-${booking.bookingId || booking.id}.pdf`;
+  a.download = `Find Your Trek-Ticket-${booking.bookingId || booking.id}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();

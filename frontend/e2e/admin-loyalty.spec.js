@@ -9,7 +9,7 @@ test.use({ viewport: { width: 1280, height: 900 } });
 // what other specs did to it.
 test.beforeEach(async () => {
   const ctx = await pwRequest.newContext();
-  const token = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@trekigo.com', password: 'admin123' } })).json()).token;
+  const token = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@findyourtrek.com', password: 'admin123' } })).json()).token;
   await ctx.patch(`${API}/admin/loyalty/config`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
@@ -22,7 +22,7 @@ test.beforeEach(async () => {
 
 async function loginAsAdmin(page) {
   await page.goto('/admin/login');
-  await page.fill('input[type="email"]', 'admin@trekigo.com');
+  await page.fill('input[type="email"]', 'admin@findyourtrek.com');
   await page.fill('input[type="password"]', 'admin123');
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(/\/admin\/dashboard/);

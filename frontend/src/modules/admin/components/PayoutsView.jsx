@@ -6,6 +6,7 @@ import {
 import bookingsApi from '../../../lib/bookingsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { downloadPayoutReceiptPDF } from '../utils/payoutReceiptPdf';
+import { useToast } from '../../../components/ToastProvider';
 
 const inr = (n) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -26,6 +27,7 @@ export default function PayoutsView({ darkMode }) {
   const [rejectReason, setRejectReason] = useState('');
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   const refresh = () => {
     const params = {};
@@ -46,7 +48,8 @@ export default function PayoutsView({ darkMode }) {
       await bookingsApi.adminSettlePayout(approveTarget.id, 'approve');
       setApproveTarget(null);
       await refresh();
-    } catch (err) { alert(err?.message || 'Could not approve payout.'); }
+      toast.success('Payout approved and settled!');
+    } catch (err) { toast.error(err?.message || 'Could not approve payout.'); }
     finally { setBusy(false); }
   };
 
@@ -57,7 +60,8 @@ export default function PayoutsView({ darkMode }) {
       setRejectTarget(null);
       setRejectReason('');
       await refresh();
-    } catch (err) { alert(err?.message || 'Could not reject payout.'); }
+      toast.success('Payout rejected.');
+    } catch (err) { toast.error(err?.message || 'Could not reject payout.'); }
     finally { setBusy(false); }
   };
 
@@ -73,7 +77,7 @@ export default function PayoutsView({ darkMode }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Trekigo-Payouts-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `Find Your Trek-Payouts-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };

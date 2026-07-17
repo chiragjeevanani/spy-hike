@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, AlertCircle, LifeBuoy, Send, CheckCircle2, Clock
 } from 'lucide-react';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
 
 const TICKETS_KEY = 'trekigo_org_support_tickets';
 
@@ -23,7 +25,7 @@ const FAQS = [
   },
   {
     q: 'How is the platform commission calculated?',
-    a: 'Commission is a flat percentage (set by Trekigo, visible on every booking\'s payout breakdown) deducted from the gross booking amount. Zero-commission loyalty rewards can offset this on individual bookings.',
+    a: 'Commission is a flat percentage (set by Find Your Trek, visible on every booking\'s payout breakdown) deducted from the gross booking amount. Zero-commission loyalty rewards can offset this on individual bookings.',
   },
   {
     q: 'Can I edit a trip after it has active bookings?',
@@ -45,10 +47,20 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
   const [message, setMessage] = useState('');
   const [tickets, setTickets] = useState(loadTickets);
   const [openFaq, setOpenFaq] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const toast = useToast();
+  const fieldRefs = useRef({});
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      const errors = { title: 'Subject is required.' };
+      setFieldErrors(errors);
+      toast.error(errors.title);
+      scrollToFirstError(fieldRefs.current, errors, ['title']);
+      return;
+    }
+    setFieldErrors({});
     const newTicket = {
       id: `OTKT-${Math.floor(100 + Math.random() * 900)}`,
       title: title.trim(),
@@ -61,6 +73,7 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
     localStorage.setItem(TICKETS_KEY, JSON.stringify(updated));
     setTitle('');
     setMessage('');
+    toast.success('Support ticket submitted! Our team will respond within 24 hours.');
   };
 
   const cardCls = darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm';
@@ -86,7 +99,7 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
 
         {/* Quick contact */}
         <div className="grid grid-cols-3 gap-2.5">
-          <a href="mailto:partners@trekigo.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
+          <a href="mailto:partners@findyourtrek.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
             <Mail size={18} className="text-spy-orange" />
             <span className="text-[10px] font-semibold">Email</span>
           </a>
@@ -96,7 +109,7 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
           </a>
           <button
             type="button"
-            onClick={() => alert('Connecting you to WhatsApp Partner Support...')}
+            onClick={() => toast.success('Connecting you to WhatsApp Partner Support...')}
             className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}
           >
             <MessageCircle size={18} className="text-spy-orange" />
@@ -105,7 +118,7 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
         </div>
 
         {/* Raise a ticket */}
-        <form onSubmit={handleSubmit} className={`p-4 rounded-2xl space-y-3.5 ${cardCls}`}>
+        <form onSubmit={handleSubmit} noValidate className={`p-4 rounded-2xl space-y-3.5 ${cardCls}`}>
           <h4 className="text-sm font-bold flex items-center gap-1.5">
             <LifeBuoy size={15} className="text-spy-orange" /> Raise a Support Ticket
           </h4>
@@ -122,15 +135,16 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
           </div>
 
           <div>
-            <label className={labelCls}>Subject</label>
+            <label className={labelCls}>Subject *</label>
             <input
+              ref={el => { fieldRefs.current.title = { current: el }; }}
               type="text"
-              required
               placeholder="e.g. Payout missing for TG-8821-K"
               value={title}
-              onChange={e => setTitle(e.target.value)}
-              className={inputCls}
+              onChange={e => { setTitle(e.target.value); setFieldErrors(er => ({ ...er, title: '' })); }}
+              className={`${inputCls} ${fieldErrors.title ? 'border-red-500 focus:border-red-500' : ''}`}
             />
+            {fieldErrors.title && <p className="text-[11px] font-semibold text-red-500 mt-1">{fieldErrors.title}</p>}
           </div>
 
           <div>

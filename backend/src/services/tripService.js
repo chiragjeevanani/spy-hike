@@ -1,13 +1,16 @@
 import { ApiError } from '../utils/ApiError.js';
 
 // Validates an organizer-submitted trip payload against the same rules the
-// frontend TripFormView enforces before publish: name + location, at least one
-// priced tier, a pickup point, a start-point pin, and at least one departure.
+// frontend TripFormView enforces before publish: a selected trek, at least
+// one priced tier, a pickup point, a start-point pin, and at least one
+// departure. Trek identity fields (name/location/difficulty/etc.) are no
+// longer typed by the organizer — they're inherited from the selected Trek,
+// so only trekId presence is checked here (existence is checked where the
+// Trek is actually looked up, in tripController's buildTripFields).
 export function validateTripPayload(body) {
   const errors = {};
 
-  if (!body.name || !body.name.trim()) errors.name = 'Trip name is required';
-  if (!body.location || !body.location.trim()) errors.location = 'Location is required';
+  if (!body.trekId || !String(body.trekId).trim()) errors.trekId = 'Select a trek';
 
   const tiers = Array.isArray(body.pricingTiers) ? body.pricingTiers : [];
   const validTiers = tiers.filter(
@@ -36,29 +39,4 @@ export function validateTripPayload(body) {
   if (Object.keys(errors).length > 0) {
     throw ApiError.badRequest('Trip validation failed', errors);
   }
-}
-
-// Collapses multiple organizer offerings of the same trek (same trekId) into a
-// single browsable entry — the server-side equivalent of the frontend's
-// groupTripsByTrekName. The highest-rated offering is the representative.
-export function groupTripsByTrek(trips) {
-  const groups = new Map();
-  for (const trip of trips) {
-    if (!groups.has(trip.trekId)) groups.set(trip.trekId, []);
-    groups.get(trip.trekId).push(trip);
-  }
-
-  return Array.from(groups.entries()).map(([trekId, offers]) => {
-    const representative = [...offers].sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
-    const prices = offers.map((o) => o.price).filter((p) => Number.isFinite(p));
-    return {
-      trekId,
-      trekName: representative.name,
-      representative: representative.toPublicJSON ? representative.toPublicJSON() : representative,
-      offers: offers.map((o) => (o.toPublicJSON ? o.toPublicJSON() : o)),
-      organizerCount: offers.length,
-      minPrice: prices.length ? Math.min(...prices) : null,
-      maxPrice: prices.length ? Math.max(...prices) : null,
-    };
-  });
 }

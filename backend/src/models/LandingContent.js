@@ -27,7 +27,7 @@ const landingContentSchema = new mongoose.Schema(
     _id: { type: String, default: 'landing' },
 
     header: {
-      logoText: { type: String, default: 'Trekigo' },
+      logoText: { type: String, default: 'Find Your Trek' },
       ctaLabel: { type: String, default: 'Launch App' },
       navLinks: {
         type: [linkSchema],
@@ -48,7 +48,7 @@ const landingContentSchema = new mongoose.Schema(
       subtitle: {
         type: String,
         default:
-          'Trekigo connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.',
+          'Find Your Trek connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.',
       },
       primaryCta: { type: String, default: 'Launch Hiker App' },
       secondaryCta: { type: String, default: 'Organizer Panel' },
@@ -89,7 +89,7 @@ const landingContentSchema = new mongoose.Schema(
 
     portals: {
       visible: { type: Boolean, default: true },
-      heading: { type: String, default: 'Trekigo Portal Ecosystem' },
+      heading: { type: String, default: 'Find Your Trek Portal Ecosystem' },
       subheading: {
         type: String,
         default: 'Our application features separate sandboxes representing key roles in the adventure marketplace. Try out each layout.',
@@ -112,7 +112,7 @@ const landingContentSchema = new mongoose.Schema(
         type: [testimonialSchema],
         default: () => [
           { name: 'Chirag Jeevanani', role: 'Intermediate Trekker', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', comment: 'The AI recommendation matched me perfectly with the Western Ghats Monsoon Trail. Using the 3-step checkout was incredibly seamless, and the ticket QR code was instantly generated!', rating: 5, trek: 'Western Ghats Monsoon Trail' },
-          { name: 'Priya Patel', role: 'Advanced Mountaineer', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', comment: 'Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Trekigo provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.', rating: 5, trek: 'Himalayan Ridge Pass Trek' },
+          { name: 'Priya Patel', role: 'Advanced Mountaineer', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', comment: 'Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Find Your Trek provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.', rating: 5, trek: 'Himalayan Ridge Pass Trek' },
           { name: 'Aarav Sharma', role: 'Weekend Explorer', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', comment: 'I loved the Jaisalmer Desert Camp. Being able to chat directly with Desert Nomad Adventures beforehand to verify standard gear rentals was very reassuring. No hassle whatsoever.', rating: 4, trek: 'Stargazing Desert Camp & Trek' },
         ],
       },
@@ -125,9 +125,9 @@ const landingContentSchema = new mongoose.Schema(
       items: {
         type: [faqSchema],
         default: () => [
-          { q: 'What makes Trekigo different from other booking systems?', a: 'Trekigo is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists.' },
+          { q: 'What makes Find Your Trek different from other booking systems?', a: 'Find Your Trek is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists.' },
           { q: 'Is the payment gateway secure?', a: 'Yes! For demonstration purposes, we integrate a simulated Razorpay payment flow which matches the exact steps of a real bank transaction without using real funds.' },
-          { q: 'How does the AI Recommendation Engine work?', a: 'By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Trekigo automatically matches you with hikes that align with your safety limits.' },
+          { q: 'How does the AI Recommendation Engine work?', a: 'By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Find Your Trek automatically matches you with hikes that align with your safety limits.' },
         ],
       },
     },
@@ -142,7 +142,7 @@ const landingContentSchema = new mongoose.Schema(
           { label: 'Reviews', href: '#testimonials' },
         ],
       },
-      copyright: { type: String, default: '© 2026 Trekigo. Built with React 19, Tailwind v4 & Motion v12.' },
+      copyright: { type: String, default: '© 2026 Find Your Trek. Built with React 19, Tailwind v4 & Motion v12.' },
       subtext: { type: String, default: 'All coordinates, safety logs, and agencies are simulated for demo compliance.' },
     },
   },

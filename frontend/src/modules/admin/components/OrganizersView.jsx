@@ -1,29 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Eye, Star, Globe, Trash2, UserPlus } from 'lucide-react';
 import { loadAllOrganizers, saveOrganizerStatus, deleteOrganizerAccount } from '../utils/storage';
+import adminApi from '../../../lib/adminApi';
+import { getToken } from '../../../lib/apiClient';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
 
 export default function OrganizersView({ onOpenProfile, darkMode }) {
   const [organizers, setOrganizers] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState('Pending'); // 'Pending' or 'All'
-  const [approvalAction, setApprovalAction] = useState(null); // { email, name, approve, reject }
-  const [deleteTarget, setDeleteTarget] = useState(null); // { email, name }
+  const [approvalAction, setApprovalAction] = useState(null); // { id, email, name, approve, reject, currentlyApproved }
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, email, name }
+  const toast = useToast();
 
-  useEffect(() => {
-    setOrganizers(loadAllOrganizers());
-  }, []);
-
-  const handleConfirmApproval = () => {
-    const { email, approve, reject } = approvalAction;
-    saveOrganizerStatus(email, approve, reject);
-    setOrganizers(loadAllOrganizers());
-    setApprovalAction(null);
+  // Real registered organizers when the admin is signed in; localStorage seed
+  // roster otherwise (offline / no backend).
+  const refresh = () => {
+    if (getToken()) {
+      adminApi.listOrganizers()
+        .then((list) => setOrganizers(Array.isArray(list) ? list : loadAllOrganizers()))
+        .catch(() => setOrganizers(loadAllOrganizers()));
+    } else {
+      setOrganizers(loadAllOrganizers());
+    }
   };
 
-  const handleConfirmDelete = () => {
-    deleteOrganizerAccount(deleteTarget.email);
-    setOrganizers(loadAllOrganizers());
+  useEffect(() => { refresh(); }, []);
+
+  const handleConfirmApproval = async () => {
+    const { id, email, approve, reject, currentlyApproved } = approvalAction;
+    const action = approve ? 'approve' : reject ? 'reject' : currentlyApproved ? 'suspend' : 'approve';
+    if (getToken() && id) {
+      try { await adminApi.setOrganizerStatus(id, action); toast.success('Organizer status updated.'); }
+      catch (err) { toast.error(err?.message || 'Could not update organizer.'); }
+    } else {
+      saveOrganizerStatus(email, action === 'approve', action === 'reject');
+    }
+    setApprovalAction(null);
+    refresh();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (getToken() && deleteTarget.id) {
+      try { await adminApi.deleteOrganizer(deleteTarget.id); toast.success('Organizer deleted.'); }
+      catch (err) { toast.error(err?.message || 'Could not delete organizer.'); }
+    } else {
+      deleteOrganizerAccount(deleteTarget.email);
+    }
     setDeleteTarget(null);
+    refresh();
   };
 
   const pendingList = organizers.filter(o => o.isPendingApproval && !o.isApproved);
@@ -159,11 +184,11 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-500"
                   >
                     <Eye size={13} />
-                    <span>View Profile</span>
+                    <span>View Application</span>
                   </button>
 
                   <button
-                    onClick={() => setApprovalAction({ email: org.email, name: org.agencyName, approve: false, reject: true })}
+                    onClick={() => setApprovalAction({ id: org.id, email: org.email, name: org.agencyName, approve: false, reject: true })}
                     className="flex items-center justify-center p-2 rounded-xl border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
                     title="Reject Application"
                   >
@@ -171,7 +196,7 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
                   </button>
 
                   <button
-                    onClick={() => setApprovalAction({ email: org.email, name: org.agencyName, approve: true, reject: false })}
+                    onClick={() => setApprovalAction({ id: org.id, email: org.email, name: org.agencyName, approve: true, reject: false })}
                     className="flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/10 transition-all active:scale-95"
                   >
                     <Check size={14} className="mr-1" />
@@ -264,7 +289,7 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
                       </button>
 
                       <button
-                        onClick={() => setApprovalAction({ email: org.email, name: org.agencyName, approve: false, reject: false, currentlyApproved: org.isApproved })}
+                        onClick={() => setApprovalAction({ id: org.id, email: org.email, name: org.agencyName, approve: false, reject: false, currentlyApproved: org.isApproved })}
                         className={`p-1.5 rounded-lg border text-xs font-bold transition-all ${
                           org.isApproved
                             ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
@@ -276,7 +301,7 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
                       </button>
 
                       <button
-                        onClick={() => setDeleteTarget({ email: org.email, name: org.agencyName })}
+                        onClick={() => setDeleteTarget({ id: org.id, email: org.email, name: org.agencyName })}
                         className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
                         title="Delete Organizer"
                       >

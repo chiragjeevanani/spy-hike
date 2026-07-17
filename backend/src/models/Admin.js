@@ -6,7 +6,19 @@ import mongoose from 'mongoose';
 const adminSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, default: 'System Administrator' },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      validate: {
+        validator: function(v) {
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+        },
+        message: props => `${props.value} is not a valid email address!`
+      }
+    },
     passwordHash: { type: String, required: true },
     avatar: {
       type: String,

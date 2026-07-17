@@ -26,22 +26,41 @@ export function computeDiscount(coupon, bookingAmount) {
   return Math.round(Math.min(discountAmount, bookingAmount) * 100) / 100;
 }
 
-// Case-insensitive lookup + full eligibility check. Returns the same
-// { ok, coupon, discountAmount, message } envelope the frontend expects.
-export async function validateCoupon(code, bookingAmount = 0) {
+// Case-insensitive lookup + full eligibility check. When `trip` is given, an
+// organizer coupon scoped to that trip's organizer takes priority over a
+// same-named platform coupon (more specific match wins); trip membership is
+// also enforced for organizer coupons scoped to selected trips.
+// Returns the same { ok, coupon, discountAmount, message } envelope the
+// frontend expects.
+export async function validateCoupon(code, bookingAmount = 0, trip = null) {
   const formatted = (code || '').trim().toUpperCase();
   if (!formatted) return { ok: false, message: 'Please enter a coupon code.' };
 
   await refreshExpiries();
-  const coupon = await Coupon.findOne({ code: formatted });
+
+  let coupon = null;
+  if (trip?.organizerEmail) {
+    coupon = await Coupon.findOne({ scope: 'organizer', organizerEmail: trip.organizerEmail, code: formatted });
+  }
+  if (!coupon) coupon = await Coupon.findOne({ scope: 'platform', code: formatted });
   if (!coupon) return { ok: false, message: 'Invalid coupon code.' };
+
   if (coupon.status === 'Expired') return { ok: false, message: 'This coupon has expired.' };
   if (coupon.status === 'Inactive') return { ok: false, message: 'This coupon is not currently active.' };
+  if (coupon.startsAt && coupon.startsAt > todayStr()) {
+    return { ok: false, message: `This coupon isn't active yet — it starts on ${coupon.startsAt}.` };
+  }
   if (coupon.minBookingAmount && bookingAmount < coupon.minBookingAmount) {
     return {
       ok: false,
       message: `This coupon needs a minimum booking value of ₹${coupon.minBookingAmount}.`,
     };
+  }
+  if (coupon.maxRedemptions != null && coupon.usedCount >= coupon.maxRedemptions) {
+    return { ok: false, message: 'This coupon has reached its maximum redemption limit.' };
+  }
+  if (coupon.scope === 'organizer' && coupon.appliesTo === 'selected' && trip && !coupon.tripIds.includes(trip._id)) {
+    return { ok: false, message: 'This coupon isn\'t valid for this trip.' };
   }
 
   const discountAmount = computeDiscount(coupon, bookingAmount);
@@ -56,11 +75,17 @@ export async function validateCoupon(code, bookingAmount = 0) {
   };
 }
 
-// Increment redemption count (called on successful booking in Phase 5).
-export async function markCouponUsed(codeOrId) {
-  const formatted = String(codeOrId || '').trim();
-  await Coupon.findOneAndUpdate(
-    { $or: [{ _id: formatted }, { code: formatted.toUpperCase() }] },
+// Atomically increments usedCount only if the redemption cap (if any) isn't
+// already reached — the same conditional-update pattern reserveSeats uses to
+// avoid overselling, so two concurrent bookings can't both squeeze through a
+// coupon's last remaining slot. Returns null if the cap was hit in the race.
+export async function redeemCoupon(couponId) {
+  return Coupon.findOneAndUpdate(
+    {
+      _id: couponId,
+      $or: [{ maxRedemptions: null }, { $expr: { $lt: ['$usedCount', '$maxRedemptions'] } }],
+    },
     { $inc: { usedCount: 1 } },
+    { new: true },
   );
 }

@@ -4,9 +4,11 @@ import {
   Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus
 } from 'lucide-react';
 import { groupTripsByTrekName } from '../utils/trekGroups';
+import SkeletonCard from '../../../components/SkeletonCard';
 
 export default function ExploreView({
   trips,
+  tripsLoading = false,
   wishlist,
   onToggleWishlist,
   onSelectTrek,
@@ -429,7 +431,13 @@ export default function ExploreView({
         </div>
 
         {/* Empty state */}
-        {filteredTreks.length === 0 ? (
+        {tripsLoading ? (
+          <div className="space-y-5">
+            <SkeletonCard darkMode={darkMode} />
+            <SkeletonCard darkMode={darkMode} />
+            <SkeletonCard darkMode={darkMode} />
+          </div>
+        ) : filteredTreks.length === 0 ? (
           <div className="text-center py-16">
             <span className="text-4xl block">🗺️</span>
             <h3 className="font-serif text-xl font-semibold mt-3">No treks matched</h3>

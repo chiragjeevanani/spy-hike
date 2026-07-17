@@ -27,7 +27,7 @@ export default function OrgLoyaltyView({ organizer, onBack, onGoBookings, darkMo
         </button>
         <div>
           <h2 className="text-sm font-display font-black tracking-tight">Loyalty Rewards</h2>
-          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">TREKIGO PARTNER PERKS</p>
+          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">FINDYOURTREK PARTNER PERKS</p>
         </div>
       </div>
 
@@ -161,7 +161,7 @@ export default function OrgLoyaltyView({ organizer, onBack, onGoBookings, darkMo
           <div className="text-center py-8">
             <span className="text-4xl block">🧭</span>
             <p className={`text-xs mt-3 leading-relaxed px-6 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              Keep hosting treks — every {orgConfig.thresholdBookings} bookings received via Trekigo earns a zero-commission credit.
+              Keep hosting treks — every {orgConfig.thresholdBookings} bookings received via Find Your Trek earns a zero-commission credit.
             </p>
           </div>
         )}

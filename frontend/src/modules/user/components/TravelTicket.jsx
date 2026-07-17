@@ -8,7 +8,7 @@ import { Download, Mountain, MapPin } from 'lucide-react';
 
 // Deterministic pseudo-barcode widths derived from the permit id so the
 // same booking always renders the same barcode.
-const barcodePattern = (seed = 'TREKIGO') => {
+const barcodePattern = (seed = 'FINDYOURTREK') => {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = ((h * 31 + seed.charCodeAt(i)) & 0x7fffffff) >>> 0;
   const bars = [];
@@ -54,7 +54,7 @@ export default function TravelTicket({ booking, darkMode, onDownload, notchClass
       <div className="bg-forest-600 flex items-stretch text-white">
         <div className="flex-1 flex items-center gap-1.5 px-3.5 py-2">
           <Mountain size={13} className="shrink-0" />
-          <span className="text-[10px] font-display font-black tracking-widest">TREKIGO</span>
+          <span className="text-[10px] font-display font-black tracking-widest">FINDYOURTREK</span>
           <span className="text-[8px] font-mono opacity-80 tracking-widest ml-1 hidden min-[380px]:inline">
             TREK BOARDING PASS
           </span>

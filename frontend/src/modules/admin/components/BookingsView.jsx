@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Calendar, IndianRupee, User, Eye, X, FileText, TrendingUp } from 'lucide-react';
 import bookingsApi from '../../../lib/bookingsApi';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
 
 export default function BookingsView({ darkMode }) {
   const [bookings, setBookings] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const toast = useToast();
 
   const refresh = () => bookingsApi.listAll().then(setBookings).catch(() => setBookings([]));
 
@@ -14,10 +18,18 @@ export default function BookingsView({ darkMode }) {
     refresh();
   }, []);
 
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm(`Are you sure you want to cancel booking ${bookingId}? This will notify the hiker and update status to Cancelled.`)) return;
-    await bookingsApi.adminSetStatus(bookingId, 'Cancelled');
-    await refresh();
+  const handleCancelBooking = (bookingId) => setCancelTarget(bookingId);
+
+  const confirmCancelBooking = async () => {
+    const bookingId = cancelTarget;
+    setCancelTarget(null);
+    try {
+      await bookingsApi.adminSetStatus(bookingId, 'Cancelled');
+      await refresh();
+      toast.success('Booking cancelled and the hiker notified.');
+    } catch (err) {
+      toast.error(err?.message || 'Could not cancel this booking.');
+    }
   };
 
   const filteredBookings = bookings.filter(b => {
@@ -311,6 +323,17 @@ export default function BookingsView({ darkMode }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancel Booking?"
+        message={`Cancel booking ${cancelTarget}? This will notify the hiker and update status to Cancelled.`}
+        confirmLabel="Cancel Booking"
+        tone="danger"
+        onConfirm={confirmCancelBooking}
+        onCancel={() => setCancelTarget(null)}
+        darkMode={darkMode}
+      />
 
     </div>
   );

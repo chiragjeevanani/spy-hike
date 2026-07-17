@@ -23,6 +23,25 @@ export function createApp() {
   app.use(express.json({ limit: '10mb' })); // base64 image uploads can be large
   app.use(express.urlencoded({ extended: true }));
 
+  app.use(async (req, res, next) => {
+    if (req.path.startsWith('/api/v1/admin') || req.path.includes('/admin')) {
+      return next();
+    }
+    try {
+      const { getConfig } = await import('./models/AdminConfig.js');
+      const cfg = await getConfig();
+      if (cfg.maintenanceMode) {
+        return res.status(503).json({
+          error: {
+            status: 503,
+            message: 'System is undergoing scheduled maintenance. Please try again later.',
+          }
+        });
+      }
+    } catch (e) {}
+    next();
+  });
+
   app.use('/api/v1', apiRoutes);
 
   app.use(notFoundHandler);

@@ -14,6 +14,11 @@ const loyaltyConfigSchema = new mongoose.Schema(
     customer: {
       enabled: { type: Boolean, default: true },
       thresholdPersons: { type: Number, default: 30 },
+      // Caps how much of a booking the reward comps — a booking priced above
+      // this still charges the customer the remainder (+ tax on it). Prevents
+      // an unbounded "free five-star trek" from a milestone meant to comp an
+      // average booking.
+      maxDiscountAmount: { type: Number, default: 5000, min: 0 },
       rewardTitle: { type: String, default: 'Free Trek Booking' },
       rewardDescription: {
         type: String,
@@ -30,7 +35,7 @@ const loyaltyConfigSchema = new mongoose.Schema(
       rewardTitle: { type: String, default: 'Zero-Commission Booking' },
       rewardDescription: {
         type: String,
-        default: 'Cross 1000 bookings via Trekigo and earn a zero-commission credit — apply it to any upcoming booking to keep 100% of that payout.',
+        default: 'Cross 1000 bookings via Find Your Trek and earn a zero-commission credit — apply it to any upcoming booking to keep 100% of that payout.',
       },
       banner: {
         type: bannerSchema,

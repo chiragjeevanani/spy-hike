@@ -1,20 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Shield, RotateCcw, Save, User, Eye, EyeOff } from 'lucide-react';
 import { resetDemoData } from '../utils/storage';
 import bookingsApi from '../../../lib/bookingsApi';
+import adminApi from '../../../lib/adminApi';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
+
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const PASSWORD_HELP = 'Password must be at least 8 characters and include a letter and a number.';
 
 export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
+  const [showConfirmStep1, setShowConfirmStep1] = useState(false);
+  const [showConfirmStep2, setShowConfirmStep2] = useState(false);
+
   const [profile, setProfile] = useState({
     name: admin.name,
     email: admin.email,
     avatar: admin.avatar,
   });
+  const [profileErrors, setProfileErrors] = useState({});
 
   const [passwords, setPasswords] = useState({
     current: '',
     newPass: '',
     confirm: '',
   });
+  const [passwordErrors, setPasswordErrors] = useState({});
+
+  const toast = useToast();
+  const profileFieldRefs = useRef({});
+  const passwordFieldRefs = useRef({});
 
   const [showPassword, setShowPassword] = useState(false);
   const [maintMode, setMaintMode] = useState(false);
@@ -25,7 +41,10 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
 
   useEffect(() => {
     bookingsApi.getConfig()
-      .then((cfg) => setCommissionRate(cfg.commissionRate))
+      .then((cfg) => {
+        setCommissionRate(cfg.commissionRate);
+        setMaintMode(!!cfg.maintenanceMode);
+      })
       .catch(() => {});
   }, []);
 
@@ -35,29 +54,76 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
     bookingsApi.updateConfig({ commissionRate: rate }).catch(() => {});
   };
 
+  const handleToggleMaintMode = () => {
+    const nextVal = !maintMode;
+    setMaintMode(nextVal);
+    bookingsApi.updateConfig({ maintenanceMode: nextVal }).catch(() => {});
+  };
+
   const handleProfileSave = (e) => {
     e.preventDefault();
-    alert('Admin profile settings updated successfully! (Simulated)');
+    const errors = {};
+    if (!profile.name.trim()) errors.name = 'Name is required.';
+    if (!profile.email.trim()) errors.email = 'Email is required.';
+    if (Object.keys(errors).length > 0) {
+      const order = ['name', 'email'];
+      const message = errors[order.find((f) => errors[f])];
+      setProfileErrors(errors);
+      toast.error(message);
+      scrollToFirstError(profileFieldRefs.current, errors, order);
+      return;
+    }
+    setProfileErrors({});
+    adminApi.updateProfile({
+      name: profile.name.trim(),
+      email: profile.email.trim(),
+      avatar: profile.avatar.trim()
+    })
+      .then(() => {
+        toast.success('Admin profile settings updated successfully!');
+        setTimeout(() => window.location.reload(), 1000);
+      })
+      .catch((err) => {
+        toast.error(err?.message || 'Could not update admin profile.');
+      });
   };
 
   const handlePasswordSave = (e) => {
     e.preventDefault();
-    if (passwords.newPass !== passwords.confirm) {
-      alert('Error: Passwords do not match!');
+    const errors = {};
+    if (!passwords.current) errors.current = 'Current password is required.';
+    if (!PASSWORD_REGEX.test(passwords.newPass)) errors.newPass = PASSWORD_HELP;
+    if (passwords.newPass !== passwords.confirm) errors.confirm = 'Passwords do not match.';
+    if (Object.keys(errors).length > 0) {
+      const order = ['current', 'newPass', 'confirm'];
+      const message = errors[order.find((f) => errors[f])];
+      setPasswordErrors(errors);
+      toast.error(message);
+      scrollToFirstError(passwordFieldRefs.current, errors, order);
       return;
     }
-    alert('Security key updated successfully! (Simulated)');
-    setPasswords({ current: '', newPass: '', confirm: '' });
+    setPasswordErrors({});
+    adminApi.changePassword(passwords.current, passwords.newPass)
+      .then(() => {
+        toast.success('Admin password updated successfully!');
+        setPasswords({ current: '', newPass: '', confirm: '' });
+      })
+      .catch((err) => {
+        toast.error(err?.message || 'Could not update password.');
+      });
   };
 
   const handleResetDatabase = () => {
-    if (!window.confirm('WARNING: Reset all administrator flags, organizer verification stages, and notification broadcasts? Local storage keys will return to default demo seeds.')) {
-      return;
-    }
-    resetDemoData();
-    localStorage.removeItem('trekigo_commission_rate');
-    alert('Database successfully restored to initial demo seeds! Please refresh to sync visual components.');
-    window.location.reload();
+    adminApi.resetDatabase()
+      .then(() => {
+        resetDemoData();
+        localStorage.removeItem('trekigo_commission_rate');
+        toast.success('Database successfully restored to initial demo seeds!');
+        setTimeout(() => window.location.reload(), 1000);
+      })
+      .catch((err) => {
+        toast.error(err?.message || 'Could not reset database.');
+      });
   };
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${
@@ -91,25 +157,29 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
             <span>Admin Profile Details</span>
           </h3>
 
-          <form onSubmit={handleProfileSave} className="space-y-4">
+          <form onSubmit={handleProfileSave} noValidate className="space-y-4">
             <div>
-              <label className={labelCls}>Your Name</label>
+              <label className={labelCls}>Your Name *</label>
               <input
+                ref={el => { profileFieldRefs.current.name = { current: el }; }}
                 type="text"
                 value={profile.name}
-                onChange={(e) => setProfile(prev => ({ ...prev, name: e.target.value }))}
-                className={inputCls}
+                onChange={(e) => { setProfile(prev => ({ ...prev, name: e.target.value })); setProfileErrors(er => ({ ...er, name: '' })); }}
+                className={`${inputCls} ${profileErrors.name ? 'border-rose-500 focus:border-rose-500' : ''}`}
               />
+              {profileErrors.name && <p className="text-[10px] font-bold text-rose-500 mt-1">{profileErrors.name}</p>}
             </div>
 
             <div>
-              <label className={labelCls}>Email Address</label>
+              <label className={labelCls}>Email Address *</label>
               <input
+                ref={el => { profileFieldRefs.current.email = { current: el }; }}
                 type="email"
                 value={profile.email}
-                onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
-                className={inputCls}
+                onChange={(e) => { setProfile(prev => ({ ...prev, email: e.target.value })); setProfileErrors(er => ({ ...er, email: '' })); }}
+                className={`${inputCls} ${profileErrors.email ? 'border-rose-500 focus:border-rose-500' : ''}`}
               />
+              {profileErrors.email && <p className="text-[10px] font-bold text-rose-500 mt-1">{profileErrors.email}</p>}
             </div>
 
             <div>
@@ -139,38 +209,44 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
             <span>Change Password</span>
           </h3>
 
-          <form onSubmit={handlePasswordSave} className="space-y-4">
+          <form onSubmit={handlePasswordSave} noValidate className="space-y-4">
             <div>
-              <label className={labelCls}>Current Password</label>
+              <label className={labelCls}>Current Password *</label>
               <input
+                ref={el => { passwordFieldRefs.current.current = { current: el }; }}
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter current password"
                 value={passwords.current}
-                onChange={(e) => setPasswords(prev => ({ ...prev, current: e.target.value }))}
-                className={inputCls}
+                onChange={(e) => { setPasswords(prev => ({ ...prev, current: e.target.value })); setPasswordErrors(er => ({ ...er, current: '' })); }}
+                className={`${inputCls} ${passwordErrors.current ? 'border-rose-500 focus:border-rose-500' : ''}`}
               />
+              {passwordErrors.current && <p className="text-[10px] font-bold text-rose-500 mt-1">{passwordErrors.current}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>New Password</label>
+              <div className="min-w-0">
+                <label className={labelCls}>New Password *</label>
                 <input
+                  ref={el => { passwordFieldRefs.current.newPass = { current: el }; }}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="New password"
                   value={passwords.newPass}
-                  onChange={(e) => setPasswords(prev => ({ ...prev, newPass: e.target.value }))}
-                  className={inputCls}
+                  onChange={(e) => { setPasswords(prev => ({ ...prev, newPass: e.target.value })); setPasswordErrors(er => ({ ...er, newPass: '' })); }}
+                  className={`${inputCls} ${passwordErrors.newPass ? 'border-rose-500 focus:border-rose-500' : ''}`}
                 />
+                {passwordErrors.newPass && <p className="text-[10px] font-bold text-rose-500 mt-1">{passwordErrors.newPass}</p>}
               </div>
-              <div>
-                <label className={labelCls}>Confirm Password</label>
+              <div className="min-w-0">
+                <label className={labelCls}>Confirm Password *</label>
                 <input
+                  ref={el => { passwordFieldRefs.current.confirm = { current: el }; }}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Confirm"
                   value={passwords.confirm}
-                  onChange={(e) => setPasswords(prev => ({ ...prev, confirm: e.target.value }))}
-                  className={inputCls}
+                  onChange={(e) => { setPasswords(prev => ({ ...prev, confirm: e.target.value })); setPasswordErrors(er => ({ ...er, confirm: '' })); }}
+                  className={`${inputCls} ${passwordErrors.confirm ? 'border-rose-500 focus:border-rose-500' : ''}`}
                 />
+                {passwordErrors.confirm && <p className="text-[10px] font-bold text-rose-500 mt-1">{passwordErrors.confirm}</p>}
               </div>
 
             </div>
@@ -228,7 +304,7 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
                 <span className="text-[10px] text-slate-400 font-semibold">Block user logins and show a maintenance page</span>
               </div>
               <button
-                onClick={() => setMaintMode(!maintMode)}
+                onClick={handleToggleMaintMode}
                 className={`w-11 h-6 rounded-full p-1 transition-colors ${
                   maintMode ? 'bg-[#F27D26]' : 'bg-slate-200'
                 }`}
@@ -266,8 +342,8 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
         {/* Database purge */}
         <div className={cardCls}>
           <h3 className="text-xs font-black uppercase tracking-wider mb-5 flex items-center gap-1.5">
-            <RotateCcw size={14} className="text-rose-500 animate-spin" />
-            <span>Reset Database</span>
+            <RotateCcw size={14} className="text-red-600 animate-spin" />
+            <span className="text-red-600">Reset Database</span>
           </h3>
 
           <div className="space-y-4 text-xs leading-relaxed">
@@ -276,8 +352,8 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
             </p>
 
             <button
-              onClick={handleResetDatabase}
-              className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-rose-500/10 active:scale-95 transition-all"
+              onClick={() => setShowConfirmStep1(true)}
+              className="w-full bg-red-600 hover:bg-red-750 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/20 active:scale-95 transition-all"
             >
               <RotateCcw size={14} />
               <span>Reset to Demo Data</span>
@@ -286,6 +362,36 @@ export default function SettingsView({ admin, darkMode, onToggleDarkMode }) {
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={showConfirmStep1}
+        title="Reset Database to Seed Demo?"
+        message="WARNING: This will permanently delete all dynamic data (bookings, payouts, custom trips, users, and announcements) and restore the system back to the initial demo seeds."
+        confirmLabel="Continue Reset"
+        cancelLabel="Abort"
+        tone="danger"
+        onConfirm={() => {
+          setShowConfirmStep1(false);
+          setShowConfirmStep2(true);
+        }}
+        onCancel={() => setShowConfirmStep1(false)}
+        darkMode={darkMode}
+      />
+
+      <ConfirmDialog
+        open={showConfirmStep2}
+        title="ARE YOU ABSOLUTELY SURE?"
+        message="FINAL CONFIRMATION: This action is irreversible. All current sessions will log out, all live registrations and custom settings will be deleted. Do you want to proceed?"
+        confirmLabel="Yes, Reset Database"
+        cancelLabel="Abort"
+        tone="danger"
+        onConfirm={() => {
+          setShowConfirmStep2(false);
+          handleResetDatabase();
+        }}
+        onCancel={() => setShowConfirmStep2(false)}
+        darkMode={darkMode}
+      />
 
     </div>
   );

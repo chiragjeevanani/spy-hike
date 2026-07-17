@@ -40,6 +40,70 @@ export default function TripDetailsView({
     { label: 'Elevation', value: `${trip.elevationMeters}m`, icon: <TrendingUp className="w-5 h-5 text-spy-orange" /> },
   ];
 
+  if (trip?.isLoading) {
+    return (
+      <div className={`flex-1 flex flex-col overflow-hidden relative font-sans ${
+        darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
+      }`}>
+        <div className="absolute top-4 inset-x-4 flex justify-between items-center z-30 pointer-events-none">
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center pointer-events-auto"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+          <div className="h-72 w-full skeleton-loader animate-pulse-subtle" />
+
+          <div className="p-5 space-y-6">
+            <div className="space-y-2">
+              <div className="h-6 rounded-md skeleton-loader w-3/4 animate-pulse-subtle" />
+              <div className="h-4 rounded-md skeleton-loader w-1/3 animate-pulse-subtle" />
+            </div>
+
+            <div className="grid grid-cols-4 gap-2.5">
+              {[1, 2, 3, 4].map(n => (
+                <div key={n} className={`p-3 rounded-2xl border space-y-2 ${
+                  darkMode ? 'bg-[#30221a]/25 border-white/5' : 'bg-white border-zinc-150'
+                }`}>
+                  <div className="w-5 h-5 rounded-full skeleton-loader animate-pulse-subtle" />
+                  <div className="h-2 rounded-md skeleton-loader w-2/3" />
+                  <div className="h-3 rounded-md skeleton-loader w-full" />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex border-b border-zinc-200 dark:border-zinc-800 pb-2 gap-4">
+              <div className="h-4 rounded-md skeleton-loader w-16" />
+              <div className="h-4 rounded-md skeleton-loader w-16" />
+              <div className="h-4 rounded-md skeleton-loader w-16" />
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="h-3 rounded-md skeleton-loader w-full" />
+              <div className="h-3 rounded-md skeleton-loader w-full" />
+              <div className="h-3 rounded-md skeleton-loader w-4/5" />
+              <div className="h-3 rounded-md skeleton-loader w-5/6" />
+            </div>
+          </div>
+        </div>
+
+        <div className={`absolute bottom-0 inset-x-0 p-4 border-t flex items-center justify-between z-20 ${
+          darkMode ? 'bg-zinc-950/90 border-white/5 backdrop-blur-md' : 'bg-white/95 border-gray-150 backdrop-blur-md'
+        }`}>
+          <div className="space-y-1 w-1/4">
+            <div className="h-2 rounded-md skeleton-loader w-1/2" />
+            <div className="h-5 rounded-md skeleton-loader w-3/4" />
+          </div>
+          <div className="h-12 rounded-xl skeleton-loader w-1/2" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex-1 flex flex-col overflow-hidden relative font-sans ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'

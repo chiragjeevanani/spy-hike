@@ -100,6 +100,24 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
 
       <div className="px-5 space-y-5 pb-8">
 
+        {/* Complete Profile banner */}
+        {(!organizer?.supportEmail || !organizer?.supportPhone || !organizer?.headline) && (
+          <div className={`p-4 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs border ${
+            darkMode ? 'bg-amber-500/10 border-amber-500/25 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-850'
+          }`}>
+            <div className="space-y-1">
+              <h3 className="font-display font-black text-sm uppercase tracking-wide">Complete Agency Profile</h3>
+              <p className="opacity-80">Please fill in your support email, phone, and agency headline to display correctly on public trek listings.</p>
+            </div>
+            <button
+              onClick={() => onNavigate('Profile')}
+              className="self-start sm:self-center px-4 py-2 bg-spy-orange hover:bg-[#d96d1a] text-white rounded-xl font-bold transition-all text-[11px] active:scale-95 shadow-xs"
+            >
+              Complete Now
+            </button>
+          </div>
+        )}
+
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3">
           {statCards.map((s, i) => {

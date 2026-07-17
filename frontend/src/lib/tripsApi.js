@@ -30,6 +30,8 @@ export const tripsApi = {
   // ─── Admin ───
   listAllTrips: () => api.get('/admin/trips').then((r) => r.trips),
   adminSetTripStatus: (id, status) => api.patch(`/admin/trips/${encodeURIComponent(id)}/status`, { status }).then((r) => r.trip),
+  adminSetTripFeatured: (id, featured) => api.patch(`/admin/trips/${encodeURIComponent(id)}/featured`, { featured }).then((r) => r.trip),
+  adminSetTripPopular: (id, popular) => api.patch(`/admin/trips/${encodeURIComponent(id)}/popular`, { popular }).then((r) => r.trip),
   adminDeleteTrip: (id) => api.del(`/admin/trips/${encodeURIComponent(id)}`),
 };
 

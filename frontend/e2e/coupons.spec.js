@@ -5,8 +5,8 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // rejected — all against the API-backed coupon service.
 
 const API = 'http://localhost:4000/api/v1';
-const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'trekigo123' };
-const DEMO_ADMIN = { email: 'admin@trekigo.com', password: 'admin123' };
+const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
+const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {
@@ -79,13 +79,13 @@ test('customer applies a seeded coupon at checkout and the total drops', async (
   await expect(page.getByText(/Checkout & Settlement/i)).toBeVisible({ timeout: 10000 });
 
   // Apply the seeded 20% coupon.
-  await page.locator('input[placeholder="CODE (e.g. TREKIGO20)"]').fill('TREKIGO20');
+  await page.locator('input[placeholder="CODE (e.g. FYT20)"]').fill('FYT20');
   await page.click('#btn-apply-coupon');
   await expect(page.getByText(/Coupon applied: 20% off/i)).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText(/Coupon Discount \(TREKIGO20\)/i)).toBeVisible();
+  await expect(page.getByText(/Coupon Discount \(FYT20\)/i)).toBeVisible();
 
   // An invalid code is rejected.
-  await page.locator('input[placeholder="CODE (e.g. TREKIGO20)"]').fill('NOPE-XYZ-999');
+  await page.locator('input[placeholder="CODE (e.g. FYT20)"]').fill('NOPE-XYZ-999');
   await page.click('#btn-apply-coupon');
   await expect(page.getByText(/invalid coupon code/i)).toBeVisible({ timeout: 10000 });
 });

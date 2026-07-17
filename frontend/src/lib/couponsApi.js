@@ -22,9 +22,11 @@ export function computeDiscount(coupon, bookingAmount) {
 
 export const couponsApi = {
   // ─── Public ───
-  listActive: () => api.get('/coupons', { auth: false }).then((r) => r.coupons),
-  validate: (code, bookingAmount) =>
-    api.post('/coupons/validate', { code, bookingAmount }, { auth: false }),
+  // tripId (optional) also surfaces/validates that trip's organizer coupons.
+  listActive: (tripId) =>
+    api.get(`/coupons${tripId ? `?tripId=${encodeURIComponent(tripId)}` : ''}`, { auth: false }).then((r) => r.coupons),
+  validate: (code, bookingAmount, tripId) =>
+    api.post('/coupons/validate', { code, bookingAmount, tripId }, { auth: false }),
 
   // ─── Admin ───
   list: () => api.get('/admin/coupons').then((r) => r.coupons),

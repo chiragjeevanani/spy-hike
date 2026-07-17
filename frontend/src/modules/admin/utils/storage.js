@@ -14,116 +14,14 @@ export const DEFAULT_ADMIN = {
 };
 
 // Static seed users to make the user table look rich and realistic
-const MOCK_DB_USERS = [
-  {
-    id: 'u-1',
-    name: 'Chirag Jeevanani',
-    email: 'chiragjeevanani333@gmail.com',
-    mobile: '+91 98765 43210',
-    age: 24,
-    gender: 'Male',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-    hikingExperience: 'Intermediate',
-    fitnessLevel: 'High',
-    emergencyContact: 'Asha Jeevanani (+91 98765 43219)',
-    joinedDate: '2026-03-12',
-    status: 'Active',
-    bookingsCount: 3
-  },
-  {
-    id: 'u-2',
-    name: 'Ananya Iyer',
-    email: 'ananya.iyer@gmail.com',
-    mobile: '+91 88888 77777',
-    age: 22,
-    gender: 'Female',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    hikingExperience: 'Beginner',
-    fitnessLevel: 'Moderate',
-    emergencyContact: 'K. Iyer (+91 88888 77770)',
-    joinedDate: '2026-04-15',
-    status: 'Active',
-    bookingsCount: 1
-  },
-  {
-    id: 'u-3',
-    name: 'Vikram Malhotra',
-    email: 'vikram.m@yahoo.com',
-    mobile: '+91 99999 11111',
-    age: 29,
-    gender: 'Male',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    hikingExperience: 'Advanced',
-    fitnessLevel: 'High',
-    emergencyContact: 'S. Malhotra (+91 99999 11110)',
-    joinedDate: '2026-01-20',
-    status: 'Active',
-    bookingsCount: 4
-  },
-  {
-    id: 'u-4',
-    name: 'Sneha Patel',
-    email: 'sneha.patel@outlook.com',
-    mobile: '+91 77777 66666',
-    age: 26,
-    gender: 'Female',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-    hikingExperience: 'Intermediate',
-    fitnessLevel: 'Low',
-    emergencyContact: 'R. Patel (+91 77777 66660)',
-    joinedDate: '2026-05-02',
-    status: 'Banned',
-    bookingsCount: 0
-  }
-];
+const MOCK_DB_USERS = [];
 
 // Synthetic booking history for the seed hikers above, so their admin profile
 // pages have real, cross-linkable data to show (trip, organizer, spend) rather
 // than just the flat `bookingsCount` number. Tied to real catalog trip IDs and
 // to the one seed organizer account (see loadAllOrganizers) so the "view
 // organizer" deep link on a booking always resolves to something real.
-const MOCK_ADMIN_BOOKINGS = [
-  {
-    id: 'ab-1', bookingId: 'TG-3301-A', tripId: 'himalayan-ridge-pass-trek',
-    tripName: 'Himalayan Ridge Pass Trek', tripLocation: 'Kasol, Parvati Valley',
-    tripImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
-    organizerEmail: 'demo@himalayan.com', organizerName: 'Himalayan Guides Ltd',
-    userEmail: 'ananya.iyer@gmail.com', userName: 'Ananya Iyer',
-    bookingDate: '2026-04-20T10:00:00Z', selectedDate: '2026-07-20',
-    hikersCount: 2, finalAmount: 798, commissionRate: 10, commissionAmount: 79.8,
-    status: 'Upcoming',
-  },
-  {
-    id: 'ab-2', bookingId: 'TG-3302-B', tripId: 'coorg-coffee-estate-walk',
-    tripName: 'Coorg Coffee Estate Walking Tour', tripLocation: 'Madikeri, Coorg',
-    tripImage: 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=600&q=80',
-    organizerEmail: 'demo@himalayan.com', organizerName: 'Himalayan Guides Ltd',
-    userEmail: 'vikram.m@yahoo.com', userName: 'Vikram Malhotra',
-    bookingDate: '2026-01-25T10:00:00Z', selectedDate: '2026-07-18',
-    hikersCount: 1, finalAmount: 49, commissionRate: 10, commissionAmount: 4.9,
-    status: 'Completed',
-  },
-  {
-    id: 'ab-3', bookingId: 'TG-3303-C', tripId: 'stargazing-desert-camp',
-    tripName: 'Stargazing Desert Camp & Trek', tripLocation: 'Thar Desert, Jaisalmer',
-    tripImage: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?auto=format&fit=crop&w=600&q=80',
-    organizerEmail: 'demo@himalayan.com', organizerName: 'Himalayan Guides Ltd',
-    userEmail: 'vikram.m@yahoo.com', userName: 'Vikram Malhotra',
-    bookingDate: '2026-02-02T10:00:00Z', selectedDate: '2026-09-12',
-    hikersCount: 3, finalAmount: 387, commissionRate: 10, commissionAmount: 38.7,
-    status: 'Upcoming',
-  },
-  {
-    id: 'ab-4', bookingId: 'TG-3304-D', tripId: 'western-ghats-monsoon-trail',
-    tripName: 'Western Ghats Monsoon Trail', tripLocation: 'Lonavala, Maharashtra',
-    tripImage: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&q=80',
-    organizerEmail: 'demo@himalayan.com', organizerName: 'Himalayan Guides Ltd',
-    userEmail: 'vikram.m@yahoo.com', userName: 'Vikram Malhotra',
-    bookingDate: '2025-12-15T10:00:00Z', selectedDate: '2026-07-12',
-    hikersCount: 2, finalAmount: 178, commissionRate: 10, commissionAmount: 17.8,
-    status: 'Completed',
-  },
-];
+const MOCK_ADMIN_BOOKINGS = [];
 
 // Helper to load admin user
 export const loadAdminUser = () => {
@@ -264,32 +162,7 @@ export const deleteUser = (email) => {
 export const loadAllOrganizers = () => {
   try {
     const stored = localStorage.getItem('trekigo_org_accounts');
-    const accounts = stored ? JSON.parse(stored) : [];
-    
-    // If empty, seed with the demo organizer
-    if (accounts.length === 0) {
-      const demoOrg = {
-        name: 'Himalayan Guides Ltd',
-        email: 'demo@himalayan.com',
-        mobile: '+91 98765 09876',
-        agencyName: 'Himalayan Guides Ltd',
-        agencyWebsite: 'https://himalayan.com',
-        govtIdType: 'Aadhaar',
-        govtIdNumber: '1234-5678-9012',
-        yearsExperience: 8,
-        bio: 'Premium Himalayan expedition organizers with 8+ years experience.',
-        avatar: 'https://images.unsplash.com/photo-1552058544-f2b08422138a?auto=format&fit=crop&w=150&q=80',
-        rating: 4.9,
-        totalTrips: 42,
-        totalBookings: 380,
-        isApproved: true,
-        isPendingApproval: false
-      };
-      accounts.push(demoOrg);
-      localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
-    }
-    
-    return accounts;
+    return stored ? JSON.parse(stored) : [];
   } catch (e) {
     console.error(e);
     return [];

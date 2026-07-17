@@ -1,10 +1,9 @@
-// Idempotent seed of the demo accounts the frontend has always shipped with,
-// so the existing "Quick Demo Access" logins keep working against the real API.
+// Idempotent seed of platform reference data (categories, coupons, the trip
+// catalog) plus the admin login. Does NOT create demo customer/organizer
+// accounts — the admin console should only ever show real signups.
 // Run with: `npm run seed` (needs MONGO_URI in .env). Safe to run repeatedly.
 import mongoose from 'mongoose';
 import { connectDB, disconnectDB } from './config/db.js';
-import User from './models/User.js';
-import Organizer from './models/Organizer.js';
 import Admin from './models/Admin.js';
 import Trip from './models/Trip.js';
 import Category from './models/Category.js';
@@ -32,72 +31,8 @@ const CANONICAL_CATEGORIES = [
   { _id: 'Cultural', label: 'Cultural', icon: 'Landmark', order: 10 },
 ];
 
-async function upsertUser() {
-  const email = 'chiragjeevanani333@gmail.com';
-  const existing = await User.findOne({ email });
-  if (existing) return existing;
-  return User.create({
-    name: 'Chirag Jeevanani',
-    email,
-    passwordHash: await hashPassword('trekigo123'),
-    mobile: '+91 98765 43210',
-    age: 24,
-    gender: 'Male',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-    hikingExperience: 'Intermediate',
-    fitnessLevel: 'High',
-    emergencyContact: 'Asha Jeevanani (+91 98765 43219)',
-    isOnboarded: true,
-  });
-}
-
-async function upsertOrganizers() {
-  // The shared-login demo organizer uses the same credentials as the customer
-  // demo (so the login form's role toggle works), and is pre-approved.
-  const shared = 'chiragjeevanani333@gmail.com';
-  if (!(await Organizer.findOne({ email: shared }))) {
-    await Organizer.create({
-      name: 'Chirag Jeevanani',
-      email: shared,
-      passwordHash: await hashPassword('trekigo123'),
-      mobile: '+91 98765 43210',
-      agencyName: 'Trekigo Verified Organizer',
-      socialMediaLink: 'https://instagram.com/trekigoorganizer',
-      bio: 'Verified Trekigo organizer.',
-      coreCapabilities: ['Certified Trek Leader'],
-      yearsExperience: 5,
-      rating: 4.8,
-      isApproved: true,
-      isPendingApproval: false,
-    });
-  }
-
-  // The Himalayan Guides demo organizer referenced by seed bookings/admin data.
-  const himalayan = 'demo@himalayan.com';
-  if (!(await Organizer.findOne({ email: himalayan }))) {
-    await Organizer.create({
-      name: 'Himalayan Guides Ltd',
-      email: himalayan,
-      passwordHash: await hashPassword('organizer123'),
-      mobile: '+91 98765 09876',
-      agencyName: 'Himalayan Guides Ltd',
-      agencyWebsite: 'https://himalayan.com',
-      govtIdType: 'Aadhaar',
-      govtIdNumber: '1234-5678-9012',
-      yearsExperience: 8,
-      bio: 'Premium Himalayan expedition organizers with 8+ years experience.',
-      avatar: 'https://images.unsplash.com/photo-1552058544-f2b08422138a?auto=format&fit=crop&w=150&q=80',
-      rating: 4.9,
-      totalTrips: 42,
-      totalBookings: 380,
-      isApproved: true,
-      isPendingApproval: false,
-    });
-  }
-}
-
 async function upsertAdmin() {
-  const email = 'admin@trekigo.com';
+  const email = 'admin@findyourtrek.com';
   if (await Admin.findOne({ email })) return;
   await Admin.create({
     name: 'System Administrator',
@@ -115,7 +50,7 @@ async function upsertCategories() {
 
 // The three promo codes referenced by the customer home-feed banners.
 const SEED_COUPONS = [
-  { _id: 'cp-seed-1', code: 'TREKIGO20', type: 'percentage', value: 20, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
+  { _id: 'cp-seed-1', code: 'FYT20', type: 'percentage', value: 20, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
   { _id: 'cp-seed-2', code: 'VALLEY50', type: 'flat', value: 50, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
   { _id: 'cp-seed-3', code: 'GHATS15', type: 'percentage', value: 15, maxDiscount: null, minBookingAmount: 0, expiresAt: '2026-12-31', status: 'Active', usedCount: 0 },
 ];
@@ -133,7 +68,7 @@ function toTripDoc(t) {
   return {
     _id: t.id,
     trekId: slugify(t.name),
-    organizerEmail: `${slugify(t.organizer?.name || 'partner')}@seed.trekigo.local`,
+    organizerEmail: `${slugify(t.organizer?.name || 'partner')}@seed.findyourtrek.local`,
     organizer: t.organizer,
     name: t.name,
     location: t.location,
@@ -169,6 +104,15 @@ function toTripDoc(t) {
 }
 
 async function upsertTrips() {
+  // Clear existing live records to guarantee a clean slate
+  await Trip.deleteMany({});
+  try {
+    await mongoose.connection.db.dropCollection('bookings');
+  } catch (e) {}
+  try {
+    await mongoose.connection.db.dropCollection('departures');
+  } catch (e) {}
+
   for (const t of HIKING_TRIPS) {
     const doc = toTripDoc(t);
     await Trip.updateOne({ _id: doc._id }, { $set: doc }, { upsert: true });
@@ -179,18 +123,13 @@ async function upsertTrips() {
 
 async function seed() {
   await connectDB();
-  await upsertUser();
-  await upsertOrganizers();
   await upsertAdmin();
   await upsertCategories();
   await upsertCoupons();
   await upsertTrips();
   console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} trips`);
   console.log('✓ Seed complete:');
-  console.log('  customer  chiragjeevanani333@gmail.com / trekigo123');
-  console.log('  organizer chiragjeevanani333@gmail.com / trekigo123  (approved)');
-  console.log('  organizer demo@himalayan.com / organizer123  (approved)');
-  console.log('  admin     admin@trekigo.com / admin123');
+  console.log('  admin     admin@findyourtrek.com / admin123');
   await disconnectDB();
 }
 
@@ -204,4 +143,4 @@ if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
     });
 }
 
-export { seed, upsertUser, upsertOrganizers, upsertAdmin, upsertCategories, upsertCoupons, upsertTrips };
+export { seed, upsertAdmin, upsertCategories, upsertCoupons, upsertTrips };

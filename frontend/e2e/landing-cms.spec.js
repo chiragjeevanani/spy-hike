@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Landing-page CMS — the admin edits marketing copy in /admin/landing and the
 // public landing page (served at "/") reflects it after saving.
 
-const DEMO_ADMIN = { email: 'admin@trekigo.com', password: 'admin123' };
+const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 async function adminConsoleLogin(page) {
   page.setViewportSize({ width: 1280, height: 900 });

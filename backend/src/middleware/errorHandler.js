@@ -23,10 +23,14 @@ export function errorHandler(err, req, res, next) {
     );
   }
 
-  // Duplicate key (e.g. unique email) → 409.
+  // Duplicate key (e.g. unique email, or the compound scope+organizerEmail+
+  // code coupon index) → 409. Compound-index internals (scope/organizerEmail)
+  // aren't meaningful to report, so prefer the first key that isn't one of
+  // those when naming the conflicting field.
   if (err.code === 11000) {
     statusCode = 409;
-    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    const keys = Object.keys(err.keyValue || {});
+    const field = keys.find((k) => !['scope', 'organizerEmail'].includes(k)) || keys[0] || 'field';
     message = `A record with this ${field} already exists`;
   }
 

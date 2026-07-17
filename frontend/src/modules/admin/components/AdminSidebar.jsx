@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, Users, Building2, Compass,
+  LayoutDashboard, Users, Building2, Compass, Mountain, ClipboardList,
   Ticket, TicketPercent, BarChart3, Megaphone, Gift, Settings,
   LogOut, Shield, ChevronLeft, Menu, Banknote, LayoutTemplate
 } from 'lucide-react';
 import { loadAllOrganizers } from '../utils/storage';
+import { getToken } from '../../../lib/apiClient';
+import trekRequestsApi from '../../../lib/trekRequestsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
-import TrekigoLogo from '../../../components/TrekigoLogo';
+import AppLogo from '../../../components/AppLogo';
 
 export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collapsed, setCollapsed, darkMode }) {
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Compute pending applications dynamically
@@ -19,10 +22,17 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
       const pending = orgs.filter(o => o.isPendingApproval && !o.isApproved);
       setPendingCount(pending.length);
     };
+    const checkPendingRequests = () => {
+      if (!getToken()) return;
+      trekRequestsApi.listAll({ status: 'Pending' })
+        .then((list) => setPendingRequestCount(Array.isArray(list) ? list.length : 0))
+        .catch(() => {});
+    };
 
     checkPending();
+    checkPendingRequests();
     // Poll every 5 seconds to keep dashboard reactive
-    const interval = setInterval(checkPending, 5000);
+    const interval = setInterval(() => { checkPending(); checkPendingRequests(); }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -30,6 +40,8 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
     { id: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'Users', label: 'Users', icon: Users },
     { id: 'Organizers', label: 'Organizers', icon: Building2, badge: pendingCount },
+    { id: 'Treks', label: 'Trek Categories', icon: Mountain },
+    { id: 'TrekRequests', label: 'Category Requests', icon: ClipboardList, badge: pendingRequestCount },
     { id: 'Trips', label: 'Trips', icon: Compass },
     { id: 'Bookings', label: 'Bookings', icon: Ticket },
     { id: 'Payouts', label: 'Payouts', icon: Banknote },
@@ -43,33 +55,44 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
 
   return (
     <div 
-      className={`h-screen sticky top-0 flex flex-col border-r transition-all duration-300 z-30 shrink-0 ${
+      className={`h-screen sticky top-0 flex flex-col border-r transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] z-30 shrink-0 ${
         darkMode 
           ? 'bg-[#0E162F] border-slate-800 text-slate-200' 
           : 'bg-white border-slate-200 text-slate-700'
       } ${collapsed ? 'w-20' : 'w-64'}`}
     >
       {/* Sidebar Header Brand */}
-      <div className={`p-5 flex items-center justify-between border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
-        <div className="flex items-center gap-3 overflow-hidden">
-          <TrekigoLogo size={36} className="shrink-0 animate-fadeIn" />
-          {!collapsed && (
-            <div className="flex flex-col select-none animate-fadeIn">
-              <span className="font-display font-black text-sm tracking-tight text-slate-800 dark:text-white leading-none">Trekigo</span>
-              <span className="text-[10px] font-bold text-[#F27D26] uppercase tracking-wider mt-1">Admin Console</span>
-            </div>
-          )}
+      <div className={`p-5 flex items-center border-b ${
+        collapsed ? 'justify-center' : 'justify-between'
+      } ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+        <div 
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center cursor-pointer active:scale-95 transition-transform overflow-hidden"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <AppLogo 
+            size={36} 
+            className="shrink-0 transition-transform duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] hover:scale-105 active:scale-95" 
+          />
+          <div className={`transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] overflow-hidden flex flex-col select-none ${
+            collapsed ? 'max-w-0 opacity-0 scale-90 translate-x-[-10px] ml-0' : 'max-w-[150px] opacity-100 scale-100 translate-x-0 ml-3'
+          }`}>
+            <span className="font-display font-black text-sm tracking-tight text-slate-800 dark:text-white leading-none whitespace-nowrap">Find Your Trek</span>
+            <span className="text-[10px] font-bold text-[#F27D26] uppercase tracking-wider mt-1 whitespace-nowrap">Admin Console</span>
+          </div>
         </div>
         
-        {/* Toggle Collapse */}
-        <button 
-          onClick={() => setCollapsed(!collapsed)}
-          className={`p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
-            darkMode ? 'border-slate-800 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'
-          }`}
-        >
-          <ChevronLeft size={16} className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
-        </button>
+        {/* Toggle Collapse - only show when not collapsed */}
+        {!collapsed && (
+          <button 
+            onClick={() => setCollapsed(true)}
+            className={`p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
+              darkMode ? 'border-slate-800 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'
+            }`}
+          >
+            <ChevronLeft size={16} className="transition-transform duration-300" />
+          </button>
+        )}
       </div>
 
       {/* Nav List */}
@@ -81,7 +104,11 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm font-semibold tracking-wide transition-all group relative ${
+              className={`flex items-center text-sm font-semibold tracking-wide transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] group relative ${
+                collapsed 
+                  ? 'justify-center mx-auto w-12 h-12 rounded-2xl' 
+                  : 'w-full justify-start px-3.5 py-3 gap-3.5 rounded-xl'
+              } ${
                 isActive 
                   ? 'bg-[#F27D26] text-white shadow-lg shadow-orange-500/15' 
                   : darkMode 
@@ -89,14 +116,16 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
                     : 'hover:bg-slate-50 text-slate-600 hover:text-[#F27D26]'
               }`}
             >
-              <Icon size={18} className={`shrink-0 transition-transform group-hover:scale-105 ${isActive ? 'text-white' : ''}`} />
+              <Icon size={18} className={`shrink-0 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-white' : ''}`} />
               
-              {!collapsed && (
-                <span className="animate-fadeIn">{item.label}</span>
-              )}
+              <span className={`transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] overflow-hidden whitespace-nowrap ${
+                collapsed ? 'max-w-0 opacity-0 scale-90 translate-x-[-10px]' : 'max-w-[150px] opacity-100 scale-100 translate-x-0'
+              }`}>
+                {item.label}
+              </span>
 
               {/* Pending Badge */}
-              {item.badge > 0 && (
+              {item.badge > 0 && !collapsed && (
                 <span className={`absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[10px] font-black ${
                   isActive 
                     ? 'bg-white text-[#F27D26]' 

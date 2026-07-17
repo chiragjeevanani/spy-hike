@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
+import {
   Download, MessageSquare, Star, ArrowLeft, Send, Sparkles, CalendarDays, Receipt, X
 } from 'lucide-react';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
 
 export default function BookingsView({
   bookings,
@@ -14,10 +16,12 @@ export default function BookingsView({
   onModifyBookingStatus,
   onAddReview,
   onSelectBooking,
+  initialChatTripId,
+  onChatOpened,
   darkMode
 }) {
   const [activeTab, setActiveTab] = useState('Upcoming');
-  
+
   // Modals / Overlays triggers
   const [activeChatSession, setActiveChatSession] = useState(null);
   const [chatInputText, setChatInputText] = useState('');
@@ -28,6 +32,9 @@ export default function BookingsView({
   const [reviewBooking, setReviewBooking] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const toast = useToast();
+  const reviewCommentRef = useRef(null);
 
   const filteredBookings = bookings.filter(b => b.status === activeTab);
 
@@ -50,6 +57,16 @@ export default function BookingsView({
       setActiveChatSession(newSession);
     }
   };
+
+  // Opens the drawer for a trip when arriving here from elsewhere (e.g. the
+  // "Message" button on BookingDetailsView, via App.jsx's pendingChatTripId).
+  useEffect(() => {
+    if (!initialChatTripId) return;
+    const targetBooking = bookings.find(b => b.tripId === initialChatTripId);
+    if (targetBooking) handleContactOrganizer(targetBooking);
+    onChatOpened?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialChatTripId]);
 
   const handleSendChatMessage = () => {
     if (!chatInputText.trim() || !activeChatSession) return;
@@ -115,9 +132,17 @@ export default function BookingsView({
   const handleSubmitReview = (e) => {
     e.preventDefault();
     if (!reviewBooking) return;
+    if (!reviewComment.trim()) {
+      setReviewError('Please write a comment about your experience.');
+      toast.error('Please write a comment about your experience.');
+      reviewCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      reviewCommentRef.current?.focus();
+      return;
+    }
+    setReviewError('');
 
     onAddReview(reviewBooking.tripId, reviewRating, reviewComment.trim(), reviewBooking.bookingId);
-    alert('Thank you! Your verified hiking rating has been registered successfully.');
+    toast.success('Thank you! Your verified hiking rating has been registered successfully.');
     setReviewBooking(null);
     setReviewComment('');
     setReviewRating(5);
@@ -204,7 +229,20 @@ export default function BookingsView({
 
                 <div className={`flex justify-between items-center mt-2 pt-2 border-t ${darkMode ? 'border-white/5' : 'border-gray-100'}`}>
                   <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{b.selectedDate}</span>
-                  <span className={`font-serif text-lg font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      id={`btn-message-organizer-${b.bookingId.toLowerCase()}`}
+                      onClick={(e) => { e.stopPropagation(); handleContactOrganizer(b); }}
+                      title="Message organizer"
+                      className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition ${
+                        darkMode ? 'bg-white/5 text-forest-400 hover:bg-white/10' : 'bg-forest-50 text-forest-600 hover:bg-forest-100'
+                      }`}
+                    >
+                      <MessageSquare size={13} />
+                    </button>
+                    <span className={`font-serif text-lg font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -308,8 +346,9 @@ export default function BookingsView({
       <AnimatePresence>
         {reviewBooking && (
           <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
-            <motion.form 
+            <motion.form
               onSubmit={handleSubmitReview}
+              noValidate
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -344,17 +383,18 @@ export default function BookingsView({
 
               {/* Comment string text box */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider block">Write Your Experience</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider block">Write Your Experience *</label>
                 <textarea
-                  required
+                  ref={reviewCommentRef}
                   rows={3}
                   placeholder="Write comment regarding safety, local food or path guidelines..."
                   value={reviewComment}
-                  onChange={e => setReviewComment(e.target.value)}
+                  onChange={e => { setReviewComment(e.target.value); setReviewError(''); }}
                   className={`w-full text-xs p-3 border rounded-xl outline-hidden focus:border-forest-500 ${
                     darkMode ? 'bg-zinc-950 border-zinc-855 text-white' : 'bg-gray-100 border-gray-255 text-zinc-900'
-                  }`}
+                  } ${reviewError ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
+                {reviewError && <p className="text-[11px] font-semibold text-red-500">{reviewError}</p>}
               </div>
 
               <div className="flex gap-2 pt-4 justify-end">
@@ -428,7 +468,7 @@ export default function BookingsView({
               </div>
 
               <button
-                onClick={() => { alert('Invoice saved successfully to directory.'); setShowInvoiceBooking(null); }}
+                onClick={() => { toast.success('Invoice saved successfully to directory.'); setShowInvoiceBooking(null); }}
                 className="w-full py-3 bg-forest-600 text-white text-xs font-bold rounded-xl hover:bg-forest-700 cursor-pointer active:scale-95"
               >
                 Save Receipt Invoice PDF

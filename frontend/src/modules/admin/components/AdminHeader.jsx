@@ -18,7 +18,7 @@ export default function AdminHeader({ activeTab, admin, darkMode, onToggleDarkMo
     >
       {/* Breadcrumb info */}
       <div className="flex items-center gap-2.5 text-xs font-semibold tracking-wide">
-        <span className="text-slate-400">Trekigo Admin</span>
+        <span className="text-slate-400">Find Your Trek Admin</span>
         <ChevronRight size={12} className="text-slate-400" />
         <span className={darkMode ? 'text-white' : 'text-slate-800'}>{activeTab}</span>
       </div>

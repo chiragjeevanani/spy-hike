@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Wallet, Landmark, Smartphone, ShieldCheck, RefreshCw, Copy, CheckCircle2,
@@ -6,9 +6,17 @@ import {
   IndianRupee, TrendingUp, Banknote, CreditCard, Download,
 } from 'lucide-react';
 import { downloadFinancialReportPDF } from '../utils/financePdf';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
 
 const SECTIONS = ['Overview', 'Statement', 'Payouts'];
 const COMMISSION_RATE = 0.1;
+// Same format rules the backend enforces — this data drives where real money
+// gets sent, so it's validated for real rather than trusted as-is.
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const ACCOUNT_NUMBER_REGEX = /^\d{9,18}$/;
+const UPI_REGEX = /^[\w.-]{2,256}@[a-zA-Z]{2,64}$/;
+const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]{1}$/;
 
 const commissionOf = (b) => b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount || 0) * COMMISSION_RATE;
 const netOf = (b) => (b.finalAmount || 0) - commissionOf(b);
@@ -29,6 +37,9 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
     panNumber: organizer?.bankDetails?.panNumber || '',
   });
   const [bankFormError, setBankFormError] = useState('');
+  const [bankFieldErrors, setBankFieldErrors] = useState({});
+  const toast = useToast();
+  const bankFieldRefs = useRef({});
 
   const activeBookings = bookings.filter(b => b.status !== 'Cancelled');
   const completedBookings = bookings.filter(b => b.status === 'Completed');
@@ -56,18 +67,44 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
   const cardCls = `rounded-2xl ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`;
 
   const handleBankSave = () => {
-    const hasUpi = bankForm.upiId.trim();
-    const hasBank = bankForm.accountNumber.trim() && bankForm.ifsc.trim() && bankForm.bankName.trim();
-    if (!bankForm.accountHolderName.trim()) {
-      setBankFormError('Account holder name is required.');
+    const errors = {};
+    if (!bankForm.accountHolderName.trim()) errors.accountHolderName = 'Account holder name is required.';
+
+    const upiFilled = !!bankForm.upiId.trim();
+    const validUpi = upiFilled && UPI_REGEX.test(bankForm.upiId.trim());
+    if (upiFilled && !validUpi) errors.upiId = 'Enter a valid UPI ID (e.g. name@bank).';
+
+    const bankFilled = bankForm.bankName.trim() || bankForm.accountNumber.trim() || bankForm.ifsc.trim();
+    let validBank = false;
+    if (bankFilled) {
+      if (!bankForm.bankName.trim()) errors.bankName = 'Bank name is required.';
+      if (!ACCOUNT_NUMBER_REGEX.test(bankForm.accountNumber.trim())) errors.accountNumber = 'Enter a valid bank account number (9-18 digits).';
+      if (!IFSC_REGEX.test(bankForm.ifsc.trim().toUpperCase())) errors.ifsc = 'Enter a valid IFSC code (e.g. HDFC0001234).';
+      validBank = !errors.bankName && !errors.accountNumber && !errors.ifsc;
+    }
+
+    if (bankForm.panNumber.trim() && !PAN_REGEX.test(bankForm.panNumber.trim().toUpperCase())) {
+      errors.panNumber = 'Enter a valid PAN number (e.g. ABCDE1234F).';
+    }
+
+    if (!errors.accountHolderName && !validUpi && !validBank) {
+      errors.method = 'Add either a UPI ID or full bank account details (Bank Name, Account Number, IFSC).';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      const order = ['accountHolderName', 'upiId', 'bankName', 'accountNumber', 'ifsc', 'panNumber', 'method'];
+      const message = errors[order.find(f => errors[f])];
+      setBankFieldErrors(errors);
+      setBankFormError(message);
+      toast.error(message);
+      scrollToFirstError(bankFieldRefs.current, errors, order);
       return;
     }
-    if (!hasUpi && !hasBank) {
-      setBankFormError('Add either a UPI ID or full bank account details (Bank Name, Account Number, IFSC).');
-      return;
-    }
+    setBankFieldErrors({});
+    setBankFormError('');
     onSaveBankDetails(bankForm);
     setEditingBank(false);
+    toast.success('Payout details saved.');
   };
 
   const handleRequestPayout = () => {
@@ -250,7 +287,7 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
             <div className={`p-4 rounded-2xl flex gap-2.5 text-xs leading-relaxed ${darkMode ? 'bg-zinc-900/60 text-zinc-400' : 'bg-white text-zinc-500 shadow-sm'}`}>
               <FileText size={14} className="text-spy-orange shrink-0 mt-0.5" />
               <span>
-                Trekigo charges a {(COMMISSION_RATE * 100).toFixed(0)}% platform commission per booking. Funds move from
+                Find Your Trek charges a {(COMMISSION_RATE * 100).toFixed(0)}% platform commission per booking. Funds move from
                 "Pending Settlement" to your "Available Balance" once a trip is marked Completed. Zero-commission
                 loyalty credits skip this deduction entirely.
               </span>
@@ -383,64 +420,77 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
                   <div>
                     <label className={labelCls}>Account Holder Name *</label>
                     <input
+                      ref={el => { bankFieldRefs.current.accountHolderName = { current: el }; }}
                       type="text"
-                      className={inputCls}
+                      className={`${inputCls} ${bankFieldErrors.accountHolderName ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder="As per bank records"
                       value={bankForm.accountHolderName}
-                      onChange={e => { setBankForm(p => ({ ...p, accountHolderName: e.target.value })); setBankFormError(''); }}
+                      onChange={e => { setBankForm(p => ({ ...p, accountHolderName: e.target.value })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, accountHolderName: '' })); }}
                     />
+                    {bankFieldErrors.accountHolderName && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.accountHolderName}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>UPI ID</label>
                     <input
+                      ref={el => { bankFieldRefs.current.upiId = { current: el }; }}
                       type="text"
-                      className={inputCls}
+                      className={`${inputCls} ${bankFieldErrors.upiId ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder="yourname@upi"
                       value={bankForm.upiId}
-                      onChange={e => { setBankForm(p => ({ ...p, upiId: e.target.value })); setBankFormError(''); }}
+                      onChange={e => { setBankForm(p => ({ ...p, upiId: e.target.value })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, upiId: '', method: '' })); }}
                     />
+                    {bankFieldErrors.upiId && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.upiId}</p>}
                   </div>
                   <div className={`text-center text-[10px] font-bold uppercase tracking-widest ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>— or bank account —</div>
+                  {bankFieldErrors.method && <p className="text-[11px] font-semibold text-red-500 text-center">{bankFieldErrors.method}</p>}
                   <div>
                     <label className={labelCls}>Bank Name</label>
                     <input
+                      ref={el => { bankFieldRefs.current.bankName = { current: el }; }}
                       type="text"
-                      className={inputCls}
+                      className={`${inputCls} ${bankFieldErrors.bankName ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder="e.g. HDFC Bank"
                       value={bankForm.bankName}
-                      onChange={e => { setBankForm(p => ({ ...p, bankName: e.target.value })); setBankFormError(''); }}
+                      onChange={e => { setBankForm(p => ({ ...p, bankName: e.target.value })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, bankName: '', method: '' })); }}
                     />
+                    {bankFieldErrors.bankName && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.bankName}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>Account Number</label>
                     <input
+                      ref={el => { bankFieldRefs.current.accountNumber = { current: el }; }}
                       type="text"
                       inputMode="numeric"
-                      className={inputCls}
+                      className={`${inputCls} ${bankFieldErrors.accountNumber ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder="XXXXXXXXXXXX"
                       value={bankForm.accountNumber}
-                      onChange={e => { setBankForm(p => ({ ...p, accountNumber: e.target.value.replace(/\D/g, '') })); setBankFormError(''); }}
+                      onChange={e => { setBankForm(p => ({ ...p, accountNumber: e.target.value.replace(/\D/g, '') })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, accountNumber: '', method: '' })); }}
                     />
+                    {bankFieldErrors.accountNumber && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.accountNumber}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>IFSC Code</label>
                     <input
+                      ref={el => { bankFieldRefs.current.ifsc = { current: el }; }}
                       type="text"
-                      className={inputCls}
+                      className={`${inputCls} ${bankFieldErrors.ifsc ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder="e.g. HDFC0001234"
                       value={bankForm.ifsc}
-                      onChange={e => { setBankForm(p => ({ ...p, ifsc: e.target.value.toUpperCase() })); setBankFormError(''); }}
+                      onChange={e => { setBankForm(p => ({ ...p, ifsc: e.target.value.toUpperCase() })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, ifsc: '', method: '' })); }}
                     />
+                    {bankFieldErrors.ifsc && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.ifsc}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>PAN Number (for tax records)</label>
                     <input
+                      ref={el => { bankFieldRefs.current.panNumber = { current: el }; }}
                       type="text"
-                      className={inputCls}
+                      className={`${inputCls} ${bankFieldErrors.panNumber ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder="ABCDE1234F"
                       value={bankForm.panNumber}
-                      onChange={e => setBankForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() }))}
+                      onChange={e => { setBankForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() })); setBankFieldErrors(er => ({ ...er, panNumber: '' })); }}
                     />
+                    {bankFieldErrors.panNumber && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.panNumber}</p>}
                   </div>
                   {bankFormError && (
                     <div className={`flex gap-2 items-center p-3 rounded-xl text-xs font-semibold ${

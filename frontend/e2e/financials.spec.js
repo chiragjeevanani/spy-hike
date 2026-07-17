@@ -5,7 +5,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 
 const API = 'http://localhost:4000/api/v1';
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
-const DEMO_ADMIN = { email: 'admin@trekigo.com', password: 'admin123' };
+const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 function dateInDays(n) {
   const d = new Date();

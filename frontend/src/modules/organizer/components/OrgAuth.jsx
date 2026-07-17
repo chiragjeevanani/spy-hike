@@ -1,10 +1,49 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, Globe, Instagram, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { saveOrgUser } from '../utils/storage';
 import authApi from '../../../lib/authApi';
 import usePhoneVerification from '../../../lib/usePhoneVerification';
-import TrekigoLogo from '../../../components/TrekigoLogo';
+import AppLogo from '../../../components/AppLogo';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
+
+const validateGovtId = (type, number) => {
+  if (!number) return 'Government ID number is required.';
+  const clean = number.replace(/[\s-]/g, '').toUpperCase();
+  switch (type) {
+    case 'Aadhaar':
+      if (!/^\d{12}$/.test(clean)) {
+        return 'Aadhaar Card must be exactly 12 digits (e.g. 1234 5678 9012).';
+      }
+      break;
+    case 'PAN':
+      if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(clean)) {
+        return 'PAN Card must be in the format ABCDE1234F (5 letters, 4 digits, 1 letter).';
+      }
+      break;
+    case 'GST':
+      if (!/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(clean)) {
+        return 'GST Certificate must be a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).';
+      }
+      break;
+    case 'Passport':
+      if (!/^[A-PR-WY-Z]{1}\d{7}$/.test(clean)) {
+        return 'Passport must start with one letter (excluding Q, X, Z) followed by 7 digits.';
+      }
+      break;
+    case 'TIN':
+      if (!/^\d{11}$/.test(clean)) {
+        return 'TIN (Travel India License) must be exactly 11 digits.';
+      }
+      break;
+    default:
+      if (clean.length < 5) {
+        return 'Please enter a valid government ID number.';
+      }
+  }
+  return null;
+};
 
 export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   const [formData, setFormData] = useState({
@@ -22,45 +61,71 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // registration multi-step: 1=personal, 2=agency, 3=verification
   // Phone OTP verification — required in step 1 before advancing.
   const phoneVerify = usePhoneVerification(formData.mobile);
+  const toast = useToast();
+
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const mobileRef = useRef(null);
+  const passwordRef = useRef(null);
+  const agencyNameRef = useRef(null);
+  const socialMediaLinkRef = useRef(null);
+  const govtIdNumberRef = useRef(null);
+  const fieldRefs = { name: nameRef, email: emailRef, mobile: mobileRef, password: passwordRef, agencyName: agencyNameRef, socialMediaLink: socialMediaLinkRef, govtIdNumber: govtIdNumberRef };
 
   const totalSteps = 3;
 
   const handleChange = (field, val) => {
     setFormData(prev => ({ ...prev, [field]: val }));
     setError('');
+    setFieldErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const fail = (errors, order) => {
+    setFieldErrors(errors);
+    const message = errors[order.find(f => errors[f])];
+    setError(message);
+    toast.error(message);
+    scrollToFirstError(fieldRefs, errors, order);
   };
 
   const handleRegisterStep = async () => {
     if (step < totalSteps) {
-      if (step === 1 && (!formData.name || !formData.email || !formData.mobile || !formData.password)) {
-        setError('Please fill in all required fields.');
-        return;
+      if (step === 1) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const mobileRegex = /^\d{10}$/;
+        const errors = {};
+        if (!formData.name.trim()) errors.name = 'Full name is required.';
+        if (!formData.email.trim()) errors.email = 'Email address is required.';
+        else if (!emailRegex.test(formData.email.trim())) errors.email = 'Please enter a valid email address.';
+        if (!formData.mobile) errors.mobile = 'Mobile number is required.';
+        else if (!mobileRegex.test(formData.mobile)) errors.mobile = 'Mobile number must be a valid 10-digit number.';
+        else if (!phoneVerify.verified) errors.mobile = 'Please verify your mobile number with the OTP before continuing.';
+        if (!formData.password) errors.password = 'Password is required.';
+        else if (formData.password.length < 8) errors.password = 'Password must be at least 8 characters.';
+
+        if (Object.keys(errors).length > 0) return fail(errors, ['name', 'email', 'mobile', 'password']);
       }
-      if (step === 1 && !phoneVerify.verified) {
-        setError('Please verify your mobile number with the OTP before continuing.');
-        return;
-      }
-      if (step === 2 && !formData.agencyName) {
-        setError('Agency name is required.');
-        return;
-      }
-      if (step === 2 && !formData.socialMediaLink) {
-        setError('A social media link (e.g. Instagram) is required.');
-        return;
+      if (step === 2) {
+        const errors = {};
+        if (!formData.agencyName.trim()) errors.agencyName = 'Agency name is required.';
+        if (!formData.socialMediaLink.trim()) errors.socialMediaLink = 'A social media link (e.g. Instagram) is required.';
+        if (Object.keys(errors).length > 0) return fail(errors, ['agencyName', 'socialMediaLink']);
       }
       setError('');
+      setFieldErrors({});
       setStep(prev => prev + 1);
     } else {
       // Final step - register via the API. The backend always creates the
       // organizer as pending (isApproved:false) — approval is admin-only.
-      if (!formData.govtIdNumber) {
-        setError('Government ID is required for verification.');
-        return;
-      }
+      const idError = validateGovtId(formData.govtIdType, formData.govtIdNumber);
+      if (idError) return fail({ govtIdNumber: idError }, ['govtIdNumber']);
+      setError('');
+      setFieldErrors({});
       setLoading(true);
       try {
         const organizer = await authApi.registerOrganizer({
@@ -80,7 +145,9 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         saveOrgUser({ ...organizer, rememberMe: false });
         onSuccess(organizer);
       } catch (err) {
-        setError(err?.message || 'Registration failed. Please try again.');
+        const message = err?.message || 'Registration failed. Please try again.';
+        setError(message);
+        toast.error(message);
       } finally {
         setLoading(false);
       }
@@ -94,6 +161,8 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   }`;
 
   const labelCls = `text-[10px] font-bold tracking-wide uppercase mb-0.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
+  const errCls = (field) => (fieldErrors[field] ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : '');
+  const FieldError = ({ field }) => (fieldErrors[field] ? <p className="text-[10px] font-semibold mt-1 text-red-500">{fieldErrors[field]}</p> : null);
 
   const renderRegisterStep = () => {
     if (step === 1) return (
@@ -102,15 +171,17 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           <label className={labelCls}>Full Name *</label>
           <div className="relative">
             <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="text" className={`${inputCls} pl-10`} placeholder="Your full name" value={formData.name} onChange={e => handleChange('name', e.target.value)} />
+            <input ref={nameRef} type="text" className={`${inputCls} pl-10 ${errCls('name')}`} placeholder="Your full name" value={formData.name} onChange={e => handleChange('name', e.target.value)} />
           </div>
+          <FieldError field="name" />
         </div>
         <div>
           <label className={labelCls}>Email Address *</label>
           <div className="relative">
             <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="email" className={`${inputCls} pl-10`} placeholder="your@email.com" value={formData.email} onChange={e => handleChange('email', e.target.value)} />
+            <input ref={emailRef} type="email" className={`${inputCls} pl-10 ${errCls('email')}`} placeholder="your@email.com" value={formData.email} onChange={e => handleChange('email', e.target.value)} />
           </div>
+          <FieldError field="email" />
         </div>
         <div>
           <label className={`${labelCls} flex items-center gap-1`}>
@@ -122,7 +193,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input type="tel" className={`${inputCls} pl-10 disabled:opacity-70`} placeholder="+91 XXXXX XXXXX" value={formData.mobile} disabled={phoneVerify.verified} onChange={e => handleChange('mobile', e.target.value)} />
+              <input ref={mobileRef} type="tel" maxLength={10} className={`${inputCls} pl-10 disabled:opacity-70 ${errCls('mobile')}`} placeholder="10-digit number" value={formData.mobile} disabled={phoneVerify.verified} onChange={e => handleChange('mobile', e.target.value.replace(/\D/g, ''))} />
             </div>
             {!phoneVerify.sent && !phoneVerify.verified && (
               <button
@@ -156,16 +227,18 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
               {phoneVerify.error || phoneVerify.info}
             </p>
           )}
+          <FieldError field="mobile" />
         </div>
         <div>
           <label className={labelCls}>Password *</label>
           <div className="relative">
             <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type={showPassword ? 'text' : 'password'} className={`${inputCls} pl-10 pr-10`} placeholder="Min 8 characters" value={formData.password} onChange={e => handleChange('password', e.target.value)} />
+            <input ref={passwordRef} type={showPassword ? 'text' : 'password'} className={`${inputCls} pl-10 pr-10 ${errCls('password')}`} placeholder="Min 8 characters" value={formData.password} onChange={e => handleChange('password', e.target.value)} />
             <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
+          <FieldError field="password" />
         </div>
       </div>
     );
@@ -176,8 +249,9 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           <label className={labelCls}>Agency / Company Name *</label>
           <div className="relative">
             <Building2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="text" className={`${inputCls} pl-10`} placeholder="e.g. Himalayan Guides Ltd" value={formData.agencyName} onChange={e => handleChange('agencyName', e.target.value)} />
+            <input ref={agencyNameRef} type="text" className={`${inputCls} pl-10 ${errCls('agencyName')}`} placeholder="e.g. Himalayan Guides Ltd" value={formData.agencyName} onChange={e => handleChange('agencyName', e.target.value)} />
           </div>
+          <FieldError field="agencyName" />
         </div>
         <div>
           <label className={labelCls}>Website (optional)</label>
@@ -190,8 +264,9 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           <label className={labelCls}>Social Media Link (e.g. Instagram) *</label>
           <div className="relative">
             <Instagram size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="url" required className={`${inputCls} pl-10`} placeholder="https://instagram.com/youragency" value={formData.socialMediaLink} onChange={e => handleChange('socialMediaLink', e.target.value)} />
+            <input ref={socialMediaLinkRef} type="url" required className={`${inputCls} pl-10 ${errCls('socialMediaLink')}`} placeholder="https://instagram.com/youragency" value={formData.socialMediaLink} onChange={e => handleChange('socialMediaLink', e.target.value)} />
           </div>
+          <FieldError field="socialMediaLink" />
         </div>
         <div>
           <label className={labelCls}>Years of Experience</label>
@@ -230,11 +305,12 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           <label className={labelCls}>ID Number *</label>
           <div className="relative">
             <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="text" className={`${inputCls} pl-10`} placeholder="Enter your ID number" value={formData.govtIdNumber} onChange={e => handleChange('govtIdNumber', e.target.value)} />
+            <input ref={govtIdNumberRef} type="text" className={`${inputCls} pl-10 ${errCls('govtIdNumber')}`} placeholder="Enter your ID number" value={formData.govtIdNumber} onChange={e => handleChange('govtIdNumber', e.target.value)} />
           </div>
+          <FieldError field="govtIdNumber" />
         </div>
         <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-          By registering, you agree to Trekigo's Partner Terms of Service. All ID information is encrypted and secure.
+          By registering, you agree to Find Your Trek's Partner Terms of Service. All ID information is encrypted and secure.
         </p>
       </div>
     );
@@ -250,7 +326,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
             <span className="bg-spy-orange text-white text-[9px] font-black tracking-widest px-2.5 py-1 rounded-full">ORGANIZER</span>
           </div>
           
-          <TrekigoLogo size={40} className="mb-2" />
+          <AppLogo size={40} className="mb-2" />
           <h1 className="text-xl font-display font-black tracking-tight">
             Become a Partner
           </h1>

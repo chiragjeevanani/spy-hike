@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   ArrowLeft, Edit3, Save, X, Trash2, Ban, CheckCircle2, Mail, Phone, Star,
   Globe, FileBadge, Calendar, ShieldAlert, Users, IndianRupee, ExternalLink,
@@ -6,9 +6,12 @@ import {
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import {
-  getOrganizerByEmail, saveOrganizerFields, createOrganizer, deleteOrganizerAccount,
-  getTripsByOrganizerEmail, getBookingsByOrganizerEmail,
+  getOrganizerByEmail, getTripsByOrganizerEmail, getBookingsByOrganizerEmail,
 } from '../utils/storage';
+import adminApi from '../../../lib/adminApi';
+import tripsApi from '../../../lib/tripsApi';
+import bookingsApi from '../../../lib/bookingsApi';
+import { getToken } from '../../../lib/apiClient';
 
 const GOVT_ID_TYPES = ['Aadhaar', 'PAN', 'GST', 'Passport'];
 
@@ -24,7 +27,12 @@ const blankForm = {
 
 export default function AdminOrganizerProfileView({ email, onBack, onNavigateToOrganizer, onNavigateToUser, darkMode }) {
   const isNew = !email;
-  const existingOrg = isNew ? null : getOrganizerByEmail(email);
+
+  const [organizerDb, setOrganizerDb] = useState(null);
+  const [userDb, setUserDb] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const existingOrg = isNew ? null : (organizerDb || getOrganizerByEmail(email));
 
   const [editing, setEditing] = useState(isNew);
   const [form, setForm] = useState(existingOrg ? {
@@ -33,12 +41,81 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
     govtIdType: existingOrg.govtIdType || 'Aadhaar', govtIdNumber: existingOrg.govtIdNumber || '',
     yearsExperience: existingOrg.yearsExperience || 1, bio: existingOrg.bio || '',
   } : blankForm);
+
+  useEffect(() => {
+    if (isNew || !email || !getToken()) return;
+
+    setLoading(true);
+    // 1. Fetch organizers from backend
+    adminApi.listOrganizers()
+      .then((orgs) => {
+        const found = orgs.find(o => o.email.toLowerCase() === email.toLowerCase());
+        if (found) {
+          setOrganizerDb(found);
+          setForm({
+            name: found.name || '',
+            email: found.email || '',
+            mobile: found.mobile || '',
+            agencyName: found.agencyName || '',
+            agencyWebsite: found.agencyWebsite || '',
+            govtIdType: found.govtIdType || 'Aadhaar',
+            govtIdNumber: found.govtIdNumber || '',
+            yearsExperience: found.yearsExperience || 1,
+            bio: found.bio || '',
+          });
+        }
+      })
+      .catch((err) => console.error('Error fetching organizer:', err));
+
+    // 2. Fetch corresponding customer user from backend
+    adminApi.listUsers()
+      .then((users) => {
+        const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (foundUser && foundUser.id) {
+          adminApi.getUser(foundUser.id)
+            .then((res) => {
+              setUserDb(res);
+            })
+            .catch((err) => console.error('Error fetching user details:', err));
+        }
+      })
+      .catch((err) => console.error('Error fetching user list:', err))
+      .finally(() => setLoading(false));
+  }, [email, isNew]);
   const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const trips = useMemo(() => (existingOrg ? getTripsByOrganizerEmail(existingOrg.email) : []), [existingOrg?.email]);
-  const bookings = useMemo(() => (existingOrg ? getBookingsByOrganizerEmail(existingOrg.email) : []), [existingOrg?.email]);
+  // Real trips/bookings from the backend when signed in; localStorage seed
+  // data otherwise (offline / no backend) — mirrors the pattern used above
+  // for the organizer + linked-user fetch.
+  const [allTrips, setAllTrips] = useState([]);
+  const [allBookings, setAllBookings] = useState([]);
+
+  useEffect(() => {
+    if (isNew || !email || !getToken()) return;
+    tripsApi.listAllTrips().then(setAllTrips).catch(() => setAllTrips([]));
+    bookingsApi.listAll().then(setAllBookings).catch(() => setAllBookings([]));
+  }, [email, isNew]);
+
+  const trips = useMemo(() => {
+    if (!existingOrg) return [];
+    if (getToken()) {
+      const orgEmail = existingOrg.email.toLowerCase();
+      return allTrips.filter((t) => t.organizerEmail?.toLowerCase() === orgEmail);
+    }
+    return getTripsByOrganizerEmail(existingOrg.email);
+  }, [allTrips, existingOrg]);
+
+  const bookings = useMemo(() => {
+    if (!existingOrg) return [];
+    if (getToken()) {
+      const orgEmail = existingOrg.email.toLowerCase();
+      return allBookings.filter((b) => b.organizerEmail?.toLowerCase() === orgEmail);
+    }
+    return getBookingsByOrganizerEmail(existingOrg.email);
+  }, [allBookings, existingOrg]);
 
   const stats = useMemo(() => {
     const active = bookings.filter(b => b.status !== 'Cancelled');
@@ -47,7 +124,7 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
       const c = b.commissionAmount !== undefined ? b.commissionAmount : (parseFloat(b.finalAmount) || 0) * 0.1;
       return s + c;
     }, 0);
-    const totalTravelers = active.reduce((s, b) => s + (parseInt(b.hikersCount) || 1), 0);
+    const totalTravelers = active.reduce((s, b) => s + (parseInt(b.travelersCount) || 1), 0);
     const publishedTrips = trips.filter(t => t.status === 'Published').length;
     return { totalRevenue, totalCommission, totalTravelers, publishedTrips, totalBookings: bookings.length };
   }, [bookings, trips]);
@@ -60,29 +137,50 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
   }`;
   const labelCls = 'text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5';
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim() || !form.agencyName.trim()) {
       setFormError('Representative name, agency name and email are required.');
       return;
     }
-    if (isNew) {
-      const created = createOrganizer(form);
-      onNavigateToOrganizer(created.email);
-    } else {
-      saveOrganizerFields(existingOrg.email, form);
-      setEditing(false);
+    setFormError('');
+    setSaving(true);
+    try {
+      if (isNew) {
+        const created = await adminApi.createOrganizer(form);
+        onNavigateToOrganizer(created.email);
+      } else {
+        const updated = await adminApi.updateOrganizer(existingOrg.id, form);
+        setOrganizerDb(updated);
+        setEditing(false);
+      }
+    } catch (err) {
+      setFormError(err?.message || 'Could not save organizer.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleToggleStatus = () => {
-    saveOrganizerFields(existingOrg.email, { isApproved: !existingOrg.isApproved, isPendingApproval: false });
-    setShowStatusConfirm(false);
+  const handleToggleStatus = async () => {
+    try {
+      const action = existingOrg.isApproved ? 'suspend' : 'approve';
+      const updated = await adminApi.setOrganizerStatus(existingOrg.id, action);
+      setOrganizerDb(updated);
+    } catch (err) {
+      setFormError(err?.message || 'Could not update organizer status.');
+    } finally {
+      setShowStatusConfirm(false);
+    }
   };
 
-  const handleDelete = () => {
-    deleteOrganizerAccount(existingOrg.email);
-    setShowDeleteConfirm(false);
-    onBack();
+  const handleDelete = async () => {
+    try {
+      await adminApi.deleteOrganizer(existingOrg.id);
+      setShowDeleteConfirm(false);
+      onBack();
+    } catch (err) {
+      setFormError(err?.message || 'Could not delete organizer.');
+      setShowDeleteConfirm(false);
+    }
   };
 
   if (!isNew && !existingOrg) {
@@ -95,6 +193,7 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
     );
   }
 
+  const isPending = existingOrg && existingOrg.isPendingApproval && !existingOrg.isApproved;
   const org = existingOrg || form;
 
   return (
@@ -108,10 +207,10 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
           </button>
           <div>
             <h1 className="text-2xl font-black font-display tracking-tight text-slate-800 dark:text-white">
-              {isNew ? 'Add New Organizer' : 'Organizer Profile'}
+              {isNew ? 'Add New Organizer' : isPending ? 'Organizer Application' : 'Organizer Profile'}
             </h1>
             <p className="text-slate-400 text-xs mt-1 font-semibold">
-              {isNew ? 'Create a new partner account manually.' : 'Agency details, trips, revenue, and account controls.'}
+              {isNew ? 'Create a new partner account manually.' : isPending ? 'Review partner application credentials, bio, and corresponding customer stats.' : 'Agency details, trips, revenue, and account controls.'}
             </p>
           </div>
         </div>
@@ -164,7 +263,7 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
                 <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase mt-3 ${
                   existingOrg.isApproved ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
                 }`}>
-                  {existingOrg.isApproved ? 'Approved' : 'Suspended / Pending'}
+                  {existingOrg.isApproved ? 'Approved' : existingOrg.isPendingApproval ? 'Pending Approval' : 'Suspended'}
                 </span>
               </>
             )}
@@ -220,9 +319,10 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSave}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F27D26] text-white text-xs font-bold active:scale-95 transition-all"
+                    disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F27D26] text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-60"
                   >
-                    <Save size={13} /> {isNew ? 'Create Organizer' : 'Save Changes'}
+                    <Save size={13} /> {saving ? 'Saving...' : isNew ? 'Create Organizer' : 'Save Changes'}
                   </button>
                   {!isNew && (
                     <button
@@ -257,115 +357,202 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
         {/* Right column: stats + trips + bookings */}
         {!isNew && (
           <div className="lg:col-span-2 space-y-6">
-            {/* Stats grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                { label: 'Published Trips', value: stats.publishedTrips, icon: Compass, color: 'text-blue-500 bg-blue-500/10' },
-                { label: 'Total Bookings', value: stats.totalBookings, icon: Users, color: 'text-violet-500 bg-violet-500/10' },
-                { label: 'Gross Revenue', value: `₹${stats.totalRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-emerald-500 bg-emerald-500/10' },
-                { label: 'Platform Commission', value: `₹${Math.round(stats.totalCommission).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-pink-500 bg-pink-500/10' },
-              ].map(s => {
-                const Icon = s.icon;
-                return (
-                  <div key={s.label} className={`${cardCls} p-4`}>
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2.5 ${s.color}`}>
-                      <Icon size={16} />
-                    </div>
-                    <div className="text-lg font-black font-display">{s.value}</div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{s.label}</div>
+            {isPending ? (
+              /* Pending Approvals: show Customer profile details and referred users list */
+              <div className={`${cardCls} p-6 space-y-4`}>
+                <div className="flex items-center justify-between border-b pb-3.5 dark:border-slate-800">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Corresponding Customer Account</h3>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">This organizer registration is linked to a customer/hiker account.</p>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Trips run by this organizer */}
-            <div className={`${cardCls} p-0 overflow-hidden`}>
-              <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'} flex items-center justify-between`}>
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Trips Posted</h3>
-                <span className="text-[10px] font-bold text-slate-400">{trips.length} total</span>
-              </div>
-
-              {trips.length === 0 ? (
-                <div className="text-center py-10 text-slate-400 text-xs font-semibold">No trips posted by this organizer yet.</div>
-              ) : (
-                <div className={`divide-y ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                  {trips.map(t => (
-                    <div key={t.id} className="flex items-center gap-4 px-6 py-4">
-                      <img src={t.coverImage} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-100 dark:border-slate-800" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm truncate">{t.name}</span>
-                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0 ${
-                            t.status === 'Published' ? 'bg-emerald-500/10 text-emerald-600' :
-                            t.status === 'Draft' ? 'bg-slate-400/10 text-slate-500' : 'bg-amber-500/10 text-amber-600'
-                          }`}>
-                            {t.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-semibold mt-1 flex-wrap">
-                          <span className="flex items-center gap-1"><MapPin size={10} /> {t.location}</span>
-                          <span className="flex items-center gap-1"><IndianRupee size={10} /> {t.price} / person</span>
-                        </div>
-                      </div>
-                      <a
-                        href={`/app/trek/${slugify(t.name)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-[10px] font-bold border transition-all ${darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
-                      >
-                        Public Listing <ExternalLink size={11} />
-                      </a>
-                    </div>
-                  ))}
+                  <span className={`text-[10px] px-2.5 py-1 rounded bg-[#F27D26]/10 text-[#F27D26] font-black uppercase tracking-wider`}>
+                    Linked Hiker
+                  </span>
                 </div>
-              )}
-            </div>
 
-            {/* Recent bookings */}
-            <div className={`${cardCls} p-0 overflow-hidden`}>
-              <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'} flex items-center justify-between`}>
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Bookings Received</h3>
-                <span className="text-[10px] font-bold text-slate-400">{bookings.length} total</span>
-              </div>
+                {loading ? (
+                  <div className="text-center py-8 text-xs font-bold text-slate-400">Loading customer account details...</div>
+                ) : userDb ? (
+                  <div className="space-y-4 text-xs font-semibold">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block mb-1">Hiker Profile Name</span>
+                        <span className="text-sm font-bold">{userDb.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block mb-1">Email / Phone</span>
+                        <span className="text-sm font-bold">{userDb.email} {userDb.mobile ? `· ${userDb.mobile}` : ''}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block mb-1">Loyalty Points Balance</span>
+                        <span className="text-sm font-bold text-[#F27D26]">{userDb.loyaltyPoints || 0} Points</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block mb-1">Account Status</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase inline-block ${
+                          userDb.status === 'Banned' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-600'
+                        }`}>
+                          {userDb.status || 'Active'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block mb-1">Referral Code</span>
+                        <span className="font-mono bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded text-xs inline-block mt-0.5">{userDb.referralCode || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block mb-1">Total Referred Hikers</span>
+                        <span className="text-sm font-bold text-blue-500">{userDb.referredUsers?.length || 0} persons</span>
+                      </div>
+                    </div>
 
-              {bookings.length === 0 ? (
-                <div className="text-center py-10 text-slate-400 text-xs font-semibold">No bookings received yet.</div>
-              ) : (
-                <div className={`divide-y ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                  {bookings.map(b => (
-                    <div key={b.bookingId || b.id} className="flex items-center gap-4 px-6 py-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm truncate">{b.tripName}</span>
-                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0 ${
-                            b.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-600' :
-                            b.status === 'Upcoming' ? 'bg-blue-500/10 text-blue-600' : 'bg-rose-500/10 text-rose-600'
-                          }`}>
-                            {b.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-semibold mt-1 flex-wrap">
-                          <span>{b.userName || 'Active User'}</span>
-                          <span className="flex items-center gap-1"><Calendar size={10} /> {b.selectedDate}</span>
-                          <span className="flex items-center gap-1"><IndianRupee size={10} /> {parseFloat(b.finalAmount || 0).toLocaleString('en-IN')}</span>
+                    {/* Referred Users List */}
+                    {userDb.referredUsers && userDb.referredUsers.length > 0 && (
+                      <div className="pt-4 border-t dark:border-slate-800">
+                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2.5">Referred Hikers List</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto no-scrollbar">
+                          {userDb.referredUsers.map(ru => (
+                            <button
+                              key={ru.id || ru.email}
+                              onClick={() => onNavigateToUser(ru.id || ru.email)}
+                              className="flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-[#F27D26]/40 dark:hover:border-[#F27D26]/30 hover:bg-slate-50 dark:hover:bg-slate-900/60 text-left text-xs transition-all duration-200"
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <p className="font-bold truncate">{ru.name}</p>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5">{ru.email}</p>
+                              </div>
+                              <span className="text-[10px] text-[#F27D26] font-bold shrink-0">View Profile →</span>
+                            </button>
+                          ))}
                         </div>
                       </div>
+                    )}
+
+                    <div className="pt-4 border-t dark:border-slate-800 flex justify-end">
                       <button
-                        onClick={() => b.userEmail && onNavigateToUser(b.userEmail)}
-                        disabled={!b.userEmail}
-                        className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-[10px] font-bold border transition-all ${
-                          b.userEmail
-                            ? (darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
-                            : 'opacity-30 cursor-not-allowed border-slate-200'
-                        }`}
+                        onClick={() => onNavigateToUser(userDb.id || userDb.email)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[#F27D26]/10 text-[#F27D26] hover:bg-[#F27D26]/20 transition-all font-bold text-xs rounded-xl"
                       >
-                        View Hiker <ChevronRight size={11} />
+                        Go to Customer Hiker Profile <ChevronRight size={13} />
                       </button>
                     </div>
-                  ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-xs font-bold text-slate-400">No corresponding hiker profile found in database.</div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Stats grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Published Trips', value: stats.publishedTrips, icon: Compass, color: 'text-blue-500 bg-blue-500/10' },
+                    { label: 'Total Bookings', value: stats.totalBookings, icon: Users, color: 'text-violet-500 bg-violet-500/10' },
+                    { label: 'Gross Revenue', value: `₹${stats.totalRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-emerald-500 bg-emerald-500/10' },
+                    { label: 'Platform Commission', value: `₹${Math.round(stats.totalCommission).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-pink-500 bg-pink-500/10' },
+                  ].map(s => {
+                    const Icon = s.icon;
+                    return (
+                      <div key={s.label} className={`${cardCls} p-4`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2.5 ${s.color}`}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="text-lg font-black font-display">{s.value}</div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{s.label}</div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+
+                {/* Trips run by this organizer */}
+                <div className={`${cardCls} p-0 overflow-hidden`}>
+                  <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'} flex items-center justify-between`}>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Trips Posted</h3>
+                    <span className="text-[10px] font-bold text-slate-400">{trips.length} total</span>
+                  </div>
+
+                  {trips.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 text-xs font-semibold">No trips posted by this organizer yet.</div>
+                  ) : (
+                    <div className={`divide-y ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                      {trips.map(t => (
+                        <div key={t.id} className="flex items-center gap-4 px-6 py-4">
+                          <img src={t.coverImage} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-100 dark:border-slate-800" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm truncate">{t.name}</span>
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0 ${
+                                t.status === 'Published' ? 'bg-emerald-500/10 text-emerald-600' :
+                                t.status === 'Draft' ? 'bg-slate-400/10 text-slate-500' : 'bg-amber-500/10 text-amber-600'
+                              }`}>
+                                {t.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-slate-400 font-semibold mt-1 flex-wrap">
+                              <span className="flex items-center gap-1"><MapPin size={10} /> {t.location}</span>
+                              <span className="flex items-center gap-1"><IndianRupee size={10} /> {t.price} / person</span>
+                            </div>
+                          </div>
+                          <a
+                            href={`/app/trek/${slugify(t.name)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-[10px] font-bold border transition-all ${darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                          >
+                            Public Listing <ExternalLink size={11} />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Recent bookings */}
+                <div className={`${cardCls} p-0 overflow-hidden`}>
+                  <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-800' : 'border-slate-100'} flex items-center justify-between`}>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Bookings Received</h3>
+                    <span className="text-[10px] font-bold text-slate-400">{bookings.length} total</span>
+                  </div>
+
+                  {bookings.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 text-xs font-semibold">No bookings received yet.</div>
+                  ) : (
+                    <div className={`divide-y ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                      {bookings.map(b => (
+                        <div key={b.bookingId || b.id} className="flex items-center gap-4 px-6 py-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm truncate">{b.tripName}</span>
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0 ${
+                                b.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-600' :
+                                b.status === 'Upcoming' ? 'bg-blue-500/10 text-blue-600' : 'bg-rose-500/10 text-rose-600'
+                              }`}>
+                                {b.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-slate-400 font-semibold mt-1 flex-wrap">
+                              <span>{b.userName || 'Active User'}</span>
+                              <span className="flex items-center gap-1"><Calendar size={10} /> {b.selectedDate}</span>
+                              <span className="flex items-center gap-1"><IndianRupee size={10} /> {parseFloat(b.finalAmount || 0).toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => b.userEmail && onNavigateToUser(b.userEmail)}
+                            disabled={!b.userEmail}
+                            className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-[10px] font-bold border transition-all ${
+                              b.userEmail
+                                ? (darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
+                                : 'opacity-30 cursor-not-allowed border-slate-200'
+                            }`}
+                          >
+                            View Hiker <ChevronRight size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

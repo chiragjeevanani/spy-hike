@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Shield, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
-import TrekigoLogo from '../../../components/TrekigoLogo';
+import AppLogo from '../../../components/AppLogo';
 import authApi from '../../../lib/authApi';
 
 export default function AdminLogin({ onLoginSuccess }) {
@@ -8,15 +8,21 @@ export default function AdminLogin({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Please fill in all fields.');
+    const errors = {};
+    if (!email.trim()) errors.email = 'Admin email is required.';
+    if (!password) errors.password = 'Security key is required.';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError(errors.email || errors.password);
       return;
     }
 
+    setFieldErrors({});
     setLoading(true);
     setError('');
 
@@ -26,7 +32,7 @@ export default function AdminLogin({ onLoginSuccess }) {
       const admin = await authApi.loginAdmin(email, password);
       onLoginSuccess({ ...admin, role: admin.displayRole || 'Super Admin' });
     } catch (err) {
-      setError(err?.message || 'Invalid admin credentials. Use admin@trekigo.com / admin123');
+      setError(err?.message || 'Invalid admin credentials. Use admin@findyourtrek.com / admin123');
     } finally {
       setLoading(false);
     }
@@ -42,9 +48,9 @@ export default function AdminLogin({ onLoginSuccess }) {
         
         {/* Branding header */}
         <div className="text-center mb-8">
-          <TrekigoLogo size={64} className="mx-auto mb-4" />
+          <AppLogo size={64} className="mx-auto mb-4" />
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">
-            Trekigo Console
+            Find Your Trek Console
           </div>
           <h1 className="text-2xl font-bold text-slate-800 font-display">Administrator Portal</h1>
           <p className="text-sm text-slate-400 mt-1.5">Sign in to manage users, organizers, and platform settings</p>
@@ -59,20 +65,22 @@ export default function AdminLogin({ onLoginSuccess }) {
         )}
 
         {/* Form elements */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} noValidate className="space-y-5">
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Admin Email</label>
             <div className="relative">
               <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="email"
-                required
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400/15 outline-none bg-slate-50/50 text-slate-800 text-sm font-medium transition-all"
-                placeholder="admin@trekigo.com"
+                className={`w-full pl-11 pr-4 py-3 rounded-xl border focus:ring-1 focus:ring-slate-400/15 outline-none bg-slate-50/50 text-slate-800 text-sm font-medium transition-all ${
+                  fieldErrors.email ? 'border-rose-400 focus:border-rose-400' : 'border-slate-200 focus:border-slate-400'
+                }`}
+                placeholder="admin@findyourtrek.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setFieldErrors(er => ({ ...er, email: '' })); }}
               />
             </div>
+            {fieldErrors.email && <p className="text-[11px] font-semibold text-rose-500 mt-1.5">{fieldErrors.email}</p>}
           </div>
 
           <div>
@@ -81,11 +89,12 @@ export default function AdminLogin({ onLoginSuccess }) {
               <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type={showPassword ? 'text' : 'password'}
-                required
-                className="w-full pl-11 pr-11 py-3 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400/15 outline-none bg-slate-50/50 text-slate-800 text-sm font-medium transition-all"
+                className={`w-full pl-11 pr-11 py-3 rounded-xl border focus:ring-1 focus:ring-slate-400/15 outline-none bg-slate-50/50 text-slate-800 text-sm font-medium transition-all ${
+                  fieldErrors.password ? 'border-rose-400 focus:border-rose-400' : 'border-slate-200 focus:border-slate-400'
+                }`}
                 placeholder="••••••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setFieldErrors(er => ({ ...er, password: '' })); }}
               />
               <button
                 type="button"
@@ -95,6 +104,7 @@ export default function AdminLogin({ onLoginSuccess }) {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            {fieldErrors.password && <p className="text-[11px] font-semibold text-rose-500 mt-1.5">{fieldErrors.password}</p>}
           </div>
 
           <button
@@ -118,7 +128,7 @@ export default function AdminLogin({ onLoginSuccess }) {
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 text-[11px] text-slate-500 leading-relaxed">
             <span className="font-semibold text-slate-600">Quick Demo Access:</span>
             <div className="mt-1 flex justify-between font-mono text-[10px]">
-              <div>Email: <span className="text-[#F27D26] font-semibold">admin@trekigo.com</span></div>
+              <div>Email: <span className="text-[#F27D26] font-semibold">admin@findyourtrek.com</span></div>
               <div>Secret: <span className="text-[#F27D26] font-semibold">admin123</span></div>
             </div>
           </div>

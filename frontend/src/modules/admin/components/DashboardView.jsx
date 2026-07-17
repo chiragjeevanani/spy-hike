@@ -27,12 +27,11 @@ export default function DashboardView({ onNavigate, darkMode }) {
     trips: 0,
     pendingOrgs: 0
   });
-  const [revenueTrend, setRevenueTrend] = useState(REVENUE_TREND_DATA);
-  const [categoryData, setCategoryData] = useState(TRIP_CATEGORY_DATA);
+  const [revenueTrend, setRevenueTrend] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
-    // Real platform aggregates from the API (falls back to the static mock
-    // series if the backend is unavailable).
     bookingsApi.getAnalytics()
       .then((a) => {
         const o = a.overview;
@@ -47,7 +46,15 @@ export default function DashboardView({ onNavigate, darkMode }) {
         });
         if (a.revenueTrend?.length) setRevenueTrend(a.revenueTrend);
         if (a.categoryDist?.length) {
-          setCategoryData(a.categoryDist.map((c, i) => ({ ...c, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] })));
+          const total = a.categoryDist.reduce((s, c) => s + c.value, 0);
+          setCategoryData(a.categoryDist.map((c, i) => ({
+            ...c,
+            value: total > 0 ? Math.round((c.value / total) * 100) : 0,
+            color: CATEGORY_COLORS[i % CATEGORY_COLORS.length]
+          })));
+        }
+        if (a.recentLogs?.length) {
+          setRecentActivity(a.recentLogs);
         }
       })
       .catch(() => {});
@@ -177,7 +184,7 @@ export default function DashboardView({ onNavigate, darkMode }) {
             
             {/* Center Summary Text */}
             <div className="absolute flex flex-col items-center">
-              <span className="text-2xl font-black font-display text-slate-800 dark:text-white">100+</span>
+              <span className="text-2xl font-black font-display text-slate-800 dark:text-white">{stats.trips}</span>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Hikes</span>
             </div>
           </div>
@@ -206,19 +213,25 @@ export default function DashboardView({ onNavigate, darkMode }) {
             <Clock size={16} className="text-slate-400 animate-pulse" />
           </div>
           <div className="space-y-4">
-            {RECENT_LOGS.map((log) => (
-              <div key={log.id} className="flex justify-between items-start gap-4 text-xs font-semibold pb-3 border-b border-slate-100 dark:border-slate-800 last:border-0 last:pb-0">
-                <div className="flex gap-3">
-                  <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    log.type === 'Booking' ? 'bg-emerald-500' :
-                    log.type === 'Organizer' ? 'bg-amber-500' :
-                    log.type === 'Trip' ? 'bg-blue-500' : 'bg-rose-500'
-                  }`} />
-                  <span className={darkMode ? 'text-slate-200' : 'text-slate-700'}>{log.text}</span>
-                </div>
-                <span className="text-[10px] text-slate-400 shrink-0">{log.time}</span>
+            {recentActivity.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs font-semibold">
+                No recent activity logged yet.
               </div>
-            ))}
+            ) : (
+              recentActivity.map((log) => (
+                <div key={log.id} className="flex justify-between items-start gap-4 text-xs font-semibold pb-3 border-b border-slate-100 dark:border-slate-800 last:border-0 last:pb-0">
+                  <div className="flex gap-3">
+                    <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                      log.type === 'Booking' ? 'bg-emerald-500' :
+                      log.type === 'Organizer' ? 'bg-amber-500' :
+                      log.type === 'Trip' ? 'bg-blue-500' : 'bg-rose-500'
+                    }`} />
+                    <span className={darkMode ? 'text-slate-200' : 'text-slate-700'}>{log.text}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 shrink-0">{log.time}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

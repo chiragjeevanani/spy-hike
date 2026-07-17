@@ -1,7 +1,9 @@
 import { getLoyaltyConfig } from '../models/LoyaltyConfig.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { ApiError } from '../utils/ApiError.js';
 import {
   listVouchers, computeLifetimePersons, computeLifetimeOrganizerBookings,
+  computeCyclePersons, computeCycleOrganizerBookings,
   syncCustomerVouchers, syncOrganizerVouchers, cycleProgress,
 } from '../services/loyaltyService.js';
 
@@ -19,10 +21,13 @@ export const getPublicLoyaltyConfig = asyncHandler(async (req, res) => {
 export const getCustomerLoyalty = asyncHandler(async (req, res) => {
   const cfg = await getLoyaltyConfig();
   await syncCustomerVouchers(req.user.email, cfg); // mint any owed before reporting
-  const lifetime = await computeLifetimePersons(req.user.email);
+  const [lifetime, cycleCount] = await Promise.all([
+    computeLifetimePersons(req.user.email),
+    computeCyclePersons(req.user.email),
+  ]);
   const vouchers = await listVouchers('customer', req.user.email);
   res.json({
-    progress: cycleProgress(lifetime, cfg.customer.thresholdPersons),
+    progress: { ...cycleProgress(cycleCount, cfg.customer.thresholdPersons), lifetime },
     vouchers: vouchers.map((v) => v.toPublicJSON()),
   });
 });
@@ -33,10 +38,13 @@ export const getCustomerLoyalty = asyncHandler(async (req, res) => {
 export const getOrganizerLoyalty = asyncHandler(async (req, res) => {
   const cfg = await getLoyaltyConfig();
   await syncOrganizerVouchers(req.organizer.email, cfg);
-  const lifetime = await computeLifetimeOrganizerBookings(req.organizer.email);
+  const [lifetime, cycleCount] = await Promise.all([
+    computeLifetimeOrganizerBookings(req.organizer.email),
+    computeCycleOrganizerBookings(req.organizer.email),
+  ]);
   const vouchers = await listVouchers('organizer', req.organizer.email);
   res.json({
-    progress: cycleProgress(lifetime, cfg.organizer.thresholdBookings),
+    progress: { ...cycleProgress(cycleCount, cfg.organizer.thresholdBookings), lifetime },
     vouchers: vouchers.map((v) => v.toPublicJSON()),
   });
 });
@@ -53,8 +61,25 @@ export const getAdminLoyaltyConfig = asyncHandler(async (req, res) => {
 export const updateAdminLoyaltyConfig = asyncHandler(async (req, res) => {
   const cfg = await getLoyaltyConfig();
   const current = cfg.toObject();
-  if (req.body.customer) cfg.set('customer', { ...current.customer, ...req.body.customer });
-  if (req.body.organizer) cfg.set('organizer', { ...current.organizer, ...req.body.organizer });
+
+  if (req.body.customer) {
+    const { thresholdPersons, maxDiscountAmount } = req.body.customer;
+    if (thresholdPersons !== undefined && (!Number.isFinite(Number(thresholdPersons)) || Number(thresholdPersons) < 1)) {
+      throw ApiError.badRequest('Customer reward threshold must be at least 1');
+    }
+    if (maxDiscountAmount !== undefined && (!Number.isFinite(Number(maxDiscountAmount)) || Number(maxDiscountAmount) < 0)) {
+      throw ApiError.badRequest('Max discount amount cannot be negative');
+    }
+    cfg.set('customer', { ...current.customer, ...req.body.customer });
+  }
+  if (req.body.organizer) {
+    const { thresholdBookings } = req.body.organizer;
+    if (thresholdBookings !== undefined && (!Number.isFinite(Number(thresholdBookings)) || Number(thresholdBookings) < 1)) {
+      throw ApiError.badRequest('Organizer reward threshold must be at least 1');
+    }
+    cfg.set('organizer', { ...current.organizer, ...req.body.organizer });
+  }
+
   await cfg.save();
   res.json({ config: cfg.toPublicJSON() });
 });

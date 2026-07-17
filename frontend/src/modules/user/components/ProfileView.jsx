@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
@@ -11,12 +11,97 @@ import TravelTicket from './TravelTicket';
 import SwitchTransition from './SwitchTransition';
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
+import authApi from '../../../lib/authApi';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
 
 // Mirrors Auth.jsx — the organizer panel runs as an independent mini-SPA with
 // its own session storage, so switching modules means seeding that store and
 // doing a hard navigation to /organizer.
 const ORG_USER_STORAGE_KEY = 'trekigo_org_user';
 const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play before handing off
+
+// Same strength rule Auth.jsx and the backend enforce — at least 8
+// characters with a letter and a number.
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const PASSWORD_HELP = 'Password must be at least 8 characters, with at least one letter and one number.';
+
+const parseEmergencyContact = (str) => {
+  if (!str) return { name: '', phone: '' };
+  
+  const parenMatch = str.match(/(.*?)\((.*?)\)\s*$/);
+  if (parenMatch) {
+    return {
+      name: parenMatch[1].trim().replace(/[-:\s]+$/, ''),
+      phone: parenMatch[2].trim()
+    };
+  }
+
+  const dividerMatch = str.match(/(.*?)[-:]\s*([+0-9\s]+)$/);
+  if (dividerMatch) {
+    return {
+      name: dividerMatch[1].trim(),
+      phone: dividerMatch[2].trim()
+    };
+  }
+
+  const firstDigitIndex = str.search(/\d/);
+  if (firstDigitIndex > 0) {
+    return {
+      name: str.substring(0, firstDigitIndex).trim().replace(/[-:\s]+$/, ''),
+      phone: str.substring(firstDigitIndex).trim()
+    };
+  }
+
+  if (firstDigitIndex === 0) {
+    return { name: '', phone: str };
+  }
+
+  return { name: str, phone: '' };
+};
+
+const formatEmergencyContact = (name, phone) => {
+  if (!name.trim()) return phone.trim();
+  if (!phone.trim()) return name.trim();
+  return `${name.trim()} (${phone.trim()})`;
+};
+
+const validateGovtId = (type, number) => {
+  if (!number) return 'Government ID number is required.';
+  const clean = number.replace(/[\s-]/g, '').toUpperCase();
+  switch (type) {
+    case 'Aadhaar':
+      if (!/^\d{12}$/.test(clean)) {
+        return 'Aadhaar Card must be exactly 12 digits (e.g. 1234 5678 9012).';
+      }
+      break;
+    case 'PAN':
+      if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(clean)) {
+        return 'PAN Card must be in the format ABCDE1234F (5 letters, 4 digits, 1 letter).';
+      }
+      break;
+    case 'GST':
+      if (!/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(clean)) {
+        return 'GST Certificate must be a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).';
+      }
+      break;
+    case 'Passport':
+      if (!/^[A-PR-WY-Z]{1}\d{7}$/.test(clean)) {
+        return 'Passport must start with one letter (excluding Q, X, Z) followed by 7 digits.';
+      }
+      break;
+    case 'TIN':
+      if (!/^\d{11}$/.test(clean)) {
+        return 'TIN (Travel India License) must be exactly 11 digits.';
+      }
+      break;
+    default:
+      if (clean.length < 5) {
+        return 'Please enter a valid government ID number.';
+      }
+  }
+  return null;
+};
 
 export default function ProfileView({
   user,
@@ -40,6 +125,22 @@ export default function ProfileView({
     return () => { if (onFullscreenChange) onFullscreenChange(false); };
   }, [currentSub, onFullscreenChange]);
 
+  useEffect(() => {
+    setProfileName(user.name || '');
+    setProfileEmail(user.email || '');
+    setProfileMobile(user.mobile || '');
+    const parsed = parseEmergencyContact(user.emergencyContact || '');
+    setProfileEmergencyName(parsed.name);
+    setProfileEmergencyPhone(parsed.phone);
+    setHikeExperience(user.hikingExperience || '');
+    setFitLevel(user.fitnessLevel || '');
+    setNotifyState({
+      bookings: user.notificationBookings ?? true,
+      updates: user.notificationUpdates ?? true,
+      promo: user.notificationPromo ?? false
+    });
+  }, [user]);
+
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getCustomerProgress(bookings, loyaltyConfig);
 
@@ -47,7 +148,28 @@ export default function ProfileView({
   const [profileName, setProfileName] = useState(user.name);
   const [profileEmail, setProfileEmail] = useState(user.email);
   const [profileMobile, setProfileMobile] = useState(user.mobile);
-  const [profileEmergency, setProfileEmergency] = useState(user.emergencyContact);
+  
+  const initialEmergency = parseEmergencyContact(user.emergencyContact || '');
+  const [profileEmergencyName, setProfileEmergencyName] = useState(initialEmergency.name);
+  const [profileEmergencyPhone, setProfileEmergencyPhone] = useState(initialEmergency.phone);
+
+  // OTP Verification States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [profileFieldErrors, setProfileFieldErrors] = useState({});
+  const toast = useToast();
+  const profileNameRef = useRef(null);
+  const profileEmailRef = useRef(null);
+  const profileMobileRef = useRef(null);
+  const profileEmergencyNameRef = useRef(null);
+  const profileEmergencyPhoneRef = useRef(null);
+  const profileFieldRefs = {
+    name: profileNameRef, email: profileEmailRef, mobile: profileMobileRef,
+    emergencyName: profileEmergencyNameRef, emergencyPhone: profileEmergencyPhoneRef,
+  };
 
   // Experience and Fitness
   const [hikeExperience, setHikeExperience] = useState(user.hikingExperience);
@@ -56,7 +178,11 @@ export default function ProfileView({
   // Settings
 
   const [passwordState, setPasswordState] = useState({ current: '', next: '', confirm: '' });
-  const [notifyState, setNotifyState] = useState({ bookings: true, updates: true, promo: false });
+  const [notifyState, setNotifyState] = useState({
+    bookings: user.notificationBookings ?? true,
+    updates: user.notificationUpdates ?? true,
+    promo: user.notificationPromo ?? false
+  });
   const [privacyState, setPrivacyState] = useState({ shareStats: true, cloudBackup: true });
 
   // Support
@@ -74,11 +200,16 @@ export default function ProfileView({
     govtIdType: 'Aadhaar', govtIdNumber: '', documentName: ''
   });
   const [orgFormError, setOrgFormError] = useState('');
+  const [orgFieldErrors, setOrgFieldErrors] = useState({});
+  const orgAgencyNameRef = useRef(null);
+  const orgSocialMediaLinkRef = useRef(null);
+  const orgGovtIdNumberRef = useRef(null);
+  const orgFieldRefs = { agencyName: orgAgencyNameRef, socialMediaLink: orgSocialMediaLinkRef, govtIdNumber: orgGovtIdNumberRef };
 
-  // Check if this traveller already has an organizer account (approved OR pending).
-  // Reading localStorage here is cheaper than adding a prop and stays in sync
-  // even if the user registered as an organizer in a previous session.
-  const isExistingOrganizer = (() => {
+  // Check if this traveller already has an organizer account (approved OR
+  // pending). `user.isOrganizer` comes straight from the backend and is the
+  // source of truth; the localStorage read is only a fallback for offline use.
+  const isExistingOrganizer = !!user?.isOrganizer || (() => {
     try {
       const raw = localStorage.getItem(ORG_USER_STORAGE_KEY);
       if (!raw) return false;
@@ -90,21 +221,161 @@ export default function ProfileView({
 
   // Support Chat
   const [supportChats, setSupportChats] = useState([
-    { sender: 'bot', text: 'Hello Chirag! Welcome to Trekigo Helpdesk. How can we optimize your trekking experience today?', time: '11:10 AM' }
+    { sender: 'bot', text: 'Hello Chirag! Welcome to Find Your Trek Helpdesk. How can we optimize your trekking experience today?', time: '11:10 AM' }
   ]);
   const [chatInput, setChatInput] = useState('');
 
-  const handleSavePersonalInfo = (e) => {
+  const handleSavePersonalInfo = async (e) => {
     e.preventDefault();
-    onUpdateUser({
-      ...user,
-      name: profileName,
-      email: profileEmail,
-      mobile: profileMobile,
-      emergencyContact: profileEmergency
-    });
-    alert('Personal information coordinates updated successfully!');
+    setOtpError('');
+
+    const emailChanged = profileEmail.toLowerCase() !== user.email.toLowerCase();
+    const mobileChanged = profileMobile !== user.mobile;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const mobileRegex = /^\d{10}$/;
+    const sosNumbersOnly = profileEmergencyPhone.replace(/\D/g, '');
+
+    const errors = {};
+    if (!profileName.trim()) errors.name = 'Full name is required.';
+    if (!emailRegex.test(profileEmail)) errors.email = 'Please enter a valid email address.';
+    if (!mobileRegex.test(profileMobile)) errors.mobile = 'Mobile number must be a valid 10-digit number.';
+    if (!profileEmergencyName.trim()) errors.emergencyName = 'Emergency contact name is required.';
+    if (sosNumbersOnly.length < 10) errors.emergencyPhone = 'Emergency contact phone number must be at least 10 digits.';
+
+    if (Object.keys(errors).length > 0) {
+      const order = ['name', 'email', 'mobile', 'emergencyName', 'emergencyPhone'];
+      setProfileFieldErrors(errors);
+      toast.error(errors[order.find(f => errors[f])]);
+      scrollToFirstError(profileFieldRefs, errors, order);
+      return;
+    }
+    setProfileFieldErrors({});
+
+    const emergencyContactCombined = formatEmergencyContact(profileEmergencyName, profileEmergencyPhone);
+
+    if (!emailChanged && !mobileChanged) {
+      setOtpLoading(true);
+      try {
+        const updatedUser = await authApi.updateProfileVerify({
+          name: profileName.trim(),
+          emergencyContact: emergencyContactCombined
+        });
+        onUpdateUser(updatedUser);
+        toast.success('Personal information updated successfully!');
+        setCurrentSub('MAIN');
+      } catch (err) {
+        toast.error(err?.message || 'Failed to update profile.');
+      } finally {
+        setOtpLoading(false);
+      }
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      if (emailChanged) {
+        await authApi.requestEmailOtp(profileEmail.toLowerCase());
+      }
+      if (mobileChanged) {
+        await authApi.requestOtp(profileMobile);
+      }
+      setShowOtpModal(true);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to initiate OTP verification.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyAndSave = async () => {
+    setOtpError('');
+    const emailChanged = profileEmail.toLowerCase() !== user.email.toLowerCase();
+    const mobileChanged = profileMobile !== user.mobile;
+
+    if (emailChanged && !emailOtp.trim()) {
+      setOtpError('Please enter email OTP');
+      toast.error('Please enter the email OTP.');
+      return;
+    }
+    if (mobileChanged && !mobileOtp.trim()) {
+      setOtpError('Please enter mobile OTP');
+      toast.error('Please enter the mobile OTP.');
+      return;
+    }
+
+    const emergencyContactCombined = formatEmergencyContact(profileEmergencyName, profileEmergencyPhone);
+    setOtpLoading(true);
+    try {
+      const payload = {
+        name: profileName.trim(),
+        emergencyContact: emergencyContactCombined
+      };
+
+      if (emailChanged) {
+        payload.email = profileEmail.toLowerCase();
+        payload.emailOtp = emailOtp.trim();
+      }
+      if (mobileChanged) {
+        payload.mobile = profileMobile;
+        payload.mobileOtp = mobileOtp.trim();
+      }
+
+      const updatedUser = await authApi.updateProfileVerify(payload);
+      onUpdateUser(updatedUser);
+      toast.success('Personal details verified and updated successfully!');
+      setShowOtpModal(false);
+      setEmailOtp('');
+      setMobileOtp('');
+      setCurrentSub('MAIN');
+    } catch (err) {
+      const message = err?.message || 'Verification failed. Try again.';
+      setOtpError(message);
+      toast.error(message);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleCancelEditPersonal = () => {
+    setProfileName(user.name || '');
+    setProfileEmail(user.email || '');
+    setProfileMobile(user.mobile || '');
+    const parsed = parseEmergencyContact(user.emergencyContact || '');
+    setProfileEmergencyName(parsed.name);
+    setProfileEmergencyPhone(parsed.phone);
+    setEmailOtp('');
+    setMobileOtp('');
+    setOtpError('');
+    setShowOtpModal(false);
     setCurrentSub('MAIN');
+  };
+
+  const handleUpdatePassword = async () => {
+    const { current, next, confirm } = passwordState;
+
+    if (!current || !next || !confirm) {
+      toast.error('Please fill in all password fields.');
+      return;
+    }
+
+    if (next !== confirm) {
+      toast.error("New password and confirmation do not match.");
+      return;
+    }
+
+    if (!PASSWORD_REGEX.test(next)) {
+      toast.error(PASSWORD_HELP);
+      return;
+    }
+
+    try {
+      await authApi.changePassword(current, next);
+      toast.success('Password updated successfully!');
+      setPasswordState({ current: '', next: '', confirm: '' });
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update password.');
+    }
   };
 
   const handleSaveStatsInfo = (e) => {
@@ -114,13 +385,16 @@ export default function ProfileView({
       hikingExperience: hikeExperience,
       fitnessLevel: fitLevel
     });
-    alert('Adventure statistics updated! AI recommend algorithms adjusted.');
+    toast.success('Adventure statistics updated! AI recommend algorithms adjusted.');
     setCurrentSub('MAIN');
   };
 
   const handleRaiseTicketSubmit = (e) => {
     e.preventDefault();
-    if (!ticketTitle.trim()) return;
+    if (!ticketTitle.trim()) {
+      toast.error('Enter a subject for your inquiry before submitting.');
+      return;
+    }
 
     const newTicket = {
       id: `TKT-${Math.floor(100 + Math.random() * 900)}`,
@@ -133,7 +407,7 @@ export default function ProfileView({
     setTicketsList([newTicket, ...ticketsList]);
     setTicketTitle('');
     setTicketMessage('');
-    alert('Inquiry report logged. Support agents will audit details on-screen within 24 hours.');
+    toast.success('Inquiry report logged. Support agents will audit details on-screen within 24 hours.');
   };
 
   const handleSendSupportMsg = () => {
@@ -170,7 +444,7 @@ export default function ProfileView({
       govtIdType: 'Aadhaar',
       govtIdNumber: '',
       yearsExperience: 1,
-      bio: 'Verified Trekigo organizer.',
+      bio: 'Verified Find Your Trek organizer.',
       verificationDocumentUrl: '',
       rating: 4.8,
       totalTrips: 0,
@@ -195,34 +469,69 @@ export default function ProfileView({
   // (already-vetted accounts) or opens the partner application form.
   const handleBecomeOrganizer = () => {
     setOrgSwitching(true);
-    setTimeout(() => {
-      if (user.isOrganizer) {
-        redirectToOrganizerPanel();
-      } else {
-        setOrgSwitching(false);
-        setCurrentSub('BECOME_ORGANIZER');
-      }
-    }, ORGANIZER_TRANSITION_MS);
+    const startTime = Date.now();
+
+    authApi.getLinkedOrganizerStatus()
+      .then(async (statusRes) => {
+        const elapsed = Date.now() - startTime;
+        const delay = Math.max(0, ORGANIZER_TRANSITION_MS - elapsed);
+
+        if (statusRes.isOrganizer) {
+          const orgUser = {
+            ...statusRes.organizer,
+            isAuthenticated: true,
+            isOnboarded: true,
+            rememberMe: true,
+            isApproved: statusRes.isApproved,
+            isPendingApproval: statusRes.isPendingApproval,
+          };
+          try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser)); } catch (e) {}
+          setTimeout(() => {
+            window.location.href = '/organizer';
+          }, delay);
+        } else {
+          setOrgSwitching(false);
+          setCurrentSub('BECOME_ORGANIZER');
+        }
+      })
+      .catch(() => {
+        const elapsed = Date.now() - startTime;
+        const delay = Math.max(0, ORGANIZER_TRANSITION_MS - elapsed);
+
+        if (user.isOrganizer) {
+          setTimeout(() => {
+            redirectToOrganizerPanel();
+          }, delay);
+        } else {
+          setOrgSwitching(false);
+          setCurrentSub('BECOME_ORGANIZER');
+        }
+      });
   };
 
   const handleSubmitOrgApplication = (e) => {
     e.preventDefault();
-    if (!orgForm.agencyName.trim()) { setOrgFormError('Agency / company name is required.'); return; }
-    if (!orgForm.socialMediaLink.trim()) { setOrgFormError('A social media link (e.g. Instagram) is required.'); return; }
-    if (!orgForm.govtIdNumber.trim()) { setOrgFormError('Government ID number is required for verification.'); return; }
+    const errors = {};
+    if (!orgForm.agencyName.trim()) errors.agencyName = 'Agency / company name is required.';
+    if (!orgForm.socialMediaLink.trim()) errors.socialMediaLink = 'A social media link (e.g. Instagram) is required.';
+    const idError = validateGovtId(orgForm.govtIdType, orgForm.govtIdNumber);
+    if (idError) errors.govtIdNumber = idError;
+
+    if (Object.keys(errors).length > 0) {
+      const order = ['agencyName', 'socialMediaLink', 'govtIdNumber'];
+      const message = errors[order.find(f => errors[f])];
+      setOrgFieldErrors(errors);
+      setOrgFormError(message);
+      toast.error(message);
+      scrollToFirstError(orgFieldRefs, errors, order);
+      return;
+    }
+    setOrgFieldErrors({});
     setOrgFormError('');
 
-    // Same pending-approval application shape OrgAuth registration produces —
-    // the organizer panel will greet them with the "under review" screen.
-    const application = {
-      isAuthenticated: true,
-      isOnboarded: true,
-      isApproved: false,
-      isPendingApproval: true,
-      name: user.name,
-      email: user.email,
-      mobile: user.mobile,
-      avatar: user.avatar,
+    setOrgSwitching(true);
+
+    authApi.applyAsOrganizer({
       agencyName: orgForm.agencyName.trim(),
       agencyWebsite: orgForm.agencyWebsite.trim(),
       socialMediaLink: orgForm.socialMediaLink.trim(),
@@ -230,16 +539,23 @@ export default function ProfileView({
       govtIdNumber: orgForm.govtIdNumber.trim(),
       yearsExperience: parseInt(orgForm.yearsExperience) || 1,
       bio: orgForm.bio.trim(),
-      verificationDocumentUrl: orgForm.documentName,
-      rating: 0,
-      totalTrips: 0,
-      totalBookings: 0,
-      rememberMe: true,
-    };
-    try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(application)); } catch (e) {}
-
-    setOrgSwitching(true);
-    setTimeout(() => { window.location.href = '/organizer'; }, ORGANIZER_TRANSITION_MS);
+    })
+    .then((createdOrg) => {
+      const orgUser = {
+        ...createdOrg,
+        isAuthenticated: true,
+        isOnboarded: true,
+        rememberMe: true
+      };
+      try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser)); } catch (e) {}
+      setTimeout(() => { window.location.href = '/organizer'; }, ORGANIZER_TRANSITION_MS);
+    })
+    .catch((err) => {
+      setOrgSwitching(false);
+      const message = err?.message || 'Failed to submit application. Please try again.';
+      setOrgFormError(message);
+      toast.error(message);
+    });
   };
 
   // Shared sub-page styling — keeps every profile sub-screen on the same
@@ -255,6 +571,12 @@ export default function ProfileView({
   }`;
   const subPrimaryBtnCls = 'w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-2xl text-sm uppercase tracking-wide active:scale-[0.99] transition cursor-pointer';
   const subCardCls = darkMode ? 'bg-elegant-card' : 'bg-white shadow-sm';
+  const subErrCls = (field) => (profileFieldErrors[field] ? 'border-red-500 focus:border-red-500' : '');
+  const clearProfileError = (field) => setProfileFieldErrors(er => ({ ...er, [field]: '' }));
+  const orgInputCls = (field, padCls = 'px-3.5') => `w-full text-sm ${padCls} py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+    orgFieldErrors[field] ? 'border-red-500 focus:border-red-500' : darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+  }`;
+  const clearOrgError = (field) => setOrgFieldErrors(er => ({ ...er, [field]: '' }));
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
@@ -527,11 +849,12 @@ export default function ProfileView({
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
             onSubmit={handleSavePersonalInfo}
+            noValidate
             className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
           >
           <div className="space-y-5">
             <div className={subHeaderCls}>
-              <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <button type="button" onClick={handleCancelEditPersonal} className={subBackBtnCls}>
                 <ArrowLeft size={17} />
               </button>
               <h3 className={subTitleCls}>Personal Info</h3>
@@ -541,48 +864,73 @@ export default function ProfileView({
             <div className="space-y-1.5">
               <label className={subLabelCls}>Full Name</label>
               <input
+                ref={profileNameRef}
                 type="text"
                 required
                 value={profileName}
-                onChange={e => setProfileName(e.target.value)}
-                className={subInputCls}
+                onChange={e => { setProfileName(e.target.value); clearProfileError('name'); }}
+                className={`${subInputCls} ${subErrCls('name')}`}
               />
+              {profileFieldErrors.name && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.name}</p>}
             </div>
 
             {/* Email input */}
             <div className="space-y-1.5">
               <label className={subLabelCls}>Email Address</label>
               <input
+                ref={profileEmailRef}
                 type="email"
                 required
                 value={profileEmail}
-                onChange={e => setProfileEmail(e.target.value)}
-                className={subInputCls}
+                onChange={e => { setProfileEmail(e.target.value); clearProfileError('email'); }}
+                className={`${subInputCls} ${subErrCls('email')}`}
               />
+              {profileFieldErrors.email && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.email}</p>}
             </div>
 
             {/* Phone input */}
             <div className="space-y-1.5">
               <label className={subLabelCls}>Mobile Number</label>
               <input
+                ref={profileMobileRef}
                 type="tel"
+                maxLength={10}
                 required
                 value={profileMobile}
-                onChange={e => setProfileMobile(e.target.value)}
-                className={subInputCls}
+                onChange={e => { setProfileMobile(e.target.value.replace(/\D/g, '')); clearProfileError('mobile'); }}
+                className={`${subInputCls} ${subErrCls('mobile')}`}
               />
+              {profileFieldErrors.mobile && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.mobile}</p>}
             </div>
 
             {/* Emergency Info */}
-            <div className="space-y-1.5">
-              <label className={subLabelCls}>Emergency Coordinates (Name + Phone)</label>
-              <input
-                type="text"
-                required
-                value={profileEmergency}
-                onChange={e => setProfileEmergency(e.target.value)}
-                className={subInputCls}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5 min-w-0">
+                <label className={subLabelCls}>Emergency Contact Name</label>
+                <input
+                  ref={profileEmergencyNameRef}
+                  type="text"
+                  required
+                  placeholder="e.g. Asha Jeevanani"
+                  value={profileEmergencyName}
+                  onChange={e => { setProfileEmergencyName(e.target.value); clearProfileError('emergencyName'); }}
+                  className={`${subInputCls} ${subErrCls('emergencyName')}`}
+                />
+                {profileFieldErrors.emergencyName && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.emergencyName}</p>}
+              </div>
+              <div className="space-y-1.5 min-w-0">
+                <label className={subLabelCls}>Emergency Contact Phone</label>
+                <input
+                  ref={profileEmergencyPhoneRef}
+                  type="text"
+                  required
+                  placeholder="e.g. +91 98765 43219"
+                  value={profileEmergencyPhone}
+                  onChange={e => { setProfileEmergencyPhone(e.target.value); clearProfileError('emergencyPhone'); }}
+                  className={`${subInputCls} ${subErrCls('emergencyPhone')}`}
+                />
+                {profileFieldErrors.emergencyPhone && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.emergencyPhone}</p>}
+              </div>
             </div>
           </div>
 
@@ -602,6 +950,7 @@ export default function ProfileView({
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.2 }}
             onSubmit={handleSubmitOrgApplication}
+            noValidate
             // Full-screen overlay (covers the bottom nav) — applying to become
             // a partner is a focused flow, not a tab-level screen.
             className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar p-4 ${
@@ -638,14 +987,14 @@ export default function ProfileView({
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-wider opacity-65">Agency / Company Name *</label>
               <input
+                ref={orgAgencyNameRef}
                 type="text"
                 placeholder="e.g. Himalayan Guides Ltd"
                 value={orgForm.agencyName}
-                onChange={e => { setOrgForm({ ...orgForm, agencyName: e.target.value }); setOrgFormError(''); }}
-                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
-                }`}
+                onChange={e => { setOrgForm({ ...orgForm, agencyName: e.target.value }); setOrgFormError(''); clearOrgError('agencyName'); }}
+                className={orgInputCls('agencyName')}
               />
+              {orgFieldErrors.agencyName && <p className="text-[11px] font-semibold text-red-500">{orgFieldErrors.agencyName}</p>}
             </div>
 
             <div className="space-y-1">
@@ -664,15 +1013,15 @@ export default function ProfileView({
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-wider opacity-65">Social Media Link (e.g. Instagram) *</label>
               <input
+                ref={orgSocialMediaLinkRef}
                 type="url"
                 required
                 placeholder="https://instagram.com/youragency"
                 value={orgForm.socialMediaLink}
-                onChange={e => { setOrgForm({ ...orgForm, socialMediaLink: e.target.value }); setOrgFormError(''); }}
-                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
-                }`}
+                onChange={e => { setOrgForm({ ...orgForm, socialMediaLink: e.target.value }); setOrgFormError(''); clearOrgError('socialMediaLink'); }}
+                className={orgInputCls('socialMediaLink')}
               />
+              {orgFieldErrors.socialMediaLink && <p className="text-[11px] font-semibold text-red-500">{orgFieldErrors.socialMediaLink}</p>}
             </div>
 
             <div className="space-y-1">
@@ -726,15 +1075,15 @@ export default function ProfileView({
               <div className="relative">
                 <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <input
+                  ref={orgGovtIdNumberRef}
                   type="text"
                   placeholder="Enter your ID number"
                   value={orgForm.govtIdNumber}
-                  onChange={e => { setOrgForm({ ...orgForm, govtIdNumber: e.target.value }); setOrgFormError(''); }}
-                  className={`w-full text-sm pl-10 pr-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                    darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
-                  }`}
+                  onChange={e => { setOrgForm({ ...orgForm, govtIdNumber: e.target.value }); setOrgFormError(''); clearOrgError('govtIdNumber'); }}
+                  className={orgInputCls('govtIdNumber', 'pl-10 pr-3.5')}
                 />
               </div>
+              {orgFieldErrors.govtIdNumber && <p className="text-[11px] font-semibold text-red-500">{orgFieldErrors.govtIdNumber}</p>}
             </div>
 
             <div className="space-y-1">
@@ -762,7 +1111,7 @@ export default function ProfileView({
             )}
 
             <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              By applying, you agree to Trekigo's Partner Terms of Service. All ID information is encrypted and secure.
+              By applying, you agree to Find Your Trek's Partner Terms of Service. All ID information is encrypted and secure.
             </p>
           </div>
 
@@ -942,7 +1291,20 @@ export default function ProfileView({
                   <input
                     type="checkbox"
                     checked={notifyState[pref.key]}
-                    onChange={e => setNotifyState({ ...notifyState, [pref.key]: e.target.checked })}
+                    onChange={async (e) => {
+                      const val = e.target.checked;
+                      setNotifyState(prev => ({ ...prev, [pref.key]: val }));
+                      try {
+                        const payload = {};
+                        if (pref.key === 'bookings') payload.notificationBookings = val;
+                        if (pref.key === 'updates') payload.notificationUpdates = val;
+                        if (pref.key === 'promo') payload.notificationPromo = val;
+                        const updated = await authApi.updateProfile(payload);
+                        onUpdateUser(updated);
+                      } catch (err) {
+                        toast.error(err?.message || 'Failed to update preferences');
+                      }
+                    }}
                     className="w-4 h-4 rounded accent-forest-600"
                   />
                   {pref.label}
@@ -951,34 +1313,34 @@ export default function ProfileView({
             </div>
           </div>
 
-          {/* Setting 4: Change Password simulation */}
+          {/* Setting 4: Change Password */}
           <div className={`p-4 rounded-2xl space-y-3 ${subCardCls}`}>
             <h4 className="text-[15px] font-semibold">Safely Change Password</h4>
 
             <input
               type="password"
-              placeholder="Current credentials"
+              placeholder="Current password"
               value={passwordState.current}
               onChange={e => setPasswordState({ ...passwordState, current: e.target.value })}
               className={subInputCls}
             />
             <input
               type="password"
-              placeholder="New password (min 6 symbols)"
+              placeholder="New password (min 6 characters)"
               value={passwordState.next}
               onChange={e => setPasswordState({ ...passwordState, next: e.target.value })}
               className={subInputCls}
             />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={passwordState.confirm}
+              onChange={e => setPasswordState({ ...passwordState, confirm: e.target.value })}
+              className={subInputCls}
+            />
 
             <button
-              onClick={() => {
-                if (!passwordState.current || !passwordState.next) {
-                  alert('Enter both current and next secret symbols.');
-                  return;
-                }
-                alert('Secret symbols updated successfully!');
-                setPasswordState({ current: '', next: '', confirm: '' });
-              }}
+              onClick={handleUpdatePassword}
               className="w-full py-3.5 bg-forest-600 hover:bg-forest-700 text-white rounded-xl text-sm font-bold uppercase tracking-wide transition cursor-pointer active:scale-[0.99]"
             >
               Update Password
@@ -1006,7 +1368,7 @@ export default function ProfileView({
 
           <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-6">
             {/* Create new ticket card form */}
-            <form onSubmit={handleRaiseTicketSubmit} className={`p-4 rounded-2xl space-y-4 shrink-0 ${subCardCls}`}>
+            <form onSubmit={handleRaiseTicketSubmit} noValidate className={`p-4 rounded-2xl space-y-4 shrink-0 ${subCardCls}`}>
               <h4 className="text-[15px] font-semibold text-forest-600 dark:text-forest-400 flex items-center gap-1.5">
                 <AlertCircle size={16} /> Raise Ticket / Report Issue
               </h4>
@@ -1032,7 +1394,7 @@ export default function ProfileView({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Coupon TREKIGO20 dynamic logic error"
+                  placeholder="e.g. Coupon FYT20 dynamic logic error"
                   value={ticketTitle}
                   onChange={e => setTicketTitle(e.target.value)}
                   className={subInputCls}
@@ -1083,7 +1445,7 @@ export default function ProfileView({
                 <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: How soon can I cancel my trek departure?</p>
                 <p className="leading-relaxed pb-2">A: Full booking refund settlements are executed up to 15 days before the departure slot.</p>
                 <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: Are park mountain permits physical documents?</p>
-                <p className="leading-relaxed">A: No, Trekigo coordinates verified digital QR pass entries directly with forest control gates.</p>
+                <p className="leading-relaxed">A: No, Find Your Trek coordinates verified digital QR pass entries directly with forest control gates.</p>
               </div>
             </div>
           </div>
@@ -1169,10 +1531,92 @@ export default function ProfileView({
         )}
       </AnimatePresence>
 
+      {/* OTP verification Modal */}
+      {showOtpModal && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-5 z-[100] animate-fade-in">
+          <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 ${
+            darkMode ? 'bg-zinc-900 border border-zinc-800 text-white' : 'bg-white text-zinc-800'
+          }`}>
+            <div className="text-center space-y-1.5">
+              <h4 className="font-display font-black text-base tracking-tight text-forest-600 dark:text-forest-400">
+                Verify Identity Change
+              </h4>
+              <p className="text-[10px] opacity-75">
+                We've sent a 6-digit verification code to confirm the changes.
+              </p>
+            </div>
+
+            {otpError && (
+              <div className="text-center text-[10px] font-bold text-rose-500 py-1 bg-rose-500/10 rounded-lg">
+                {otpError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {profileEmail.toLowerCase() !== user.email.toLowerCase() && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold uppercase tracking-wider opacity-75">
+                    Email Verification Code (Use 123456)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter email OTP"
+                    value={emailOtp}
+                    onChange={e => setEmailOtp(e.target.value)}
+                    className={`w-full text-xs px-3 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                      darkMode ? 'bg-zinc-950 border-zinc-850 text-white' : 'bg-gray-50 border-zinc-200'
+                    }`}
+                  />
+                </div>
+              )}
+
+              {profileMobile !== user.mobile && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold uppercase tracking-wider opacity-75">
+                    Mobile Verification Code (Use 123456)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter mobile OTP"
+                    value={mobileOtp}
+                    onChange={e => setMobileOtp(e.target.value)}
+                    className={`w-full text-xs px-3 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                      darkMode ? 'bg-zinc-950 border-zinc-850 text-white' : 'bg-gray-50 border-zinc-200'
+                    }`}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleCancelEditPersonal}
+                className={`flex-1 py-3 text-xs font-bold rounded-xl cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 border ${
+                  darkMode ? 'border-zinc-800 text-zinc-400' : 'border-gray-200 text-zinc-650'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyAndSave}
+                disabled={otpLoading}
+                className="flex-1 py-3 text-xs font-bold bg-forest-600 hover:bg-forest-700 text-white rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {otpLoading ? 'Verifying…' : 'Verify & Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         open={showLogoutConfirm}
         title="Log Out?"
-        message="Are you sure you want to log out of your Trekigo account?"
+        message="Are you sure you want to log out of your Find Your Trek account?"
         confirmLabel="Log Out"
         onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
         onCancel={() => setShowLogoutConfirm(false)}

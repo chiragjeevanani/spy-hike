@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, Bell, Star, MapPin, Heart, ChevronRight, ChevronDown, X, Users, Mountain, ArrowUpRight, CalendarDays, Gift
+  Search, Bell, Star, MapPin, Heart, ChevronRight, ChevronDown, X, Users, ArrowUpRight, CalendarDays, Gift
 } from 'lucide-react';
-import { PROMOTIONAL_BANNERS, TRENDING_DESTINATIONS } from '../data/trips';
+import { PROMOTIONAL_BANNERS } from '../data/trips';
 import { groupTripsByTrekName } from '../utils/trekGroups';
+import treksApi from '../../../lib/treksApi';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import LocationPicker from './LocationPicker';
 import TrekDatePicker from './TrekDatePicker';
-import TrekigoLogo from '../../../components/TrekigoLogo';
+import AppLogo from '../../../components/AppLogo';
+import SkeletonCard from '../../../components/SkeletonCard';
 
 // Persisted chosen location (city / GPS). Google Maps API will later power the
 // live search + reverse-geocoding inside LocationPicker.
@@ -23,6 +25,7 @@ const loadLocation = () => {
 export default function HomeView({
   user,
   trips,
+  tripsLoading = false,
   wishlist,
   onToggleWishlist,
   onSelectTrek,
@@ -42,6 +45,13 @@ export default function HomeView({
   const [location, setLocation] = useState(loadLocation);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [trendingTreks, setTrendingTreks] = useState([]);
+
+  // Admin-curated Trending flag (Trek Categories catalog) drives the
+  // "Trending destinations" grid below instead of static data.
+  useEffect(() => {
+    treksApi.listTreks({ trending: 'true' }).then(setTrendingTreks).catch(() => setTrendingTreks([]));
+  }, []);
 
   // Every date any organizer has a batch departing on — the calendar
   // highlights these as pickable.
@@ -103,9 +113,29 @@ export default function HomeView({
 
   const unreadNotifications = notifications.filter(n => !n.read);
 
-  // First trek headlines the "Featured trek" hero; the rest fill "Popular Treks".
-  const featured = trekGroups[0] || null;
-  const popularGroups = trekGroups.length > 1 ? trekGroups.slice(1) : trekGroups;
+  // The admin-marked featured trip (Trips admin section, not the trek
+  // category) headlines the "Featured trek" hero. No fallback — the section
+  // stays hidden entirely until an admin actually marks something featured,
+  // rather than arbitrarily spotlighting the first trek in the list.
+  const featuredTrip = useMemo(() => trips.find(t => t.featured), [trips]);
+  const featured = featuredTrip ? trekGroups.find(g => g.offers.some(o => o.id === featuredTrip.id)) || null : null;
+
+  // "Popular Treks" is likewise admin-curated (Trips admin section's Popular
+  // toggle) rather than "everything that isn't featured" — stays empty/hidden
+  // until an admin actually marks something popular.
+  const popularGroups = useMemo(() => {
+    const groups = trekGroups.filter(g => g.offers.some(o => o.popular));
+    return featured ? groups.filter(g => g !== featured) : groups;
+  }, [trekGroups, featured]);
+
+  // Trending destinations grid — one card per admin-marked trending trek,
+  // with the "local expeditions" count reflecting real published trips.
+  const trendingDestinations = useMemo(() => trendingTreks.map(trek => ({
+    id: trek.id,
+    name: trek.title,
+    hikes: trips.filter(t => t.trekId === trek.id && t.status === 'Published').length,
+    img: trek.coverImage,
+  })), [trendingTreks, trips]);
 
   const difficultyPill = (difficulty) =>
     difficulty === 'Easy'
@@ -122,8 +152,8 @@ export default function HomeView({
       {/* 1. Brand header */}
       <div className="flex items-center justify-between pt-5 pb-1 gap-2">
         <button onClick={() => onSwitchTab('Profile')} className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition min-w-0">
-          <TrekigoLogo size={36} className="shrink-0" />
-          <span className="text-lg font-serif font-semibold tracking-tight truncate">Trekigo</span>
+          <AppLogo size={36} className="shrink-0" />
+          <span className="text-lg font-serif font-semibold tracking-tight truncate">Find Your Trek</span>
         </button>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -344,7 +374,10 @@ export default function HomeView({
         </div>
       )}
 
-      {/* 6. Popular Treks — spacious full-width cards */}
+      {/* 6. Popular Treks — spacious full-width cards. Admin-curated (Trips
+          admin section's Popular toggle); hidden entirely — no placeholder
+          card — until an admin actually marks something popular. */}
+      {(tripsLoading || popularGroups.length > 0) && (
       <div className="mt-8">
         <div className="flex items-center justify-between mb-3.5">
           <h2 className="font-serif text-2xl font-medium tracking-tight">Popular Treks</h2>
@@ -354,93 +387,102 @@ export default function HomeView({
         </div>
 
         <div className="space-y-5">
-          {popularGroups.map((group, idx) => {
-            const trip = group.representative;
-            const isSaved = wishlist.includes(trip.id);
-            return (
-              <motion.div
-                key={group.trekName}
-                id={`popular-card-${trip.id}`}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05, duration: 0.3 }}
-                whileHover={{ y: -3 }}
-                onClick={() => onSelectTrek(group.trekName)}
-                className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
-              >
-                {/* Cover */}
-                <div className="relative h-44 overflow-hidden">
-                  <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
-                  <span className={`absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${difficultyPill(trip.difficulty)}`}>
-                    {trip.difficulty}
-                  </span>
-                  <button
-                    id={`btn-toggle-wishlist-popular-${trip.id}`}
-                    onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
-                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition ${
-                      isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
-                    }`}
-                  >
-                    <Heart size={16} fill={isSaved ? 'white' : 'none'} />
-                  </button>
-                  {group.organizerCount > 1 && (
-                    <span className="absolute bottom-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-black/55 text-white backdrop-blur-xs">
-                      <Users size={11} /> {group.organizerCount} organizers
+          {tripsLoading ? (
+            <>
+              <SkeletonCard darkMode={darkMode} />
+              <SkeletonCard darkMode={darkMode} />
+            </>
+          ) : (
+            popularGroups.map((group, idx) => {
+              const trip = group.representative;
+              const isSaved = wishlist.includes(trip.id);
+              return (
+                <motion.div
+                  key={group.trekName}
+                  id={`popular-card-${trip.id}`}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05, duration: 0.3 }}
+                  whileHover={{ y: -3 }}
+                  onClick={() => onSelectTrek(group.trekName)}
+                  className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+                >
+                  {/* Cover */}
+                  <div className="relative h-44 overflow-hidden">
+                    <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
+                    <span className={`absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${difficultyPill(trip.difficulty)}`}>
+                      {trip.difficulty}
                     </span>
-                  )}
-                </div>
+                    <button
+                      id={`btn-toggle-wishlist-popular-${trip.id}`}
+                      onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
+                      className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition ${
+                        isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
+                      }`}
+                    >
+                      <Heart size={16} fill={isSaved ? 'white' : 'none'} />
+                    </button>
+                    {group.organizerCount > 1 && (
+                      <span className="absolute bottom-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-black/55 text-white backdrop-blur-xs">
+                        <Users size={11} /> {group.organizerCount} organizers
+                      </span>
+                    )}
+                  </div>
 
-                {/* Details */}
-                <div className="p-4 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-serif text-lg font-semibold leading-tight truncate">{trip.name}</h3>
-                    <p className={`text-xs flex items-center gap-1 mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      <MapPin size={12} className="text-spy-orange shrink-0" />
-                      {trip.location}
-                    </p>
-                    <div className="flex items-center gap-1 text-xs font-bold mt-2">
-                      <Star size={12} className="text-amber-400 fill-amber-400" />
-                      {trip.rating} <span className="opacity-50 font-medium">({trip.reviewsCount})</span>
+                  {/* Details */}
+                  <div className="p-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-serif text-lg font-semibold leading-tight truncate">{trip.name}</h3>
+                      <p className={`text-xs flex items-center gap-1 mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        <MapPin size={12} className="text-spy-orange shrink-0" />
+                        {trip.location}
+                      </p>
+                      <div className="flex items-center gap-1 text-xs font-bold mt-2">
+                        <Star size={12} className="text-amber-400 fill-amber-400" />
+                        {trip.rating} <span className="opacity-50 font-medium">({trip.reviewsCount})</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className={`block text-[10px] uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>From</span>
+                      <span className={`text-lg font-bold ${darkMode ? 'text-elegant-orange' : 'text-forest-600'}`}>₹{group.minPrice}</span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className={`block text-[10px] uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>From</span>
-                    <span className={`text-lg font-bold ${darkMode ? 'text-elegant-orange' : 'text-forest-600'}`}>₹{group.minPrice}</span>
-                  </div>
+                </motion.div>
+              );
+            })
+          )}
+        </div>
+      </div>
+      )}
+
+      {/* 8. Trending Destinations Grid — admin-curated via the Trending flag on
+          the Trek Categories catalog; hidden entirely until something is marked. */}
+      {trendingDestinations.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-serif text-2xl font-medium tracking-tight mb-3.5">Trending destinations</h2>
+
+          <div className="grid grid-cols-2 gap-3">
+            {trendingDestinations.map((dest, idx) => (
+              <motion.div
+                key={dest.id}
+                onClick={() => handleDestinationClick(dest.name)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.04, duration: 0.25 }}
+                className="h-28 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
+              >
+                <img src={dest.img} alt={dest.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 brightness-[0.7] dark:brightness-[0.6]" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-3 flex flex-col justify-end">
+                  <h5 className="text-sm font-semibold text-white leading-tight font-serif">{dest.name}</h5>
+                  <span className="text-[10px] text-zinc-300 font-medium">{dest.hikes} local expedition{dest.hikes === 1 ? '' : 's'}</span>
                 </div>
               </motion.div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
-
-
-
-      {/* 8. Trending Destinations Grid */}
-      <div className="mt-8">
-        <h2 className="font-serif text-2xl font-medium tracking-tight mb-3.5">Trending destinations</h2>
-
-        <div className="grid grid-cols-2 gap-3">
-          {TRENDING_DESTINATIONS.map((dest, idx) => (
-            <motion.div
-              key={dest.id}
-              onClick={() => handleDestinationClick(dest.name)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.04, duration: 0.25 }}
-              className="h-28 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
-            >
-              <img src={dest.img} alt={dest.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 brightness-[0.7] dark:brightness-[0.6]" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-3 flex flex-col justify-end">
-                <h5 className="text-sm font-semibold text-white leading-tight font-serif">{dest.name}</h5>
-                <span className="text-[10px] text-zinc-300 font-medium">{dest.hikes} local expeditions</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Location picker bottom sheet */}
       <LocationPicker

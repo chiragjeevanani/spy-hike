@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Star, ShieldCheck, MapPin, Award, Compass, Heart, Users, ChevronRight, BookOpen, Image as ImageIcon, Phone, Mail, Globe } from 'lucide-react';
+import authApi from '../../../lib/authApi';
 
 export default function OrganizerProfileView({
-  organizer,
+  organizer: initialOrganizer,
   trips,
   onBack,
   onSelectTrip,
   darkMode
 }) {
+  const [organizer, setOrganizer] = useState(initialOrganizer);
   const [activeSubTab, setActiveSubTab] = useState('About');
+
+  useEffect(() => {
+    if (!initialOrganizer?.name) return;
+    authApi.getPublicOrganizerProfile(initialOrganizer.name)
+      .then((res) => {
+        if (res && res.organizer) {
+          setOrganizer(res.organizer);
+        }
+      })
+      .catch((err) => console.error('Failed to load dynamic public organizer details:', err));
+  }, [initialOrganizer?.name]);
 
   // Filter trips managed by this organizer
   const organizerTrips = trips.filter(t => t.organizer.name === organizer.name);
@@ -49,7 +62,7 @@ export default function OrganizerProfileView({
         </button>
         <div>
           <h2 className="text-sm font-display font-black tracking-tight">Organizer Profile</h2>
-          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">TREKIGO VERIFIED PARTNER</p>
+          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">FINDYOURTREK VERIFIED PARTNER</p>
         </div>
       </div>
 
@@ -97,7 +110,7 @@ export default function OrganizerProfileView({
           </div>
 
           <p className="text-[10.5px] text-zinc-500 max-w-xs mt-3.5 leading-relaxed">
-            Leading high-safety, verified treks across premium alpine trails and scenic valleys.
+            {organizer.headline || 'Leading high-safety, verified treks across premium alpine trails and scenic valleys.'}
           </p>
 
           {/* Fast Stats */}
@@ -120,7 +133,7 @@ export default function OrganizerProfileView({
               darkMode ? 'bg-zinc-950/40' : 'bg-gray-50'
             }`}>
               <Compass className="w-5 h-5 text-[#F27D26] mb-1" />
-              <span className="text-xs font-black font-display">8+ Years</span>
+              <span className="text-xs font-black font-display">{organizer.yearsExperience || 1}+ Years</span>
               <span className="text-[8px] opacity-50 uppercase tracking-wider mt-0.5">Experience</span>
             </div>
           </div>
@@ -172,19 +185,22 @@ export default function OrganizerProfileView({
                       <BookOpen size={13} className="text-forest-400" /> Agency Bio
                     </h3>
                     <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                      {simulatedAbout}
+                      {organizer.bio || simulatedAbout}
                     </p>
                   </div>
 
                   <div className="space-y-2.5 pt-2">
                     <h3 className="text-xs font-display font-bold uppercase tracking-wider opacity-85">Core Capabilities</h3>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      {(organizer?.coreCapabilities || [
-                        'Snow Expedition Specialists',
-                        'Eco-Friendly Leave-No-Trace',
-                        'Emergency Medical Rescue',
-                        'Naturalist Guided Hiking'
-                      ]).map((cap, i) => (
+                      {(organizer?.coreCapabilities && organizer.coreCapabilities.filter(c => c.trim()).length > 0
+                        ? organizer.coreCapabilities.filter(c => c.trim())
+                        : [
+                          'Snow Expedition Specialists',
+                          'Eco-Friendly Leave-No-Trace',
+                          'Emergency Medical Rescue',
+                          'Naturalist Guided Hiking'
+                        ]
+                      ).map((cap, i) => (
                         <div key={i} className={`p-2 rounded-lg flex items-center gap-1.5 ${darkMode ? 'bg-zinc-900/30' : 'bg-white shadow-xs'}`}>
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                           <span>{cap}</span>
@@ -203,7 +219,7 @@ export default function OrganizerProfileView({
                         <Phone size={14} className="text-forest-400 shrink-0" />
                         <div className="text-xs">
                           <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone Number</span>
-                          <span className="font-bold font-sans">{organizer.phone || '+91 98765 43210'}</span>
+                          <span className="font-bold font-sans">{organizer.supportPhone || organizer.mobile || '+91 98765 43210'}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 pt-2.5 border-t border-zinc-850/5 dark:border-white/5">
@@ -211,7 +227,7 @@ export default function OrganizerProfileView({
                         <div className="text-xs">
                           <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email Address</span>
                           <span className="font-bold truncate block">
-                            {organizer.email || `support@${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
+                            {organizer.supportEmail || organizer.email || `support@${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
                           </span>
                         </div>
                       </div>
@@ -219,14 +235,18 @@ export default function OrganizerProfileView({
                         <Globe size={14} className="text-forest-400 shrink-0" />
                         <div className="text-xs">
                           <span className="opacity-50 block text-[8px] uppercase tracking-wider">Website</span>
-                          <a 
-                            href={`https://www.${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="font-bold text-forest-500 hover:underline cursor-pointer"
-                          >
-                            {`www.${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
-                          </a>
+                          {organizer.agencyWebsite ? (
+                            <a 
+                              href={organizer.agencyWebsite.startsWith('http') ? organizer.agencyWebsite : `https://${organizer.agencyWebsite}`}
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="font-bold text-forest-500 hover:underline cursor-pointer"
+                            >
+                              {organizer.agencyWebsite.replace(/^https?:\/\/(www\.)?/, '')}
+                            </a>
+                          ) : (
+                            <span className="opacity-50 font-bold">No website listed</span>
+                          )}
                         </div>
                       </div>
                     </div>

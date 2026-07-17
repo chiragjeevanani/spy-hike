@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, ArrowRight, Calendar, Users, FileText, Ticket, CreditCard, CheckCircle2,
   Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus
 } from 'lucide-react';
-import { getAvailableCustomerVoucher, markCustomerVoucherUsed } from '../../../utils/loyalty';
+import { getAvailableCustomerVoucher, markCustomerVoucherUsed, loadLoyaltyConfig } from '../../../utils/loyalty';
 import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
+import { useToast } from '../../../components/ToastProvider';
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -66,6 +67,7 @@ export default function BookingFlow({
   onConfirmBooking,
   darkMode
 }) {
+  const toast = useToast();
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -75,7 +77,8 @@ export default function BookingFlow({
   const pickup = trip.pickup || (trip.pickupOptions?.[0]
     ? { location: trip.pickupOptions[0].location, price: trip.pickupOptions[0].price }
     : null);
-  const unitPrice = pickup ? pickup.price : trip.price;
+  // unitPrice is always the base trek price — pickup is a separate add-on
+  const unitPrice = trip.price;
 
   // Batch pricing tiers configured by the organizer (Solo/Couple/Group/etc.),
   // each already a per-person rate. Falls back to a single implicit tier at
@@ -113,8 +116,10 @@ export default function BookingFlow({
   // State variables for Wizard
   const [selectedDate, setSelectedDate] = useState('');
   const [travelersList, setTravelersList] = useState([
-    { name: 'Chirag Jeevanani', age: 24, gender: 'Male', emergencyContact: '+91 98765 43219' }
+    { name: '', age: '', gender: 'Male', emergencyContact: '' }
   ]);
+  const [travelerErrors, setTravelerErrors] = useState({}); // { [idx]: { [field]: message } }
+  const travelerCardRefs = useRef({});
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');       // applied code (display)
   const [appliedCouponData, setAppliedCouponData] = useState(null); // coupon object for client-side recompute
@@ -124,9 +129,12 @@ export default function BookingFlow({
   const [showConfetti, setShowConfetti] = useState(false);
 
   // Loyalty reward — an earned free-booking voucher, if any, can be applied
-  // in place of payment at checkout.
+  // in place of payment at checkout. Capped by the admin's configured max
+  // discount amount — the server re-derives and enforces this cap
+  // independently, this is just the checkout preview.
   const [availableVoucher] = useState(() => getAvailableCustomerVoucher());
   const [useLoyaltyReward, setUseLoyaltyReward] = useState(false);
+  const loyaltyMaxDiscount = loadLoyaltyConfig().customer.maxDiscountAmount;
   
   // Payment Options
   const [paymentGateway, setPaymentGateway] = useState('Razorpay');
@@ -240,7 +248,9 @@ export default function BookingFlow({
   // the totals derived from it (mixing tiers is allowed, e.g. 1 Couple + 2 Solo).
   const tierBreakdown = pricingTiers.map(tier => {
     const count = tierCounts[tier.id] || 0;
-    const perPersonPrice = tier.price + pickupAddOn;
+    // perPersonPrice is the trek price only — pickup transport is a separate
+    // flat add-on shown as its own line item, not baked into tier pricing.
+    const perPersonPrice = tier.price;
     return { ...tier, count, perPersonPrice, subtotal: count * perPersonPrice };
   });
   const travelersCount = tierBreakdown.reduce((sum, t) => sum + t.count, 0);
@@ -283,15 +293,15 @@ export default function BookingFlow({
     }
   }, [departuresLoaded, effectiveSeats]);
 
-  // Sync travelers count with list array size
+  // Sync travelers count with list array size. Additional travelers start
+  // blank (not a plausible-looking fake name/phone) — these go straight into
+  // "emergency permits and environmental safety registers" for a real trek,
+  // so a default that merely *looks* filled in is actively dangerous.
   useEffect(() => {
     if (travelersList.length < travelersCount) {
       const diff = travelersCount - travelersList.length;
-      const additional = Array(diff).fill(null).map((_, i) => ({
-        name: `Traveler ${travelersList.length + i + 1}`,
-        age: 25,
-        gender: 'Male',
-        emergencyContact: '+91 98765 43219'
+      const additional = Array(diff).fill(null).map(() => ({
+        name: '', age: '', gender: 'Male', emergencyContact: '',
       }));
       setTravelersList([...travelersList, ...additional]);
     } else if (travelersList.length > travelersCount) {
@@ -324,16 +334,57 @@ export default function BookingFlow({
     const updated = [...travelersList];
     updated[idx] = { ...updated[idx], [field]: val };
     setTravelersList(updated);
+    setTravelerErrors(prev => {
+      if (!prev[idx]?.[field]) return prev;
+      return { ...prev, [idx]: { ...prev[idx], [field]: '' } };
+    });
   };
 
-  // Up to 3 currently-active admin coupons, offered as quick-apply chips.
+  // This info goes straight into "emergency permits and environmental safety
+  // registers" for a real trek — required, not just for form completeness.
+  // Returns the first invalid { idx, field, message }, or null if all clear.
+  const validateTravelers = () => {
+    for (let idx = 0; idx < travelersList.length; idx++) {
+      const t = travelersList[idx];
+      const label = `Traveler #${idx + 1}`;
+      if (!t.name?.trim()) return { idx, field: 'name', message: `${label}: full name is required.` };
+      const age = Number(t.age);
+      if (!t.age || Number.isNaN(age) || age < 12 || age > 90) {
+        return { idx, field: 'age', message: `${label}: age must be between 12 and 90.` };
+      }
+      if (!t.gender) return { idx, field: 'gender', message: `${label}: gender is required.` };
+      const digits = String(t.emergencyContact || '').replace(/\D/g, '');
+      if (!/^\d{10}$/.test(digits)) {
+        return { idx, field: 'emergencyContact', message: `${label}: a valid 10-digit emergency contact number is required.` };
+      }
+    }
+    return null;
+  };
+
+  const handleContinue = () => {
+    if (step === 2) {
+      const error = validateTravelers();
+      if (error) {
+        setTravelerErrors({ [error.idx]: { [error.field]: error.message } });
+        toast.error(error.message);
+        const card = travelerCardRefs.current[error.idx];
+        card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card?.querySelector(`[name="${error.field}"]`)?.focus?.({ preventScroll: true });
+        return;
+      }
+    }
+    setStep(prev => prev + 1);
+  };
+
+  // Up to 3 currently-active coupons (platform-wide + this trip's organizer
+  // coupons), offered as quick-apply chips.
   useEffect(() => {
     let cancelled = false;
-    couponsApi.listActive()
+    couponsApi.listActive(trip.id)
       .then(list => { if (!cancelled) setQuickCoupons(list.slice(0, 3)); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [trip.id]);
 
   const handleValidateCoupon = async (e) => {
     e.preventDefault();
@@ -341,7 +392,7 @@ export default function BookingFlow({
     setCouponSuccess('');
 
     try {
-      const result = await couponsApi.validate(couponCode, baseCostTotal);
+      const result = await couponsApi.validate(couponCode, baseCostTotal, trip.id);
       if (result.ok) {
         // Store the coupon object so the discount recomputes client-side as the
         // booking amount changes (server stays the authority at booking time).
@@ -353,20 +404,33 @@ export default function BookingFlow({
         setAppliedCoupon('');
         setAppliedCouponData(null);
         setCouponError(result.message);
+        toast.error(result.message);
       }
     } catch (err) {
       setAppliedCoupon('');
       setAppliedCouponData(null);
-      setCouponError(err?.message || 'Could not validate coupon.');
+      const message = err?.message || 'Could not validate coupon.';
+      setCouponError(message);
+      toast.error(message);
     }
   };
 
   // Discount recomputed from the applied coupon against the live base cost
   // (re-checks the min-booking gate too, via computeDiscount).
   const appliedDiscountValue = appliedCouponData ? computeDiscount(appliedCouponData, baseCostTotal) : 0;
-  // A redeemed loyalty voucher comps the entire booking — no tax, no charge.
-  const taxAmountValue = useLoyaltyReward ? 0 : Math.round(((baseCostTotal - appliedDiscountValue) * 0.05) * 100) / 100; // 5% flat local tax
-  const finalPayAmount = useLoyaltyReward ? 0 : Math.round((baseCostTotal - appliedDiscountValue + taxAmountValue) * 100) / 100;
+  // No additional tax — the trip price already includes taxes & permits.
+  const taxAmountValue = 0;
+  // The reward comps up to loyaltyMaxDiscount, not the whole booking — a trip
+  // priced above the cap still owes the remainder. When the trip itself costs
+  // less than the cap, the trip's price is the real ceiling (can't discount
+  // more than 100% of the booking) — this is what copy should advertise, not
+  // the admin's flat cap, so a ₹3000 trip against a ₹5000 cap says "up to
+  // ₹3000 off", not a misleading "up to ₹5000 off".
+  const effectiveLoyaltyDiscount = Math.min(loyaltyMaxDiscount, baseCostTotal);
+  const loyaltyDiscountValue = useLoyaltyReward ? effectiveLoyaltyDiscount : 0;
+  const finalPayAmount = useLoyaltyReward
+    ? Math.round((baseCostTotal - loyaltyDiscountValue) * 100) / 100
+    : Math.round((baseCostTotal - appliedDiscountValue) * 100) / 100;
 
   const handleProcessPayment = async () => {
     setIsProcessingPayment(true);
@@ -396,7 +460,9 @@ export default function BookingFlow({
       setCreatedBooking(booking);
       setStep(4); // Success is now Step 4
     } catch (err) {
-      setBookingError(err?.message || 'Payment failed. Please try again.');
+      const message = err?.message || 'Payment failed. Please try again.';
+      setBookingError(message);
+      toast.error(message);
     } finally {
       setIsProcessingPayment(false);
     }
@@ -681,9 +747,15 @@ export default function BookingFlow({
             </p>
 
             <div className="space-y-4">
-              {travelersList.map((tr, idx) => (
-                <div 
+              {travelersList.map((tr, idx) => {
+                const err = travelerErrors[idx] || {};
+                const fieldCls = (field) => `w-full text-xs px-3 py-2.5 rounded-xl border outline-hidden focus:border-forest-500 ${
+                  err[field] ? 'border-red-500 focus:border-red-500' : darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-gray-100 border-gray-200'
+                } ${err[field] && darkMode ? 'bg-zinc-950' : ''}`;
+                return (
+                <div
                   key={idx}
+                  ref={el => (travelerCardRefs.current[idx] = el)}
                   className={`p-4 rounded-2xl space-y-3 relative ${
                     darkMode ? 'bg-zinc-900/60 border border-white/5' : 'bg-white border border-gray-150 shadow-xs'
                   }`}
@@ -694,67 +766,68 @@ export default function BookingFlow({
 
                   {/* Name field */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Full Name</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Full Name *</label>
                     <input
                       type="text"
+                      name="name"
                       required
                       placeholder="e.g. Aman Verma"
                       value={tr.name}
                       onChange={e => handleTravelerFieldChange(idx, 'name', e.target.value)}
-                      className={`w-full text-xs px-3 py-2.5 rounded-xl border focus:border-forest-500 outline-hidden ${
-                        darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-gray-100 border-gray-200'
-                      }`}
+                      className={fieldCls('name')}
                     />
+                    {err.name && <p className="text-[10px] font-semibold text-red-500">{err.name}</p>}
                   </div>
 
                   {/* Age & Gender Row */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Age</label>
+                    <div className="space-y-1 min-w-0">
+                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Age *</label>
                       <input
                         type="number"
+                        name="age"
                         min={12}
                         max={90}
                         placeholder="24"
                         value={tr.age}
-                        onChange={e => handleTravelerFieldChange(idx, 'age', Number(e.target.value))}
-                        className={`w-full text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 ${
-                          darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-gray-100 border-gray-200'
-                        }`}
+                        onChange={e => handleTravelerFieldChange(idx, 'age', e.target.value)}
+                        className={fieldCls('age')}
                       />
+                      {err.age && <p className="text-[10px] font-semibold text-red-500">{err.age}</p>}
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Gender</label>
+                    <div className="space-y-1 min-w-0">
+                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Gender *</label>
                       <select
+                        name="gender"
                         value={tr.gender}
                         onChange={e => handleTravelerFieldChange(idx, 'gender', e.target.value)}
-                        className={`w-full text-xs px-2 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 ${
-                          darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-gray-100 border-gray-200'
-                        }`}
+                        className={fieldCls('gender')}
                       >
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                       </select>
+                      {err.gender && <p className="text-[10px] font-semibold text-red-500">{err.gender}</p>}
                     </div>
                   </div>
 
                   {/* Emergency Contact */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Emergency Phone</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Emergency Phone *</label>
                     <input
                       type="tel"
-                      placeholder="Emergency contact name / tel"
+                      name="emergencyContact"
+                      placeholder="e.g. 9876543210"
                       value={tr.emergencyContact}
                       onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', e.target.value)}
-                      className={`w-full text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 ${
-                        darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-gray-100 border-gray-200'
-                      }`}
+                      className={fieldCls('emergencyContact')}
                     />
+                    {err.emergencyContact && <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -780,10 +853,11 @@ export default function BookingFlow({
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold block text-emerald-600 dark:text-emerald-400">
-                      Free Booking Reward Available!
+                      Loyalty Reward Available!
                     </span>
                     <p className="text-[10px] opacity-70 mt-0.5 leading-relaxed">
-                      You've earned a free booking through Trekigo Loyalty Rewards. Apply it to make this booking ₹0.
+                      You've earned a reward through Find Your Trek Loyalty Rewards — up to ₹{effectiveLoyaltyDiscount} off this booking
+                      {baseCostTotal > loyaltyMaxDiscount ? ', with the remainder payable.' : ', making it free.'}
                     </p>
                   </div>
                 </div>
@@ -797,7 +871,7 @@ export default function BookingFlow({
                       : (darkMode ? 'bg-zinc-900 border border-emerald-500/30 text-emerald-400 hover:bg-zinc-850' : 'bg-white border border-emerald-400/60 text-emerald-600 hover:bg-emerald-50')
                   }`}
                 >
-                  {useLoyaltyReward ? '✓ Reward Applied — Tap to Remove' : 'Apply Free Booking Reward'}
+                  {useLoyaltyReward ? `✓ ₹${loyaltyDiscountValue} Reward Applied — Tap to Remove` : `Apply Reward (up to ₹${effectiveLoyaltyDiscount} off)`}
                 </button>
               </div>
             )}
@@ -813,7 +887,7 @@ export default function BookingFlow({
               <form onSubmit={handleValidateCoupon} className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="CODE (e.g. TREKIGO20)"
+                  placeholder="CODE (e.g. FYT20)"
                   value={couponCode}
                   onChange={e => setCouponCode(e.target.value)}
                   className={`flex-1 text-xs px-3 py-2.5 border rounded-xl outline-hidden focus:border-forest-500 uppercase tracking-widest ${
@@ -881,15 +955,12 @@ export default function BookingFlow({
 
               {useLoyaltyReward && (
                 <div className="flex justify-between text-xs text-emerald-500 font-bold">
-                  <span className="flex items-center gap-1"><Gift size={11} /> Loyalty Reward — Free Booking</span>
-                  <span className="font-sans">-₹{baseCostTotal - appliedDiscountValue}</span>
+                  <span className="flex items-center gap-1"><Gift size={11} /> Loyalty Reward (up to ₹{effectiveLoyaltyDiscount})</span>
+                  <span className="font-sans">-₹{loyaltyDiscountValue}</span>
                 </div>
               )}
 
-              <div className="flex justify-between text-xs">
-                <span className="opacity-70">Taxes & Environmental Insurance (5% GST)</span>
-                <span className="font-sans font-bold text-zinc-700 dark:text-zinc-300">₹{taxAmountValue}</span>
-              </div>
+              {/* Tax is included in trip price — no separate tax line shown */}
 
               <hr className="my-1 border-dashed border-zinc-200 dark:border-zinc-800" />
 
@@ -924,8 +995,11 @@ export default function BookingFlow({
         {step === 4 && createdBooking && (
           <div className="space-y-4 text-center py-6">
             <div className="flex justify-center mb-2">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500 flex items-center justify-center text-emerald-400">
-                <CheckCircle2 size={36} className="animate-bounce" />
+              <div className="relative">
+                {/* Outer pulse ring */}
+                <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+                {/* Icon fills entire circle cleanly */}
+                <CheckCircle2 size={72} className="relative text-emerald-500 drop-shadow-lg" strokeWidth={1.5} />
               </div>
             </div>
 
@@ -1023,7 +1097,7 @@ export default function BookingFlow({
             type="button"
             id={`btn-booking-step-${step}-continue`}
             disabled={step === 1 && travelersCount === 0}
-            onClick={() => setStep(prev => prev + 1)}
+            onClick={handleContinue}
             className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 ${
               step === 1 && travelersCount === 0
                 ? 'opacity-40 cursor-not-allowed border-zinc-700 text-zinc-500'
@@ -1070,7 +1144,7 @@ export default function BookingFlow({
                 : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
             }`}
           >
-            {useLoyaltyReward
+            {finalPayAmount === 0
               ? <>Confirm Free Booking <Gift size={14} /></>
               : <>Pay ₹{finalPayAmount} <ShieldCheck size={14} /></>}
           </button>
@@ -1109,14 +1183,14 @@ export default function BookingFlow({
             </p>
 
             <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
-              <button 
-                onClick={() => { alert('Shared to WhatsApp successfully!'); setShowShareModal(false); }}
+              <button
+                onClick={() => { toast.success('Shared to WhatsApp successfully!'); setShowShareModal(false); }}
                 className="py-2.5 rounded-lg bg-green-650 hover:bg-green-755 text-white"
               >
                 WhatsApp Invite
               </button>
-              <button 
-                onClick={() => { alert('Booking Link copied to Clipboard!'); setShowShareModal(false); }}
+              <button
+                onClick={() => { toast.success('Booking Link copied to Clipboard!'); setShowShareModal(false); }}
                 className="py-2.5 rounded-lg bg-forest-600 hover:bg-forest-700 text-white"
               >
                 Copy Link
@@ -1167,7 +1241,7 @@ export default function BookingFlow({
             </p>
 
             <button
-              onClick={() => { alert('Invoice file generated & saved to your device.'); setShowTicketModal(false); }}
+              onClick={() => { toast.success('Invoice file generated & saved to your device.'); setShowTicketModal(false); }}
               className="w-full py-3 bg-forest-600 hover:bg-forest-700 text-white text-xs font-bold rounded-xl"
             >
               Save as PDF File

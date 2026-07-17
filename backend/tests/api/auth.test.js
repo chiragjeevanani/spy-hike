@@ -20,14 +20,16 @@ const registerOrganizer = (over = {}) =>
     name: 'Org Owner',
     email: 'org@example.com',
     password: 'pass1234',
-    agencyName: 'Peak Guides',
+    agencyName: 'Peak Guides', socialMediaLink: 'https://instagram.com/test',
+    govtIdType: 'Aadhaar',
+    govtIdNumber: '123456789012',
     ...over,
   });
 
 async function seedAdmin() {
   await Admin.create({
     name: 'Admin',
-    email: 'admin@trekigo.com',
+    email: 'admin@findyourtrek.com',
     passwordHash: await hashPassword('admin123'),
   });
 }
@@ -67,13 +69,90 @@ describe('Customer auth', () => {
     const res = await request(app).post('/api/v1/auth/register').send({ email: 'x@y.com' });
     expect(res.status).toBe(400);
   });
+
+  it.each(['short1', 'nodigitshere', '12345678'])('rejects a weak password "%s" with 400', async (password) => {
+    const res = await registerCustomer({ password });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a weak password on organizer registration with 400', async () => {
+    const res = await registerOrganizer({ password: 'weak' });
+    expect(res.status).toBe(400);
+  });
+
+  it.each([undefined, '', 'not-a-url'])('rejects organizer registration with an invalid social media link "%s" (400)', async (socialMediaLink) => {
+    const res = await registerOrganizer({ socialMediaLink });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a weak password on change-password (400), accepts a strong one', async () => {
+    const reg = await registerCustomer();
+    const weak = await request(app)
+      .patch('/api/v1/auth/password/change')
+      .set('Authorization', `Bearer ${reg.body.token}`)
+      .send({ currentPassword: 'pass1234', newPassword: 'weak' });
+    expect(weak.status).toBe(400);
+
+    const strong = await request(app)
+      .patch('/api/v1/auth/password/change')
+      .set('Authorization', `Bearer ${reg.body.token}`)
+      .send({ currentPassword: 'pass1234', newPassword: 'newpass5678' });
+    expect(strong.status).toBe(200);
+  });
+});
+
+describe('Hiker profile setup (PATCH /auth/profile)', () => {
+  const validSetup = {
+    hikingExperience: 'Beginner',
+    fitnessLevel: 'Moderate',
+    gender: 'Male',
+    age: 28,
+    emergencyContact: 'Asha Jeevanani (+91 98765 43219)',
+  };
+
+  it('completes profile setup with valid data', async () => {
+    const reg = await registerCustomer();
+    const res = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${reg.body.token}`)
+      .send(validSetup);
+    expect(res.status).toBe(200);
+    expect(res.body.account.age).toBe(28);
+  });
+
+  it.each([11, 100, -5])('rejects an out-of-range age %s with 400', async (age) => {
+    const reg = await registerCustomer();
+    const res = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${reg.body.token}`)
+      .send({ ...validSetup, age });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty emergency contact with 400', async () => {
+    const reg = await registerCustomer();
+    const res = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${reg.body.token}`)
+      .send({ ...validSetup, emergencyContact: '   ' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an emergency contact with fewer than 10 digits with 400', async () => {
+    const reg = await registerCustomer();
+    const res = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${reg.body.token}`)
+      .send({ ...validSetup, emergencyContact: 'Asha (12345)' });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('OTP login (stub)', () => {
   it('accepts the demo code 123456 and creates/returns a customer', async () => {
     const res = await request(app)
       .post('/api/v1/auth/otp/verify')
-      .send({ mobile: '+91 90000 00000', code: '123456' });
+      .send({ mobile: '9000000000', code: '123456' });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTruthy();
     expect(res.body.role).toBe('customer');
@@ -82,7 +161,7 @@ describe('OTP login (stub)', () => {
   it('rejects an incorrect OTP with 401', async () => {
     const res = await request(app)
       .post('/api/v1/auth/otp/verify')
-      .send({ mobile: '+91 90000 00000', code: '000000' });
+      .send({ mobile: '9000000000', code: '000000' });
     expect(res.status).toBe(401);
   });
 });
@@ -124,7 +203,7 @@ describe('Organizer auth + approval gate', () => {
     const reg = await registerOrganizer();
     const adminLogin = await request(app)
       .post('/api/v1/auth/admin/login')
-      .send({ email: 'admin@trekigo.com', password: 'admin123' });
+      .send({ email: 'admin@findyourtrek.com', password: 'admin123' });
     const adminToken = adminLogin.body.token;
 
     const approve = await request(app)
@@ -153,7 +232,7 @@ describe('Admin auth', () => {
     await seedAdmin();
     const res = await request(app)
       .post('/api/v1/auth/admin/login')
-      .send({ email: 'admin@trekigo.com', password: 'admin123' });
+      .send({ email: 'admin@findyourtrek.com', password: 'admin123' });
     expect(res.status).toBe(200);
     expect(res.body.role).toBe('admin');
     expect(res.body.account.displayRole).toBe('Super Admin');
@@ -163,8 +242,25 @@ describe('Admin auth', () => {
     await seedAdmin();
     const res = await request(app)
       .post('/api/v1/auth/admin/login')
-      .send({ email: 'admin@trekigo.com', password: 'nope' });
+      .send({ email: 'admin@findyourtrek.com', password: 'nope' });
     expect(res.status).toBe(401);
+  });
+
+  it('rejects a blank name on admin profile update, accepts a real one', async () => {
+    await seedAdmin();
+    const login = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@findyourtrek.com', password: 'admin123' });
+    const blank = await request(app)
+      .patch('/api/v1/admin/profile')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({ name: '   ' });
+    expect(blank.status).toBe(400);
+
+    const ok = await request(app)
+      .patch('/api/v1/admin/profile')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({ name: 'New Admin Name' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.admin.name).toBe('New Admin Name');
   });
 });
 

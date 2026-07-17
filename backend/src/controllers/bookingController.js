@@ -2,14 +2,14 @@ import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import Trip from '../models/Trip.js';
 import User from '../models/User.js';
-import Organizer from '../models/Organizer.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { makeBookingId } from '../utils/slug.js';
 import { computeBookingPricing } from '../services/pricingService.js';
 import { reserveSeats, releaseSeats } from '../services/inventoryService.js';
 import { computeRefund } from '../services/refundService.js';
-import { markCouponUsed } from '../services/couponService.js';
+import { redeemCoupon } from '../services/couponService.js';
+import { validateTravelers } from '../utils/travelerValidation.js';
 import {
   getAvailableVoucher, markVoucherUsed, syncCustomerVouchers, syncOrganizerVouchers,
 } from '../services/loyaltyService.js';
@@ -69,6 +69,21 @@ export const createBooking = asyncHandler(async (req, res) => {
   }
 
   try {
+    // Traveler details feed a real trek's emergency permits and safety
+    // register — validate them for real (not just trust whatever the client
+    // sent) now that seats are reserved; the catch below releases them if
+    // this fails.
+    validateTravelers(travelers, pricing.travelersCount);
+
+    // Atomically claim a coupon redemption slot before doing anything else —
+    // mirrors reserveSeats above: two concurrent bookings can't both squeeze
+    // through a coupon's last remaining redemption. The catch below releases
+    // the seats reserved above if this (or anything after it) fails.
+    if (pricing.couponId) {
+      const redeemed = await redeemCoupon(pricing.couponId);
+      if (!redeemed) throw ApiError.conflict('This coupon just reached its redemption limit — please remove it and try again.');
+    }
+
     const user = await User.findById(req.user.sub);
 
     // Stubbed payment (create order + verify).
@@ -76,6 +91,7 @@ export const createBooking = asyncHandler(async (req, res) => {
     const payment = await paymentProvider.verifyPayment({ orderId: order.id });
     if (!payment.verified) throw ApiError.badRequest('Payment could not be verified');
 
+    const { couponId, ...pricingFields } = pricing;
     const booking = await Booking.create({
       bookingId: await nextBookingId(),
       tripId: trip._id,
@@ -91,14 +107,15 @@ export const createBooking = asyncHandler(async (req, res) => {
       travelers,
       paymentRef: payment.paymentRef,
       status: 'Upcoming',
-      ...pricing,
+      ...pricingFields,
     });
 
-    // Record coupon redemption + bump the organizer's lifetime booking count
-    // (backs loyalty progress). Both are best-effort side effects.
-    if (pricing.couponUsed) await markCouponUsed(pricing.couponUsed);
+    // Bump the organizer's lifetime booking count (backs loyalty progress).
     if (trip.organizerEmail) {
-      await Organizer.updateOne({ email: trip.organizerEmail }, { $inc: { totalBookings: 1 } });
+      await User.updateOne(
+        { email: trip.organizerEmail, isOrganizer: true },
+        { $inc: { 'organizer.totalBookings': 1 } },
+      );
     }
 
     // Consume the redeemed loyalty voucher, then mint any newly-earned

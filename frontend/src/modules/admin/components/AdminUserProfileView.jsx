@@ -1,11 +1,20 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft, Edit3, Save, X, Trash2, Ban, CheckCircle2, Mail, Phone, Calendar,
   Award, HeartPulse, ShieldAlert, Users, IndianRupee, ExternalLink, Building2,
   Compass, Backpack, ChevronRight
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
-import { getUserByEmail, saveUserFields, createUser, deleteUser, getBookingsByUserEmail, getTripById } from '../utils/storage';
+import { getUserByEmail, getBookingsByUserEmail, getTripById } from '../utils/storage';
+import adminApi from '../../../lib/adminApi';
+import bookingsApi from '../../../lib/bookingsApi';
+import { getToken } from '../../../lib/apiClient';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MOBILE_REGEX = /^\d{10}$/;
+
 
 const GENDERS = ['Male', 'Female', 'Other'];
 const EXPERIENCE_LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
@@ -18,31 +27,93 @@ const blankForm = {
 
 export default function AdminUserProfileView({ email, onBack, onNavigateToUser, onNavigateToOrganizer, darkMode }) {
   const isNew = !email;
-  const existingUser = isNew ? null : getUserByEmail(email);
+  const isApi = !isNew && !!getToken();
+
+  // For local/mock users (offline fallback only when no API token is present)
+  const localUser = (!isNew && !isApi) ? getUserByEmail(email) : null;
+
+  // For real API users — fetched async when token is available
+  const [apiUser, setApiUser] = useState(null);
+  const [apiLoading, setApiLoading] = useState(isApi);
+
+  useEffect(() => {
+    if (!isApi) { setApiLoading(false); return; }
+    setApiLoading(true);
+    adminApi.getUser(email)
+      .then((u) => {
+        setApiUser(u);
+        setForm({
+          name: u.name || '', email: u.email || '', mobile: u.mobile || '',
+          age: u.age || 24, gender: u.gender || 'Male',
+          hikingExperience: u.hikingExperience || 'Beginner',
+          fitnessLevel: u.fitnessLevel || 'Moderate',
+          emergencyContact: u.emergencyContact || '',
+        });
+      })
+      .catch(() => setApiUser(null))
+      .finally(() => setApiLoading(false));
+  }, [email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Unified existingUser — prefer API data over localStorage
+  const existingUser = apiUser || localUser;
 
   const [editing, setEditing] = useState(isNew);
-  const [form, setForm] = useState(existingUser ? {
-    name: existingUser.name || '', email: existingUser.email || '', mobile: existingUser.mobile || '',
-    age: existingUser.age || 24, gender: existingUser.gender || 'Male',
-    hikingExperience: existingUser.hikingExperience || 'Beginner', fitnessLevel: existingUser.fitnessLevel || 'Moderate',
-    emergencyContact: existingUser.emergencyContact || '',
+  const [form, setForm] = useState(localUser ? {
+    name: localUser.name || '', email: localUser.email || '', mobile: localUser.mobile || '',
+    age: localUser.age || 24, gender: localUser.gender || 'Male',
+    hikingExperience: localUser.hikingExperience || 'Beginner', fitnessLevel: localUser.fitnessLevel || 'Moderate',
+    emergencyContact: localUser.emergencyContact || '',
   } : blankForm);
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [saving, setSaving] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const toast = useToast();
+  const fieldRefs = useRef({});
 
-  const bookings = useMemo(() => (existingUser ? getBookingsByUserEmail(existingUser.email) : []), [existingUser?.email]);
+  // Real bookings from the backend when signed in; localStorage seed data
+  // otherwise (offline / no backend) — same pattern as the organizer profile's
+  // trips/bookings fetch.
+  const [allBookings, setAllBookings] = useState([]);
+
+  useEffect(() => {
+    if (isNew || !email || !getToken()) return;
+    bookingsApi.listAll().then(setAllBookings).catch(() => setAllBookings([]));
+  }, [email, isNew]);
+
+  const bookings = useMemo(() => {
+    if (!existingUser) return [];
+    if (getToken()) {
+      const userEmail = existingUser.email.toLowerCase();
+      return allBookings.filter((b) => b.userEmail?.toLowerCase() === userEmail);
+    }
+    return getBookingsByUserEmail(existingUser.email);
+  }, [allBookings, existingUser]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 3;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [email, bookings.length]);
 
   const stats = useMemo(() => {
     const active = bookings.filter(b => b.status !== 'Cancelled');
     const distinctTreks = new Set(active.map(b => b.tripId || b.tripName));
     const totalSpend = active.reduce((s, b) => s + (parseFloat(b.finalAmount) || 0), 0);
-    const totalMembers = active.reduce((s, b) => s + (parseInt(b.hikersCount) || 1), 0);
+    const totalMembers = active.reduce((s, b) => s + (parseInt(b.travelersCount) || 1), 0);
     const upcoming = bookings.filter(b => b.status === 'Upcoming').length;
     const completed = bookings.filter(b => b.status === 'Completed').length;
     const cancelled = bookings.filter(b => b.status === 'Cancelled').length;
     return { totalTreks: distinctTreks.size, totalSpend, totalMembers, upcoming, completed, cancelled };
   }, [bookings]);
+
+  const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
+  const paginatedBookings = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return bookings.slice(start, start + ITEMS_PER_PAGE);
+  }, [bookings, currentPage]);
 
   const cardCls = `rounded-2xl border shadow-sm ${
     darkMode ? 'bg-[#152243] border-slate-800 text-white shadow-slate-950/20' : 'bg-white border-slate-100 text-slate-800 shadow-slate-100/50'
@@ -52,31 +123,85 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
   }`;
   const labelCls = 'text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5';
 
-  const handleSave = () => {
-    if (!form.name.trim() || !form.email.trim()) {
-      setFormError('Name and email are required.');
+  const FIELD_ORDER = ['name', 'email', 'mobile', 'age'];
+
+  const validateForm = () => {
+    const errors = {};
+    if (!form.name.trim()) errors.name = 'Full name is required.';
+    if (!form.email.trim()) errors.email = 'Email is required.';
+    else if (!EMAIL_REGEX.test(form.email.trim())) errors.email = 'Enter a valid email address.';
+    if (form.mobile.trim() && !MOBILE_REGEX.test(form.mobile.trim())) errors.mobile = 'Enter a valid 10-digit mobile number.';
+    const ageNum = Number(form.age);
+    if (Number.isNaN(ageNum) || ageNum < 12 || ageNum > 99) errors.age = 'Enter a valid age between 12 and 99.';
+    return errors;
+  };
+
+  const handleSave = async () => {
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      const message = errors[FIELD_ORDER.find((f) => errors[f])];
+      setFieldErrors(errors);
+      setFormError(message);
+      toast.error(message);
+      scrollToFirstError(fieldRefs.current, errors, FIELD_ORDER);
       return;
     }
-    if (isNew) {
-      const created = createUser(form);
-      onNavigateToUser(created.email);
-    } else {
-      saveUserFields(existingUser.email, form);
-      setEditing(false);
+    setFieldErrors({});
+    setFormError('');
+    setSaving(true);
+    try {
+      if (isNew) {
+        const created = await adminApi.createUser(form);
+        toast.success('Hiker account created successfully!');
+        onNavigateToUser(created.email);
+      } else {
+        const updated = await adminApi.updateUser(existingUser.id, form);
+        setApiUser(updated);
+        setEditing(false);
+        toast.success('Hiker profile updated successfully!');
+      }
+    } catch (err) {
+      const message = err?.message || 'Could not save hiker profile.';
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleToggleStatus = () => {
+  const handleToggleStatus = async () => {
     const nextStatus = existingUser.status === 'Banned' ? 'Active' : 'Banned';
-    saveUserFields(existingUser.email, { status: nextStatus });
+    try {
+      const updated = await adminApi.setUserStatus(existingUser.id, nextStatus);
+      setApiUser(updated);
+      toast.success(nextStatus === 'Banned' ? 'Hiker suspended.' : 'Hiker reinstated.');
+    } catch (err) {
+      toast.error(err?.message || 'Could not update status.');
+    }
     setShowStatusConfirm(false);
   };
 
-  const handleDelete = () => {
-    deleteUser(existingUser.email);
+  const handleDelete = async () => {
+    try {
+      await adminApi.deleteUser(existingUser.id);
+      toast.success('Hiker account deleted.');
+    } catch (err) {
+      toast.error(err?.message || 'Could not delete user.');
+      setShowDeleteConfirm(false);
+      return;
+    }
     setShowDeleteConfirm(false);
     onBack();
   };
+
+  // Show loading spinner while fetching the real user from the API
+  if (apiLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-8 h-8 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isNew && !existingUser) {
     return (
@@ -172,20 +297,46 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
               <div className="space-y-3">
                 <div>
                   <label className={labelCls}>Full Name *</label>
-                  <input className={inputCls} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+                  <input
+                    ref={el => { fieldRefs.current.name = { current: el }; }}
+                    className={`${inputCls} ${fieldErrors.name ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    value={form.name}
+                    onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setFieldErrors(er => ({ ...er, name: '' })); }}
+                  />
+                  {fieldErrors.name && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.name}</p>}
                 </div>
                 <div>
                   <label className={labelCls}>Email *</label>
-                  <input className={inputCls} value={form.email} disabled={!isNew} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+                  <input
+                    ref={el => { fieldRefs.current.email = { current: el }; }}
+                    className={`${inputCls} ${fieldErrors.email ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    value={form.email}
+                    disabled={!isNew}
+                    onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setFieldErrors(er => ({ ...er, email: '' })); }}
+                  />
+                  {fieldErrors.email && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.email}</p>}
                 </div>
                 <div>
                   <label className={labelCls}>Mobile</label>
-                  <input className={inputCls} value={form.mobile} onChange={e => setForm(p => ({ ...p, mobile: e.target.value }))} />
+                  <input
+                    ref={el => { fieldRefs.current.mobile = { current: el }; }}
+                    className={`${inputCls} ${fieldErrors.mobile ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    value={form.mobile}
+                    onChange={e => { setForm(p => ({ ...p, mobile: e.target.value.replace(/\D/g, '') })); setFieldErrors(er => ({ ...er, mobile: '' })); }}
+                  />
+                  {fieldErrors.mobile && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.mobile}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <label className={labelCls}>Age</label>
-                    <input type="number" className={inputCls} value={form.age} onChange={e => setForm(p => ({ ...p, age: e.target.value }))} />
+                    <input
+                      ref={el => { fieldRefs.current.age = { current: el }; }}
+                      type="number"
+                      className={`${inputCls} ${fieldErrors.age ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                      value={form.age}
+                      onChange={e => { setForm(p => ({ ...p, age: e.target.value })); setFieldErrors(er => ({ ...er, age: '' })); }}
+                    />
+                    {fieldErrors.age && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.age}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>Gender</label>
@@ -215,13 +366,14 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSave}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F27D26] text-white text-xs font-bold active:scale-95 transition-all"
+                    disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F27D26] text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Save size={13} /> {isNew ? 'Create Hiker' : 'Save Changes'}
+                    <Save size={13} /> {saving ? 'Saving…' : (isNew ? 'Create Hiker' : 'Save Changes')}
                   </button>
                   {!isNew && (
                     <button
-                      onClick={() => { setEditing(false); setFormError(''); }}
+                      onClick={() => { setEditing(false); setFormError(''); setFieldErrors({}); }}
                       className={`px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}
                     >
                       <X size={13} />
@@ -243,6 +395,63 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
                     {existingUser.emergencyContact || 'Not specified'}
                   </span>
                 </div>
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                  <span className={labelCls}>Notification Preferences</span>
+                  <div className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${(existingUser.notificationBookings !== false) ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-800'}`} />
+                      <span>Bookings: {(existingUser.notificationBookings !== false) ? 'ON' : 'OFF'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${(existingUser.notificationUpdates !== false) ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-800'}`} />
+                      <span>Updates: {(existingUser.notificationUpdates !== false) ? 'ON' : 'OFF'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${existingUser.notificationPromo ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-800'}`} />
+                      <span>Bulletins: {existingUser.notificationPromo ? 'ON' : 'OFF'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {existingUser.referralCode && (
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                    <span className={labelCls}>Referral Info</span>
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span>Referral Code: </span>
+                        <span className="font-mono text-xs text-[#F27D26] select-all bg-[#F27D26]/5 px-2 py-0.5 rounded-md font-black">{existingUser.referralCode}</span>
+                      </div>
+                      {existingUser.referredBy && (
+                        <div className="flex items-center gap-1.5">
+                          <span>Referred By: </span>
+                          <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded-md">{existingUser.referredBy}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {existingUser.referredUsers && (
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                    <span className={labelCls}>Referred Hikers ({existingUser.referredUsers.length})</span>
+                    {existingUser.referredUsers.length === 0 ? (
+                      <p className="text-[10px] text-slate-400 font-semibold italic">No hikers referred yet</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {existingUser.referredUsers.map((ru) => (
+                          <button
+                            key={ru.id}
+                            type="button"
+                            onClick={() => onNavigateToUser(ru.id)}
+                            className="text-[10px] font-bold bg-[#F27D26]/10 text-[#F27D26] hover:bg-[#F27D26]/20 px-2 py-1 rounded-full cursor-pointer active:scale-95 transition-all text-left flex items-center gap-1"
+                          >
+                            <span>👤 {ru.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -283,7 +492,7 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
                 <div className="text-center py-12 text-slate-400 text-xs font-semibold">No bookings on record for this hiker yet.</div>
               ) : (
                 <div className={`divide-y ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                  {bookings.map(b => {
+                  {paginatedBookings.map(b => {
                     const trip = b.tripId ? getTripById(b.tripId) : null;
                     const orgEmail = b.organizerEmail || trip?.organizerEmail;
                     const coverImage = b.tripImage || trip?.coverImage;
@@ -308,7 +517,7 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
                           </div>
                           <div className="flex items-center gap-3 text-[10px] text-slate-400 font-semibold mt-1 flex-wrap">
                             <span className="flex items-center gap-1"><Calendar size={10} /> {b.selectedDate}</span>
-                            <span className="flex items-center gap-1"><Users size={10} /> {b.hikersCount || 1} member{(b.hikersCount || 1) > 1 ? 's' : ''}</span>
+                            <span className="flex items-center gap-1"><Users size={10} /> {b.travelersCount || 1} member{(b.travelersCount || 1) > 1 ? 's' : ''}</span>
                             <span className="flex items-center gap-1"><IndianRupee size={10} /> {parseFloat(b.finalAmount || 0).toLocaleString('en-IN')}</span>
                           </div>
                           <div className="text-[10px] text-slate-400 font-semibold mt-1 flex items-center gap-1">
@@ -329,6 +538,40 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
                       </div>
                     );
                   })}
+
+                  {totalPages > 1 && (
+                    <div className={`px-6 py-4 flex items-center justify-between border-t ${
+                      darkMode ? 'border-slate-800' : 'border-slate-100'
+                    }`}>
+                      <button
+                        type="button"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                          currentPage === 1
+                            ? 'opacity-40 cursor-not-allowed border-slate-250 dark:border-slate-850 text-slate-400'
+                            : (darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
+                        }`}
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                          currentPage === totalPages
+                            ? 'opacity-40 cursor-not-allowed border-slate-250 dark:border-slate-850 text-slate-400'
+                            : (darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut, Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus, Gift, LifeBuoy, Info, Instagram, AlertCircle, Wallet } from 'lucide-react';
+import { User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut, Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus, Gift, LifeBuoy, Info, Instagram, AlertCircle, Wallet, TicketPercent } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import OrgHelpSupportView from './OrgHelpSupportView';
@@ -8,10 +8,13 @@ import OrgAboutView from './OrgAboutView';
 import { saveOrgUser } from '../utils/storage';
 import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 import SwitchTransition from '../../user/components/SwitchTransition';
+import authApi from '../../../lib/authApi';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
 
 const TRAVELLER_TRANSITION_MS = 3000;
 
-export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, darkMode, onToggleDarkMode }) {
+export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, onOpenCoupons, darkMode, onToggleDarkMode }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const [editing, setEditing] = useState(false);
@@ -22,6 +25,9 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
 
   const handleSwitchToTraveller = () => {
     setTravSwitching(true);
+    // Mint a customer-scoped token before navigating — the organizer token
+    // currently held won't pass the traveller app's customer-only checks.
+    authApi.getCustomerToken().catch(() => {});
     setTimeout(() => { window.location.href = '/app'; }, TRAVELLER_TRANSITION_MS);
   };
   const [form, setForm] = useState({
@@ -33,19 +39,69 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
     bio: organizer?.bio || '',
     yearsExperience: organizer?.yearsExperience || 1,
     coreCapabilities: organizer?.coreCapabilities || ['Snow Expedition Specialists', 'Eco-Friendly Leave-No-Trace', 'Emergency Medical Rescue', 'Naturalist Guided Hiking'],
+    supportEmail: organizer?.supportEmail || '',
+    supportPhone: organizer?.supportPhone || '',
+    headline: organizer?.headline || '',
   });
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const toast = useToast();
+  const fieldRefs = useRef({});
+
+  const NAME_REGEX = /^[A-Za-z][A-Za-z .'-]*$/;
+  const PHONE_REGEX = /^\d{10}$/;
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const URL_REGEX = /^https?:\/\/[^\s]+\.[^\s]+$/;
+
+  // Returns { fieldKey: message } for every invalid field, keyed to match the
+  // fields[] render list below so refs/highlighting/scroll all line up.
+  const validateForm = () => {
+    const errors = {};
+    if (!form.name.trim()) errors.name = 'Full name is required.';
+    else if (!NAME_REGEX.test(form.name.trim())) errors.name = 'Full name can only contain letters, spaces, apostrophes and hyphens.';
+    if (!form.agencyName.trim()) errors.agencyName = 'Agency name is required.';
+    if (form.supportPhone.trim() && !PHONE_REGEX.test(form.supportPhone.trim())) {
+      errors.supportPhone = 'Mobile / support phone must be a valid 10-digit number.';
+    }
+    if (form.supportEmail.trim() && !EMAIL_REGEX.test(form.supportEmail.trim())) {
+      errors.supportEmail = 'Enter a valid support email address.';
+    }
+    if (form.agencyWebsite.trim() && !URL_REGEX.test(form.agencyWebsite.trim())) {
+      errors.agencyWebsite = 'Enter a valid website URL (starting with http:// or https://).';
+    }
+    if (!form.socialMediaLink.trim()) errors.socialMediaLink = 'A social media link (e.g. Instagram) is required.';
+    else if (!URL_REGEX.test(form.socialMediaLink.trim())) {
+      errors.socialMediaLink = 'Enter a valid social media URL (starting with http:// or https://).';
+    }
+    return errors;
+  };
 
   const handleSave = () => {
-    if (!form.socialMediaLink.trim()) {
-      setFormError('A social media link (e.g. Instagram) is required.');
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      const order = ['name', 'agencyName', 'headline', 'supportPhone', 'supportEmail', 'agencyWebsite', 'socialMediaLink', 'yearsExperience'];
+      const message = errors[order.find(f => errors[f])];
+      setFieldErrors(errors);
+      setFormError(message);
+      toast.error(message);
+      scrollToFirstError(fieldRefs.current, errors, order);
       return;
     }
-    const updated = { ...organizer, ...form };
-    saveOrgUser(updated);
-    setEditing(false);
-    // Force re-render via reload-like pattern (parent should handle)
-    window.location.reload();
+    setFieldErrors({});
+    setFormError('');
+    authApi.updateOrganizerProfile(form)
+      .then((res) => {
+        const updated = { ...organizer, ...res.organizer };
+        saveOrgUser(updated);
+        setEditing(false);
+        toast.success('Profile updated successfully!');
+        window.location.reload();
+      })
+      .catch((err) => {
+        const message = err?.message || 'Failed to save profile details.';
+        setFormError(message);
+        toast.error(message);
+      });
   };
 
   const inputCls = `w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition ${
@@ -204,6 +260,22 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
             <ChevronRight size={16} className="opacity-40" />
           </button>
 
+          {/* Coupons */}
+          <button
+            type="button"
+            id="btn-open-coupons-profile"
+            onClick={onOpenCoupons}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 border-b transition ${
+              darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <TicketPercent size={16} className="text-spy-orange" />
+              <span className="text-sm font-semibold">My Coupons</span>
+            </span>
+            <ChevronRight size={16} className="opacity-40" />
+          </button>
+
           {/* Help & Support */}
           <button
             type="button"
@@ -277,9 +349,11 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
             <div className="flex-1 px-5 py-5 space-y-4">
               <div className={`rounded-2xl p-4 space-y-4 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}>
                 {[
-                  { label: 'Full Name', key: 'name', type: 'text', placeholder: 'Your name' },
-                  { label: 'Agency Name', key: 'agencyName', type: 'text', placeholder: 'Agency name' },
-                  { label: 'Mobile', key: 'mobile', type: 'tel', placeholder: '+91 XXXXX XXXXX' },
+                  { label: 'Full Name *', key: 'name', type: 'text', placeholder: 'Your name' },
+                  { label: 'Agency Name *', key: 'agencyName', type: 'text', placeholder: 'Agency name' },
+                  { label: 'Agency Headline', key: 'headline', type: 'text', placeholder: 'e.g. Leading high-safety mountain tours' },
+                  { label: 'Mobile / Support Phone', key: 'supportPhone', type: 'tel', placeholder: '9876543210', inputMode: 'numeric', maxLength: 10 },
+                  { label: 'Support Email', key: 'supportEmail', type: 'email', placeholder: 'support@youragency.com' },
                   { label: 'Website', key: 'agencyWebsite', type: 'url', placeholder: 'https://...' },
                   { label: 'Social Media Link (e.g. Instagram) *', key: 'socialMediaLink', type: 'url', placeholder: 'https://instagram.com/youragency', required: true },
                   { label: 'Years Experience', key: 'yearsExperience', type: 'number', placeholder: '5' },
@@ -287,13 +361,23 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
                   <div key={field.key}>
                     <label className={labelCls}>{field.label}</label>
                     <input
+                      ref={el => { fieldRefs.current[field.key] = { current: el }; }}
                       type={field.type}
                       required={field.required}
-                      className={inputCls}
+                      inputMode={field.inputMode}
+                      maxLength={field.maxLength}
+                      className={`${inputCls} ${fieldErrors[field.key] ? 'border-red-500 focus:border-red-500' : ''}`}
                       placeholder={field.placeholder}
                       value={form[field.key]}
-                      onChange={e => { setForm(p => ({ ...p, [field.key]: e.target.value })); setFormError(''); }}
+                      onChange={e => {
+                        const raw = e.target.value;
+                        const val = field.key === 'supportPhone' ? raw.replace(/\D/g, '').slice(0, 10) : raw;
+                        setForm(p => ({ ...p, [field.key]: val }));
+                        setFormError('');
+                        setFieldErrors(er => ({ ...er, [field.key]: '' }));
+                      }}
                     />
+                    {fieldErrors[field.key] && <p className="text-[11px] font-semibold text-red-500 mt-1">{fieldErrors[field.key]}</p>}
                   </div>
                 ))}
                 {formError && (
@@ -323,7 +407,7 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
                       <div key={idx} className="flex gap-2">
                         <input
                           type="text"
-                          className={`${inputCls} flex-1`}
+                          className={`${inputCls} flex-1 min-w-0`}
                           placeholder={`Capability ${idx + 1}`}
                           value={cap}
                           onChange={e => {

@@ -11,7 +11,12 @@ import { listCustomerChats, sendCustomerMessage } from '../controllers/chatContr
 // Customer-authenticated endpoints.
 const router = Router();
 
-const customerOnly = [requireAuth, requireRole('customer')];
+// Accepts a customer- or organizer-scoped token: both roles are the same
+// underlying User document in the unified account model, so an organizer
+// holding an organizer-scoped token can still book/wishlist/chat as a
+// traveller without needing to switch roles first. Only Admin (a separate
+// collection/identity) is excluded.
+const customerOnly = [requireAuth, requireRole('customer', 'organizer')];
 
 router.post('/bookings', ...customerOnly, createBooking);
 router.get('/bookings', ...customerOnly, listMyBookings);

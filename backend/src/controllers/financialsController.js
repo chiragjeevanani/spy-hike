@@ -1,9 +1,16 @@
 import Payout from '../models/Payout.js';
 import Booking from '../models/Booking.js';
-import Organizer from '../models/Organizer.js';
+import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notifyOrganizer } from '../services/notificationService.js';
+
+// Format checks for a real payout destination — this data drives where money
+// actually gets sent, so it's validated for real rather than trusted as-is.
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const ACCOUNT_NUMBER_REGEX = /^\d{9,18}$/;
+const UPI_REGEX = /^[\w.-]{2,256}@[a-zA-Z]{2,64}$/;
+const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]{1}$/;
 
 // Available balance = organizer payout earned on non-cancelled bookings minus
 // everything already requested/settled (Processing + Paid payouts). Refunds
@@ -82,10 +89,37 @@ export const requestPayout = asyncHandler(async (req, res) => {
 
 // PATCH /organizer/bank-details — update payout bank/UPI details.
 export const updateBankDetails = asyncHandler(async (req, res) => {
-  const org = await Organizer.findById(req.organizer._id);
-  org.bankDetails = { ...org.bankDetails?.toObject?.() ?? org.bankDetails, ...req.body };
-  await org.save();
-  res.json({ organizer: org.toPublicJSON() });
+  const user = await User.findById(req.user.sub);
+  if (!user || !user.isOrganizer) throw ApiError.notFound('Organizer not found');
+  const { accountHolderName, bankName, accountNumber, ifsc, upiId, panNumber } = req.body;
+
+  if (accountHolderName !== undefined && !accountHolderName.trim()) {
+    throw ApiError.badRequest('Account holder name is required');
+  }
+  if (upiId !== undefined && upiId.trim() && !UPI_REGEX.test(upiId.trim())) {
+    throw ApiError.badRequest('Enter a valid UPI ID (e.g. name@bank)');
+  }
+  // Bank account fields are all-or-nothing: if any one is being set with real
+  // content, all three are required and format-checked together.
+  const settingBank = [bankName, accountNumber, ifsc].some((v) => v !== undefined && v.trim());
+  if (settingBank) {
+    if (!bankName?.trim()) throw ApiError.badRequest('Bank name is required');
+    if (!accountNumber || !ACCOUNT_NUMBER_REGEX.test(accountNumber.trim())) {
+      throw ApiError.badRequest('Enter a valid bank account number (9-18 digits)');
+    }
+    if (!ifsc || !IFSC_REGEX.test(ifsc.trim().toUpperCase())) {
+      throw ApiError.badRequest('Enter a valid IFSC code (e.g. HDFC0001234)');
+    }
+  }
+  if (panNumber !== undefined && panNumber.trim() && !PAN_REGEX.test(panNumber.trim().toUpperCase())) {
+    throw ApiError.badRequest('Enter a valid PAN number (e.g. ABCDE1234F)');
+  }
+
+  const org = user.organizer || {};
+  org.bankDetails = { ...(org.bankDetails?.toObject?.() ?? org.bankDetails ?? {}), ...req.body };
+  user.organizer = org;
+  await user.save();
+  res.json({ organizer: user.toOrganizerJSON() });
 });
 
 // ─── Admin ───────────────────────────────────────────────────────────────────

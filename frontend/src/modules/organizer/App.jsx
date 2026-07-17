@@ -16,6 +16,8 @@ import bookingsApi from '../../lib/bookingsApi';
 import loyaltyApi from '../../lib/loyaltyApi';
 import socialApi from '../../lib/socialApi';
 import { getToken } from '../../lib/apiClient';
+import { useToast } from '../../components/ToastProvider';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -29,6 +31,7 @@ import OrgProfileView from './components/OrgProfileView';
 import OrgLoyaltyView from './components/OrgLoyaltyView';
 import OrgNotificationsView from './components/OrgNotificationsView';
 import OrgFinancialsView from './components/OrgFinancialsView';
+import OrgCouponsView from './components/OrgCouponsView';
 import OrgScannerView from './components/OrgScannerView';
 import OrgChatsView from './components/OrgChatsView';
 
@@ -78,8 +81,11 @@ export default function OrgApp() {
   const [showOrgLoyalty, setShowOrgLoyalty] = useState(false);
   const [showOrgNotifications, setShowOrgNotifications] = useState(false);
   const [showOrgFinancials, setShowOrgFinancials] = useState(false);
+  const [showOrgCoupons, setShowOrgCoupons] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showOrgChats, setShowOrgChats] = useState(false);
+  const [deleteTripTarget, setDeleteTripTarget] = useState(null);
+  const toast = useToast();
   const [chats, setChats] = useState([]);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
 
@@ -242,7 +248,7 @@ export default function OrgApp() {
       navigateTo('Trips', false);
     } catch (err) {
       const detail = err?.details ? Object.values(err.details).join('\n') : err?.message;
-      alert(`Could not save trip:\n${detail || 'Unknown error'}`);
+      toast.error(`Could not save trip: ${detail || 'Unknown error'}`);
     }
   };
 
@@ -261,18 +267,23 @@ export default function OrgApp() {
     try {
       await tripsApi.setTripStatus(trip.id, newStatus);
       await refreshOrgTrips();
+      toast.success(newStatus === 'Published' ? 'Trip published.' : 'Trip paused.');
     } catch (err) {
-      alert(`Could not update status: ${err?.message || 'Unknown error'}`);
+      toast.error(`Could not update status: ${err?.message || 'Unknown error'}`);
     }
   };
 
-  const handleDeleteTrip = async (tripId) => {
-    if (!window.confirm('Delete this trip? This cannot be undone.')) return;
+  const handleDeleteTrip = (tripId) => setDeleteTripTarget(tripId);
+
+  const confirmDeleteTrip = async () => {
+    const tripId = deleteTripTarget;
+    setDeleteTripTarget(null);
     try {
       await tripsApi.deleteTrip(tripId);
       await refreshOrgTrips();
+      toast.success('Trip deleted.');
     } catch (err) {
-      alert(`Could not delete trip: ${err?.message || 'Unknown error'}`);
+      toast.error(`Could not delete trip: ${err?.message || 'Unknown error'}`);
     }
   };
 
@@ -289,7 +300,7 @@ export default function OrgApp() {
         await hydrateOrganizerLoyalty();
         return;
       } catch (err) {
-        alert(err?.message || 'Could not apply reward.');
+        toast.error(err?.message || 'Could not apply reward.');
         return;
       }
     }
@@ -338,7 +349,7 @@ export default function OrgApp() {
     if (!text?.trim()) return;
     socialApi.sendOrganizerMessage(chatId, text.trim())
       .then((chat) => setChats((prev) => prev.map((c) => (c.id === chat.id ? chat : c))))
-      .catch((err) => alert(err?.message || 'Could not send message.'));
+      .catch((err) => toast.error(err?.message || 'Could not send message.'));
   };
 
   const handleSaveBankDetails = (bankDetails) => {
@@ -358,8 +369,11 @@ export default function OrgApp() {
     if (getToken()) {
       bookingsApi.requestPayout(amount)
         .then(() => bookingsApi.listPayouts())
-        .then((list) => { if (Array.isArray(list)) { setPayouts(list); saveOrgPayouts(list); } })
-        .catch((err) => alert(err?.message || 'Could not request payout.'));
+        .then((list) => {
+          if (Array.isArray(list)) { setPayouts(list); saveOrgPayouts(list); }
+          toast.success('Payout requested successfully!');
+        })
+        .catch((err) => toast.error(err?.message || 'Could not request payout.'));
       return;
     }
 
@@ -481,6 +495,7 @@ export default function OrgApp() {
             onLogout={handleLogout}
             onOpenLoyalty={() => setShowOrgLoyalty(true)}
             onOpenFinancials={() => setShowOrgFinancials(true)}
+            onOpenCoupons={() => setShowOrgCoupons(true)}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
           />
@@ -586,6 +601,25 @@ export default function OrgApp() {
           )}
         </AnimatePresence>
 
+        {/* Coupons full-screen overlay — reachable from the Profile menu row */}
+        <AnimatePresence>
+          {showOrgCoupons && (
+            <motion.div
+              key="overlay-org-coupons"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+            >
+              <OrgCouponsView
+                onBack={() => setShowOrgCoupons(false)}
+                darkMode={darkMode}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Scanner full-screen overlay */}
         <AnimatePresence>
           {showScanner && (
@@ -655,6 +689,17 @@ export default function OrgApp() {
           {renderContent()}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTripTarget}
+        title="Delete Trip?"
+        message="This permanently removes this trip listing. This cannot be undone."
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={confirmDeleteTrip}
+        onCancel={() => setDeleteTripTarget(null)}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

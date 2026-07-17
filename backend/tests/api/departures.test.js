@@ -1,15 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import Organizer from '../../src/models/Organizer.js';
+import User from '../../src/models/User.js';
 import Departure from '../../src/models/Departure.js';
+import Trek from '../../src/models/Trek.js';
 import { reserveSeats, releaseSeats } from '../../src/services/inventoryService.js';
 
 const app = createApp();
 
-const validTrip = (over = {}) => ({
-  name: 'Inventory Trek',
-  location: 'Manali',
+let trekSeq = 0;
+async function seedTrek() {
+  return Trek.create({
+    _id: `inventory-trek-${Date.now()}-${trekSeq++}`,
+    title: 'Inventory Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    coverImage: 'https://example.com/trek.jpg',
+  });
+}
+
+const validTrip = (trekId, over = {}) => ({
+  trekId,
   pricingTiers: [{ label: 'Solo', price: 500 }],
   pickup: { location: 'Manali', price: 50 },
   startPoint: { lat: 32.24, lng: 77.18, label: 'Base' },
@@ -23,15 +32,17 @@ const validTrip = (over = {}) => ({
 
 async function approvedOrganizerToken(email = 'org@example.com') {
   const reg = await request(app).post('/api/v1/auth/organizer/register').send({
-    name: 'Org', email, password: 'pass1234', agencyName: 'Guides',
+    name: 'Org', email, password: 'pass1234', agencyName: 'Guides', socialMediaLink: 'https://instagram.com/test',
+    govtIdType: 'Aadhaar', govtIdNumber: '123456789012',
   });
-  await Organizer.findByIdAndUpdate(reg.body.account.id, { isApproved: true, isPendingApproval: false });
+  await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
   const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
   return login.body.token;
 }
 
 async function createTrip(token, over) {
-  const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${token}`).send(validTrip(over));
+  const trek = await seedTrek();
+  const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${token}`).send(validTrip(trek._id, over));
   return res.body.trip;
 }
 
@@ -56,7 +67,7 @@ describe('Departure provisioning', () => {
     await request(app)
       .put(`/api/v1/organizer/trips/${trip.id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send(validTrip({ departureDates: ['2026-08-01', '2026-12-25'] })); // drop two, add one
+      .send(validTrip(trip.trekId, { departureDates: ['2026-08-01', '2026-12-25'] })); // drop two, add one
 
     const res = await request(app).get(`/api/v1/trips/${trip.id}/departures`);
     const dates = res.body.departures.map((d) => d.date);

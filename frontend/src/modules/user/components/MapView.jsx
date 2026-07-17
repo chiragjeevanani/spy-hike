@@ -1,22 +1,30 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import React, { useLayoutEffect, useMemo, useRef, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, Search, Layers, Navigation, Star, MapPin, Heart, SlidersHorizontal, Map } from 'lucide-react';
 import { groupTripsByTrekName } from '../utils/trekGroups';
 
-// The list sheet starts covering the screen and swipes DOWN to these snap
-// positions (fraction of viewport height pushed off the bottom), revealing the
-// map behind it. Default 'peek' leaves the map ~60% visible up top.
+const L = window.L;
+
+const pinIcon = L ? L.divIcon({
+  className: '',
+  html: `<svg viewBox="0 0 24 24" width="34" height="34" fill="#F27D26" stroke="#7a3a0f" stroke-width="0.6" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35));">
+    <path d="M12 0C7.6 0 4 3.6 4 8c0 5.4 7 15 7.3 15.4a.9.9 0 0 0 1.4 0C13 23 20 13.4 20 8c0-4.4-3.6-8-8-8z"/>
+    <circle cx="12" cy="8" r="3.2" fill="white"/>
+  </svg>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 33],
+}) : null;
+
 const SNAP_FRACTIONS = { full: 0.05, peek: 0.6, map: 0.84 };
 const SNAP_ORDER = ['full', 'peek', 'map'];
 
 export default function MapView({ trips, wishlist, onToggleWishlist, onSelectTrek, onClose, darkMode }) {
   const [snap, setSnap] = useState('peek');
   const [query, setQuery] = useState('');
+
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
 
   // Measure the viewport so the swipe-down snaps are pixel-accurate.
   const overlayRef = useRef(null);
@@ -36,68 +44,103 @@ export default function MapView({ trips, wishlist, onToggleWishlist, onSelectTre
 
   const diffPill = (d) => (d === 'Easy' ? 'text-emerald-700' : d === 'Moderate' ? 'text-amber-700' : 'text-rose-700');
 
+  // Initialize the Leaflet map loading Google Maps tiles
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current || !L) return;
+
+    let startCenter = [22.9734, 78.6569]; // India centroid default
+    let startZoom = 5;
+
+    const tripsWithStart = trips.filter(t => t.startPoint && t.startPoint.lat && t.startPoint.lng);
+    if (tripsWithStart.length > 0) {
+      const sumLat = tripsWithStart.reduce((s, t) => s + t.startPoint.lat, 0);
+      const sumLng = tripsWithStart.reduce((s, t) => s + t.startPoint.lng, 0);
+      startCenter = [sumLat / tripsWithStart.length, sumLng / tripsWithStart.length];
+      startZoom = 7;
+    }
+
+    const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(startCenter, startZoom);
+
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Maps',
+      maxZoom: 20,
+    }).addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    mapRef.current = map;
+
+    setTimeout(() => map.invalidateSize(), 200);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markersRef.current = [];
+    };
+  }, []);
+
+  // Sync markers when trips change
+  useEffect(() => {
+    if (!mapRef.current || !L) return;
+
+    // Clear old markers
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    // Group treks and add marker for each
+    const groups = groupTripsByTrekName(trips);
+    groups.forEach(g => {
+      const trip = g.representative;
+      if (trip.startPoint && trip.startPoint.lat && trip.startPoint.lng) {
+        const marker = L.marker([trip.startPoint.lat, trip.startPoint.lng], { icon: pinIcon })
+          .addTo(mapRef.current)
+          .bindPopup(`
+            <div style="font-family: inherit; font-size: 11px; font-weight: 600; padding: 2px; width: 140px;">
+              <div style="font-weight: 800; color: #1e293b; margin-bottom: 2px;">${g.trekName}</div>
+              <div style="color: #64748b; margin-bottom: 6px;">${trip.location}</div>
+              <button id="btn-select-trek-${g.trekName.replace(/\s+/g, '-').toLowerCase()}" onclick="window.dispatchEvent(new CustomEvent('select-trek-marker', { detail: { name: '${g.trekName.replace(/'/g, "\\'")}' } }))" style="background: #F27D26; color: white; border: none; padding: 6px 10px; border-radius: 8px; font-size: 10px; font-weight: bold; cursor: pointer; width: 100%;">
+                View Trek
+              </button>
+            </div>
+          `);
+        markersRef.current.push(marker);
+      }
+    });
+  }, [trips]);
+
+  // Handle marker selection clicks
+  useEffect(() => {
+    const handleSelectTrek = (e) => {
+      const trekName = e.detail?.name;
+      if (trekName) {
+        onSelectTrek(trekName);
+      }
+    };
+    window.addEventListener('select-trek-marker', handleSelectTrek);
+    return () => window.removeEventListener('select-trek-marker', handleSelectTrek);
+  }, [onSelectTrek]);
+
+  const handleLocateUser = () => {
+    if (!('geolocation' in navigator) || !mapRef.current) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        mapRef.current.setView([pos.coords.latitude, pos.coords.longitude], 13);
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
+
   return (
     <motion.div
       ref={overlayRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      // On close the sheet first slides up to cover the map (see the sheet's
-      // exit below); only then does the overlay quickly fade away, so the
-      // close reads as "the bottom section rises and swallows the map".
       exit={{ opacity: 0, transition: { duration: 0.15, delay: 0.3 } }}
       transition={{ duration: 0.15 }}
       className="absolute inset-0 z-60 overflow-hidden"
     >
-      {/* ── Map surface (placeholder; swap for Google Maps once the key is added) ── */}
-      {/* TODO(google-maps): mount the live <GoogleMap> / Map component here as the
-          full-bleed background. The chrome below (controls, sheet) stays as-is. */}
-      <div className={`absolute inset-0 ${darkMode ? 'bg-[#1c2a1f]' : 'bg-[#dfe9dd]'}`}>
-        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice" viewBox="0 0 400 800">
-          <defs>
-            <linearGradient id="map-terrain" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor={darkMode ? '#233a29' : '#e7efe2'} />
-              <stop offset="100%" stopColor={darkMode ? '#182420' : '#d3e2d6'} />
-            </linearGradient>
-          </defs>
-          <rect width="400" height="800" fill="url(#map-terrain)" />
-          {/* water body */}
-          <path d="M-20 520 Q60 480 120 540 T280 560 Q360 540 420 590 L420 820 L-20 820 Z" fill={darkMode ? '#1c3340' : '#c3dced'} opacity="0.9" />
-          {/* faint contour lines */}
-          {[...Array(7)].map((_, i) => (
-            <path
-              key={i}
-              d={`M-20 ${120 + i * 70} Q100 ${80 + i * 70} 200 ${140 + i * 70} T420 ${110 + i * 70}`}
-              fill="none"
-              stroke={darkMode ? '#3a5540' : '#b9cfb7'}
-              strokeWidth="1.5"
-              opacity="0.5"
-            />
-          ))}
-          {/* roads */}
-          <path d="M40 0 L180 400 L120 800" fill="none" stroke={darkMode ? '#4a5f4c' : '#ffffff'} strokeWidth="3" opacity="0.7" />
-          <path d="M400 200 L220 380 L320 800" fill="none" stroke={darkMode ? '#4a5f4c' : '#ffffff'} strokeWidth="3" opacity="0.7" />
-        </svg>
-
-        {/* region labels */}
-        <span className={`absolute top-[32%] right-6 text-[11px] font-bold tracking-widest uppercase ${darkMode ? 'text-white/35' : 'text-zinc-500/60'}`}>Maharashtra</span>
-        <span className={`absolute top-[16%] left-8 text-[11px] font-bold tracking-widest uppercase ${darkMode ? 'text-white/30' : 'text-zinc-500/50'}`}>Gujarat</span>
-
-        {/* trail cluster markers */}
-        <div className="absolute top-[38%] left-[28%] px-2.5 py-1 rounded-full bg-white text-zinc-800 text-[11px] font-bold shadow-md">12 trails</div>
-        <div className="absolute top-[52%] left-[58%] px-2.5 py-1 rounded-full bg-white text-zinc-800 text-[11px] font-bold shadow-md">3 trails</div>
-
-        {/* "you are here" */}
-        <div className="absolute top-[45%] left-[46%]">
-          <span className="relative flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-60" />
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 border-2 border-white shadow" />
-          </span>
-        </div>
-
-        {/* honest hint that the live map arrives with the API */}
-        <div className={`absolute bottom-4 left-4 text-[10px] px-2.5 py-1 rounded-full backdrop-blur-sm ${darkMode ? 'bg-black/40 text-white/60' : 'bg-white/70 text-zinc-500'}`}>
-          Live map connects with Google Maps
-        </div>
+      <div className="absolute inset-0 w-full h-full z-0">
+        <div ref={mapContainerRef} className="w-full h-full z-0" />
       </div>
 
       {/* ── Top bar: back + controls ── */}
@@ -123,7 +166,10 @@ export default function MapView({ trips, wishlist, onToggleWishlist, onSelectTre
       </div>
 
       {/* Locate button just above the resting sheet */}
-      <button className="absolute bottom-[42%] right-4 w-12 h-12 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-xl text-white shadow-md active:scale-90 transition z-10">
+      <button
+        onClick={handleLocateUser}
+        className="absolute bottom-[42%] right-4 w-12 h-12 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-xl text-white shadow-md active:scale-90 transition z-10"
+      >
         <Navigation size={19} className="fill-white" />
       </button>
 

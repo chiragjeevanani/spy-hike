@@ -7,7 +7,7 @@ export default function OrgOnboarding({ onComplete, darkMode }) {
 
   const slides = [
     {
-      title: 'Welcome to Trekigo Partners',
+      title: 'Welcome to Find Your Trek Partners',
       description: 'Join our verified network of trek organizers. Reach thousands of adventurers looking for their next expedition.',
       image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
       icon: <Compass className="w-8 h-8 text-spy-orange" />,

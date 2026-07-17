@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import Organizer from '../../src/models/Organizer.js';
+import User from '../../src/models/User.js';
+import Trek from '../../src/models/Trek.js';
 
 const app = createApp();
 
@@ -10,14 +11,20 @@ async function customerToken(email = 'hiker@example.com') {
   return reg.body.token;
 }
 async function approvedOrganizerToken(email = 'org@example.com') {
-  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Guides' });
-  await Organizer.findByIdAndUpdate(reg.body.account.id, { isApproved: true, isPendingApproval: false });
+  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
+  await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
   const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
   return login.body.token;
 }
+let trekSeq = 0;
 async function makeTrip(orgToken) {
+  const trek = await Trek.create({
+    _id: `checkin-trek-${Date.now()}-${trekSeq++}`,
+    title: 'Checkin Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    coverImage: 'https://example.com/trek.jpg',
+  });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({
-    name: 'Checkin Trek', location: 'Manali',
+    trekId: trek._id,
     pricingTiers: [{ label: 'Solo', price: 500 }],
     pickup: { location: 'Manali', price: 0 },
     startPoint: { lat: 32.2, lng: 77.1, label: 'Base' },
@@ -28,7 +35,7 @@ async function makeTrip(orgToken) {
 }
 async function makeBooking(custToken, tripId) {
   const res = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${custToken}`).send({
-    tripId, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'A' }],
+    tripId, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
   });
   return res.body.booking;
 }
@@ -95,7 +102,7 @@ describe('Booking check-in', () => {
   });
 
   it('a pending (unapproved) organizer cannot check in tickets (403)', async () => {
-    const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'P', email: 'p@example.com', password: 'pass1234', agencyName: 'New' });
+    const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'P', email: 'p@example.com', password: 'pass1234', agencyName: 'New', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
     const res = await request(app).post('/api/v1/organizer/bookings/TG-1234-A/checkin').set('Authorization', `Bearer ${reg.body.token}`);
     expect(res.status).toBe(403);
   });

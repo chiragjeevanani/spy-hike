@@ -33,7 +33,7 @@ export function usePhoneVerification(mobile) {
 
   const send = useCallback(async () => {
     setError(''); setInfo('');
-    if (digits(mobile).length < 10) { setError('Enter a valid 10-digit mobile number.'); return false; }
+    if (digits(mobile).length !== 10) { setError('Enter a valid 10-digit mobile number.'); return false; }
     setBusy(true);
     try {
       await authApi.requestOtp(mobile);

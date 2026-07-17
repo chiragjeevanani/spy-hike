@@ -4,8 +4,8 @@ import { test, expect } from '@playwright/test';
 // the backend API (started by playwright.config's webServer against an
 // in-memory Mongo seeded with the demo accounts).
 
-const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'trekigo123' };
-const DEMO_ADMIN = { email: 'admin@trekigo.com', password: 'admin123' };
+const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
+const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 // A fresh context shows the onboarding carousel before the login form. Wait
 // for whichever appears first; if it's onboarding, skip it, then wait for the

@@ -1,5 +1,5 @@
 // Zero-setup dev/e2e server: boots the real Express app against an ephemeral
-// in-memory MongoDB (no Atlas needed) and seeds the demo accounts. Handy for
+// in-memory MongoDB (no Atlas needed) and seeds reference data. Handy for
 // local end-to-end runs and for anyone who wants to try the full stack
 // without provisioning a database.
 //
@@ -11,24 +11,22 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { upsertUser, upsertOrganizers, upsertAdmin, upsertCategories, upsertCoupons, upsertTrips } from './seed.js';
+import { upsertAdmin, upsertCategories, upsertCoupons, upsertTrips } from './seed.js';
 
 async function start() {
   const mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
   console.log('✓ In-memory MongoDB started');
 
-  await upsertUser();
-  await upsertOrganizers();
   await upsertAdmin();
   await upsertCategories();
   await upsertCoupons();
   await upsertTrips();
-  console.log('✓ Demo accounts + trip catalog + coupons seeded');
+  console.log('✓ Trip catalog + coupons seeded');
 
   const app = createApp();
   const server = app.listen(env.port, () => {
-    console.log(`✓ Trekigo API (in-memory) on http://localhost:${env.port}`);
+    console.log(`✓ Find Your Trek API (in-memory) on http://localhost:${env.port}`);
   });
 
   const shutdown = async () => {

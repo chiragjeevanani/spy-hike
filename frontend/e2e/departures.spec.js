@@ -5,7 +5,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // seat count, and a sold-out trip blocks selection/booking.
 
 const API = 'http://localhost:4000/api/v1';
-const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'trekigo123' };
+const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {

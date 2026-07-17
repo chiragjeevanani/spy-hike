@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import TrekigoLogo from './TrekigoLogo';
+import AppLogo from './AppLogo';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -43,7 +43,7 @@ export default class ErrorBoundary extends React.Component {
           }`}>
             {/* Logo */}
             <div className="flex justify-center mb-2">
-              <TrekigoLogo size={64} showText={true} />
+              <AppLogo size={64} showText={true} />
             </div>
 
             {/* Error Icon */}

@@ -7,6 +7,7 @@ import {
   loadLoyaltyConfig, saveLoyaltyConfigApi, hydrateLoyaltyConfig,
   loadCustomerVouchers, loadOrganizerVouchers,
 } from '../../../utils/loyalty';
+import { useToast } from '../../../components/ToastProvider';
 
 // Reads a dropped/selected image file into a base64 data URI — this demo has
 // no upload server, so the banner image lives directly in the saved config.
@@ -25,6 +26,7 @@ export default function LoyaltyProgramView({ darkMode }) {
   // Tracks whether the admin has started editing — so the async config
   // hydration below never clobbers an in-progress edit if it resolves late.
   const editedRef = useRef(false);
+  const toast = useToast();
 
   // Pull the server's authoritative config into the cache + local state.
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function LoyaltyProgramView({ darkMode }) {
   const handleImageUpload = async (side, file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Please choose an image file.');
+      toast.error('Please choose an image file.');
       return;
     }
     const dataUrl = await readFileAsDataUrl(file);
@@ -54,13 +56,28 @@ export default function LoyaltyProgramView({ darkMode }) {
   };
 
   const handleSave = async () => {
+    // Defensive clamp in case a numeric field is mid-edit (cleared to '')
+    // when Save is clicked without tabbing away first.
+    const cleaned = {
+      customer: {
+        ...config.customer,
+        thresholdPersons: Math.max(1, Number(config.customer.thresholdPersons) || 0),
+        maxDiscountAmount: Math.max(0, Number(config.customer.maxDiscountAmount) || 0),
+      },
+      organizer: {
+        ...config.organizer,
+        thresholdBookings: Math.max(1, Number(config.organizer.thresholdBookings) || 0),
+      },
+    };
+    setConfig(prev => ({ ...prev, customer: { ...prev.customer, ...cleaned.customer }, organizer: { ...prev.organizer, ...cleaned.organizer } }));
     try {
-      const saved = await saveLoyaltyConfigApi({ customer: config.customer, organizer: config.organizer });
+      await saveLoyaltyConfigApi({ customer: cleaned.customer, organizer: cleaned.organizer });
       setConfig(loadLoyaltyConfig());
       setSavedFlash(true);
+      toast.success('Loyalty settings saved!');
       setTimeout(() => setSavedFlash(false), 2200);
     } catch (err) {
-      alert(err?.message || 'Could not save loyalty settings.');
+      toast.error(err?.message || 'Could not save loyalty settings.');
     }
   };
 
@@ -226,11 +243,29 @@ export default function LoyaltyProgramView({ darkMode }) {
                   type="number"
                   min="1"
                   value={config.customer.thresholdPersons}
-                  onChange={(e) => updateSide('customer', { thresholdPersons: Math.max(1, Number(e.target.value) || 1) })}
-                  className={`${inputCls} w-24 text-center`}
+                  onChange={(e) => updateSide('customer', { thresholdPersons: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  onBlur={(e) => updateSide('customer', { thresholdPersons: Math.max(1, Number(e.target.value) || 0) })}
+                  className={`${inputCls} !w-24 text-center shrink-0`}
                 />
-                <span className="text-xs font-semibold text-slate-400">travelers booked cumulatively (any treks, any batch)</span>
+                <span className="text-xs font-semibold text-slate-400">travelers</span>
               </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">Booked cumulatively — any treks, any batch.</p>
+            </div>
+
+            <div>
+              <label className={labelCls}>Max Discount Amount</label>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-400 shrink-0">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={config.customer.maxDiscountAmount}
+                  onChange={(e) => updateSide('customer', { maxDiscountAmount: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  onBlur={(e) => updateSide('customer', { maxDiscountAmount: Math.max(0, Number(e.target.value) || 0) })}
+                  className={`${inputCls} !w-28 shrink-0`}
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">Caps the reward — bookings above this pay the difference.</p>
             </div>
 
             <div>
@@ -258,7 +293,7 @@ export default function LoyaltyProgramView({ darkMode }) {
             </div>
 
             <div className={`p-3 rounded-xl text-[11px] leading-relaxed font-semibold ${darkMode ? 'bg-slate-900/60 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-              Preview copy shown in-app: <span className="text-slate-300 dark:text-slate-300 font-bold">"Book {config.customer.thresholdPersons} travelers, get 1 free booking!"</span>
+              Preview copy shown in-app: <span className="text-slate-300 dark:text-slate-300 font-bold">"Book {config.customer.thresholdPersons} travelers, get up to ₹{config.customer.maxDiscountAmount} off your next booking!"</span>
             </div>
           </div>
         </div>
@@ -281,11 +316,13 @@ export default function LoyaltyProgramView({ darkMode }) {
                   type="number"
                   min="1"
                   value={config.organizer.thresholdBookings}
-                  onChange={(e) => updateSide('organizer', { thresholdBookings: Math.max(1, Number(e.target.value) || 1) })}
-                  className={`${inputCls} w-24 text-center`}
+                  onChange={(e) => updateSide('organizer', { thresholdBookings: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  onBlur={(e) => updateSide('organizer', { thresholdBookings: Math.max(1, Number(e.target.value) || 0) })}
+                  className={`${inputCls} !w-24 text-center shrink-0`}
                 />
-                <span className="text-xs font-semibold text-slate-400">bookings received via the app</span>
+                <span className="text-xs font-semibold text-slate-400">bookings</span>
               </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">Received via the app.</p>
             </div>
 
             <div>

@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Search, Check, MapPin, Loader2, LocateFixed } from 'lucide-react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+const L = window.L;
 
 const DEFAULT_CENTER = [22.9734, 78.6569]; // India centroid
 const DEFAULT_ZOOM = 5;
@@ -12,7 +11,7 @@ const DEFAULT_ZOOM = 5;
 // L.Icon.Default (whose image URLs resolve relative to the wrong base path
 // under Vite). iconAnchor lands on the pin's visual tip so it points exactly
 // at the clicked/dragged coordinate.
-const pinIcon = L.divIcon({
+const pinIcon = L ? L.divIcon({
   className: '',
   html: `<svg viewBox="0 0 24 24" width="34" height="34" fill="#F27D26" stroke="#7a3a0f" stroke-width="0.6" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35));">
     <path d="M12 0C7.6 0 4 3.6 4 8c0 5.4 7 15 7.3 15.4a.9.9 0 0 0 1.4 0C13 23 20 13.4 20 8c0-4.4-3.6-8-8-8z"/>
@@ -20,7 +19,7 @@ const pinIcon = L.divIcon({
   </svg>`,
   iconSize: [34, 34],
   iconAnchor: [17, 33],
-});
+}) : null;
 
 // Full-screen Leaflet map (free OpenStreetMap tiles, no API key) letting the
 // organizer click/drag to drop a pin marking the trek/travel's real-world
@@ -53,7 +52,7 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
   // (Re)initialize the map every time the overlay opens — Leaflet needs a
   // live DOM container, and AnimatePresence only mounts one while `open`.
   useEffect(() => {
-    if (!open || !mapContainerRef.current || mapRef.current) return;
+    if (!open || !mapContainerRef.current || mapRef.current || !L) return;
 
     setPoint(initialPoint || null);
     setLabel(initialPoint?.label || '');
@@ -61,9 +60,9 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
     const startCenter = initialPoint ? [initialPoint.lat, initialPoint.lng] : DEFAULT_CENTER;
     const startZoom = initialPoint ? 13 : DEFAULT_ZOOM;
     const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(startCenter, startZoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Maps',
+      maxZoom: 20,
     }).addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -162,7 +161,7 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
           {/* Search bar */}
           <div className={`px-4 py-3 shrink-0 relative z-10 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'}`}>
             <form onSubmit={handleSearch} className="flex gap-2">
-              <div className="relative flex-1">
+              <div className="relative flex-1 min-w-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="text"

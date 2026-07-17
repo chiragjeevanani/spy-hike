@@ -40,6 +40,7 @@ const bookingSchema = new mongoose.Schema(
     commissionAmount: Number,
     organizerPayout: Number,
     loyaltyRewardApplied: { type: Boolean, default: false }, // customer free booking
+    loyaltyDiscountAmount: { type: Number, default: 0 }, // how much the reward actually comped, capped by admin config
     organizerRewardApplied: { type: Boolean, default: false }, // organizer zero-commission
     // Refund snapshot on cancellation (policy-driven).
     refundAmount: { type: Number, default: 0 },

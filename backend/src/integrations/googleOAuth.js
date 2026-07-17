@@ -24,7 +24,7 @@ export const googleProvider = {
     }
 
     return {
-      email: 'demo.google@trekigo.com',
+      email: 'demo.google@findyourtrek.com',
       name: 'Google Hiker',
       avatar: '',
     };

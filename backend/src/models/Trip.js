@@ -63,6 +63,7 @@ const tripSchema = new mongoose.Schema(
     elevationMeters: Number,
     category: String,
     featured: { type: Boolean, default: false },
+    popular: { type: Boolean, default: false }, // admin-curated "Popular Treks" strip on the customer home page
     coverImage: String,
     galleryImages: { type: [String], default: [] },
     description: String,

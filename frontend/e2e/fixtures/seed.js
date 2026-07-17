@@ -32,7 +32,7 @@ export const ORG_USER = {
   govtIdType: 'Aadhaar',
   govtIdNumber: '',
   yearsExperience: 5,
-  bio: 'Verified Trekigo organizer.',
+  bio: 'Verified Find Your Trek organizer.',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
   rating: 4.9,
   totalTrips: 3,

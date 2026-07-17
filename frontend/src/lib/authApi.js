@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Auth calls against the Trekigo backend. Each login/register resolves to the
+// Auth calls against the Find Your Trek backend. Each login/register resolves to the
 // backend's `{ token, role, account }` envelope; we persist the JWT here and
 // hand the caller the `account` object (already frontend-shaped) so existing
 // component/session code barely changes.
@@ -29,12 +29,40 @@ export const authApi = {
   verifyPhone: (mobile, code) =>
     api.post('/auth/phone/verify', { mobile, code }, { auth: false }),
   googleAuth: (token) => api.post('/auth/google', { token }, { auth: false }).then(accept),
+  updateProfile: (payload) => api.patch('/auth/profile', payload).then(accept),
+  checkAvailability: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return api.get(`/auth/check-availability${qs ? `?${qs}` : ''}`, { auth: false });
+  },
+  uploadImage: (fileBase64) => api.post('/auth/upload', { file: fileBase64 }),
+  requestEmailOtp: (email) => api.post('/auth/email-otp/request', { email }),
+  updateProfileVerify: (payload) => api.post('/auth/profile/update-verify', payload).then(accept),
+  changePassword: (currentPassword, newPassword) => api.patch('/auth/password/change', { currentPassword, newPassword }),
+  resetPasswordOtp: (payload) => api.post('/auth/password/reset-otp', payload),
 
   // ─── Organizer ───
   registerOrganizer: (payload) =>
     api.post('/auth/organizer/register', payload, { auth: false }).then(accept),
+  // For an already-logged-in customer applying to become an organizer — uses
+  // their JWT and existing passwordHash, so the same email + password works
+  // in both apps (same User document, no second account).
+  applyAsOrganizer: (payload) =>
+    api.post('/auth/organizer/apply', payload).then(accept),
   loginOrganizer: (email, password) =>
     api.post('/auth/organizer/login', { email, password }, { auth: false }).then(accept),
+  // Also mints and stores an organizer-scoped token (via the customer's
+  // existing token) so subsequent organizer-only calls carry the right role —
+  // switching roles for a unified account needs no password re-entry.
+  getLinkedOrganizerStatus: () =>
+    api.get('/auth/organizer-status').then((res) => {
+      if (res?.token) setToken(res.token);
+      return res;
+    }),
+  // Mints a customer-scoped token for the current account (used when an
+  // organizer switches back to the traveller app).
+  getCustomerToken: () => api.get('/auth/customer-token').then(accept),
+  updateOrganizerProfile: (payload) => api.patch('/auth/organizer/profile', payload),
+  getPublicOrganizerProfile: (name) => api.get(`/auth/organizer/public/${encodeURIComponent(name)}`),
 
   // ─── Admin ───
   loginAdmin: (email, password) =>

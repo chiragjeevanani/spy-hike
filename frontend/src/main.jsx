@@ -11,6 +11,7 @@ const isAdminPath = routePath === '/admin' || routePath.startsWith('/admin/');
 const isOrganizerPath = routePath === '/organizer' || routePath.startsWith('/organizer/');
 
 import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './components/ToastProvider';
 
 async function bootstrap() {
   let AppComponent;
@@ -28,7 +29,9 @@ async function bootstrap() {
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <ErrorBoundary>
-        <AppComponent />
+        <ToastProvider>
+          <AppComponent />
+        </ToastProvider>
       </ErrorBoundary>
     </StrictMode>,
   );

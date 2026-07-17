@@ -1,9 +1,10 @@
 import Trip from '../models/Trip.js';
+import Trek from '../models/Trek.js';
 import Category from '../models/Category.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify, makeTripId } from '../utils/slug.js';
-import { validateTripPayload, groupTripsByTrek } from '../services/tripService.js';
+import { validateTripPayload } from '../services/tripService.js';
 import { provisionDepartures, getDepartures } from '../services/inventoryService.js';
 
 // ─── Public catalog ────────────────────────────────────────────────────────
@@ -11,10 +12,11 @@ import { provisionDepartures, getDepartures } from '../services/inventoryService
 // GET /trips — published trips only, with optional category/search filters and
 // pagination. Returns { trips, total, page, limit }.
 export const listTrips = asyncHandler(async (req, res) => {
-  const { category, search, page = 1, limit = 50, featured } = req.query;
+  const { category, search, page = 1, limit = 50, featured, popular } = req.query;
   const filter = { status: 'Published' };
   if (category && category !== 'All') filter.category = category;
   if (featured === 'true') filter.featured = true;
+  if (popular === 'true') filter.popular = true;
   if (search) {
     const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ name: rx }, { location: rx }, { state: rx }, { city: rx }, { category: rx }];
@@ -46,13 +48,25 @@ export const getTripDepartures = asyncHandler(async (req, res) => {
 });
 
 // GET /treks/:trekId/offers — every published organizer offering of one trek,
-// grouped (min/max price + organizer count) for the "N organizers offering
-// this trek" view.
+// with the trek's own canonical identity (title/location/difficulty/duration/
+// distance/image) as the header — not inferred from whichever offer happens
+// to have the highest rating.
 export const getTrekOffers = asyncHandler(async (req, res) => {
+  const trek = await Trek.findById(req.params.trekId);
+  if (!trek) throw ApiError.notFound('Trek not found');
+
   const offers = await Trip.find({ trekId: req.params.trekId, status: 'Published' });
-  if (offers.length === 0) throw ApiError.notFound('No offers found for this trek');
-  const [group] = groupTripsByTrek(offers);
-  res.json(group);
+  const prices = offers.map((o) => o.price).filter((p) => Number.isFinite(p));
+
+  res.json({
+    trekId: trek._id,
+    trekName: trek.title,
+    trek: trek.toPublicJSON(),
+    offers: offers.map((o) => o.toPublicJSON()),
+    organizerCount: offers.length,
+    minPrice: prices.length ? Math.min(...prices) : null,
+    maxPrice: prices.length ? Math.max(...prices) : null,
+  });
 });
 
 // GET /categories — canonical category list.
@@ -64,15 +78,23 @@ export const listCategories = asyncHandler(async (req, res) => {
 // ─── Organizer trip CRUD (approved organizers only) ─────────────────────────
 
 // Builds the persisted fields from an organizer payload, stamping the
-// organizer snapshot + derived trekId/price so the frontend shape is complete.
-function buildTripFields(body, organizer) {
+// organizer snapshot + price so the frontend shape is complete. Trek identity
+// (name/location/state/city/difficulty/duration/distance/elevation/cover
+// image) is not taken from the organizer's payload at all — it's inherited
+// from the admin-curated Trek the organizer selected, so every organizer's
+// offering of the same trek shows identical stats.
+async function buildTripFields(body, organizer) {
+  const trek = await Trek.findById(body.trekId);
+  if (!trek) throw ApiError.badRequest('Select a valid trek before publishing');
+  if (trek.status !== 'Active') throw ApiError.badRequest('This trek is no longer available for new listings');
+
   const pricingTiers = (body.pricingTiers || []).map((t, i) => ({
     id: t.id || slugify(t.label) || `tier-${i}`,
     label: t.label,
     price: Number(t.price),
   }));
   return {
-    trekId: slugify(body.name),
+    trekId: trek._id,
     organizerEmail: organizer.email,
     organizer: {
       name: organizer.agencyName || organizer.name,
@@ -80,23 +102,23 @@ function buildTripFields(body, organizer) {
       rating: organizer.rating || 0,
       verified: !!organizer.isApproved,
     },
-    name: body.name,
-    location: body.location,
-    state: body.state,
-    city: body.city,
+    name: trek.title,
+    location: trek.location,
+    state: trek.state,
+    city: trek.city,
+    difficulty: trek.difficulty,
+    durationDays: trek.durationDays,
+    distanceKm: trek.distanceKm,
+    elevationMeters: trek.elevationMeters,
+    coverImage: trek.coverImage,
     pricingTiers,
     pickup: { location: body.pickup.location, price: Number(body.pickup.price) },
     startPoint: body.startPoint,
     departureDates: [...body.departureDates].sort(),
-    price: Number(body.pickup.price),
-    difficulty: body.difficulty,
-    durationDays: body.durationDays,
+    price: pricingTiers[0]?.price ?? Number(body.pickup.price),
     maxGroupSize: body.maxGroupSize,
     availableSeats: body.availableSeats,
-    distanceKm: body.distanceKm,
-    elevationMeters: body.elevationMeters,
-    category: body.category,
-    coverImage: body.coverImage,
+    category: body.category || trek.category,
     galleryImages: body.galleryImages || [],
     description: body.description,
     highlights: body.highlights || [],
@@ -116,9 +138,9 @@ export const listOrganizerTrips = asyncHandler(async (req, res) => {
 
 export const createTrip = asyncHandler(async (req, res) => {
   validateTripPayload(req.body);
-  const fields = buildTripFields(req.body, req.organizer);
+  const fields = await buildTripFields(req.body, req.organizer);
   const trip = await Trip.create({
-    _id: makeTripId(req.body.name),
+    _id: makeTripId(fields.name),
     ...fields,
     status: req.body.status === 'Published' ? 'Published' : 'Draft',
   });
@@ -133,7 +155,7 @@ export const updateTrip = asyncHandler(async (req, res) => {
     throw ApiError.forbidden('You can only edit your own trips');
   }
   validateTripPayload(req.body);
-  const fields = buildTripFields(req.body, req.organizer);
+  const fields = await buildTripFields(req.body, req.organizer);
   Object.assign(trip, fields);
   if (req.body.status) trip.status = req.body.status;
   await trip.save();
@@ -179,6 +201,24 @@ export const adminSetTripStatus = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('status must be Draft, Published or Paused');
   }
   const trip = await Trip.findByIdAndUpdate(req.params.id, { status }, { new: true });
+  if (!trip) throw ApiError.notFound('Trip not found');
+  res.json({ trip: trip.toPublicJSON() });
+});
+
+// PATCH /admin/trips/:id/featured { featured } — headlines the customer
+// app's "Featured trek" hero. Unlike Trek-level flags this lives on the
+// individual organizer listing, since that's the bookable thing being promoted.
+export const adminSetTripFeatured = asyncHandler(async (req, res) => {
+  const trip = await Trip.findByIdAndUpdate(req.params.id, { featured: !!req.body.featured }, { new: true });
+  if (!trip) throw ApiError.notFound('Trip not found');
+  res.json({ trip: trip.toPublicJSON() });
+});
+
+// PATCH /admin/trips/:id/popular { popular } — curates the customer app's
+// "Popular Treks" strip. Explicit like `featured`, so the strip only ever
+// shows what an admin actually chose rather than whatever's left over.
+export const adminSetTripPopular = asyncHandler(async (req, res) => {
+  const trip = await Trip.findByIdAndUpdate(req.params.id, { popular: !!req.body.popular }, { new: true });
   if (!trip) throw ApiError.notFound('Trip not found');
   res.json({ trip: trip.toPublicJSON() });
 });

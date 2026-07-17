@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Compass, Pause, Play, Trash2, MapPin, Star, Users, Clock, Eye, X } from 'lucide-react';
+import { Search, Compass, Pause, Play, Trash2, MapPin, Star, TrendingUp, Users, Clock, Eye, X } from 'lucide-react';
 import tripsApi from '../../../lib/tripsApi';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
 
-export default function TripsView({ darkMode }) {
+export default function TripsView({ onOpenOrganizer, darkMode }) {
   const [trips, setTrips] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [diffFilter, setDiffFilter] = useState('All');
+  const [featuredFilter, setFeaturedFilter] = useState('All');
+  const [popularFilter, setPopularFilter] = useState('All');
   const [selectedTrip, setSelectedTrip] = useState(null);
+  const [statusTarget, setStatusTarget] = useState(null); // { id, nextStatus }
+  const [deleteTarget, setDeleteTarget] = useState(null); // tripId
+  const toast = useToast();
 
   const refresh = () => tripsApi.listAllTrips().then(setTrips).catch(() => setTrips([]));
 
@@ -15,17 +22,55 @@ export default function TripsView({ darkMode }) {
     refresh();
   }, []);
 
-  const handleToggleStatus = async (tripId, currentStatus) => {
+  const handleToggleStatus = (tripId, currentStatus) => {
     const nextStatus = currentStatus === 'Published' ? 'Paused' : 'Published';
-    if (!window.confirm(`Are you sure you want to change status to "${nextStatus}" for this trip?`)) return;
-    await tripsApi.adminSetTripStatus(tripId, nextStatus);
-    await refresh();
+    setStatusTarget({ id: tripId, nextStatus });
   };
 
-  const handleDelete = async (tripId) => {
-    if (!window.confirm('CRITICAL: Delete this trip listing permanently? This cannot be undone.')) return;
-    await tripsApi.adminDeleteTrip(tripId);
-    await refresh();
+  const confirmToggleStatus = async () => {
+    const { id, nextStatus } = statusTarget;
+    setStatusTarget(null);
+    try {
+      await tripsApi.adminSetTripStatus(id, nextStatus);
+      await refresh();
+      toast.success(`Trip ${nextStatus === 'Published' ? 'activated' : 'paused'}.`);
+    } catch (err) {
+      toast.error(err?.message || 'Could not change trip status.');
+    }
+  };
+
+  const handleToggleFeatured = async (trip) => {
+    try {
+      await tripsApi.adminSetTripFeatured(trip.id, !trip.featured);
+      await refresh();
+      toast.success(trip.featured ? 'Removed from featured trek.' : 'Marked as the featured trek!');
+    } catch (err) {
+      toast.error(err?.message || 'Could not update featured status.');
+    }
+  };
+
+  const handleTogglePopular = async (trip) => {
+    try {
+      await tripsApi.adminSetTripPopular(trip.id, !trip.popular);
+      await refresh();
+      toast.success(trip.popular ? 'Removed from Popular Treks.' : 'Added to Popular Treks!');
+    } catch (err) {
+      toast.error(err?.message || 'Could not update popular status.');
+    }
+  };
+
+  const handleDelete = (tripId) => setDeleteTarget(tripId);
+
+  const confirmDelete = async () => {
+    const id = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await tripsApi.adminDeleteTrip(id);
+      await refresh();
+      toast.success('Trip deleted.');
+    } catch (err) {
+      toast.error(err?.message || 'Could not delete trip.');
+    }
   };
 
   const filteredTrips = trips.filter(t => {
@@ -33,7 +78,9 @@ export default function TripsView({ darkMode }) {
                         t.location.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'All' || t.status === statusFilter;
     const matchDiff = diffFilter === 'All' || t.difficulty === diffFilter;
-    return matchSearch && matchStatus && matchDiff;
+    const matchFeatured = featuredFilter === 'All' || (featuredFilter === 'Featured' ? t.featured : !t.featured);
+    const matchPopular = popularFilter === 'All' || (popularFilter === 'Popular' ? t.popular : !t.popular);
+    return matchSearch && matchStatus && matchDiff && matchFeatured && matchPopular;
   });
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${
@@ -48,7 +95,7 @@ export default function TripsView({ darkMode }) {
       {/* Title */}
       <div>
         <h1 className="text-2xl font-black font-display tracking-tight text-slate-800 dark:text-white">All Trips</h1>
-        <p className="text-slate-400 text-xs mt-1.5 font-semibold">Manage and moderate trips posted by organizers.</p>
+        <p className="text-slate-400 text-xs mt-1.5 font-semibold">Manage and moderate trips posted by organizers. Mark a trip Featured to headline it, or Popular to include it in the "Popular Treks" strip on the customer app's home page.</p>
       </div>
 
       {/* Filters bar */}
@@ -102,6 +149,36 @@ export default function TripsView({ darkMode }) {
               <option value="Difficult">Difficult</option>
             </select>
           </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Featured</span>
+            <select
+              value={featuredFilter}
+              onChange={(e) => setFeaturedFilter(e.target.value)}
+              className={`px-3 py-2 rounded-xl border outline-none text-xs font-semibold ${
+                darkMode ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+            >
+              <option value="All">All Trips</option>
+              <option value="Featured">Featured Only</option>
+              <option value="Not Featured">Not Featured</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Popular</span>
+            <select
+              value={popularFilter}
+              onChange={(e) => setPopularFilter(e.target.value)}
+              className={`px-3 py-2 rounded-xl border outline-none text-xs font-semibold ${
+                darkMode ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+            >
+              <option value="All">All Trips</option>
+              <option value="Popular">Popular Only</option>
+              <option value="Not Popular">Not Popular</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -140,7 +217,19 @@ export default function TripsView({ darkMode }) {
                 </span>
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                
+
+                {trip.featured && (
+                  <span className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center justify-center w-6 h-6 rounded-full text-white shadow bg-amber-500" title="Featured trek">
+                    <Star size={11} className="fill-white" />
+                  </span>
+                )}
+
+                {trip.popular && (
+                  <span className="absolute bottom-3 right-4 flex items-center justify-center w-6 h-6 rounded-full text-white shadow bg-indigo-500" title="Popular trek">
+                    <TrendingUp size={11} />
+                  </span>
+                )}
+
                 {/* Location text overlay */}
                 <div className="absolute bottom-3 left-4 flex items-center gap-1 text-white text-xs font-bold">
                   <MapPin size={12} className="text-[#F27D26]" />
@@ -152,7 +241,20 @@ export default function TripsView({ darkMode }) {
               <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-wide line-clamp-1">{trip.name}</h3>
-                  <span className="text-[10px] text-slate-400 font-bold block mt-1">Organizer: {trip.organizerName || 'Partner Network'}</span>
+                  <span className="text-[10px] text-slate-400 font-bold block mt-1">
+                    Organizer:{' '}
+                    {trip.organizerEmail ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenOrganizer?.(trip.organizerEmail); }}
+                        className="text-[#F27D26] hover:underline"
+                      >
+                        {trip.organizer?.name || trip.organizerEmail}
+                      </button>
+                    ) : (
+                      trip.organizer?.name || 'Unknown'
+                    )}
+                  </span>
                   
                   {/* Seats count indicator */}
                   <div className="mt-3.5">
@@ -195,6 +297,30 @@ export default function TripsView({ darkMode }) {
                   >
                     <Eye size={12} />
                     <span>Itinerary</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleToggleFeatured(trip)}
+                    className={`p-2 rounded-xl border font-bold text-xs flex items-center gap-1 transition-all ${
+                      trip.featured
+                        ? 'border-amber-500 bg-amber-500 text-white'
+                        : 'border-amber-100 dark:border-amber-500/20 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10'
+                    }`}
+                    title={trip.featured ? 'Remove as featured trek' : 'Mark as featured trek'}
+                  >
+                    <Star size={12} className={trip.featured ? 'fill-white' : ''} />
+                  </button>
+
+                  <button
+                    onClick={() => handleTogglePopular(trip)}
+                    className={`p-2 rounded-xl border font-bold text-xs flex items-center gap-1 transition-all ${
+                      trip.popular
+                        ? 'border-indigo-500 bg-indigo-500 text-white'
+                        : 'border-indigo-100 dark:border-indigo-500/20 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'
+                    }`}
+                    title={trip.popular ? 'Remove from Popular Treks' : 'Add to Popular Treks'}
+                  >
+                    <TrendingUp size={12} />
                   </button>
 
                   <button
@@ -310,6 +436,28 @@ export default function TripsView({ darkMode }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!statusTarget}
+        title="Change Trip Status?"
+        message={statusTarget ? `Change status to "${statusTarget.nextStatus}" for this trip?` : ''}
+        confirmLabel="Confirm"
+        tone="default"
+        onConfirm={confirmToggleStatus}
+        onCancel={() => setStatusTarget(null)}
+        darkMode={darkMode}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Trip Listing?"
+        message="This permanently removes this trip listing. This cannot be undone."
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        darkMode={darkMode}
+      />
 
     </div>
   );

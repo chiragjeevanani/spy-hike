@@ -6,9 +6,9 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // creation/validation is covered by backend/tests/api/trips.test.js).
 
 const API = 'http://localhost:4000/api/v1';
-const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'trekigo123' };
+const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
-const DEMO_ADMIN = { email: 'admin@trekigo.com', password: 'admin123' };
+const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');

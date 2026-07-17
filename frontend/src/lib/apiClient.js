@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Thin fetch wrapper for the Trekigo backend API. Every module's storage
+// Thin fetch wrapper for the Find Your Trek backend API. Every module's storage
 // helpers call through this instead of touching `fetch` directly, so auth,
 // base URL, JSON handling, and error shaping live in one place.
 //
@@ -65,6 +65,11 @@ async function request(method, path, body, { auth = true } = {}) {
 
   if (!res.ok) {
     const message = data?.error?.message || `Request failed (${res.status})`;
+    if (res.status === 403 && message.toLowerCase().includes('banned')) {
+      window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'banned' } }));
+    } else if (res.status === 401 && message.toLowerCase().includes('deleted')) {
+      window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'deleted' } }));
+    }
     throw new ApiClientError(res.status, message, data?.error?.details);
   }
   return data;

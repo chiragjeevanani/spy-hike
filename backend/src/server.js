@@ -1,21 +1,39 @@
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
+import mongoose from 'mongoose';
 
-// Real process entry point: connect to Atlas, then start listening.
 async function start() {
-  try {
-    await connectDB();
-    console.log('✓ MongoDB connected');
+  const app = createApp();
+  let retries = 0;
+  const maxRetries = 10;
 
-    const app = createApp();
-    app.listen(env.port, () => {
-      console.log(`✓ Trekigo API listening on http://localhost:${env.port} (${env.nodeEnv})`);
+  function listen() {
+    const server = app.listen(env.port, () => {
+      console.log(`✓ Find Your Trek API listening on http://localhost:${env.port} (${env.nodeEnv})`);
+      connectDB()
+        .then(() => console.log('✓ MongoDB connected'))
+        .catch((err) => console.error('✗ MongoDB connection failed:', err.message));
     });
-  } catch (err) {
-    console.error('✗ Failed to start server:', err.message);
-    process.exit(1);
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE' && retries < maxRetries) {
+        retries++;
+        console.log(`Port ${env.port} is busy (retry ${retries}/${maxRetries}), retrying in 300ms...`);
+        setTimeout(() => {
+          try {
+            server.close();
+          } catch (e) {}
+          listen();
+        }, 300);
+      } else {
+        console.error('✗ Server error:', err.message);
+        process.exit(1);
+      }
+    });
   }
+
+  listen();
 }
 
 start();

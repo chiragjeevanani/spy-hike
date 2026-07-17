@@ -39,7 +39,7 @@ export const ICON_COLOR_OPTIONS = [
 
 export const DEFAULT_LANDING_CONTENT = {
   header: {
-    logoText: 'Trekigo',
+    logoText: 'Find Your Trek',
     ctaLabel: 'Launch App',
     navLinks: [
       { label: 'features', href: '#features' },
@@ -54,7 +54,7 @@ export const DEFAULT_LANDING_CONTENT = {
     titleLead: 'Conquer High Peaks with',
     titleHighlight: 'Verified Guides',
     subtitle:
-      'Trekigo connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.',
+      'Find Your Trek connects hiking enthusiasts with local trekking agencies. Book eco-friendly expeditions, secure wilderness transit permits, and coordinate via simulated payment models and direct organizer chats.',
     primaryCta: 'Launch Hiker App',
     secondaryCta: 'Organizer Panel',
     metrics: [
@@ -82,7 +82,7 @@ export const DEFAULT_LANDING_CONTENT = {
   },
   portals: {
     visible: true,
-    heading: 'Trekigo Portal Ecosystem',
+    heading: 'Find Your Trek Portal Ecosystem',
     subheading: 'Our application features separate sandboxes representing key roles in the adventure marketplace. Try out each layout.',
     items: [
       { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, pay via simulated gateways, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
@@ -96,7 +96,7 @@ export const DEFAULT_LANDING_CONTENT = {
     subheading: 'Here is what genuine outdoor lovers have to say about booking high-altitude passes and coordinates.',
     items: [
       { name: 'Chirag Jeevanani', role: 'Intermediate Trekker', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', comment: 'The AI recommendation matched me perfectly with the Western Ghats Monsoon Trail. Using the 3-step checkout was incredibly seamless, and the ticket QR code was instantly generated!', rating: 5, trek: 'Western Ghats Monsoon Trail' },
-      { name: 'Priya Patel', role: 'Advanced Mountaineer', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', comment: 'Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Trekigo provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.', rating: 5, trek: 'Himalayan Ridge Pass Trek' },
+      { name: 'Priya Patel', role: 'Advanced Mountaineer', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', comment: 'Conquering the Himalayan Ridge Pass at 4,200m was a dream. The Sherpa guides verified through Find Your Trek provided top-notch geodesic domes and safety monitoring. Absolute five-star experience.', rating: 5, trek: 'Himalayan Ridge Pass Trek' },
       { name: 'Aarav Sharma', role: 'Weekend Explorer', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', comment: 'I loved the Jaisalmer Desert Camp. Being able to chat directly with Desert Nomad Adventures beforehand to verify standard gear rentals was very reassuring. No hassle whatsoever.', rating: 4, trek: 'Stargazing Desert Camp & Trek' },
     ],
   },
@@ -105,9 +105,9 @@ export const DEFAULT_LANDING_CONTENT = {
     heading: 'Frequently Asked Questions',
     subheading: 'Have questions? We have compiled standard logistical queries for your review.',
     items: [
-      { q: 'What makes Trekigo different from other booking systems?', a: 'Trekigo is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists.' },
+      { q: 'What makes Find Your Trek different from other booking systems?', a: 'Find Your Trek is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists.' },
       { q: 'Is the payment gateway secure?', a: 'Yes! For demonstration purposes, we integrate a simulated Razorpay payment flow which matches the exact steps of a real bank transaction without using real funds.' },
-      { q: 'How does the AI Recommendation Engine work?', a: 'By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Trekigo automatically matches you with hikes that align with your safety limits.' },
+      { q: 'How does the AI Recommendation Engine work?', a: 'By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Find Your Trek automatically matches you with hikes that align with your safety limits.' },
     ],
   },
   footer: {
@@ -117,7 +117,7 @@ export const DEFAULT_LANDING_CONTENT = {
       { label: 'Portals', href: '#gateways' },
       { label: 'Reviews', href: '#testimonials' },
     ],
-    copyright: '© 2026 Trekigo. Built with React 19, Tailwind v4 & Motion v12.',
+    copyright: '© 2026 Find Your Trek. Built with React 19, Tailwind v4 & Motion v12.',
     subtext: 'All coordinates, safety logs, and agencies are simulated for demo compliance.',
   },
 };

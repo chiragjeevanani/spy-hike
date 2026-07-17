@@ -11,8 +11,8 @@ async function customerToken(email = 'hiker@example.com') {
   return reg.body.token;
 }
 async function adminToken() {
-  await Admin.create({ name: 'Admin', email: 'admin@trekigo.com', passwordHash: await hashPassword('admin123') });
-  const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@trekigo.com', password: 'admin123' });
+  await Admin.create({ name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') });
+  const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@findyourtrek.com', password: 'admin123' });
   return res.body.token;
 }
 const getPublic = () => request(app).get('/api/v1/landing-content');

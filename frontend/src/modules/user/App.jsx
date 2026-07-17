@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Map } from 'lucide-react';
+import { Map, AlertTriangle } from 'lucide-react';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
 import Onboarding from './components/Onboarding';
 import Auth from './components/Auth';
+import ProfileSetup from './components/ProfileSetup';
 import HomeView from './components/HomeView';
 import ExploreView from './components/ExploreView';
 import TrekOrganizersView from './components/TrekOrganizersView';
@@ -73,38 +74,51 @@ const getInitialStateFromUrl = () => {
     return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
   }
 
-  // 1. Onboarding Gate redirect rules
-  if (!user.isOnboarded) {
-    tab = 'Onboarding';
-    if (path !== '/onboardingguide') {
-      const url = toBrowserPath('/onboardingguide');
-      window.history.replaceState({ path: url }, '', url);
-    }
-    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
-  }
-
-  // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
-  const isProtectedRoute =
-    path === '/profile' ||
-    path === '/bookings' ||
-    path.startsWith('/booking/') ||
-    path.startsWith('/book/');
-
-  if (!user.isAuthenticated && isProtectedRoute) {
-    if (path === '/register') {
-      tab = 'Register';
-    } else {
-      tab = 'Login';
-      if (path !== '/login') {
-        const url = toBrowserPath('/login');
+  // 1. Authenticated Profile Setup & Onboarding Gate redirect rules
+  if (user.isAuthenticated) {
+    if (!user.profileSetupComplete) {
+      tab = 'ProfileSetup';
+      if (path !== '/profilesetup') {
+        const url = toBrowserPath('/profilesetup');
         window.history.replaceState({ path: url }, '', url);
       }
+      return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+    } else if (!user.isOnboarded) {
+      tab = 'Onboarding';
+      if (path !== '/onboardingguide') {
+        const url = toBrowserPath('/onboardingguide');
+        window.history.replaceState({ path: url }, '', url);
+      }
+      return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
     }
-    return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
   }
 
-  // 3. Authenticated & Onboarded redirect rules
-  if (user.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide')) {
+  // 2. Unauthenticated Gate redirect rules
+  if (!user.isAuthenticated) {
+    const isProtectedRoute =
+      path === '/profile' ||
+      path === '/bookings' ||
+      path === '/profilesetup' ||
+      path === '/onboardingguide' ||
+      path.startsWith('/booking/') ||
+      path.startsWith('/book/');
+
+    if (isProtectedRoute) {
+      if (path === '/register') {
+        tab = 'Register';
+      } else {
+        tab = 'Login';
+        if (path !== '/login') {
+          const url = toBrowserPath('/login');
+          window.history.replaceState({ path: url }, '', url);
+        }
+      }
+      return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+    }
+  }
+
+  // 3. Authenticated, Onboarded & Configured redirect rules
+  if (user.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide' || path === '/profilesetup')) {
     const url = toBrowserPath('/');
     window.history.replaceState({ path: url }, '', url);
     return { tab: 'Home', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
@@ -176,12 +190,19 @@ export default function App() {
   const [bookings, setBookings] = useState(() => loadBookings());
   const [notifications, setNotifications] = useState(() => loadNotifications());
   const [chats, setChats] = useState(() => loadChats());
+  // Set when "Message" is tapped from BookingDetailsView, so navigating to
+  // Bookings opens that trip's chat drawer immediately instead of just
+  // landing on the list. BookingsView clears it once the drawer is open.
+  const [pendingChatTripId, setPendingChatTripId] = useState(null);
   // Admin-managed marketing content for the public landing page. Seeded from
   // the same-origin localStorage cache (so offline admin edits show at once),
   // then refreshed from the public endpoint when the backend is reachable.
   const [landingContent, setLandingContent] = useState(loadLandingContentLocal);
   const [trips, setTrips] = useState(() => loadTrips());
+  const [tripsLoading, setTripsLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
+  const [bannedAlert, setBannedAlert] = useState(false);
+  const [bannedReason, setBannedReason] = useState('banned');
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
   const [showMap, setShowMap] = useState(false);
   // Hides the bottom nav while a tab renders a fullscreen flow (e.g. the
@@ -227,52 +248,69 @@ export default function App() {
     }
 
     // Redirect rules based on user auth/onboard states
-    if (!currentUser.isOnboarded) {
-      setActiveTab('Onboarding');
-      setSelectedTrip(null);
-      setActiveBookingTrip(null);
-      setSelectedBooking(null);
-      setSelectedOrganizer(null);
-      setSelectedTrekName(null);
-      if (path !== '/onboardingguide') {
-        navigateTo('/onboardingguide', true, currentUser);
+    if (currentUser.isAuthenticated) {
+      if (!currentUser.profileSetupComplete) {
+        setActiveTab('ProfileSetup');
+        setSelectedTrip(null);
+        setActiveBookingTrip(null);
+        setSelectedBooking(null);
+        setSelectedOrganizer(null);
+        setSelectedTrekName(null);
+        if (path !== '/profilesetup') {
+          navigateTo('/profilesetup', true, currentUser);
+        }
+        return;
+      } else if (!currentUser.isOnboarded) {
+        setActiveTab('Onboarding');
+        setSelectedTrip(null);
+        setActiveBookingTrip(null);
+        setSelectedBooking(null);
+        setSelectedOrganizer(null);
+        setSelectedTrekName(null);
+        if (path !== '/onboardingguide') {
+          navigateTo('/onboardingguide', true, currentUser);
+        }
+        return;
       }
-      return;
     }
 
     // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
-    const isProtectedRoute = 
-      path === '/profile' || 
-      path === '/bookings' || 
-      path.startsWith('/booking/') || 
-      path.startsWith('/book/');
+    if (!currentUser.isAuthenticated) {
+      const isProtectedRoute = 
+        path === '/profile' || 
+        path === '/bookings' || 
+        path === '/profilesetup' || 
+        path === '/onboardingguide' || 
+        path.startsWith('/booking/') || 
+        path.startsWith('/book/');
 
-    if (!currentUser.isAuthenticated && isProtectedRoute) {
-      setRedirectAfterAuth(path);
+      if (isProtectedRoute) {
+        setRedirectAfterAuth(path);
 
-      if (path === '/register') {
-        setActiveTab('Register');
-        setSelectedTrip(null);
-        setActiveBookingTrip(null);
-        setSelectedBooking(null);
-        setSelectedOrganizer(null);
-        setSelectedTrekName(null);
-      } else {
-        setActiveTab('Login');
-        setSelectedTrip(null);
-        setActiveBookingTrip(null);
-        setSelectedBooking(null);
-        setSelectedOrganizer(null);
-        setSelectedTrekName(null);
-        if (path !== '/login') {
-          navigateTo('/login', true, currentUser);
+        if (path === '/register') {
+          setActiveTab('Register');
+          setSelectedTrip(null);
+          setActiveBookingTrip(null);
+          setSelectedBooking(null);
+          setSelectedOrganizer(null);
+          setSelectedTrekName(null);
+        } else {
+          setActiveTab('Login');
+          setSelectedTrip(null);
+          setActiveBookingTrip(null);
+          setSelectedBooking(null);
+          setSelectedOrganizer(null);
+          setSelectedTrekName(null);
+          if (path !== '/login') {
+            navigateTo('/login', true, currentUser);
+          }
         }
+        return;
       }
-      return;
     }
 
     // Authenticated & Onboarded: Redirect away from auth/onboard pages
-    if (currentUser.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide')) {
+    if (currentUser.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide' || path === '/profilesetup')) {
       navigateTo('/', true, currentUser);
       return;
     }
@@ -331,6 +369,12 @@ export default function App() {
       if (foundTrip) {
         setSelectedTrip(foundTrip);
         setSelectedTrekName(foundTrip.name);
+        setActiveBookingTrip(null);
+        setSelectedBooking(null);
+        setSelectedOrganizer(null);
+      } else if (tripsLoading) {
+        setSelectedTrip({ id: tripId, isLoading: true });
+        setSelectedTrekName(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
@@ -423,6 +467,17 @@ export default function App() {
   }, [notifications]);
 
   useEffect(() => {
+    const handleStatusChangeEvent = (e) => {
+      const reason = e.detail?.reason || 'banned';
+      setBannedReason(reason);
+      handleLogoutResets();
+      setBannedAlert(true);
+    };
+    window.addEventListener('hiker-status-changed', handleStatusChangeEvent);
+    return () => window.removeEventListener('hiker-status-changed', handleStatusChangeEvent);
+  }, []);
+
+  useEffect(() => {
     saveChats(chats);
   }, [chats]);
 
@@ -439,9 +494,12 @@ export default function App() {
     tripsApi
       .listTrips({ limit: 100 })
       .then((apiTrips) => {
-        if (!cancelled && Array.isArray(apiTrips) && apiTrips.length) setTrips(apiTrips);
+        if (!cancelled && Array.isArray(apiTrips)) setTrips(apiTrips);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setTripsLoading(false);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -505,14 +563,32 @@ export default function App() {
     setExploreCategory('All'); // clear category to prevent block
   };
 
-  // Complete Onboarding walkthrough helper
-  const handleCompleteOnboardingWalkthrough = () => {
+  // Complete Profile Setup setup helper
+  const handleCompleteProfileSetup = (updatedUser) => {
     const updated = {
       ...user,
-      isOnboarded: true
+      ...updatedUser,
+      profileSetupComplete: true
     };
     setUser(updated);
-    navigateTo('/', false, updated);
+    navigateTo('/onboardingguide', false, updated);
+  };
+
+  // Complete Onboarding walkthrough helper
+  const handleCompleteOnboardingWalkthrough = async () => {
+    try {
+      const updatedUser = await authApi.updateProfile({ isOnboarded: true });
+      setUser(updatedUser);
+      navigateTo('/', false, updatedUser);
+    } catch (err) {
+      console.error('Failed to save onboarding completion:', err);
+      const updated = {
+        ...user,
+        isOnboarded: true
+      };
+      setUser(updated);
+      navigateTo('/', false, updated);
+    }
   };
 
   // Sign In success
@@ -750,6 +826,7 @@ export default function App() {
           <HomeView
             user={user}
             trips={trips}
+            tripsLoading={tripsLoading}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
             onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
@@ -770,6 +847,7 @@ export default function App() {
         return (
           <ExploreView
             trips={trips}
+            tripsLoading={tripsLoading}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
             onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
@@ -794,6 +872,8 @@ export default function App() {
             onModifyBookingStatus={handleModifyBookingStatus}
             onAddReview={handleAddReviewToTrip}
             onSelectBooking={(b) => navigateTo(`/booking/${b.id}`)}
+            initialChatTripId={pendingChatTripId}
+            onChatOpened={() => setPendingChatTripId(null)}
             darkMode={darkMode}
           />
         );
@@ -840,18 +920,24 @@ export default function App() {
   ) : (
     <PhoneFrame darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode}>
       
-      {!user.isOnboarded ? (
-        <Onboarding 
-          onComplete={handleCompleteOnboardingWalkthrough} 
-          darkMode={darkMode} 
-        />
-      ) : !user.isAuthenticated ? (
+      {!user.isAuthenticated ? (
         <Auth 
           onSuccess={handleAuthSuccess} 
           darkMode={darkMode} 
           initialMode={activeTab === 'Register' ? 'REGISTER' : 'LOGIN_EMAIL'}
           onSwitchToRegister={() => navigateTo('/register')}
           onSwitchToLogin={() => navigateTo('/login')}
+        />
+      ) : !user.profileSetupComplete ? (
+        <ProfileSetup
+          user={user}
+          onComplete={handleCompleteProfileSetup}
+          darkMode={darkMode}
+        />
+      ) : !user.isOnboarded ? (
+        <Onboarding 
+          onComplete={handleCompleteOnboardingWalkthrough} 
+          darkMode={darkMode} 
         />
       ) : (
         /* 3. Main Dashboard flow viewport screen */
@@ -942,34 +1028,17 @@ export default function App() {
                    onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/bookings'); } }}
                    onModifyBookingStatus={handleModifyBookingStatus}
                    onContactOrganizer={(b) => {
-                     // Find organizing guide chat context
-                     const existing = chats.find(c => c.tripId === b.tripId);
-                     if (existing) {
-                       // Switch to Bookings tab and open chat
-                       navigateTo('/bookings');
-                       // Trigger simulated chat click in BookingsView if needed, or simply trigger contact organizer
-                     }
-                     alert(`Connecting to ${b.organizerName} Support... Tapping "Chat Guide" inside Bookings will open the console chat drawer directly.`);
+                     setPendingChatTripId(b.tripId);
                      setSelectedBooking(null);
+                     navigateTo('/bookings');
                    }}
                    onViewOrganizerProfile={(name) => {
                      setSelectedBooking(null);
                      navigateTo(`/organizers/${encodeURIComponent(name)}`);
                    }}
                    onDownloadInvoice={(b) => downloadTicketPDF(b)}
-                   onRateHike={(b) => {
-                     const ratingInput = prompt('Rate your experience (1 to 5 stars):', '5');
-                     if (!ratingInput) return;
-                     const ratingVal = parseInt(ratingInput);
-                     if (isNaN(ratingVal) || ratingVal < 1 || ratingVal > 5) {
-                       alert('Invalid rating entry. Please input a number between 1 and 5.');
-                       return;
-                     }
-                     const commentInput = prompt('Write a comment about this trek:');
-                     if (commentInput !== null) {
-                       handleAddReviewToTrip(b.tripId, ratingVal, commentInput || 'Incredible experience!', b.bookingId);
-                       alert('Review logged and average rating updated successfully!');
-                     }
+                   onRateHike={(b, ratingVal, commentVal) => {
+                     handleAddReviewToTrip(b.tripId, ratingVal, commentVal, b.bookingId);
                    }}
                    darkMode={darkMode}
                  />
@@ -1086,6 +1155,41 @@ export default function App() {
                 onClose={() => setShowMap(false)}
                 darkMode={darkMode}
               />
+            )}
+          </AnimatePresence>
+
+          {/* 8. Hiker Banned Overlay Dialog */}
+          <AnimatePresence>
+            {bannedAlert && (
+              <div className="absolute inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-6">
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  className="bg-white dark:bg-[#1C120C] border border-red-500/30 rounded-3xl p-6 w-full text-center space-y-4 shadow-xl z-[1000]"
+                >
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto text-red-500">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
+                      {bannedReason === 'deleted' ? 'Account Deleted' : 'Account Suspended'}
+                    </h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
+                      {bannedReason === 'deleted' ? 'Your account has been deleted by the admin.' : 'You are banned by the admin.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBannedAlert(false);
+                    }}
+                    className="w-full bg-red-650 hover:bg-red-750 text-white text-xs font-bold py-3 rounded-full cursor-pointer active:scale-95 transition-all"
+                  >
+                    Okay
+                  </button>
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>
 

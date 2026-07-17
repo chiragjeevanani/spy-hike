@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import authApi from '../../../lib/authApi';
 import usePhoneVerification from '../../../lib/usePhoneVerification';
 import SwitchTransition from './SwitchTransition';
-import TrekigoLogo from '../../../components/TrekigoLogo';
+import AppLogo from '../../../components/AppLogo';
+import { useToast } from '../../../components/ToastProvider';
 
 // Turns an ApiClientError (or any error) into a user-facing message.
 const errText = (err, fallback) => err?.message || fallback;
+
+// Same strength rule everywhere a password is set (signup and reset) — at
+// least 8 characters with a letter and a number.
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const PASSWORD_HELP = 'Password must be at least 8 characters, with at least one letter and one number.';
 
 const ORG_USER_STORAGE_KEY = 'trekigo_org_user';
 const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play, then holds briefly before redirecting
@@ -14,9 +21,18 @@ const ROLE_TOGGLE_TRANSITION_MS = 3000; // lets the scene flip play before the l
 
 export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL', onSwitchToRegister, onSwitchToLogin }) {
   const [mode, setMode] = useState(initialMode);
+  const [registerStep, setRegisterStep] = useState(1); // 1 = Basic, 2 = Phone, 3 = OTP
+  const toast = useToast();
+  const [showBannedModal, setShowBannedModal] = useState(false);
 
   useEffect(() => {
     setMode(initialMode);
+    setRegisterStep(1);
+    setForgotPhone('');
+    setForgotStep(1);
+    setForgotOtp('');
+    setForgotNewPass('');
+    setForgotConfirmPass('');
   }, [initialMode]);
 
   // Which portal the person is signing in to: 'TRAVELLER' or 'ORGANIZER'.
@@ -28,6 +44,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPass, setForgotNewPass] = useState('');
+  const [forgotConfirmPass, setForgotConfirmPass] = useState('');
   
   // Fields for Register
   const [regName, setRegName] = useState('');
@@ -92,6 +113,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
     if (!email || !password) {
       setErrorMsg('Please specify both email and password.');
+      toast.error('Please specify both email and password.');
       return;
     }
 
@@ -110,11 +132,15 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         onSuccess({ ...user, rememberMe });
       }
     } catch (err) {
-      setErrorMsg(
-        role === 'ORGANIZER' && err?.status === 401
+      if (err.status === 403 && err.message?.toLowerCase().includes('banned')) {
+        setShowBannedModal(true);
+      } else {
+        const message = role === 'ORGANIZER' && err?.status === 401
           ? "Invalid organizer credentials. If you're a new agency, apply from the Organizer Panel."
-          : errText(err, 'Sign in failed. Please try again.'),
-      );
+          : errText(err, 'Sign in failed. Please try again.');
+        setErrorMsg(message);
+        toast.error(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -123,8 +149,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const handleSendOTP = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!phone || phone.length < 9) {
-      setErrorMsg('Please enter a valid mobile number.');
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      setErrorMsg('Please enter a valid 10-digit mobile number.');
+      toast.error('Please enter a valid 10-digit mobile number.');
       return;
     }
     setSubmitting(true);
@@ -133,8 +161,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       setOtpTimer(30);
       setMode('OTP_CONFIRM');
       setSuccessMsg('OTP sent to your device! (demo code: 123456)');
+      toast.success('OTP sent to your device! (demo code: 123456)');
     } catch (err) {
-      setErrorMsg(errText(err, 'Could not send OTP. Please try again.'));
+      const message = errText(err, 'Could not send OTP. Please try again.');
+      setErrorMsg(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -149,52 +180,210 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       setSuccessMsg('Mobile OTP Verified!');
       onSuccess({ ...user, rememberMe });
     } catch (err) {
-      setErrorMsg(errText(err, 'Incorrect OTP. Use 123456.'));
+      if (err.status === 403 && err.message?.toLowerCase().includes('banned')) {
+        setShowBannedModal(true);
+      } else {
+        const message = errText(err, 'Incorrect OTP. Use 123456.');
+        setErrorMsg(message);
+        toast.error(message);
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleRegister = async (e) => {
+  const handleBasicNext = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-    if (!regName || !regEmail || !regPassword || !regPhone) {
-      setErrorMsg('Please specify all required fields.');
+
+    if (!regName.trim()) {
+      toast.error('Full Name is required.');
+      document.getElementById('reg-name')?.focus();
+      document.getElementById('reg-name')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    if (!regPhoneVerify.verified) {
-      setErrorMsg('Please verify your mobile number with the OTP before signing up.');
+    if (regName.trim().length < 2) {
+      toast.error('Name must be at least 2 characters.');
+      document.getElementById('reg-name')?.focus();
+      document.getElementById('reg-name')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regEmail.trim()) {
+      toast.error('Email Address is required.');
+      document.getElementById('reg-email')?.focus();
+      document.getElementById('reg-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!emailRegex.test(regEmail.trim())) {
+      toast.error('Please enter a valid email address.');
+      document.getElementById('reg-email')?.focus();
+      document.getElementById('reg-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    if (!regPassword) {
+      toast.error('Password is required.');
+      document.getElementById('reg-password')?.focus();
+      document.getElementById('reg-password')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!PASSWORD_REGEX.test(regPassword)) {
+      toast.error(PASSWORD_HELP);
+      document.getElementById('reg-password')?.focus();
+      document.getElementById('reg-password')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    if (!regAge || regAge < 12 || regAge > 99) {
+      toast.error('Age must be between 12 and 99 years.');
+      document.getElementById('reg-age')?.focus();
+      document.getElementById('reg-age')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
     setSubmitting(true);
     try {
-      const newUser = await authApi.registerCustomer({
-        name: regName,
-        email: regEmail,
-        password: regPassword,
-        mobile: regPhone,
-        phoneToken: regPhoneVerify.token,
-        age: regAge,
-      });
-      setSuccessMsg('Registration Success! Opening onboarding guide...');
-      // New accounts start un-onboarded → onSuccess routes into the guide.
-      onSuccess({ ...newUser, rememberMe });
+      const res = await authApi.checkAvailability({ email: regEmail.trim() });
+      if (!res.available) {
+        toast.error(res.message);
+        document.getElementById('reg-email')?.focus();
+        document.getElementById('reg-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      setRegisterStep(2);
     } catch (err) {
-      setErrorMsg(errText(err, 'Registration failed. Please try again.'));
+      toast.error(err?.message || 'Could not verify email. Try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleForgotPass = (e) => {
+  const handlePhoneSendOTP = async (e) => {
     e.preventDefault();
-    if (!email) {
-      setErrorMsg('Enter your email to send recovery guidelines.');
+
+    const cleanPhone = regPhone.replace(/\D/g, '');
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit mobile number.');
+      document.getElementById('reg-phone')?.focus();
+      document.getElementById('reg-phone')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    setSuccessMsg('Simulated recovery instructions sent to ' + email);
-    setTimeout(() => setMode('LOGIN_EMAIL'), 2500);
+
+    setSubmitting(true);
+    try {
+      const res = await authApi.checkAvailability({ mobile: regPhone });
+      if (!res.available) {
+        toast.error(res.message);
+        document.getElementById('reg-phone')?.focus();
+        document.getElementById('reg-phone')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      const sentOk = await regPhoneVerify.send();
+      if (sentOk) {
+        setRegisterStep(3);
+        toast.success('OTP code sent (demo code: 123456)');
+      } else {
+        toast.error(regPhoneVerify.error || 'Failed to send OTP.');
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Could not send OTP. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOTPVerifyAndRegister = async (e) => {
+    e.preventDefault();
+
+    const otpVal = regPhoneVerify.code;
+    if (!otpVal || otpVal.length < 6) {
+      toast.error('Please enter the 6-digit OTP code.');
+      document.getElementById('reg-otp')?.focus();
+      document.getElementById('reg-otp')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const verifyOk = await regPhoneVerify.verify();
+      if (!verifyOk) {
+        toast.error(regPhoneVerify.error || 'Incorrect OTP code. Try 123456.');
+        setSubmitting(false);
+        return;
+      }
+
+      const newUser = await authApi.registerCustomer({
+        name: regName,
+        email: regEmail,
+        password: regPassword,
+        mobile: regPhone,
+        phoneToken: regPhoneVerify.token || 'demo-token',
+        age: regAge,
+      });
+
+      toast.success('Registration successful!');
+      onSuccess({ ...newUser, rememberMe });
+    } catch (err) {
+      toast.error(err?.message || 'Registration failed. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassSendOtp = async (e) => {
+    e.preventDefault();
+    const cleanPhone = forgotPhone.replace(/\D/g, '');
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await authApi.requestOtp(cleanPhone);
+      setForgotStep(2);
+      toast.success('OTP sent to your mobile (demo code: 123456)');
+    } catch (err) {
+      toast.error(err?.message || 'Could not send OTP. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassReset = async (e) => {
+    e.preventDefault();
+    if (!forgotOtp.trim()) {
+      toast.error('Please enter the verification code.');
+      return;
+    }
+    if (!forgotNewPass) {
+      toast.error('Please enter a new password.');
+      return;
+    }
+    if (!PASSWORD_REGEX.test(forgotNewPass)) {
+      toast.error(PASSWORD_HELP);
+      return;
+    }
+    if (forgotNewPass !== forgotConfirmPass) {
+      toast.error('New password and confirmation do not match.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const cleanPhone = forgotPhone.replace(/\D/g, '');
+      await authApi.resetPasswordOtp({
+        mobile: cleanPhone,
+        otpCode: forgotOtp.trim(),
+        newPassword: forgotNewPass
+      });
+      toast.success('Password reset successfully! Please sign in.');
+      setTimeout(() => setMode('LOGIN_EMAIL'), 2000);
+    } catch (err) {
+      toast.error(err?.message || 'Could not reset password. Use OTP 123456.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const isRegister = mode === 'REGISTER';
@@ -208,9 +397,9 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
       {/* Brand logo — compact when in REGISTER mode */}
       <div className={`flex flex-col items-center shrink-0 ${isRegister ? 'pt-4 pb-3' : 'pt-8 pb-6'}`}>
-        <TrekigoLogo size={isRegister ? 40 : 56} className="text-forest-600 dark:text-forest-400" />
+        <AppLogo size={isRegister ? 40 : 56} className="text-forest-600 dark:text-forest-400" />
         <h1 className={`font-display font-black tracking-tight text-forest-600 dark:text-forest-400 ${isRegister ? 'text-2xl mt-1' : 'text-3xl mt-2'}`}>
-          Trekigo
+          Find Your Trek
         </h1>
         {!isRegister && (
           <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
@@ -350,7 +539,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               </span>
               <div className="flex justify-between font-mono text-[10px]">
                 <div>Email: <span className="text-spy-orange font-semibold">chiragjeevanani333@gmail.com</span></div>
-                <div>Pass: <span className="text-spy-orange font-semibold">trekigo123</span></div>
+                <div>Pass: <span className="text-spy-orange font-semibold">findyourtrek123</span></div>
               </div>
               {role === 'ORGANIZER' && (
                 <p className="mt-1.5 opacity-80">This account is pre-approved as an organizer — any other email won't pass the Organizer gate.</p>
@@ -372,9 +561,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                 <input
                   type="tel"
-                  placeholder="+91 98765 43210"
+                  maxLength={10}
+                  placeholder="10-digit mobile number"
                   value={phone}
-                  onChange={e => setPhone(e.target.value)}
+                  onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
                   className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border transition-all ${
                     darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
                   }`}
@@ -460,120 +650,294 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         )}
 
         {mode === 'FORGOT_PASSWORD' && (
-          <form onSubmit={handleForgotPass} className="space-y-4">
-            <h2 className="text-xl font-display font-extrabold tracking-tight">Reset Password</h2>
-            <p className={`text-xs -mt-1 pb-2 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              Regain routing capabilities on standard servers
-            </p>
+          <div>
+            {forgotStep === 1 ? (
+              <form onSubmit={handleForgotPassSendOtp} className="space-y-4">
+                <h2 className="text-xl font-display font-extrabold tracking-tight">Reset Password</h2>
+                <p className={`text-xs -mt-1 pb-2 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Enter your registered mobile number to receive a verification code.
+                </p>
 
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold uppercase opacity-80">Your Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border transition-all ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                />
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase opacity-80">Mobile Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
+                      value={forgotPhone}
+                      onChange={e => setForgotPhone(e.target.value.replace(/\D/g, ''))}
+                      className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border transition-all ${
+                        darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                      }`}
+                    />
+                  </div>
+                </div>
 
-            <div className="flex justify-between items-center text-xs">
-              <button
-                type="button"
-                onClick={() => setMode('LOGIN_EMAIL')}
-                className="text-forest-500 dark:text-forest-400 font-semibold hover:underline"
-              >
-                Back to Sign In
-              </button>
-            </div>
+                <div className="flex justify-between items-center text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setMode('LOGIN_EMAIL')}
+                    className="text-forest-500 dark:text-forest-400 font-semibold hover:underline"
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
 
-            <button
-              type="submit"
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer"
-            >
-              Send Recovery Guidelines
-            </button>
-          </form>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer disabled:opacity-60"
+                >
+                  {submitting ? 'Sending…' : 'Send Verification Code'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotPassReset} className="space-y-4">
+                <h2 className="text-xl font-display font-extrabold tracking-tight">Reset Password</h2>
+                <p className={`text-xs -mt-1 pb-2 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Code sent to <span className="font-semibold text-spy-orange">{forgotPhone}</span>
+                </p>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold uppercase opacity-85">6-Digit OTP</label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Enter 123456"
+                        value={forgotOtp}
+                        onChange={e => setForgotOtp(e.target.value)}
+                        className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border ${
+                          darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold uppercase opacity-85">New Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                      <input
+                        type="password"
+                        placeholder="New Password (min 6 characters)"
+                        value={forgotNewPass}
+                        onChange={e => setForgotNewPass(e.target.value)}
+                        className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border ${
+                          darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold uppercase opacity-85">Confirm New Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                      <input
+                        type="password"
+                        placeholder="Confirm New Password"
+                        value={forgotConfirmPass}
+                        onChange={e => setForgotConfirmPass(e.target.value)}
+                        className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border ${
+                          darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setForgotStep(1)}
+                    className="text-forest-500 dark:text-forest-400 font-semibold hover:underline"
+                  >
+                    Back to Mobile Input
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-3.5 rounded-xl shadow-lg mt-2 cursor-pointer disabled:opacity-60"
+                >
+                  {submitting ? 'Resetting…' : 'Reset Password'}
+                </button>
+              </form>
+            )}
+          </div>
         )}
 
         {mode === 'REGISTER' && (
-          <form onSubmit={handleRegister} className="space-y-2 pointer-events-auto">
-            <h2 className="text-lg font-display font-extrabold tracking-tight text-forest-600 dark:text-forest-400">Register Account</h2>
-            <p className={`text-[11px] -mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              Unlock onboarding maps and custom guide profiles
-            </p>
-
-            {/* Name */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
-                <input
-                  type="text"
-                  required
-                  placeholder="Chirag Jeevanani"
-                  value={regName}
-                  onChange={e => setRegName(e.target.value)}
-                  className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                />
-              </div>
+          <div className="pointer-events-auto space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-zinc-800">
+              <h2 className="text-lg font-display font-extrabold tracking-tight text-forest-600 dark:text-forest-400">Register Account</h2>
+              <span className="text-[10px] bg-forest-100 dark:bg-forest-950/40 text-forest-600 dark:text-forest-400 px-2 py-0.5 rounded-full font-bold">
+                Step {registerStep} of 3
+              </span>
             </div>
 
-            {/* Mobile + OTP verification */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider flex items-center gap-1">
-                Mobile Number
-                {regPhoneVerify.verified && (
-                  <span className="text-emerald-500 flex items-center gap-0.5 font-bold normal-case tracking-normal">
-                    <CheckCircle2 size={11} /> Verified
-                  </span>
-                )}
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+            {registerStep === 1 && (
+              <form onSubmit={handleBasicNext} className="space-y-3">
+                <p className={`text-[11px] -mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Step 1: Enter your basic profile details below.
+                </p>
+
+                {/* Name */}
+                <div className="space-y-0.5">
+                  <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+                    <input
+                      type="text"
+                      id="reg-name"
+                      placeholder="Chirag Jeevanani"
+                      value={regName}
+                      onChange={e => setRegName(e.target.value)}
+                      className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                        darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div className="space-y-0.5">
+                  <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+                    <input
+                      type="email"
+                      id="reg-email"
+                      placeholder="chiragjeevanani333@gmail.com"
+                      value={regEmail}
+                      onChange={e => setRegEmail(e.target.value)}
+                      className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                        darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div className="space-y-0.5">
+                  <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      id="reg-password"
+                      placeholder="At least 8 chars, 1 letter & 1 number"
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      className={`w-full text-xs pl-8 pr-10 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                        darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    >
+                      {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Age field */}
+                <div className="space-y-0.5">
+                  <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Age</label>
                   <input
-                    type="tel"
-                    required
-                    placeholder="+91 98765 43210"
-                    value={regPhone}
-                    disabled={regPhoneVerify.verified}
-                    onChange={e => setRegPhone(e.target.value)}
-                    className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border disabled:opacity-70 ${
+                    type="number"
+                    id="reg-age"
+                    min={12}
+                    max={99}
+                    value={regAge}
+                    onChange={e => setRegAge(Number(e.target.value))}
+                    className={`w-full text-xs px-3 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
                       darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
                     }`}
                   />
                 </div>
-                {!regPhoneVerify.sent && !regPhoneVerify.verified && (
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg mt-3 cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-xs"
+                >
+                  {submitting ? 'Checking Availability…' : 'Continue to Mobile Setup'}
+                </button>
+              </form>
+            )}
+
+            {registerStep === 2 && (
+              <form onSubmit={handlePhoneSendOTP} className="space-y-3">
+                <p className={`text-[11px] -mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Step 2: Enter your mobile number to receive verification code.
+                </p>
+
+                {/* Mobile number input */}
+                <div className="space-y-0.5">
+                  <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Mobile Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
+                    <input
+                      type="tel"
+                      id="reg-phone"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
+                      value={regPhone}
+                      onChange={e => setRegPhone(e.target.value.replace(/\D/g, ''))}
+                      className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
+                        darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
                   <button
                     type="button"
-                    id="btn-reg-send-otp"
-                    onClick={() => regPhoneVerify.send()}
-                    disabled={regPhoneVerify.busy}
-                    className="shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold border border-forest-500/40 text-forest-600 dark:text-forest-400 hover:bg-forest-500/10 disabled:opacity-60 transition-all"
+                    onClick={() => setRegisterStep(1)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-98 ${
+                      darkMode ? 'border-zinc-800 text-zinc-300 hover:bg-zinc-850' : 'border-gray-200 text-zinc-600 hover:bg-gray-50'
+                    }`}
                   >
-                    {regPhoneVerify.busy ? '…' : 'Send OTP'}
+                    Back
                   </button>
-                )}
-              </div>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-xs"
+                  >
+                    {submitting ? 'Checking number…' : 'Send OTP'}
+                  </button>
+                </div>
+              </form>
+            )}
 
-              {/* OTP code entry appears after the code is sent */}
-              {regPhoneVerify.sent && !regPhoneVerify.verified && (
-                <div className="flex gap-2 pt-1.5">
-                  <div className="relative flex-1">
+            {registerStep === 3 && (
+              <form onSubmit={handleOTPVerifyAndRegister} className="space-y-3">
+                <p className={`text-[11px] -mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Step 3: Enter the verification code sent to <span className="font-semibold text-spy-orange">{regPhone}</span>.
+                </p>
+
+                {/* OTP code input */}
+                <div className="space-y-0.5">
+                  <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">6-Digit OTP</label>
+                  <div className="relative">
                     <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
                     <input
                       type="text"
+                      id="reg-otp"
                       inputMode="numeric"
                       maxLength={6}
-                      placeholder="Enter OTP (123456)"
+                      placeholder="Enter code (123456)"
                       value={regPhoneVerify.code}
                       onChange={e => regPhoneVerify.setCode(e.target.value)}
                       className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border tracking-[0.3em] ${
@@ -581,92 +945,33 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                       }`}
                     />
                   </div>
+                </div>
+
+                {regPhoneVerify.error && (
+                  <p className="text-[10px] font-semibold text-red-500">{regPhoneVerify.error}</p>
+                )}
+
+                <div className="flex gap-2.5 pt-2">
                   <button
                     type="button"
-                    id="btn-reg-verify-otp"
-                    onClick={() => regPhoneVerify.verify()}
-                    disabled={regPhoneVerify.busy}
-                    className="shrink-0 px-4 py-2 rounded-xl text-[11px] font-bold bg-forest-600 hover:bg-forest-700 text-white disabled:opacity-60 transition-all"
+                    onClick={() => setRegisterStep(2)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-98 ${
+                      darkMode ? 'border-zinc-800 text-zinc-300 hover:bg-zinc-850' : 'border-gray-200 text-zinc-650'
+                    }`}
                   >
-                    {regPhoneVerify.busy ? '…' : 'Verify'}
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-xs"
+                  >
+                    {submitting ? 'Verifying…' : 'Verify & Sign Up'}
                   </button>
                 </div>
-              )}
-              {(regPhoneVerify.error || regPhoneVerify.info) && (
-                <p className={`text-[10px] font-semibold pt-1 ${regPhoneVerify.error ? 'text-red-500' : 'text-emerald-500'}`}>
-                  {regPhoneVerify.error || regPhoneVerify.info}
-                </p>
-              )}
-            </div>
-
-            {/* Email */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
-                <input
-                  type="email"
-                  required
-                  placeholder="chiragjeevanani333@gmail.com"
-                  value={regEmail}
-                  onChange={e => setRegEmail(e.target.value)}
-                  className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={13} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="Minimum 6 characters"
-                  value={regPassword}
-                  onChange={e => setRegPassword(e.target.value)}
-                  className={`w-full text-xs pl-8 pr-10 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
-                    darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                >
-                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Age field */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-bold uppercase opacity-70 tracking-wider">Age</label>
-              <input
-                type="number"
-                min={12}
-                max={99}
-                required
-                value={regAge}
-                onChange={e => setRegAge(Number(e.target.value))}
-                className={`w-full text-xs px-3 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
-                  darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'
-                }`}
-              />
-            </div>
-
-            <button
-              type="submit"
-              id="btn-register-submit"
-              disabled={submitting || !regPhoneVerify.verified}
-              className="w-full bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg mt-1 cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {submitting ? 'Creating Account…' : regPhoneVerify.verified ? 'Complete Safe SignUp' : 'Verify Mobile to Continue'}
-            </button>
-          </form>
+              </form>
+            )}
+          </div>
         )}
 
         {/* Alternate login / Register switch bottom */}
@@ -699,7 +1004,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             )
           ) : (
             <p>
-              Already verified on Trekigo?{' '}
+              Already verified on Find Your Trek?{' '}
               <button
                 type="button"
                 onClick={() => onSwitchToLogin ? onSwitchToLogin() : setMode('LOGIN_EMAIL')}
@@ -721,6 +1026,49 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         </div>
       )}
 
+      {/* User Banned Popup Dialog with Customer Support Details */}
+      <AnimatePresence>
+        {showBannedModal && (
+          <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-xs p-6">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-[#1C120C] border border-red-500/30 rounded-3xl p-6 w-full text-center space-y-4 shadow-xl text-zinc-800 dark:text-zinc-200 z-[1001]"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto text-red-500">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="space-y-1.5">
+                <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">Access Denied</h4>
+                <p className="text-xs text-zinc-500 dark:text-zinc-450 font-bold leading-relaxed">
+                  User is banned, kindly contact the customer support for more info.
+                </p>
+              </div>
+              
+              <div className="bg-slate-50 dark:bg-[#2A1E17] border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Customer Support Contacts</div>
+                <div className="flex items-center gap-2.5 text-xs font-semibold">
+                  <Phone size={13} className="text-[#F27D26]" />
+                  <span>+91 99999 88888</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-xs font-semibold">
+                  <Mail size={13} className="text-[#F27D26]" />
+                  <span>support@findyourtrek.com</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowBannedModal(false)}
+                className="w-full bg-[#F27D26] hover:bg-[#d96d1a] text-white text-xs font-bold py-3 rounded-full cursor-pointer active:scale-95 transition-all"
+              >
+                Okay
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

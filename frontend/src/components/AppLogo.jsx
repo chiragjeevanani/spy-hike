@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function TrekigoLogo({ 
+export default function AppLogo({ 
   size = 48, 
   showText = false, 
   className = ''
@@ -11,8 +11,8 @@ export default function TrekigoLogo({
       className={`flex items-center justify-center shrink-0 overflow-hidden rounded-xl ${className}`}
     >
       <img 
-        src="/trekigo.jpeg" 
-        alt="Trekigo Logo" 
+        src="/logo.jpeg" 
+        alt="Find Your Trek Logo" 
         style={{ 
           width: size, 
           height: size, 

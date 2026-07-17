@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireRole, requireApprovedOrganizer } from '../middleware/auth.js';
+import { requireAuth, requireOrganizerAccount, requireApprovedOrganizer } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {
   listOrganizerTrips, createTrip, updateTrip, setOrganizerTripStatus, deleteOrganizerTrip,
@@ -13,12 +13,16 @@ import { listOrganizerChats, sendOrganizerMessage } from '../controllers/chatCon
 import {
   getOrganizerFinancials, listOrganizerPayouts, requestPayout, updateBankDetails,
 } from '../controllers/financialsController.js';
+import { createTrekRequest, listMyTrekRequests } from '../controllers/trekRequestController.js';
+import {
+  listMyCoupons, createMyCoupon, updateMyCoupon, toggleMyCouponStatus, deleteMyCoupon,
+} from '../controllers/organizerCouponController.js';
 
 // Organizer-scoped routes. Everything requires an authenticated organizer;
 // approved-only features additionally pass requireApprovedOrganizer.
 const router = Router();
 
-router.use('/organizer', requireAuth, requireRole('organizer'));
+router.use('/organizer', requireAuth, requireOrganizerAccount);
 
 // Lightweight gate-check the organizer app can call to confirm the account is
 // cleared for approved-only features (posting trips, financials, payouts).
@@ -27,7 +31,7 @@ router.get(
   '/organizer/verify-access',
   requireApprovedOrganizer,
   asyncHandler(async (req, res) => {
-    res.json({ ok: true, organizerId: req.organizer._id.toString() });
+    res.json({ ok: true, organizerId: req.organizer.id });
   }),
 );
 
@@ -37,6 +41,13 @@ router.post('/organizer/trips', requireApprovedOrganizer, createTrip);
 router.put('/organizer/trips/:id', requireApprovedOrganizer, updateTrip);
 router.patch('/organizer/trips/:id/status', requireApprovedOrganizer, setOrganizerTripStatus);
 router.delete('/organizer/trips/:id', requireApprovedOrganizer, deleteOrganizerTrip);
+
+// Coupons — approved organizers only.
+router.get('/organizer/coupons', requireApprovedOrganizer, listMyCoupons);
+router.post('/organizer/coupons', requireApprovedOrganizer, createMyCoupon);
+router.put('/organizer/coupons/:id', requireApprovedOrganizer, updateMyCoupon);
+router.patch('/organizer/coupons/:id/toggle', requireApprovedOrganizer, toggleMyCouponStatus);
+router.delete('/organizer/coupons/:id', requireApprovedOrganizer, deleteMyCoupon);
 
 router.get('/organizer/bookings', requireApprovedOrganizer, listOrganizerBookings);
 router.post('/organizer/bookings/:bookingId/checkin', requireApprovedOrganizer, checkinBooking);
@@ -56,5 +67,10 @@ router.get('/organizer/financials', requireApprovedOrganizer, getOrganizerFinanc
 router.get('/organizer/payouts', requireApprovedOrganizer, listOrganizerPayouts);
 router.post('/organizer/payouts', requireApprovedOrganizer, requestPayout);
 router.patch('/organizer/bank-details', requireApprovedOrganizer, updateBankDetails);
+
+// "My trek isn't in the catalog" proposals — approved organizers only, same
+// gate as posting trips, since that's the only thing this unlocks.
+router.post('/organizer/trek-requests', requireApprovedOrganizer, createTrekRequest);
+router.get('/organizer/trek-requests', requireApprovedOrganizer, listMyTrekRequests);
 
 export default router;

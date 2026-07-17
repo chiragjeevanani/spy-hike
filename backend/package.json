@@ -1,12 +1,12 @@
 {
-  "name": "trekigo-backend",
+  "name": "findyourtrek-backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Trekigo backend API — Node.js + Express + MongoDB serving the customer, organizer, and admin apps.",
+  "description": "Find Your Trek backend API — Node.js + Express + MongoDB serving the customer, organizer, and admin apps.",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "lsof -ti :4000 | xargs kill -9 2>/dev/null; tail -f /dev/null | nodemon --no-stdin --watch src src/server.js",
     "dev:memory": "node src/dev-memory-server.js",
     "start": "node src/server.js",
     "seed": "node src/seed.js",
@@ -18,6 +18,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "firebase-admin": "^12.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5"
   },

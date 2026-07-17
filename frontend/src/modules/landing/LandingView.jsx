@@ -7,9 +7,10 @@ import {
   Users, Clock, ShieldCheck, CheckCircle2, MessageSquare, 
   Settings, QrCode, ArrowUpRight, ChevronDown
 } from 'lucide-react';
-import TrekigoLogo from '../../components/TrekigoLogo';
+import AppLogo from '../../components/AppLogo';
 import { HIKING_TRIPS, CATEGORIES_LIST } from '../user/data/trips';
 import { mergeLandingContent, resolveIcon } from './landingContent';
+import tripsApi from '../../lib/tripsApi';
 
 export default function LandingView({ content, darkMode, onToggleDarkMode, onLaunchApp, onLaunchOrganizer, onLaunchAdmin }) {
   // All copy/lists come from the admin-managed CMS content, deep-merged over
@@ -22,6 +23,28 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
   const [hoveredPortal, setHoveredPortal] = useState(null);
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
+
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    tripsApi.listTrips({ limit: 100 })
+      .then((list) => {
+        if (!cancelled && Array.isArray(list) && list.length) {
+          setTrips(list);
+        } else {
+          setTrips(HIKING_TRIPS);
+        }
+      })
+      .catch(() => {
+        setTrips(HIKING_TRIPS);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
   
   // Scrolled progress indicators
   const { scrollYProgress } = useScroll({ container: scrollContainerRef });
@@ -60,8 +83,8 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
 
   // Filter trips based on category selection
   const filteredTrips = activeCategory === 'All' 
-    ? HIKING_TRIPS.slice(0, 4) 
-    : HIKING_TRIPS.filter(t => t.category === activeCategory).slice(0, 4);
+    ? trips.slice(0, 4) 
+    : trips.filter(t => t.category === activeCategory).slice(0, 4);
 
   // Features come straight from the CMS; the icon key + color resolve to a
   // lucide component at render time.
@@ -162,7 +185,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
               whileTap={{ scale: 0.98 }}
               className="flex items-center gap-3 cursor-pointer group"
             >
-              <TrekigoLogo size={32} className="text-forest-600 dark:text-elegant-green" />
+              <AppLogo size={32} className="text-forest-600 dark:text-elegant-green" />
               <span className="font-display font-bold text-2xl tracking-tight bg-gradient-to-r from-forest-700 via-forest-500 to-spy-orange dark:from-white dark:to-elegant-text bg-clip-text text-transparent">
                 {C.header.logoText}
               </span>
@@ -597,88 +620,115 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
           >
             <AnimatePresence mode="popLayout">
-              {filteredTrips.map((trip) => (
-                <motion.div 
-                  key={trip.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.92, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.92, y: 20 }}
-                  whileHover={{ y: -8, scale: 1.01 }}
-                  transition={{ duration: 0.35, ease: "easeOut" }}
-                  className="rounded-2xl overflow-hidden bg-[#FCFAF2] dark:bg-elegant-card border border-zinc-200/60 dark:border-elegant-border/70 flex flex-col shadow-md hover:shadow-xl transition-all duration-300 group"
+              {loading ? (
+                [1, 2, 3, 4].map((n) => (
+                  <div key={n} className="rounded-2xl overflow-hidden bg-[#FCFAF2] dark:bg-elegant-card border border-zinc-200/60 dark:border-elegant-border/70 flex flex-col shadow-md animate-pulse-subtle h-[320px]">
+                    <div className="aspect-[4/3] w-full skeleton-loader" />
+                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-2">
+                        <div className="h-4 rounded-md skeleton-loader w-2/3" />
+                        <div className="h-3 rounded-md skeleton-loader w-1/2" />
+                      </div>
+                      <div className="flex justify-between items-center pt-2">
+                        <div className="h-3 rounded-md skeleton-loader w-1/4" />
+                        <div className="h-4 rounded-md skeleton-loader w-1/5" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : filteredTrips.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="col-span-full py-16 text-center text-zinc-400 dark:text-zinc-500 font-sans border-2 border-dashed border-zinc-200 dark:border-elegant-border/80 rounded-3xl"
                 >
-                  {/* Cover Section */}
-                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-100">
-                    <img 
-                      src={trip.coverImage} 
-                      alt={trip.name} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    
-                    {/* Difficulty Badge */}
-                    <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm z-10 ${
-                      trip.difficulty === 'Easy' 
-                        ? 'bg-emerald-500/90 text-white' 
-                        : trip.difficulty === 'Moderate'
-                        ? 'bg-amber-500/90 text-white'
-                        : 'bg-rose-500/90 text-white'
-                    }`}>
-                      {trip.difficulty}
-                    </div>
-
-                    {/* Specs */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
-                      <div className="px-2 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-bold text-white flex items-center gap-1">
-                        <Clock className="w-2.5 h-2.5" />
-                        {trip.durationDays} Days
-                      </div>
-                      <div className="px-2 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-bold text-white flex items-center gap-1">
-                        <Users className="w-2.5 h-2.5" />
-                        Max {trip.maxGroupSize}
-                      </div>
-                    </div>
-                    {/* Dark overlay gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-60 pointer-events-none" />
-                  </div>
-
-                  {/* Trek Details */}
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-forest-500 dark:text-[#6f9780] mb-1.5">
-                        <MapPin className="w-3 h-3" />
-                        {trip.location}
-                      </div>
-                      <h3 className="font-display font-bold text-base leading-snug line-clamp-2 hover:text-spy-orange cursor-pointer mb-2" onClick={onLaunchApp}>
-                        {trip.name}
-                      </h3>
-                      
-                      <div className="flex items-center gap-1.5 mb-4">
-                        <div className="flex items-center text-amber-400">
-                          <Star className="w-3.5 h-3.5 fill-current" />
-                        </div>
-                        <span className="text-xs font-bold text-zinc-700 dark:text-white/95">{trip.rating}</span>
-                        <span className="text-[10px] text-zinc-400">({trip.reviewsCount} reviews)</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-elegant-border/50">
-                      <div>
-                        <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">Per Person</span>
-                        <span className="text-lg font-black text-forest-600 dark:text-elegant-orange">₹{trip.price}</span>
-                      </div>
-                      <motion.button 
-                        onClick={onLaunchApp}
-                        whileHover={{ scale: 1.1, backgroundColor: "#2D5A27", color: "#fff" }}
-                        whileTap={{ scale: 0.9 }}
-                        className="p-2.5 rounded-xl bg-forest-500/10 dark:bg-elegant-green/20 text-forest-700 dark:text-elegant-text transition-all border border-forest-500/10 cursor-pointer"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </motion.button>
-                    </div>
-                  </div>
+                  <p className="text-sm font-semibold">No Featured Journeys Right Now</p>
+                  <p className="text-xs opacity-75 mt-1">Register as an organizer or log in to list the first trek!</p>
                 </motion.div>
-              ))}
+              ) : (
+                filteredTrips.map((trip) => (
+                  <motion.div 
+                    key={trip.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.92, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.92, y: 20 }}
+                    whileHover={{ y: -8, scale: 1.01 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                    className="rounded-2xl overflow-hidden bg-[#FCFAF2] dark:bg-elegant-card border border-zinc-200/60 dark:border-elegant-border/70 flex flex-col shadow-md hover:shadow-xl transition-all duration-300 group"
+                  >
+                    {/* Cover Section */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-100">
+                      <img 
+                        src={trip.coverImage} 
+                        alt={trip.name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      />
+                      
+                      {/* Difficulty Badge */}
+                      <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm z-10 ${
+                        trip.difficulty === 'Easy' 
+                          ? 'bg-emerald-500/90 text-white' 
+                          : trip.difficulty === 'Moderate'
+                          ? 'bg-amber-500/90 text-white'
+                          : 'bg-rose-500/90 text-white'
+                      }`}>
+                        {trip.difficulty}
+                      </div>
+
+                      {/* Specs */}
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
+                        <div className="px-2 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-bold text-white flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" />
+                          {trip.durationDays} Days
+                        </div>
+                        <div className="px-2 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-bold text-white flex items-center gap-1">
+                          <Users className="w-2.5 h-2.5" />
+                          Max {trip.maxGroupSize}
+                        </div>
+                      </div>
+                      {/* Dark overlay gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-60 pointer-events-none" />
+                    </div>
+
+                    {/* Trek Details */}
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-forest-500 dark:text-[#6f9780] mb-1.5">
+                          <MapPin className="w-3 h-3" />
+                          {trip.location}
+                        </div>
+                        <h3 className="font-display font-bold text-base leading-snug line-clamp-2 hover:text-spy-orange cursor-pointer mb-2" onClick={onLaunchApp}>
+                          {trip.name}
+                        </h3>
+                        
+                        <div className="flex items-center gap-1.5 mb-4">
+                          <div className="flex items-center text-amber-400">
+                            <Star className="w-3.5 h-3.5 fill-current" />
+                          </div>
+                          <span className="text-xs font-bold text-zinc-700 dark:text-white/95">{trip.rating}</span>
+                          <span className="text-[10px] text-zinc-400">({trip.reviewsCount} reviews)</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-elegant-border/50">
+                        <div>
+                          <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">Per Person</span>
+                          <span className="text-lg font-black text-forest-600 dark:text-elegant-orange">₹{trip.price}</span>
+                        </div>
+                        <motion.button 
+                          onClick={onLaunchApp}
+                          whileHover={{ scale: 1.1, backgroundColor: "#2D5A27", color: "#fff" }}
+                          whileTap={{ scale: 0.9 }}
+                          className="p-2.5 rounded-xl bg-forest-500/10 dark:bg-elegant-green/20 text-forest-700 dark:text-elegant-text transition-all border border-forest-500/10 cursor-pointer"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </AnimatePresence>
           </motion.div>
 
@@ -900,7 +950,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
         <footer className="w-full border-t border-zinc-200 dark:border-elegant-border bg-[#F6F1E5] dark:bg-elegant-bg transition-colors duration-300 py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={onLaunchApp}>
-              <TrekigoLogo size={28} className="text-forest-600 dark:text-elegant-green" />
+              <AppLogo size={28} className="text-forest-600 dark:text-elegant-green" />
               <span className="font-display font-black text-xl tracking-tight bg-gradient-to-r from-forest-700 via-forest-500 to-spy-orange dark:from-white dark:to-elegant-text bg-clip-text text-transparent">
                 {C.header.logoText}
               </span>

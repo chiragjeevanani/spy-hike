@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, Download, MessageSquare, Star, Receipt, ShieldAlert,
-  Phone, Mail, Globe, User, ExternalLink
+  Phone, Mail, Globe, User, ExternalLink, X
 } from 'lucide-react';
 import TravelTicket from './TravelTicket';
 import { downloadTicketPDF } from '../utils/ticketPdf';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
 
 export default function BookingDetailsView({
   booking,
@@ -17,6 +19,27 @@ export default function BookingDetailsView({
   onRateHike,
   darkMode
 }) {
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const toast = useToast();
+
+  const handleSubmitReview = (e) => {
+    e.preventDefault();
+    if (!reviewComment.trim()) {
+      setReviewError('Please write a comment about your experience.');
+      return;
+    }
+    setReviewError('');
+    onRateHike(booking, reviewRating, reviewComment.trim());
+    toast.success('Review logged and average rating updated successfully!');
+    setShowReviewModal(false);
+    setReviewComment('');
+    setReviewRating(5);
+  };
+
   return (
     <div className={`flex-1 flex flex-col h-full overflow-hidden font-sans relative ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
@@ -171,21 +194,26 @@ export default function BookingDetailsView({
         darkMode ? 'bg-zinc-950/95 border-white/5' : 'bg-white/95 border-zinc-200/60'
       }`}>
         <button
+          onClick={() => onContactOrganizer(booking)}
+          className="flex-1 py-2 bg-forest-600 hover:bg-forest-700 text-white rounded-full text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all duration-200"
+        >
+          Message <MessageSquare size={10} />
+        </button>
+
+        <button
           onClick={() => onDownloadInvoice(booking)}
           className={`flex-1 py-2 border rounded-full text-[9px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all duration-200 ${
-            darkMode 
-              ? 'border-white/10 hover:bg-white/5 text-zinc-350' 
+            darkMode
+              ? 'border-white/10 hover:bg-white/5 text-zinc-350'
               : 'border-zinc-200 hover:bg-zinc-50 text-zinc-650'
           }`}
         >
           Ticket PDF <Download size={10} />
         </button>
 
-
-
         {booking.status === 'Completed' && (
           <button
-            onClick={() => onRateHike(booking)}
+            onClick={() => setShowReviewModal(true)}
             className="flex-1 py-2 bg-spy-orange hover:bg-spy-orange-hover text-white rounded-full text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all duration-200"
           >
             Rate Hike <Star size={10} className="fill-white" />
@@ -194,18 +222,101 @@ export default function BookingDetailsView({
 
         {booking.status === 'Upcoming' && (
           <button
-            onClick={() => {
-              if (confirm(`Are you sure you want to cancel the registration for ${booking.tripName}? 100% refund is credited back to your original source.`)) {
-                onModifyBookingStatus(booking.id, 'Cancelled');
-                onBack();
-              }
-            }}
+            onClick={() => setShowCancelConfirm(true)}
             className="flex-1 py-2 rounded-full bg-rose-500/10 hover:bg-rose-500/15 text-rose-500 text-[9px] uppercase font-black tracking-wider cursor-pointer active:scale-95 transition-all text-center"
           >
             Cancel Slot
           </button>
         )}
       </div>
+
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
+          <form
+            onSubmit={handleSubmitReview}
+            noValidate
+            className={`p-6 rounded-3xl max-w-sm w-full border relative ${
+              darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-gray-100'
+            }`}
+          >
+            <h4 className="text-sm font-display font-black flex items-center gap-1.5 text-orange-500">
+              <Star className="fill-orange-500 text-orange-500" size={16} /> Rate Verified Crossing
+            </h4>
+            <span className="text-[10px] opacity-50 block mt-1 pb-4 border-b border-dashed border-zinc-800">
+              {booking.tripName}
+            </span>
+
+            <div className="flex gap-2 justify-center py-5">
+              {[1, 2, 3, 4, 5].map((starNum) => (
+                <button
+                  type="button"
+                  key={starNum}
+                  onClick={() => setReviewRating(starNum)}
+                  className="transition transform active:scale-95 duration-200 cursor-pointer"
+                >
+                  <Star
+                    size={26}
+                    className={starNum <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-zinc-605'}
+                  />
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider block">Write Your Experience *</label>
+              <textarea
+                rows={3}
+                placeholder="Write comment regarding safety, local food or path guidelines..."
+                value={reviewComment}
+                onChange={e => { setReviewComment(e.target.value); setReviewError(''); }}
+                className={`w-full text-xs p-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                  darkMode ? 'bg-zinc-950 border-zinc-855 text-white' : 'bg-gray-100 border-gray-255 text-zinc-900'
+                } ${reviewError ? 'border-red-500 focus:border-red-500' : ''}`}
+              />
+              {reviewError && <p className="text-[11px] font-semibold text-red-500">{reviewError}</p>}
+            </div>
+
+            <div className="flex gap-2 pt-4 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowReviewModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-zinc-400 rounded-lg hover:underline cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="submit"
+                className="bg-forest-600 hover:bg-forest-700 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer shadow-sm active:scale-95"
+              >
+                Submit Review
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowReviewModal(false)}
+              className="absolute top-3 right-3 text-zinc-500 cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          </form>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showCancelConfirm}
+        title="Cancel Booking?"
+        message={`Are you sure you want to cancel the registration for ${booking.tripName}? 100% refund is credited back to your original source.`}
+        confirmLabel="Cancel Registration"
+        tone="danger"
+        onConfirm={() => {
+          setShowCancelConfirm(false);
+          onModifyBookingStatus(booking.id, 'Cancelled');
+          onBack();
+        }}
+        onCancel={() => setShowCancelConfirm(false)}
+        darkMode={darkMode}
+      />
 
     </div>
   );

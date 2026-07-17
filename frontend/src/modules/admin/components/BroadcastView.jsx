@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Megaphone, Send, Clock, Info, Copy } from 'lucide-react';
 import socialApi from '../../../lib/socialApi';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
 
 export default function BroadcastView({ darkMode }) {
   const [title, setTitle] = useState('');
@@ -9,31 +12,46 @@ export default function BroadcastView({ darkMode }) {
   const [target, setTarget] = useState('both');
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
+  const toast = useToast();
+  const fieldRefs = useRef({});
 
   const refresh = () => socialApi.listBroadcasts().then(setBroadcasts).catch(() => setBroadcasts([]));
   useEffect(() => { refresh(); }, []);
 
-  const handleBroadcast = async (e) => {
+  const FIELD_ORDER = ['title', 'content'];
+
+  const handleBroadcast = (e) => {
     e.preventDefault();
-    if (!title || !content) {
-      alert('Please fill in all fields.');
+    const errors = {};
+    if (!title.trim()) errors.title = 'Message title is required.';
+    if (!content.trim()) errors.content = 'Message details are required.';
+
+    if (Object.keys(errors).length > 0) {
+      const message = errors[FIELD_ORDER.find((f) => errors[f])];
+      setFieldErrors(errors);
+      toast.error(message);
+      scrollToFirstError(fieldRefs.current, errors, FIELD_ORDER);
       return;
     }
+    setFieldErrors({});
+    setShowSendConfirm(true);
+  };
 
-    if (!window.confirm(`Send this announcement to: "${target === 'both' ? 'All' : target === 'users' ? 'Hikers' : 'Organizers'}"?`)) {
-      return;
-    }
-
+  const confirmSend = async () => {
+    setShowSendConfirm(false);
     setLoading(true);
     try {
       // Server records the announcement and fans out a notification to every
       // recipient in the target audience.
-      await socialApi.broadcast({ title, content, type, target });
+      await socialApi.broadcast({ title: title.trim(), content: content.trim(), type, target });
       setTitle('');
       setContent('');
+      toast.success('Announcement sent successfully!');
       await refresh();
     } catch (err) {
-      alert(err?.message || 'Could not send announcement.');
+      toast.error(err?.message || 'Could not send announcement.');
     } finally {
       setLoading(false);
     }
@@ -98,32 +116,34 @@ export default function BroadcastView({ darkMode }) {
             <span>Create Announcement</span>
           </h3>
 
-          <form onSubmit={handleBroadcast} className="space-y-4">
-            
+          <form onSubmit={handleBroadcast} noValidate className="space-y-4">
+
             {/* Title */}
             <div>
-              <label className={labelCls}>Message Title</label>
+              <label className={labelCls}>Message Title *</label>
               <input
+                ref={el => { fieldRefs.current.title = { current: el }; }}
                 type="text"
                 placeholder="e.g. ⛰️ Monsoon Safety Guidelines"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                className={inputCls}
+                onChange={(e) => { setTitle(e.target.value); setFieldErrors(er => ({ ...er, title: '' })); }}
+                className={`${inputCls} ${fieldErrors.title ? 'border-rose-500 focus:border-rose-500' : ''}`}
               />
+              {fieldErrors.title && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.title}</p>}
             </div>
 
             {/* Content text */}
             <div>
-              <label className={labelCls}>Message Details</label>
+              <label className={labelCls}>Message Details *</label>
               <textarea
+                ref={el => { fieldRefs.current.content = { current: el }; }}
                 rows={3}
                 placeholder="Enter description here..."
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
-                required
-                className={`${inputCls} resize-none`}
+                onChange={(e) => { setContent(e.target.value); setFieldErrors(er => ({ ...er, content: '' })); }}
+                className={`${inputCls} resize-none ${fieldErrors.content ? 'border-rose-500 focus:border-rose-500' : ''}`}
               />
+              {fieldErrors.content && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.content}</p>}
             </div>
 
             {/* Selection rows */}
@@ -255,6 +275,16 @@ export default function BroadcastView({ darkMode }) {
         </div>
       </div>
 
+      <ConfirmDialog
+        open={showSendConfirm}
+        title="Send Announcement?"
+        message={`This will be sent to: ${target === 'both' ? 'All hikers & organizers' : target === 'users' ? 'Hikers only' : 'Organizers only'}.`}
+        confirmLabel="Send"
+        tone="default"
+        onConfirm={confirmSend}
+        onCancel={() => setShowSendConfirm(false)}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

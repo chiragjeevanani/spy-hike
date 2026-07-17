@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import Organizer from '../../src/models/Organizer.js';
+import User from '../../src/models/User.js';
 import Admin from '../../src/models/Admin.js';
+import Trek from '../../src/models/Trek.js';
 import { hashPassword } from '../../src/utils/password.js';
 
 const app = createApp();
@@ -12,19 +13,24 @@ async function customerToken(email) {
   return reg.body.token;
 }
 async function approvedOrganizerToken(email = 'org@example.com') {
-  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Peak Guides' });
-  await Organizer.findByIdAndUpdate(reg.body.account.id, { isApproved: true, isPendingApproval: false });
+  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Peak Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
+  await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
   const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
   return login.body.token;
 }
 async function adminToken() {
-  await Admin.create({ name: 'Admin', email: 'admin@trekigo.com', passwordHash: await hashPassword('admin123') });
-  const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@trekigo.com', password: 'admin123' });
+  await Admin.create({ name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') });
+  const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@findyourtrek.com', password: 'admin123' });
   return res.body.token;
 }
 async function makeTrip(orgToken, over = {}) {
+  const trek = await Trek.create({
+    _id: `analytics-trek-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    title: 'Analytics Trek', location: 'Manali', state: 'Himachal Pradesh', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    coverImage: 'https://example.com/trek.jpg',
+  });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({
-    name: 'Analytics Trek', location: 'Manali', state: 'Himachal Pradesh',
+    trekId: trek._id,
     pricingTiers: [{ label: 'Solo', price: 1000 }], pickup: { location: 'Manali', price: 0 },
     startPoint: { lat: 32.2, lng: 77.1, label: 'Base' }, departureDates: ['2026-08-01'],
     maxGroupSize: 10, availableSeats: 10, category: 'Trekking', status: 'Published', ...over,
@@ -44,7 +50,7 @@ describe('Admin analytics', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken('c@example.com');
     const trip = await makeTrip(org);
-    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{}, {}] });
+    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.status).toBe(200);
@@ -62,7 +68,7 @@ describe('Admin analytics', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken('c@example.com');
     const trip = await makeTrip(org);
-    const b = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{}] });
+    const b = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     await request(app).post(`/api/v1/bookings/${b.body.booking.bookingId}/cancel`).set('Authorization', `Bearer ${cust}`);
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
@@ -73,7 +79,7 @@ describe('Admin analytics', () => {
 
   it('surfaces a pending organizer in the overview', async () => {
     const admin = await adminToken();
-    await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Pending', email: 'pending@example.com', password: 'pass1234', agencyName: 'Newbie' });
+    await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Pending', email: 'pending@example.com', password: 'pass1234', agencyName: 'Newbie', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.body.overview.pendingOrgs).toBe(1);
   });
@@ -83,7 +89,7 @@ describe('Admin analytics', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken('c@example.com');
     const trip = await makeTrip(org, { category: 'Camping' });
-    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{}] });
+    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.body.topOrganizers[0].revenue).toBeGreaterThan(0);

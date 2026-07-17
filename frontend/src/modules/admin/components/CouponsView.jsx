@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   TicketPercent, Plus, Search, Pencil, Trash2, Pause, Play, X, Percent, IndianRupee, Sparkles
 } from 'lucide-react';
 import couponsApi from '../../../lib/couponsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import OrganizerCouponsView from './OrganizerCouponsView';
+import { useToast } from '../../../components/ToastProvider';
+import { scrollToFirstError } from '../../../utils/formValidation';
+
+const FIELD_ORDER = ['code', 'value'];
 
 const emptyForm = () => ({
   code: '',
@@ -19,20 +24,26 @@ const emptyForm = () => ({
 });
 
 export default function CouponsView({ darkMode }) {
+  const [tab, setTab] = useState('platform'); // 'platform' | 'organizer'
   const [coupons, setCoupons] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [editingCoupon, setEditingCoupon] = useState(null); // null = closed, {} = new, {...} = edit
   const [form, setForm] = useState(emptyForm());
-  const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const toast = useToast();
+
+  const codeRef = useRef(null);
+  const valueRef = useRef(null);
+  const fieldRefs = { code: codeRef, value: valueRef };
 
   const refresh = () => couponsApi.list().then(setCoupons).catch(() => setCoupons([]));
   useEffect(() => { refresh(); }, []);
 
   const openCreate = () => {
     setForm(emptyForm());
-    setFormError('');
+    setFieldErrors({});
     setEditingCoupon({});
   };
 
@@ -45,7 +56,7 @@ export default function CouponsView({ darkMode }) {
       minBookingAmount: coupon.minBookingAmount ? String(coupon.minBookingAmount) : '',
       expiresAt: coupon.expiresAt || '',
     });
-    setFormError('');
+    setFieldErrors({});
     setEditingCoupon(coupon);
   };
 
@@ -55,15 +66,23 @@ export default function CouponsView({ darkMode }) {
     e.preventDefault();
     const code = form.code.trim().toUpperCase();
     const value = Number(form.value);
-
-    if (!code) return setFormError('Enter a coupon code.');
-    if (!value || value <= 0) return setFormError('Enter a discount value greater than 0.');
-    if (form.type === 'percentage' && value > 100) return setFormError('Percentage discount cannot exceed 100%.');
-    if (!form.expiresAt) return setFormError('Set an expiry date.');
-
     const isNew = !editingCoupon.id;
-    const duplicate = coupons.some(c => c.code === code && (isNew || c.id !== editingCoupon.id));
-    if (duplicate) return setFormError('A coupon with this code already exists.');
+
+    const errors = {};
+    if (!code) errors.code = 'Enter a coupon code.';
+    else if (coupons.some(c => c.code === code && (isNew || c.id !== editingCoupon.id))) {
+      errors.code = 'A coupon with this code already exists.';
+    }
+    if (!form.value || !value || value <= 0) errors.value = 'Enter a discount value greater than 0.';
+    else if (form.type === 'percentage' && value > 100) errors.value = 'Percentage discount cannot exceed 100%.';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast.error(Object.values(errors)[0]);
+      scrollToFirstError(fieldRefs, errors, FIELD_ORDER);
+      return;
+    }
+    setFieldErrors({});
 
     const fields = {
       code,
@@ -71,35 +90,44 @@ export default function CouponsView({ darkMode }) {
       value,
       maxDiscount: form.type === 'percentage' && form.maxDiscount ? Number(form.maxDiscount) : null,
       minBookingAmount: form.minBookingAmount ? Number(form.minBookingAmount) : 0,
-      expiresAt: form.expiresAt,
+      expiresAt: form.expiresAt || null,
     };
 
     try {
       if (isNew) {
         await couponsApi.create(fields);
+        toast.success('Coupon created.');
       } else {
         await couponsApi.update(editingCoupon.id, fields);
+        toast.success('Coupon updated.');
       }
       await refresh();
       closeModal();
     } catch (err) {
-      setFormError(err?.message || 'Could not save coupon.');
+      toast.error(err?.message || 'Could not save coupon.');
     }
   };
 
   const handleToggleStatus = async (coupon) => {
     try {
-      await couponsApi.toggle(coupon.id);
+      const updated = await couponsApi.toggle(coupon.id);
       await refresh();
+      toast.success(updated.status === 'Active' ? 'Coupon activated.' : 'Coupon paused.');
     } catch (err) {
-      alert(err?.message || 'Could not change coupon status.');
+      toast.error(err?.message || 'Could not change coupon status.');
     }
   };
 
   const handleConfirmDelete = async () => {
-    await couponsApi.remove(deleteTarget.id);
-    await refresh();
-    setDeleteTarget(null);
+    try {
+      await couponsApi.remove(deleteTarget.id);
+      await refresh();
+      toast.success('Coupon deleted.');
+    } catch (err) {
+      toast.error(err?.message || 'Could not delete coupon.');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const filteredCoupons = coupons.filter(c => {
@@ -121,11 +149,12 @@ export default function CouponsView({ darkMode }) {
       : 'bg-white border-slate-100 text-slate-800 shadow-slate-100/50'
   }`;
   const labelCls = 'text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2';
-  const inputCls = `w-full px-4 py-2.5 rounded-xl border outline-none text-xs font-semibold transition-all ${
+  const inputCls = `w-full min-w-0 px-4 py-2.5 rounded-xl border outline-none text-xs font-semibold transition-all ${
     darkMode
       ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-[#F27D26]/60'
       : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-[#F27D26]/60'
   }`;
+  const errCls = (hasError) => (hasError ? 'border-rose-500 focus:border-rose-500' : '');
 
   const formatDiscount = (c) => {
     if (c.type === 'flat') return `₹${c.value} off`;
@@ -142,18 +171,47 @@ export default function CouponsView({ darkMode }) {
             <TicketPercent className="text-[#F27D26]" size={22} /> Coupons & Discounts
           </h1>
           <p className="text-slate-400 text-xs mt-1.5 font-semibold">
-            Create flat or percentage discount codes, set an expiry, and pause/resume them anytime.
+            {tab === 'platform'
+              ? 'Create flat or percentage discount codes, set an expiry, and pause/resume them anytime.'
+              : 'Coupons organizers have created themselves for their own trips — edit, pause, or remove any of them.'}
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#F27D26] hover:bg-[#d96d1a] text-white shadow-lg shadow-orange-500/15 active:scale-95 transition-all"
-        >
-          <Plus size={14} />
-          <span>Create Coupon</span>
-        </button>
+        {tab === 'platform' && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#F27D26] hover:bg-[#d96d1a] text-white shadow-lg shadow-orange-500/15 active:scale-95 transition-all"
+          >
+            <Plus size={14} />
+            <span>Create Coupon</span>
+          </button>
+        )}
       </div>
 
+      {/* Tab switcher */}
+      <div className="flex rounded-xl border border-slate-200 dark:border-slate-800 p-1 gap-1 w-fit">
+        {[
+          { id: 'platform', label: 'Platform Coupons' },
+          { id: 'organizer', label: 'Organizer Coupons' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              tab === t.id
+                ? 'bg-[#F27D26] text-white'
+                : darkMode ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'organizer' ? (
+        <OrganizerCouponsView darkMode={darkMode} />
+      ) : (
+      <>
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map(stat => (
@@ -305,22 +363,19 @@ export default function CouponsView({ darkMode }) {
               <span>{editingCoupon.id ? 'Edit Coupon' : 'Create Coupon'}</span>
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {formError && (
-                <div className="p-2.5 rounded-xl text-[11px] font-bold bg-rose-500/10 text-rose-500">
-                  {formError}
-                </div>
-              )}
-
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label className={labelCls}>Coupon Code</label>
+                <label className={labelCls}>Coupon Code *</label>
                 <input
+                  ref={codeRef}
                   type="text"
                   placeholder="e.g. SUMMER25"
                   value={form.code}
-                  onChange={(e) => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                  className={`${inputCls} font-mono tracking-wider`}
+                  onChange={(e) => { setForm(f => ({ ...f, code: e.target.value.toUpperCase() })); setFieldErrors(er => ({ ...er, code: '' })); }}
+                  aria-invalid={!!fieldErrors.code}
+                  className={`${inputCls} font-mono tracking-wider ${errCls(fieldErrors.code)}`}
                 />
+                {fieldErrors.code && <p className="text-[11px] font-semibold text-rose-500 mt-1">{fieldErrors.code}</p>}
               </div>
 
               <div>
@@ -347,20 +402,23 @@ export default function CouponsView({ darkMode }) {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>{form.type === 'flat' ? 'Amount (₹)' : 'Percentage (%)'}</label>
+                <div className="min-w-0">
+                  <label className={labelCls}>{form.type === 'flat' ? 'Amount (₹) *' : 'Percentage (%) *'}</label>
                   <input
+                    ref={valueRef}
                     type="number"
                     min="0"
                     max={form.type === 'percentage' ? 100 : undefined}
                     placeholder={form.type === 'flat' ? 'e.g. 50' : 'e.g. 20'}
                     value={form.value}
-                    onChange={(e) => setForm(f => ({ ...f, value: e.target.value }))}
-                    className={inputCls}
+                    onChange={(e) => { setForm(f => ({ ...f, value: e.target.value })); setFieldErrors(er => ({ ...er, value: '' })); }}
+                    aria-invalid={!!fieldErrors.value}
+                    className={`${inputCls} ${errCls(fieldErrors.value)}`}
                   />
+                  {fieldErrors.value && <p className="text-[11px] font-semibold text-rose-500 mt-1">{fieldErrors.value}</p>}
                 </div>
                 {form.type === 'percentage' && (
-                  <div>
+                  <div className="min-w-0">
                     <label className={labelCls}>Max Discount Cap (₹)</label>
                     <input
                       type="number"
@@ -375,7 +433,7 @@ export default function CouponsView({ darkMode }) {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Min. Booking Amount (₹)</label>
                   <input
                     type="number"
@@ -386,8 +444,8 @@ export default function CouponsView({ darkMode }) {
                     className={inputCls}
                   />
                 </div>
-                <div>
-                  <label className={labelCls}>Expiry Date</label>
+                <div className="min-w-0">
+                  <label className={labelCls}>Expiry Date (optional)</label>
                   <input
                     type="date"
                     value={form.expiresAt}
@@ -429,6 +487,8 @@ export default function CouponsView({ darkMode }) {
         onCancel={() => setDeleteTarget(null)}
         darkMode={darkMode}
       />
+      </>
+      )}
 
     </div>
   );

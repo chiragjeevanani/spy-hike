@@ -67,7 +67,7 @@ test.describe('Customer — Loyalty Rewards', () => {
     // Server-verified reward now: lower the threshold, mint a real voucher via
     // an API booking, then redeem it through the UI.
     const ctx = await pwRequest.newContext();
-    const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@trekigo.com', password: 'admin123' } })).json()).token;
+    const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@findyourtrek.com', password: 'admin123' } })).json()).token;
     await ctx.patch(`${API}/admin/loyalty/config`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { customer: { enabled: true, thresholdPersons: 2 } } });
     const email = `loyalty-${Date.now()}@example.com`;
     const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Loyalty Hiker', email, password: 'pass1234' } })).json()).token;

@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Compass, ChevronDown, FileText, ShieldCheck, HandHeart, Globe, Mail, Instagram, Twitter } from 'lucide-react';
-import TrekigoLogo from '../../../components/TrekigoLogo';
+import AppLogo from '../../../components/AppLogo';
 
 const LEGAL_SECTIONS = [
   {
     icon: FileText,
     title: 'Terms of Service',
-    body: 'By listing treks on Trekigo, organizers agree to maintain accurate trip information, honor published pricing and cancellation policies, and hold valid guiding/operating licenses for every region they operate in.',
+    body: 'By listing treks on Find Your Trek, organizers agree to maintain accurate trip information, honor published pricing and cancellation policies, and hold valid guiding/operating licenses for every region they operate in.',
   },
   {
     icon: ShieldCheck,
     title: 'Privacy Policy',
-    body: 'Traveller contact details shared for an upcoming booking may only be used to coordinate that trek. Trekigo encrypts all verification documents and never shares them with third parties without consent.',
+    body: 'Traveller contact details shared for an upcoming booking may only be used to coordinate that trek. Find Your Trek encrypts all verification documents and never shares them with third parties without consent.',
   },
   {
     icon: HandHeart,
     title: 'Partner Agreement',
-    body: 'Trekigo charges a platform commission per completed booking (visible on every payout breakdown) in exchange for traveller discovery, secure payments, and dispute resolution support.',
+    body: 'Find Your Trek charges a platform commission per completed booking (visible on every payout breakdown) in exchange for traveller discovery, secure payments, and dispute resolution support.',
   },
 ];
 
@@ -39,8 +39,8 @@ export default function OrgAboutView({ onBack, darkMode }) {
 
         {/* Brand block */}
         <div className="flex flex-col items-center text-center pt-4 pb-2">
-          <TrekigoLogo size={56} className="text-spy-orange" />
-          <h1 className="text-2xl font-display font-black tracking-tight mt-4">Trekigo</h1>
+          <AppLogo size={56} className="text-spy-orange" />
+          <h1 className="text-2xl font-display font-black tracking-tight mt-4">Find Your Trek</h1>
           <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Organizer Partner Panel</p>
           <span className={`text-[10px] font-mono mt-2 px-2.5 py-1 rounded-full ${darkMode ? 'bg-zinc-900 text-zinc-500' : 'bg-zinc-100 text-zinc-400'}`}>
             v2.4.0
@@ -50,7 +50,7 @@ export default function OrgAboutView({ onBack, darkMode }) {
         {/* Description */}
         <div className={`p-4 rounded-2xl ${cardCls}`}>
           <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-            Trekigo connects certified trek operators with adventure travellers across India's Himalayan and Western Ghats trails.
+            Find Your Trek connects certified trek operators with adventure travellers across India's Himalayan and Western Ghats trails.
             The Organizer Panel is your control center for listing treks, managing bookings, tracking payouts, and growing your outdoor business —
             built to be as reliable as the mountains you guide people through.
           </p>
@@ -98,11 +98,11 @@ export default function OrgAboutView({ onBack, darkMode }) {
         <div className="space-y-2">
           <span className={`text-xs font-bold uppercase tracking-widest pl-1 block ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Connect With Us</span>
           <div className="grid grid-cols-3 gap-2.5">
-            <a href="https://trekigo.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
+            <a href="https://findyourtrek.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
               <Globe size={17} className="text-spy-orange" />
               <span className="text-[10px] font-semibold">Website</span>
             </a>
-            <a href="mailto:partners@trekigo.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
+            <a href="mailto:partners@findyourtrek.com" className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl transition active:scale-95 ${cardCls}`}>
               <Mail size={17} className="text-spy-orange" />
               <span className="text-[10px] font-semibold">Email</span>
             </a>
@@ -114,7 +114,7 @@ export default function OrgAboutView({ onBack, darkMode }) {
         </div>
 
         <p className={`text-center text-[11px] pt-3 ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>
-          Made with ❤️ for mountain explorers everywhere.<br />© 2026 Trekigo. All rights reserved.
+          Made with ❤️ for mountain explorers everywhere.<br />© 2026 Find Your Trek. All rights reserved.
         </p>
       </div>
     </div>

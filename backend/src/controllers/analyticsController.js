@@ -1,5 +1,4 @@
 import User from '../models/User.js';
-import Organizer from '../models/Organizer.js';
 import Trip from '../models/Trip.js';
 import Booking from '../models/Booking.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -16,9 +15,9 @@ const monthKey = (dt) => {
 export const getAnalytics = asyncHandler(async (req, res) => {
   const [users, organizers, trips, bookings] = await Promise.all([
     User.find().select('status createdAt'),
-    Organizer.find().select('isApproved isPendingApproval'),
-    Trip.find().select('category state'),
-    Booking.find().select('finalAmount commissionAmount status organizerName bookingDate createdAt'),
+    User.find({ isOrganizer: true }).select('name organizer.isApproved organizer.isPendingApproval createdAt'),
+    Trip.find().select('category state createdAt name'),
+    Booking.find().select('finalAmount commissionAmount status userName tripName organizerName bookingDate createdAt'),
   ]);
 
   const active = bookings.filter((b) => b.status !== 'Cancelled');
@@ -64,6 +63,59 @@ export const getAnalytics = asyncHandler(async (req, res) => {
   users.forEach((u) => { const s = byKey.get(monthKey(u.createdAt)); if (s) s.users += 1; });
   const revenueTrend = series.map(({ key, ...rest }) => ({ ...rest, revenue: round(rest.revenue) }));
 
+  // Compile real recent logs activity feed
+  const rawLogs = [];
+  bookings.slice(-5).forEach((b) => {
+    rawLogs.push({
+      id: `b-${b._id}`,
+      type: 'Booking',
+      text: `${b.userName || 'Someone'} booked ${b.tripName || 'a trip'}`,
+      createdAt: b.createdAt || new Date()
+    });
+  });
+
+  organizers.slice(-5).forEach((o) => {
+    rawLogs.push({
+      id: `o-${o._id}`,
+      type: 'Organizer',
+      text: `New partner "${o.name}" registered`,
+      createdAt: o.createdAt || new Date()
+    });
+  });
+
+  trips.slice(-5).forEach((t) => {
+    rawLogs.push({
+      id: `t-${t._id}`,
+      type: 'Trip',
+      text: `Trek "${t.name}" was listed`,
+      createdAt: t.createdAt || new Date()
+    });
+  });
+
+  rawLogs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const recentLogs = rawLogs.slice(0, 5).map((log) => {
+    const diffMs = new Date() - new Date(log.createdAt);
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffDays = Math.round(diffMs / 86400000);
+
+    let timeText = 'Just now';
+    if (diffDays > 0) {
+      timeText = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    } else if (diffHours > 0) {
+      timeText = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else if (diffMins > 0) {
+      timeText = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    }
+
+    return {
+      id: log.id,
+      type: log.type,
+      text: log.text,
+      time: timeText
+    };
+  });
+
   res.json({
     overview: {
       gmv,
@@ -71,7 +123,7 @@ export const getAnalytics = asyncHandler(async (req, res) => {
       users: users.length,
       activeUsers: users.filter((u) => u.status === 'Active').length,
       organizers: organizers.length,
-      pendingOrgs: organizers.filter((o) => o.isPendingApproval && !o.isApproved).length,
+      pendingOrgs: organizers.filter((o) => o.organizer?.isPendingApproval && !o.organizer?.isApproved).length,
       trips: trips.length,
       bookings: bookings.length,
     },
@@ -80,5 +132,6 @@ export const getAnalytics = asyncHandler(async (req, res) => {
     stateDist,
     topOrganizers,
     bookingStatus,
+    recentLogs,
   });
 });

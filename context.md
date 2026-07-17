@@ -1,8 +1,9 @@
-# Trekigo — Backend Context & Reference
+# Find Your Trek — Backend Context & Reference
 
 > **Purpose of this file.** This is the single source of truth for the **backend** work on
-> Trekigo (formerly "Spy Hike" — the project was rebranded throughout the codebase and storage
-> keys; see §2). The frontend is built and maintained separately. This document captures what the
+> Find Your Trek (formerly "Trekigo", formerly "Spy Hike" — the project has been rebranded more than
+> once throughout the codebase; storage keys still use the `trekigo_` prefix from the last rename
+> and were intentionally left as-is — see §2). The frontend is built and maintained separately. This document captures what the
 > app is, how it works, the business logic, the data contracts the frontend already expects, the
 > gaps the backend must fill, and the locked technical decisions. Read this first before touching
 > the backend.
@@ -13,9 +14,9 @@ yet._
 
 ---
 
-## 1. What Trekigo is
+## 1. What Find Your Trek is
 
-Trekigo is a **premium, mobile-first adventure/travel booking platform** — a three-sided
+Find Your Trek is a **premium, mobile-first adventure/travel booking platform** — a three-sided
 marketplace. Customers ("hikers") browse and book treks, hikes, camping, adventure tours, nature
 walks, and weekend trips. "Organizers" are partner agencies who list these experiences at their
 own prices. The platform (via Admin) takes a commission on each booking.
@@ -51,10 +52,13 @@ three — there is no "smallest module" left to punt on.
 - **All data is mocked in `localStorage`.** There are **no network/API calls** anywhere in the
   frontend. `express`/`dotenv` in `frontend/package.json` are only used to serve the built bundle
   in production, not as an app backend.
-- **Rebrand:** the project (and every localStorage key) was renamed from `spyhike_*` to
-  `trekigo_*` at some point after the original version of this doc was written. **Any new backend
-  work should assume `trekigo_*` naming/branding throughout** (API base path, JWT issuer, email
-  templates, etc.).
+- **Rebrand history:** the project's localStorage keys were renamed from `spyhike_*` to `trekigo_*`
+  early on, then the product itself was rebranded again to "Find Your Trek" — but the storage keys
+  were deliberately **left as `trekigo_*`** during that second rename (an internal implementation
+  detail invisible to users; renaming it would only risk breaking existing sessions for no visible
+  benefit). **Any new backend work should keep using `trekigo_*` for storage/token keys** — the
+  brand name shown to users, email domain, and demo credentials are "Find Your Trek" /
+  `findyourtrek.com`.
 - **Organizer is a real, authenticated entity now** (not just an embedded `{name, avatar, rating,
   verified}` object) — full registration/KYC-collection flow, own profile, own dashboard. However,
   trips still only embed a **denormalized snapshot** of the organizer (`trip.organizer = {name,
@@ -219,7 +223,7 @@ system:
 - Customer checkout calls `validateCouponCode(code, bookingAmount)` which enforces status +
   min-booking-amount, computes the discount (flat, or % optionally capped), and never discounts
   more than the booking total. `usedCount` increments on successful payment.
-- 3 seed coupons ship pre-loaded: `TREKIGO20` (20%), `VALLEY50` (₹50 flat), `GHATS15` (15%) —
+- 3 seed coupons ship pre-loaded: `FYT20` (20%), `VALLEY50` (₹50 flat), `GHATS15` (15%) —
   these back the promo banners shown on the customer home feed.
 
 ---

@@ -15,6 +15,8 @@ import AdminUserProfileView from './components/AdminUserProfileView';
 import OrganizersView from './components/OrganizersView';
 import AdminOrganizerProfileView from './components/AdminOrganizerProfileView';
 import TripsView from './components/TripsView';
+import TreksView from './components/TreksView';
+import TrekRequestsView from './components/TrekRequestsView';
 import BookingsView from './components/BookingsView';
 import PayoutsView from './components/PayoutsView';
 import CouponsView from './components/CouponsView';
@@ -33,6 +35,8 @@ function getAdminTab(pathname) {
   if (p.startsWith('users/')) return 'UserProfile';
   if (p === 'organizers') return 'Organizers';
   if (p.startsWith('organizers/')) return 'OrganizerProfile';
+  if (p === 'treks') return 'Treks';
+  if (p === 'trek-requests') return 'TrekRequests';
   if (p === 'trips') return 'Trips';
   if (p === 'bookings') return 'Bookings';
   if (p === 'payouts') return 'Payouts';
@@ -61,6 +65,8 @@ function tabToPath(tab, param) {
   if (tab === 'UserProfile') return `${PATH_PREFIX}/users/${param ? encodeURIComponent(param) : 'new'}`;
   if (tab === 'Organizers') return `${PATH_PREFIX}/organizers`;
   if (tab === 'OrganizerProfile') return `${PATH_PREFIX}/organizers/${param ? encodeURIComponent(param) : 'new'}`;
+  if (tab === 'Treks') return `${PATH_PREFIX}/treks`;
+  if (tab === 'TrekRequests') return `${PATH_PREFIX}/trek-requests`;
   if (tab === 'Trips') return `${PATH_PREFIX}/trips`;
   if (tab === 'Bookings') return `${PATH_PREFIX}/bookings`;
   if (tab === 'Payouts') return `${PATH_PREFIX}/payouts`;
@@ -161,8 +167,12 @@ export default function AdminApp() {
             darkMode={darkMode}
           />
         );
+      case 'Treks':
+        return <TreksView darkMode={darkMode} />;
+      case 'TrekRequests':
+        return <TrekRequestsView darkMode={darkMode} />;
       case 'Trips':
-        return <TripsView darkMode={darkMode} />;
+        return <TripsView onOpenOrganizer={openOrganizerProfile} darkMode={darkMode} />;
       case 'Bookings':
         return <BookingsView darkMode={darkMode} />;
       case 'Payouts':

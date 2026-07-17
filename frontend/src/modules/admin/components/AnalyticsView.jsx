@@ -13,20 +13,24 @@ import {
 const STATUS_COLORS = { Upcoming: '#F27D26', Completed: '#10B981', Cancelled: '#EF4444' };
 
 export default function AnalyticsView({ darkMode }) {
-  const [revenueTrend, setRevenueTrend] = useState(REVENUE_TREND_DATA);
-  const [stateData, setStateData] = useState(STATE_POPULARITY_DATA);
-  const [topOrganizers, setTopOrganizers] = useState(TOP_ORGANIZERS_DATA);
-  const [bookingStatus, setBookingStatus] = useState(BOOKING_STATUS_DATA);
+  const [revenueTrend, setRevenueTrend] = useState([]);
+  const [stateData, setStateData] = useState([]);
+  const [topOrganizers, setTopOrganizers] = useState([]);
+  const [bookingStatus, setBookingStatus] = useState([]);
 
   useEffect(() => {
-    // Real aggregates from the API (falls back to the static mock series).
     bookingsApi.getAnalytics()
       .then((a) => {
         if (a.revenueTrend?.length) setRevenueTrend(a.revenueTrend);
         if (a.stateDist?.length) setStateData(a.stateDist);
         if (a.topOrganizers?.length) setTopOrganizers(a.topOrganizers);
         if (a.bookingStatus?.length) {
-          setBookingStatus(a.bookingStatus.map((s) => ({ ...s, color: STATUS_COLORS[s.name] || '#94A3B8' })));
+          const total = a.bookingStatus.reduce((s, c) => s + c.value, 0);
+          setBookingStatus(a.bookingStatus.map((s) => ({
+            ...s,
+            value: total > 0 ? Math.round((s.value / total) * 100) : 0,
+            color: STATUS_COLORS[s.name] || '#94A3B8'
+          })));
         }
       })
       .catch(() => {});

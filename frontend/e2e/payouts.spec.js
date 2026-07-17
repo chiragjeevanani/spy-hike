@@ -6,7 +6,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // so the balance is independent of the shared demo org.
 
 const API = 'http://localhost:4000/api/v1';
-const DEMO_ADMIN = { email: 'admin@trekigo.com', password: 'admin123' };
+const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 function dateInDays(n) {
   const d = new Date();
@@ -75,7 +75,7 @@ test('admin approves a payout in the console and downloads its receipt', async (
     page.waitForEvent('download'),
     row.locator('button[title="Download receipt"]').click(),
   ]);
-  expect(download.suggestedFilename()).toBe(`Trekigo-Payout-${reference}.pdf`);
+  expect(download.suggestedFilename()).toBe(`Find Your Trek-Payout-${reference}.pdf`);
 });
 
 test('admin rejects a payout with a reason and the balance is freed', async ({ page }) => {

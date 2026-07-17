@@ -15,11 +15,14 @@ import { getToken } from '../lib/apiClient';
 const CONFIG_KEY = 'trekigo_loyalty_config';
 const CUSTOMER_VOUCHERS_KEY = 'trekigo_loyalty_customer_vouchers';
 const ORG_VOUCHERS_KEY = 'trekigo_loyalty_org_vouchers';
+const CUSTOMER_PROGRESS_KEY = 'trekigo_loyalty_customer_progress';
+const ORG_PROGRESS_KEY = 'trekigo_loyalty_org_progress';
 
 export const DEFAULT_LOYALTY_CONFIG = {
   customer: {
     enabled: true,
     thresholdPersons: 30,
+    maxDiscountAmount: 5000,
     rewardTitle: 'Free Trek Booking',
     rewardDescription: 'Book 30 travelers cumulatively — solo or in groups, across any treks — and your next booking is completely free, on us.',
     banner: {
@@ -33,7 +36,7 @@ export const DEFAULT_LOYALTY_CONFIG = {
     enabled: true,
     thresholdBookings: 1000,
     rewardTitle: 'Zero-Commission Booking',
-    rewardDescription: 'Cross 1000 bookings via Trekigo and earn a zero-commission credit — apply it to any upcoming booking to keep 100% of that payout.',
+    rewardDescription: 'Cross 1000 bookings via Find Your Trek and earn a zero-commission credit — apply it to any upcoming booking to keep 100% of that payout.',
     banner: {
       enabled: true,
       image: '',
@@ -141,14 +144,14 @@ export const markCustomerVoucherUsed = (voucherId, bookingId) =>
   markVoucherUsed(CUSTOMER_VOUCHERS_KEY, voucherId, bookingId);
 
 // Progress within the current milestone cycle. Landing exactly on a multiple
-// of the threshold (lifetime % threshold === 0, lifetime > 0) means a cycle
-// just completed — report it as 100%/0-remaining rather than wrapping back
-// to a fresh "0 of threshold", which would misleadingly read as no progress
-// right at the moment a reward was earned.
-const computeCycleProgress = (lifetime, threshold) => {
+// of the threshold (count % threshold === 0, count > 0) means a cycle just
+// completed — report it as 100%/0-remaining rather than wrapping back to a
+// fresh "0 of threshold", which would misleadingly read as no progress right
+// at the moment a reward was earned.
+const computeCycleProgress = (count, threshold) => {
   if (threshold <= 0) return { withinCycle: 0, remaining: 0, percent: 0 };
-  const atCompletedMilestone = lifetime > 0 && lifetime % threshold === 0;
-  const withinCycle = atCompletedMilestone ? threshold : lifetime % threshold;
+  const atCompletedMilestone = count > 0 && count % threshold === 0;
+  const withinCycle = atCompletedMilestone ? threshold : count % threshold;
   return {
     withinCycle,
     remaining: threshold - withinCycle,
@@ -156,10 +159,35 @@ const computeCycleProgress = (lifetime, threshold) => {
   };
 };
 
+// Offline/demo fallback (no server progress cached): claiming a voucher
+// resets progress to 0, which — since each claim consumes exactly one
+// threshold's worth of lifetime count, in earn order — is equivalent to
+// counting only the lifetime total past what's already been redeemed.
+const fallbackCycleCount = (lifetime, vouchers, threshold) => {
+  const usedCount = vouchers.filter(v => v.status === 'used').length;
+  return Math.max(0, lifetime - usedCount * threshold);
+};
+
+const loadCachedProgress = (key) => {
+  try {
+    const val = localStorage.getItem(key);
+    if (val) return JSON.parse(val);
+  } catch (e) { console.error(e); }
+  return null;
+};
+
 export const getCustomerProgress = (bookings, config = loadLoyaltyConfig()) => {
   const threshold = config.customer.thresholdPersons;
   const lifetime = computeLifetimePersons(bookings);
-  return { lifetime, threshold, ...computeCycleProgress(lifetime, threshold) };
+  // Signed-in: trust the server's cycle progress (it resets on claim using
+  // real redemption timestamps) — same "server is authoritative" rule
+  // syncCustomerVouchers already follows.
+  if (getToken()) {
+    const cached = loadCachedProgress(CUSTOMER_PROGRESS_KEY);
+    if (cached) return { ...cached, lifetime };
+  }
+  const cycleCount = fallbackCycleCount(lifetime, loadCustomerVouchers(), threshold);
+  return { lifetime, threshold, ...computeCycleProgress(cycleCount, threshold) };
 };
 
 // ─── Organizer-side (bookings via app) ─────────────────────────────────────
@@ -179,7 +207,12 @@ export const markOrganizerVoucherUsed = (voucherId, bookingId) =>
 
 export const getOrganizerProgress = (lifetimeBookings, config = loadLoyaltyConfig()) => {
   const threshold = config.organizer.thresholdBookings;
-  return { lifetime: lifetimeBookings, threshold, ...computeCycleProgress(lifetimeBookings, threshold) };
+  if (getToken()) {
+    const cached = loadCachedProgress(ORG_PROGRESS_KEY);
+    if (cached) return { ...cached, lifetime: lifetimeBookings };
+  }
+  const cycleCount = fallbackCycleCount(lifetimeBookings, loadOrganizerVouchers(), threshold);
+  return { lifetime: lifetimeBookings, threshold, ...computeCycleProgress(cycleCount, threshold) };
 };
 
 // ─── API hydration (server → localStorage cache) ────────────────────────────
@@ -206,6 +239,7 @@ export async function hydrateCustomerLoyalty() {
     const [config, me] = await Promise.all([loyaltyApi.getConfig(), loyaltyApi.getCustomerLoyalty()]);
     if (config) saveVouchersConfig(config);
     if (Array.isArray(me?.vouchers)) saveVouchers(CUSTOMER_VOUCHERS_KEY, me.vouchers);
+    if (me?.progress) localStorage.setItem(CUSTOMER_PROGRESS_KEY, JSON.stringify(me.progress));
     return me;
   } catch { return null; }
 }
@@ -216,6 +250,7 @@ export async function hydrateOrganizerLoyalty() {
     const [config, data] = await Promise.all([loyaltyApi.getConfig(), loyaltyApi.getOrganizerLoyalty()]);
     if (config) saveVouchersConfig(config);
     if (Array.isArray(data?.vouchers)) saveVouchers(ORG_VOUCHERS_KEY, data.vouchers);
+    if (data?.progress) localStorage.setItem(ORG_PROGRESS_KEY, JSON.stringify(data.progress));
     return data;
   } catch { return null; }
 }
