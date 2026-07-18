@@ -5,7 +5,7 @@ import {
   loginAdmin, me, logout, updateProfile, checkAvailability, uploadImage,
   requestEmailOtp, updateProfileVerify, updatePassword, resetPasswordOtp,
   getLinkedOrganizerStatus, getCustomerToken, updateOrganizerProfile, getPublicOrganizerProfile,
-  updateFcmToken,
+  updateFcmToken, deactivateAccount,
 } from '../controllers/authController.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -28,6 +28,7 @@ router.patch('/auth/password/change', requireAuth, updatePassword);
 router.get('/auth/organizer-status', requireAuth, getLinkedOrganizerStatus);
 router.get('/auth/customer-token', requireAuth, getCustomerToken);
 router.post('/auth/fcm-token', requireAuth, updateFcmToken);
+router.post('/auth/deactivate', requireAuth, deactivateAccount);
 router.get('/auth/organizer/public/:name', getPublicOrganizerProfile);
 
 // Organizer

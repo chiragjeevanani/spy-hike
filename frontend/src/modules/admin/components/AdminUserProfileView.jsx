@@ -170,11 +170,16 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
   };
 
   const handleToggleStatus = async () => {
-    const nextStatus = existingUser.status === 'Banned' ? 'Active' : 'Banned';
+    // Deactivated accounts (self-service) can only be reactivated, not
+    // "unbanned" — they were never banned in the first place.
+    const nextStatus = existingUser.status === 'Active' ? 'Banned' : 'Active';
     try {
       const updated = await adminApi.setUserStatus(existingUser.id, nextStatus);
       setApiUser(updated);
-      toast.success(nextStatus === 'Banned' ? 'Hiker suspended.' : 'Hiker reinstated.');
+      toast.success(
+        nextStatus === 'Banned' ? 'Hiker suspended.'
+          : existingUser.status === 'Deactivated' ? 'Account reactivated.' : 'Hiker reinstated.'
+      );
     } catch (err) {
       toast.error(err?.message || 'Could not update status.');
     }
@@ -247,13 +252,13 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
             <button
               onClick={() => setShowStatusConfirm(true)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
-                existingUser.status === 'Banned'
-                  ? 'border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
-                  : 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
+                existingUser.status === 'Active'
+                  ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
+                  : 'border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
               }`}
             >
-              {existingUser.status === 'Banned' ? <CheckCircle2 size={13} /> : <Ban size={13} />}
-              {existingUser.status === 'Banned' ? 'Reinstate' : 'Suspend'}
+              {existingUser.status === 'Active' ? <Ban size={13} /> : <CheckCircle2 size={13} />}
+              {existingUser.status === 'Active' ? 'Suspend' : existingUser.status === 'Deactivated' ? 'Reactivate' : 'Reinstate'}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
@@ -280,7 +285,8 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
                 <h2 className="font-display font-black text-lg">{existingUser.name}</h2>
                 <span className="text-xs text-slate-400 font-semibold mt-0.5">{existingUser.email}</span>
                 <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase mt-3 ${
-                  existingUser.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
+                  existingUser.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' :
+                  existingUser.status === 'Deactivated' ? 'bg-amber-500/10 text-amber-600' : 'bg-rose-500/10 text-rose-600'
                 }`}>
                   {existingUser.status}
                 </span>
@@ -581,14 +587,19 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
 
       <ConfirmDialog
         open={showStatusConfirm}
-        title={existingUser?.status === 'Banned' ? 'Reinstate Hiker?' : 'Suspend Hiker?'}
-        message={
-          existingUser?.status === 'Banned'
-            ? `${existingUser?.name} will regain full access to book and use the app.`
-            : `${existingUser?.name} will be banned and unable to log in or make new bookings.`
+        title={
+          existingUser?.status === 'Active' ? 'Suspend Hiker?' :
+          existingUser?.status === 'Deactivated' ? 'Reactivate Account?' : 'Reinstate Hiker?'
         }
-        confirmLabel={existingUser?.status === 'Banned' ? 'Reinstate' : 'Suspend'}
-        tone={existingUser?.status === 'Banned' ? 'default' : 'danger'}
+        message={
+          existingUser?.status === 'Active'
+            ? `${existingUser?.name} will be banned and unable to log in or make new bookings.`
+            : existingUser?.status === 'Deactivated'
+              ? `${existingUser?.name} deactivated their own account. Reactivating will let them log in again.`
+              : `${existingUser?.name} will regain full access to book and use the app.`
+        }
+        confirmLabel={existingUser?.status === 'Active' ? 'Suspend' : existingUser?.status === 'Deactivated' ? 'Reactivate' : 'Reinstate'}
+        tone={existingUser?.status === 'Active' ? 'danger' : 'default'}
         onConfirm={handleToggleStatus}
         onCancel={() => setShowStatusConfirm(false)}
         darkMode={darkMode}

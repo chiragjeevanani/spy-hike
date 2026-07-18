@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Lock, Phone, User, Compass, Eye, EyeOff, KeyRound, Globe, Building2, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import authApi from '../../../lib/authApi';
+import contentApi from '../../../lib/contentApi';
 import usePhoneVerification from '../../../lib/usePhoneVerification';
 import SwitchTransition from './SwitchTransition';
 import AppLogo from '../../../components/AppLogo';
@@ -24,6 +25,16 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [registerStep, setRegisterStep] = useState(1); // 1 = Basic, 2 = Phone, 3 = OTP
   const toast = useToast();
   const [showBannedModal, setShowBannedModal] = useState(false);
+  // 'banned' | 'deactivated' — picks the popup copy; support contact details
+  // are admin-editable via the CMS (see lib/contentApi.js).
+  const [blockedReason, setBlockedReason] = useState('banned');
+  const [supportContact, setSupportContact] = useState({ email: 'support@findyourtrek.com', phone: '+91 99999 88888' });
+
+  useEffect(() => {
+    contentApi.getContent().then((c) => {
+      if (c?.support) setSupportContact({ email: c.support.email, phone: c.support.phone });
+    });
+  }, []);
 
   useEffect(() => {
     setMode(initialMode);
@@ -132,7 +143,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         onSuccess({ ...user, rememberMe });
       }
     } catch (err) {
-      if (err.status === 403 && err.message?.toLowerCase().includes('banned')) {
+      const lowerMsg = err.message?.toLowerCase() || '';
+      if (err.status === 403 && lowerMsg.includes('deactivated')) {
+        setBlockedReason('deactivated');
+        setShowBannedModal(true);
+      } else if (err.status === 403 && lowerMsg.includes('banned')) {
+        setBlockedReason('banned');
         setShowBannedModal(true);
       } else {
         const message = role === 'ORGANIZER' && err?.status === 401
@@ -180,7 +196,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       setSuccessMsg('Mobile OTP Verified!');
       onSuccess({ ...user, rememberMe });
     } catch (err) {
-      if (err.status === 403 && err.message?.toLowerCase().includes('banned')) {
+      const lowerMsg = err.message?.toLowerCase() || '';
+      if (err.status === 403 && lowerMsg.includes('deactivated')) {
+        setBlockedReason('deactivated');
+        setShowBannedModal(true);
+      } else if (err.status === 403 && lowerMsg.includes('banned')) {
+        setBlockedReason('banned');
         setShowBannedModal(true);
       } else {
         const message = errText(err, 'Incorrect OTP. Use 123456.');
@@ -1040,21 +1061,25 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <AlertTriangle size={24} />
               </div>
               <div className="space-y-1.5">
-                <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">Access Denied</h4>
+                <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
+                  {blockedReason === 'deactivated' ? 'Account Deactivated' : 'Access Denied'}
+                </h4>
                 <p className="text-xs text-zinc-500 dark:text-zinc-450 font-bold leading-relaxed">
-                  User is banned, kindly contact the customer support for more info.
+                  {blockedReason === 'deactivated'
+                    ? 'Your account is deactivated. Kindly contact customer support for more details.'
+                    : 'User is banned, kindly contact the customer support for more info.'}
                 </p>
               </div>
-              
+
               <div className="bg-slate-50 dark:bg-[#2A1E17] border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2">
                 <div className="text-[10px] uppercase font-bold text-slate-400">Customer Support Contacts</div>
                 <div className="flex items-center gap-2.5 text-xs font-semibold">
                   <Phone size={13} className="text-[#F27D26]" />
-                  <span>+91 99999 88888</span>
+                  <span>{supportContact.phone}</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-xs font-semibold">
                   <Mail size={13} className="text-[#F27D26]" />
-                  <span>support@findyourtrek.com</span>
+                  <span>{supportContact.email}</span>
                 </div>
               </div>
 

@@ -85,7 +85,7 @@ const userSchema = new mongoose.Schema(
     fitnessLevel:      { type: String, enum: ['Low', 'Moderate', 'High'], default: 'Moderate' },
     emergencyContact:  { type: String, default: '' },
     isOnboarded:       { type: Boolean, default: false },
-    status:            { type: String, enum: ['Active', 'Banned'], default: 'Active' },
+    status:            { type: String, enum: ['Active', 'Banned', 'Deactivated'], default: 'Active' },
     authProvider:      { type: String, enum: ['password', 'otp', 'google'], default: 'password' },
     wishlist:          { type: [String], default: [] },
     profileSetupComplete: { type: Boolean, default: false },

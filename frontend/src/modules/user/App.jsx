@@ -36,6 +36,7 @@ import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
+import contentApi from '../../lib/contentApi';
 import { loadLandingContentLocal } from '../landing/landingContent';
 import { getToken } from '../../lib/apiClient';
 import { initPushNotifications } from '../../utils/pushNotifications';
@@ -204,6 +205,9 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
   const [bannedAlert, setBannedAlert] = useState(false);
   const [bannedReason, setBannedReason] = useState('banned');
+  // Support contact shown on the deactivated/banned overlay — admin-editable
+  // via the CMS (see lib/contentApi.js), with sane fallback defaults.
+  const [supportContact, setSupportContact] = useState({ email: 'support@findyourtrek.com', phone: '+91 99999 88888' });
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
   const [showMap, setShowMap] = useState(false);
   // Hides the bottom nav while a tab renders a fullscreen flow (e.g. the
@@ -471,6 +475,12 @@ export default function App() {
   useEffect(() => {
     saveNotifications(notifications);
   }, [notifications]);
+
+  useEffect(() => {
+    contentApi.getContent().then((c) => {
+      if (c?.support) setSupportContact({ email: c.support.email, phone: c.support.phone });
+    });
+  }, []);
 
   useEffect(() => {
     const handleStatusChangeEvent = (e) => {
@@ -1179,12 +1189,25 @@ export default function App() {
                   </div>
                   <div className="space-y-1">
                     <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
-                      {bannedReason === 'deleted' ? 'Account Deleted' : 'Account Suspended'}
+                      {bannedReason === 'deleted' ? 'Account Deleted' : bannedReason === 'deactivated' ? 'Account Deactivated' : 'Account Suspended'}
                     </h4>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
-                      {bannedReason === 'deleted' ? 'Your account has been deleted by the admin.' : 'You are banned by the admin.'}
+                      {bannedReason === 'deleted'
+                        ? 'Your account has been deleted by the admin.'
+                        : bannedReason === 'deactivated'
+                          ? 'Your account is deactivated. Kindly contact customer support for more details.'
+                          : 'You are banned by the admin.'}
                     </p>
                   </div>
+
+                  {bannedReason === 'deactivated' && (
+                    <div className="bg-slate-50 dark:bg-[#2A1E17] border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2">
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Customer Support Contacts</div>
+                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{supportContact.phone}</div>
+                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{supportContact.email}</div>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
   ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon,
-  Building2, CreditCard, Upload, Gift
+  Building2, CreditCard, Upload, Gift, FileText, Phone, Mail, UserX, Clock
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
@@ -12,6 +12,7 @@ import SwitchTransition from './SwitchTransition';
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import authApi from '../../../lib/authApi';
+import contentApi from '../../../lib/contentApi';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
 
@@ -117,6 +118,18 @@ export default function ProfileView({
 }) {
   const [currentSub, setCurrentSub] = useState('MAIN');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+
+  // Privacy Policy / Support page copy + support contact details — fully
+  // admin-editable via the CMS (see lib/contentApi.js). Fetched once; falls
+  // back to sane defaults if the backend is unreachable.
+  const [siteContent, setSiteContent] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    contentApi.getContent().then((c) => { if (!cancelled) setSiteContent(c); });
+    return () => { cancelled = true; };
+  }, []);
 
   // The partner application takes over the whole screen — ask the shell to
   // hide the bottom nav while it's open (restored on back/unmount).
@@ -375,6 +388,24 @@ export default function ProfileView({
       setPasswordState({ current: '', next: '', confirm: '' });
     } catch (err) {
       toast.error(err?.message || 'Failed to update password.');
+    }
+  };
+
+  // Self-service deactivation — the account can no longer log in until an
+  // admin reactivates it (see authApi.deactivateAccount / backend
+  // authController.deactivateAccount). Logs the current session out right
+  // away since the account is no longer usable.
+  const handleDeactivateAccount = async () => {
+    setDeactivating(true);
+    try {
+      await authApi.deactivateAccount();
+      setShowDeactivateConfirm(false);
+      toast.success('Your account has been deactivated.');
+      onLogout();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to deactivate account.');
+    } finally {
+      setDeactivating(false);
     }
   };
 
@@ -761,7 +792,17 @@ export default function ProfileView({
                   <ChevronRight size={17} className="opacity-40" />
                 </button>
 
-
+                <button
+                  onClick={() => setCurrentSub('PRIVACY_POLICY')}
+                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <FileText size={19} className="text-forest-500" /> Privacy Policy
+                  </span>
+                  <ChevronRight size={17} className="opacity-40" />
+                </button>
 
                 {/* Restart onboarding tutorial */}
                 <button
@@ -1248,6 +1289,47 @@ export default function ProfileView({
           </motion.div>
         )}
 
+        {/* SUB: PRIVACY POLICY — fully admin-editable via lib/contentApi.js */}
+        {currentSub === 'PRIVACY_POLICY' && (
+          <motion.div
+            key="PRIVACY_POLICY"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 30 }}
+            transition={{ duration: 0.2 }}
+            className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
+          >
+          <div className={subHeaderCls}>
+            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <ArrowLeft size={17} />
+            </button>
+            <h3 className={subTitleCls}>{siteContent?.privacyPolicy?.heading || 'Privacy Policy'}</h3>
+          </div>
+
+          <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-5">
+            {siteContent?.privacyPolicy?.effectiveDate && (
+              <p className={`text-[11px] uppercase font-bold tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                Effective {siteContent.privacyPolicy.effectiveDate}
+              </p>
+            )}
+            {siteContent?.privacyPolicy?.intro && (
+              <p className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                {siteContent.privacyPolicy.intro}
+              </p>
+            )}
+
+            {(siteContent?.privacyPolicy?.sections || []).map((sec, i) => (
+              <div key={i} className={`p-4 rounded-2xl space-y-1.5 ${subCardCls}`}>
+                <h4 className="text-sm font-bold">{sec.title}</h4>
+                <p className={`text-xs leading-relaxed whitespace-pre-line ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  {sec.body}
+                </p>
+              </div>
+            ))}
+          </div>
+          </motion.div>
+        )}
+
         {/* SUB 4: PREFERENCES & APP SETTINGS */}
         {currentSub === 'SETTINGS' && (
           <motion.div
@@ -1346,6 +1428,24 @@ export default function ProfileView({
               Update Password
             </button>
           </div>
+
+          {/* Setting 5: Danger Zone — self-service deactivation */}
+          <div className={`p-4 rounded-2xl space-y-3 border ${
+            darkMode ? 'bg-rose-500/5 border-rose-500/20' : 'bg-rose-50 border-rose-100'
+          }`}>
+            <h4 className="text-[15px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+              <UserX size={16} /> Delete My Account
+            </h4>
+            <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              Deactivating your account signs you out immediately and blocks future logins. Your data is kept safe — only an admin can reactivate your account.
+            </p>
+            <button
+              onClick={() => setShowDeactivateConfirm(true)}
+              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold uppercase tracking-wide transition cursor-pointer active:scale-[0.99]"
+            >
+              Delete / Deactivate Account
+            </button>
+          </div>
           </motion.div>
         )}
 
@@ -1367,6 +1467,37 @@ export default function ProfileView({
           </div>
 
           <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-6">
+            {/* Contact Support — email/phone/hours are admin-editable via the CMS */}
+            {siteContent?.support && (
+              <div className={`p-4 rounded-2xl space-y-2.5 ${subCardCls}`}>
+                <h4 className="text-[15px] font-semibold flex items-center gap-1.5">
+                  <HelpCircle size={16} className="text-forest-500" /> {siteContent.support.heading || 'Contact Support'}
+                </h4>
+                {siteContent.support.intro && (
+                  <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {siteContent.support.intro}
+                  </p>
+                )}
+                <div className="space-y-1.5 pt-1">
+                  {siteContent.support.email && (
+                    <a href={`mailto:${siteContent.support.email}`} className="flex items-center gap-2.5 text-xs font-semibold text-forest-600 dark:text-forest-400">
+                      <Mail size={14} /> {siteContent.support.email}
+                    </a>
+                  )}
+                  {siteContent.support.phone && (
+                    <a href={`tel:${siteContent.support.phone}`} className="flex items-center gap-2.5 text-xs font-semibold text-forest-600 dark:text-forest-400">
+                      <Phone size={14} /> {siteContent.support.phone}
+                    </a>
+                  )}
+                  {siteContent.support.hours && (
+                    <div className={`flex items-center gap-2.5 text-xs font-semibold ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      <Clock size={14} /> {siteContent.support.hours}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Create new ticket card form */}
             <form onSubmit={handleRaiseTicketSubmit} noValidate className={`p-4 rounded-2xl space-y-4 shrink-0 ${subCardCls}`}>
               <h4 className="text-[15px] font-semibold text-forest-600 dark:text-forest-400 flex items-center gap-1.5">
@@ -1438,14 +1569,16 @@ export default function ProfileView({
               ))}
             </div>
 
-            {/* Support descriptive collapsible FAQs */}
+            {/* Support descriptive collapsible FAQs — admin-editable via the CMS */}
             <div className={`space-y-3 pt-4 border-t ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
               <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 block pl-1">Support Desk FAQs</span>
               <div className={`text-sm space-y-1.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: How soon can I cancel my trek departure?</p>
-                <p className="leading-relaxed pb-2">A: Full booking refund settlements are executed up to 15 days before the departure slot.</p>
-                <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: Are park mountain permits physical documents?</p>
-                <p className="leading-relaxed">A: No, Find Your Trek coordinates verified digital QR pass entries directly with forest control gates.</p>
+                {(siteContent?.support?.faqs || []).map((f, i) => (
+                  <React.Fragment key={i}>
+                    <p className={`font-bold ${darkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Q: {f.q}</p>
+                    <p className="leading-relaxed pb-2">A: {f.a}</p>
+                  </React.Fragment>
+                ))}
               </div>
             </div>
           </div>
@@ -1620,6 +1753,17 @@ export default function ProfileView({
         confirmLabel="Log Out"
         onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
         onCancel={() => setShowLogoutConfirm(false)}
+        darkMode={darkMode}
+      />
+
+      <ConfirmDialog
+        open={showDeactivateConfirm}
+        title="Deactivate Your Account?"
+        message={`You'll be signed out immediately and won't be able to log back in until an admin reactivates your account. For help, contact support at ${siteContent?.support?.email || 'support@findyourtrek.com'} or ${siteContent?.support?.phone || '+91 99999 88888'}.`}
+        confirmLabel={deactivating ? 'Deactivating…' : 'Yes, Deactivate'}
+        tone="danger"
+        onConfirm={handleDeactivateAccount}
+        onCancel={() => setShowDeactivateConfirm(false)}
         darkMode={darkMode}
       />
 

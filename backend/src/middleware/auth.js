@@ -15,10 +15,11 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
     throw ApiError.unauthorized('Invalid or expired token');
   }
 
-  // Load the user from DB to verify status is not Banned. Checked for both
-  // customer- and organizer-scoped tokens since they're the same underlying
-  // User document in the unified account model — a ban must hold regardless
-  // of which role the caller's token happens to be scoped to.
+  // Load the user from DB to verify status is not Banned/Deactivated. Checked
+  // for both customer- and organizer-scoped tokens since they're the same
+  // underlying User document in the unified account model — a ban/deactivation
+  // must hold regardless of which role the caller's token happens to be
+  // scoped to, and takes effect immediately even mid-session.
   if (req.user.role === 'customer' || req.user.role === 'organizer') {
     const user = await User.findById(req.user.sub).select('status');
     if (!user) {
@@ -26,6 +27,9 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
     }
     if (user.status === 'Banned') {
       throw ApiError.forbidden('User is banned');
+    }
+    if (user.status === 'Deactivated') {
+      throw ApiError.forbidden('This account has been deactivated. Kindly contact customer support for more details.');
     }
   }
   next();

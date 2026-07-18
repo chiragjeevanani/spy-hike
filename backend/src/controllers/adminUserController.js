@@ -13,7 +13,7 @@ const MOBILE_REGEX = /^\d{10}$/;
 export const listUsers = asyncHandler(async (req, res) => {
   const { search, status } = req.query;
   const filter = {};
-  if (status === 'Active' || status === 'Banned') filter.status = status;
+  if (['Active', 'Banned', 'Deactivated'].includes(status)) filter.status = status;
   if (search) {
     const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ name: rx }, { email: rx }, { mobile: rx }];

@@ -247,7 +247,8 @@ export default function UsersView({ onOpenProfile, darkMode }) {
                     {/* Status badge */}
                     <td className="py-4 px-6">
                       <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase ${
-                        user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
+                        user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' :
+                        user.status === 'Deactivated' ? 'bg-amber-500/10 text-amber-600' : 'bg-rose-500/10 text-rose-600'
                       }`}>
                         {user.status}
                       </span>
@@ -262,17 +263,29 @@ export default function UsersView({ onOpenProfile, darkMode }) {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => setStatusAction({ id: user.id, email: user.email, name: user.name, nextStatus: user.status === 'Banned' ? 'Active' : 'Banned' })}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                          user.status === 'Active'
-                            ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
-                            : 'border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
-                        }`}
-                        title={user.status === 'Active' ? 'Ban Hiker' : 'Unban Hiker'}
-                      >
-                        {user.status === 'Active' ? <Ban size={14} /> : <CheckCircle size={14} />}
-                      </button>
+                      {user.status === 'Deactivated' ? (
+                        // Self-deactivated accounts can only be reactivated by an admin —
+                        // no "ban" action offered here since the user isn't banned.
+                        <button
+                          onClick={() => setStatusAction({ id: user.id, email: user.email, name: user.name, currentStatus: 'Deactivated', nextStatus: 'Active' })}
+                          className="p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all"
+                          title="Reactivate Account"
+                        >
+                          <CheckCircle size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setStatusAction({ id: user.id, email: user.email, name: user.name, currentStatus: user.status, nextStatus: user.status === 'Banned' ? 'Active' : 'Banned' })}
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            user.status === 'Active'
+                              ? 'border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
+                              : 'border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
+                          }`}
+                          title={user.status === 'Active' ? 'Ban Hiker' : 'Unban Hiker'}
+                        >
+                          {user.status === 'Active' ? <Ban size={14} /> : <CheckCircle size={14} />}
+                        </button>
+                      )}
                       <button
                         onClick={() => setDeleteTarget({ id: user.id, email: user.email, name: user.name })}
                         className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
@@ -292,13 +305,18 @@ export default function UsersView({ onOpenProfile, darkMode }) {
 
       <ConfirmDialog
         open={!!statusAction}
-        title={statusAction?.nextStatus === 'Banned' ? 'Ban Hiker?' : 'Unban Hiker?'}
+        title={
+          statusAction?.nextStatus === 'Banned' ? 'Ban Hiker?' :
+          statusAction?.currentStatus === 'Deactivated' ? 'Reactivate Account?' : 'Unban Hiker?'
+        }
         message={
           statusAction?.nextStatus === 'Banned'
             ? `${statusAction?.name} will be banned and unable to log in or make new bookings.`
-            : `${statusAction?.name} will regain full access to the app.`
+            : statusAction?.currentStatus === 'Deactivated'
+              ? `${statusAction?.name} deactivated their own account. Reactivating will let them log in again.`
+              : `${statusAction?.name} will regain full access to the app.`
         }
-        confirmLabel={statusAction?.nextStatus === 'Banned' ? 'Ban' : 'Unban'}
+        confirmLabel={statusAction?.nextStatus === 'Banned' ? 'Ban' : statusAction?.currentStatus === 'Deactivated' ? 'Reactivate' : 'Unban'}
         tone={statusAction?.nextStatus === 'Banned' ? 'danger' : 'default'}
         onConfirm={handleConfirmStatusChange}
         onCancel={() => setStatusAction(null)}

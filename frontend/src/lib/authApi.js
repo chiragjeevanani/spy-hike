@@ -40,6 +40,7 @@ export const authApi = {
   changePassword: (currentPassword, newPassword) => api.patch('/auth/password/change', { currentPassword, newPassword }),
   resetPasswordOtp: (payload) => api.post('/auth/password/reset-otp', payload),
   updateFcmToken: (fcmToken) => api.post('/auth/fcm-token', { fcmToken }),
+  deactivateAccount: () => api.post('/auth/deactivate'),
 
   // ─── Organizer ───
   registerOrganizer: (payload) =>

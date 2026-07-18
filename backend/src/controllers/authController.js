@@ -41,6 +41,17 @@ function isPhoneVerified(mobile, phoneToken) {
   return !!verifiedMobile && verifiedMobile === mobile;
 }
 
+// Shared gate for every login path (password, OTP, Google, organizer). Banned
+// and self-deactivated accounts are both blocked at sign-in, but with
+// distinguishable messages so the frontend can show the right popup copy —
+// it string-matches on 'banned' vs 'deactivated' (see apiClient.js / Auth.jsx).
+function assertLoginAllowed(user) {
+  if (user.status === 'Banned') throw ApiError.forbidden('This account has been banned');
+  if (user.status === 'Deactivated') {
+    throw ApiError.forbidden('This account has been deactivated. Kindly contact customer support for more details.');
+  }
+}
+
 // ── Customer ──────────────────────────────────────────────────────────────────
 
 export const registerCustomer = asyncHandler(async (req, res) => {
@@ -93,7 +104,7 @@ export const loginCustomer = asyncHandler(async (req, res) => {
   if (!user || !(await comparePassword(password, user.passwordHash))) {
     throw ApiError.unauthorized('Invalid email or password');
   }
-  if (user.status === 'Banned') throw ApiError.forbidden('This account has been banned');
+  assertLoginAllowed(user);
   res.json(customerAuthResponse(user));
 });
 
@@ -137,8 +148,8 @@ export const verifyOtp = asyncHandler(async (req, res) => {
       isOnboarded: false,
       profileSetupComplete: false,
     });
-  } else if (user.status === 'Banned') {
-    throw ApiError.forbidden('This account has been banned');
+  } else {
+    assertLoginAllowed(user);
   }
   res.json(customerAuthResponse(user));
 });
@@ -156,8 +167,8 @@ export const googleAuth = asyncHandler(async (req, res) => {
       isOnboarded: false,
       profileSetupComplete: false,
     });
-  } else if (user.status === 'Banned') {
-    throw ApiError.forbidden('This account has been banned');
+  } else {
+    assertLoginAllowed(user);
   }
   res.json(customerAuthResponse(user));
 });
@@ -420,7 +431,7 @@ export const loginOrganizer = asyncHandler(async (req, res) => {
   if (!user.isOrganizer) {
     throw ApiError.forbidden("This account has no organizer profile. Apply from the customer app first.");
   }
-  if (user.status === 'Banned') throw ApiError.forbidden('This account has been banned');
+  assertLoginAllowed(user);
   res.json(organizerAuthResponse(user));
 });
 
@@ -572,6 +583,20 @@ export const me = asyncHandler(async (req, res) => {
 
 export const logout = asyncHandler(async (req, res) => {
   res.json({ ok: true });
+});
+
+// POST /auth/deactivate — self-service account deactivation. The account
+// (customer and/or linked organizer profile, same User document) can no
+// longer log in or use any authenticated route until an admin reactivates it
+// (adminUserController.setUserStatus back to 'Active').
+export const deactivateAccount = asyncHandler(async (req, res) => {
+  const { sub, role } = req.user;
+  if (role === 'admin') throw ApiError.forbidden('Admin accounts cannot be self-deactivated');
+  const user = await User.findById(sub);
+  if (!user) throw ApiError.notFound('Account not found');
+  user.status = 'Deactivated';
+  await user.save();
+  res.json({ ok: true, message: 'Account deactivated successfully' });
 });
 
 export const updatePassword = asyncHandler(async (req, res) => {

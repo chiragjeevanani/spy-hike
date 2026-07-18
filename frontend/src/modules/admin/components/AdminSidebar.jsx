@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Building2, Compass, Mountain, ClipboardList,
   Ticket, TicketPercent, BarChart3, Megaphone, Gift, Settings,
-  LogOut, Shield, ChevronLeft, Menu, Banknote, LayoutTemplate
+  LogOut, Shield, ChevronLeft, Menu, Banknote, LayoutTemplate, ShieldCheck
 } from 'lucide-react';
 import { loadAllOrganizers } from '../utils/storage';
 import { getToken } from '../../../lib/apiClient';
@@ -50,6 +50,7 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
     { id: 'Broadcast', label: 'Broadcast', icon: Megaphone },
     { id: 'Loyalty', label: 'Loyalty', icon: Gift },
     { id: 'Landing', label: 'Landing Page', icon: LayoutTemplate },
+    { id: 'Legal', label: 'Legal & Support', icon: ShieldCheck },
     { id: 'Settings', label: 'Settings', icon: Settings },
   ];
 

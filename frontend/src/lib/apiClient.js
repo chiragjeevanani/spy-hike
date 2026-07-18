@@ -65,7 +65,9 @@ async function request(method, path, body, { auth = true } = {}) {
 
   if (!res.ok) {
     const message = data?.error?.message || `Request failed (${res.status})`;
-    if (res.status === 403 && message.toLowerCase().includes('banned')) {
+    if (res.status === 403 && message.toLowerCase().includes('deactivated')) {
+      window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'deactivated' } }));
+    } else if (res.status === 403 && message.toLowerCase().includes('banned')) {
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'banned' } }));
     } else if (res.status === 401 && message.toLowerCase().includes('deleted')) {
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'deleted' } }));
