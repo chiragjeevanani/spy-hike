@@ -19,6 +19,8 @@ import OrganizerProfileView from './components/OrganizerProfileView';
 import LoyaltyRewardsView from './components/LoyaltyRewardsView';
 import MapView from './components/MapView';
 import LandingView from '../landing/LandingView';
+import PrivacyPolicyPage from '../landing/PrivacyPolicyPage';
+import SupportPage from '../landing/SupportPage';
 
 import {
   loadUserState, saveUserState,
@@ -46,9 +48,36 @@ import { initPushNotifications } from '../../utils/pushNotifications';
 // public marketing Landing page and bypasses onboarding/auth gates entirely.
 const APP_PREFIX = '/app';
 
+// Standalone public pages that live outside /app — reachable with zero login
+// (unlike everything else, which is gated behind /app's auth/onboarding
+// checks below). Raw browser pathname -> the tab that renders it.
+const PUBLIC_PAGE_ROUTES = {
+  '/privacy-policy': 'PrivacyPolicy',
+  '/support': 'SupportPublic',
+};
+
+// Deep-linkable Profile sub-pages (each menu item in ProfileView gets a real
+// URL). Internal path (post toInternalPath, e.g. '/profile/settings') -> the
+// currentSub key ProfileView renders. Absent from this map (or exactly
+// '/profile') means the main Profile menu.
+const PROFILE_SUB_ROUTES = {
+  '/profile/personal-details': 'EDIT_PERSONAL',
+  '/profile/athletics': 'EDIT_STATS',
+  '/profile/reviews': 'MY_REVIEWS',
+  '/profile/settings': 'SETTINGS',
+  '/profile/support': 'SUPPORT',
+  '/profile/become-organizer': 'BECOME_ORGANIZER',
+};
+// Reverse lookup used when ProfileView reports a currentSub change so the URL
+// can be kept in sync (see onNavigateProfile below).
+const PROFILE_SUB_TO_PATH = Object.fromEntries(
+  Object.entries(PROFILE_SUB_ROUTES).map(([path, sub]) => [sub, path]),
+);
+
 // Raw browser pathname -> internal relative path this router understands
 // (e.g. '/app/explore' -> '/explore', '/app' -> '/'). Null means "not under
-// /app" — render the Landing page.
+// /app" — render the Landing page (or one of the standalone public pages
+// above, both handled before this ever gets called).
 const toInternalPath = (rawPath) => {
   if (rawPath === APP_PREFIX) return '/';
   if (rawPath.startsWith(APP_PREFIX + '/')) return rawPath.slice(APP_PREFIX.length);
@@ -69,11 +98,19 @@ const getInitialStateFromUrl = () => {
   let selectedBooking = null;
   let selectedOrganizer = null;
   let trekName = null;
+  let profileSub = null;
 
-  // Root path (and anything outside /app) is the public marketing Landing page.
+  // Standalone public pages (no login, no phone-frame) take priority over
+  // everything else — checked against the raw pathname since they live
+  // outside /app.
+  if (PUBLIC_PAGE_ROUTES[window.location.pathname]) {
+    return { tab: PUBLIC_PAGE_ROUTES[window.location.pathname], trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
+  }
+
+  // Root path (and anything else outside /app) is the public marketing Landing page.
   const path = toInternalPath(window.location.pathname);
   if (path === null) {
-    return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+    return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
   }
 
   // 1. Authenticated Profile Setup & Onboarding Gate redirect rules
@@ -99,6 +136,7 @@ const getInitialStateFromUrl = () => {
   if (!user.isAuthenticated) {
     const isProtectedRoute =
       path === '/profile' ||
+      path.startsWith('/profile/') ||
       path === '/bookings' ||
       path === '/profilesetup' ||
       path === '/onboardingguide' ||
@@ -138,6 +176,9 @@ const getInitialStateFromUrl = () => {
     tab = 'Wishlist';
   } else if (path === '/profile') {
     tab = 'Profile';
+  } else if (PROFILE_SUB_ROUTES[path]) {
+    tab = 'Profile';
+    profileSub = PROFILE_SUB_ROUTES[path];
   } else if (path.startsWith('/trek/')) {
     const trekSlug = path.replace('/trek/', '');
     const foundTrip = allTrips.find(t => slugifyTrekName(t.name) === trekSlug);
@@ -182,7 +223,7 @@ const getInitialStateFromUrl = () => {
   } else if (path === '/register') {
     tab = 'Register';
   }
-  return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+  return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
 };
 
 export default function App() {
@@ -221,6 +262,11 @@ export default function App() {
   const [selectedBooking, setSelectedBooking] = useState(() => getInitialStateFromUrl().selectedBooking);
   const [selectedOrganizer, setSelectedOrganizer] = useState(() => getInitialStateFromUrl().selectedOrganizer);
   const [selectedTrekName, setSelectedTrekName] = useState(() => getInitialStateFromUrl().trekName);
+  // Which Profile sub-page is deep-linked (e.g. '/app/profile/settings') —
+  // null means the main Profile menu. Kept in sync with the URL both ways:
+  // ProfileView reads it as `initialSub` and reports taps back via
+  // `onNavigateProfile` so the browser's back button works as expected.
+  const [profileSub, setProfileSub] = useState(() => getInitialStateFromUrl().profileSub);
   const [showLoyalty, setShowLoyalty] = useState(false);
 
   // 3. Search & Filter dynamic bindings to propagate to Explore tab
@@ -239,9 +285,38 @@ export default function App() {
     handleRouteChange(currentUser);
   };
 
+  // Navigates to a standalone public page that lives outside /app (Privacy
+  // Policy, Support) — a raw pathname, not run through toBrowserPath.
+  const navigateToPublic = (rawPath) => {
+    window.history.pushState({ path: rawPath }, '', rawPath);
+    handleRouteChange();
+  };
+
+  // ProfileView reports every currentSub change here so the URL stays in
+  // sync (deep-linkable, refresh-safe, back-button-friendly). 'MAIN' maps to
+  // plain /profile; anything else maps through PROFILE_SUB_TO_PATH.
+  const navigateProfileSub = (sub) => {
+    navigateTo(sub === 'MAIN' || !PROFILE_SUB_TO_PATH[sub] ? '/profile' : PROFILE_SUB_TO_PATH[sub]);
+  };
+
   const handleRouteChange = (currentUser = user) => {
-    // Root (and anything outside /app) is the public marketing Landing page — bypasses all gates.
+    // Standalone public pages (no login, no phone-frame) take priority over
+    // everything else — checked against the raw pathname since they live
+    // outside /app.
+    if (PUBLIC_PAGE_ROUTES[window.location.pathname]) {
+      setActiveTab(PUBLIC_PAGE_ROUTES[window.location.pathname]);
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
+      setSelectedTrekName(null);
+      setProfileSub(null);
+      return;
+    }
+
+    // Root (and anything else outside /app) is the public marketing Landing page — bypasses all gates.
     const path = toInternalPath(window.location.pathname);
+    setProfileSub(null); // default; overridden below for /profile/* routes
     if (path === null) {
       setActiveTab('Landing');
       setSelectedTrip(null);
@@ -281,12 +356,13 @@ export default function App() {
 
     // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
     if (!currentUser.isAuthenticated) {
-      const isProtectedRoute = 
-        path === '/profile' || 
-        path === '/bookings' || 
-        path === '/profilesetup' || 
-        path === '/onboardingguide' || 
-        path.startsWith('/booking/') || 
+      const isProtectedRoute =
+        path === '/profile' ||
+        path.startsWith('/profile/') ||
+        path === '/bookings' ||
+        path === '/profilesetup' ||
+        path === '/onboardingguide' ||
+        path.startsWith('/booking/') ||
         path.startsWith('/book/');
 
       if (isProtectedRoute) {
@@ -356,6 +432,14 @@ export default function App() {
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
+    } else if (PROFILE_SUB_ROUTES[path]) {
+      setActiveTab('Profile');
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
+      setSelectedTrekName(null);
+      setProfileSub(PROFILE_SUB_ROUTES[path]);
     } else if (path.startsWith('/trek/')) {
       const trekSlug = path.replace('/trek/', '');
       const foundTrip = trips.find(t => slugifyTrekName(t.name) === trekSlug);
@@ -917,12 +1001,22 @@ export default function App() {
             bookings={bookings}
             onFullscreenChange={setNavHidden}
             onOpenLoyalty={() => setShowLoyalty(true)}
+            initialSub={profileSub}
+            onNavigateProfile={navigateProfileSub}
+            onOpenPrivacyPolicy={() => navigateToPublic('/privacy-policy')}
           />
         );
       default:
         return null;
     }
   };
+
+  if (activeTab === 'PrivacyPolicy') {
+    return <PrivacyPolicyPage darkMode={darkMode} />;
+  }
+  if (activeTab === 'SupportPublic') {
+    return <SupportPage darkMode={darkMode} />;
+  }
 
   return activeTab === 'Landing' ? (
     <LandingView

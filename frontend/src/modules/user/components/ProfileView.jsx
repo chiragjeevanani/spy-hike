@@ -114,9 +114,27 @@ export default function ProfileView({
   onTriggerOnboarding,
   bookings = [],
   onFullscreenChange,
-  onOpenLoyalty
+  onOpenLoyalty,
+  // Deep-linking: each menu item is a real URL under /app/profile/* (see
+  // modules/user/App.jsx). `initialSub` seeds the view from the URL (and
+  // updates it on browser back/forward); `goSub` below both updates local
+  // state immediately and reports the change back up so the URL follows.
+  initialSub = 'MAIN',
+  onNavigateProfile,
+  // Privacy Policy is a standalone public page (no login required, real
+  // shareable URL) rather than an in-app sub-screen — this hands off to it.
+  onOpenPrivacyPolicy
 }) {
-  const [currentSub, setCurrentSub] = useState('MAIN');
+  const [currentSub, setCurrentSub] = useState(initialSub || 'MAIN');
+  // Keeps currentSub in sync when the URL changes from outside this
+  // component (browser back/forward, or a direct link landing on a sub-page).
+  useEffect(() => {
+    setCurrentSub(initialSub || 'MAIN');
+  }, [initialSub]);
+  const goSub = (sub) => {
+    setCurrentSub(sub);
+    onNavigateProfile?.(sub);
+  };
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
@@ -276,7 +294,7 @@ export default function ProfileView({
         });
         onUpdateUser(updatedUser);
         toast.success('Personal information updated successfully!');
-        setCurrentSub('MAIN');
+        goSub('MAIN');
       } catch (err) {
         toast.error(err?.message || 'Failed to update profile.');
       } finally {
@@ -340,7 +358,7 @@ export default function ProfileView({
       setShowOtpModal(false);
       setEmailOtp('');
       setMobileOtp('');
-      setCurrentSub('MAIN');
+      goSub('MAIN');
     } catch (err) {
       const message = err?.message || 'Verification failed. Try again.';
       setOtpError(message);
@@ -361,7 +379,7 @@ export default function ProfileView({
     setMobileOtp('');
     setOtpError('');
     setShowOtpModal(false);
-    setCurrentSub('MAIN');
+    goSub('MAIN');
   };
 
   const handleUpdatePassword = async () => {
@@ -417,7 +435,7 @@ export default function ProfileView({
       fitnessLevel: fitLevel
     });
     toast.success('Adventure statistics updated! AI recommend algorithms adjusted.');
-    setCurrentSub('MAIN');
+    goSub('MAIN');
   };
 
   const handleRaiseTicketSubmit = (e) => {
@@ -522,7 +540,7 @@ export default function ProfileView({
           }, delay);
         } else {
           setOrgSwitching(false);
-          setCurrentSub('BECOME_ORGANIZER');
+          goSub('BECOME_ORGANIZER');
         }
       })
       .catch(() => {
@@ -535,7 +553,7 @@ export default function ProfileView({
           }, delay);
         } else {
           setOrgSwitching(false);
-          setCurrentSub('BECOME_ORGANIZER');
+          goSub('BECOME_ORGANIZER');
         }
       });
   };
@@ -709,7 +727,7 @@ export default function ProfileView({
               <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
                 
                 <button
-                  onClick={() => setCurrentSub('EDIT_PERSONAL')}
+                  onClick={() => goSub('EDIT_PERSONAL')}
                   className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
@@ -721,7 +739,7 @@ export default function ProfileView({
                 </button>
 
                 <button
-                  onClick={() => setCurrentSub('EDIT_STATS')}
+                  onClick={() => goSub('EDIT_STATS')}
                   className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
@@ -733,7 +751,7 @@ export default function ProfileView({
                 </button>
 
                 <button
-                  onClick={() => setCurrentSub('MY_REVIEWS')}
+                  onClick={() => goSub('MY_REVIEWS')}
                   className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
@@ -769,7 +787,7 @@ export default function ProfileView({
 
 
                 <button
-                  onClick={() => setCurrentSub('SETTINGS')}
+                  onClick={() => goSub('SETTINGS')}
                   className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
@@ -781,7 +799,7 @@ export default function ProfileView({
                 </button>
 
                 <button
-                  onClick={() => setCurrentSub('SUPPORT')}
+                  onClick={() => goSub('SUPPORT')}
                   className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
@@ -793,7 +811,7 @@ export default function ProfileView({
                 </button>
 
                 <button
-                  onClick={() => setCurrentSub('PRIVACY_POLICY')}
+                  onClick={() => onOpenPrivacyPolicy?.()}
                   className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
                     darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
                   }`}
@@ -1000,7 +1018,7 @@ export default function ProfileView({
           >
           <div className="space-y-4 flex-1">
             <div className={subHeaderCls}>
-              <button type="button" onClick={() => { setOrgFormError(''); setCurrentSub('MAIN'); }} className={subBackBtnCls}>
+              <button type="button" onClick={() => { setOrgFormError(''); goSub('MAIN'); }} className={subBackBtnCls}>
                 <ArrowLeft size={17} />
               </button>
               <h3 className={`${subTitleCls} flex items-center gap-2`}>
@@ -1178,7 +1196,7 @@ export default function ProfileView({
           >
           <div className="space-y-5">
             <div className={subHeaderCls}>
-              <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
                 <ArrowLeft size={17} />
               </button>
               <h3 className={subTitleCls}>Athletics & Experience</h3>
@@ -1248,7 +1266,7 @@ export default function ProfileView({
             className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
           >
           <div className={subHeaderCls}>
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+            <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
               <ArrowLeft size={17} />
             </button>
             <h3 className={subTitleCls}>My Verified Comments</h3>
@@ -1289,47 +1307,6 @@ export default function ProfileView({
           </motion.div>
         )}
 
-        {/* SUB: PRIVACY POLICY — fully admin-editable via lib/contentApi.js */}
-        {currentSub === 'PRIVACY_POLICY' && (
-          <motion.div
-            key="PRIVACY_POLICY"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
-            className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
-          >
-          <div className={subHeaderCls}>
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
-              <ArrowLeft size={17} />
-            </button>
-            <h3 className={subTitleCls}>{siteContent?.privacyPolicy?.heading || 'Privacy Policy'}</h3>
-          </div>
-
-          <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-5">
-            {siteContent?.privacyPolicy?.effectiveDate && (
-              <p className={`text-[11px] uppercase font-bold tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                Effective {siteContent.privacyPolicy.effectiveDate}
-              </p>
-            )}
-            {siteContent?.privacyPolicy?.intro && (
-              <p className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {siteContent.privacyPolicy.intro}
-              </p>
-            )}
-
-            {(siteContent?.privacyPolicy?.sections || []).map((sec, i) => (
-              <div key={i} className={`p-4 rounded-2xl space-y-1.5 ${subCardCls}`}>
-                <h4 className="text-sm font-bold">{sec.title}</h4>
-                <p className={`text-xs leading-relaxed whitespace-pre-line ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                  {sec.body}
-                </p>
-              </div>
-            ))}
-          </div>
-          </motion.div>
-        )}
-
         {/* SUB 4: PREFERENCES & APP SETTINGS */}
         {currentSub === 'SETTINGS' && (
           <motion.div
@@ -1341,7 +1318,7 @@ export default function ProfileView({
             className="flex-1 flex flex-col px-5 pt-4 overflow-y-auto no-scrollbar pb-8 space-y-5"
           >
           <div className={subHeaderCls}>
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+            <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
               <ArrowLeft size={17} />
             </button>
             <h3 className={subTitleCls}>Preferences & Settings</h3>
@@ -1460,7 +1437,7 @@ export default function ProfileView({
             className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
           >
           <div className={subHeaderCls}>
-            <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+            <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
               <ArrowLeft size={17} />
             </button>
             <h3 className={subTitleCls}>Support Tickets Center</h3>
@@ -1598,7 +1575,7 @@ export default function ProfileView({
 
           <div className={`flex items-center justify-between ${subHeaderCls}`}>
             <div className="flex items-center gap-3 min-w-0">
-              <button type="button" onClick={() => setCurrentSub('MAIN')} className={subBackBtnCls}>
+              <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
                 <ArrowLeft size={17} />
               </button>
               <div className="min-w-0">
@@ -1608,7 +1585,7 @@ export default function ProfileView({
             </div>
 
             <button
-              onClick={() => setCurrentSub('MAIN')}
+              onClick={() => goSub('MAIN')}
               className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition cursor-pointer ${
                 darkMode ? 'bg-white/5 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
               }`}
