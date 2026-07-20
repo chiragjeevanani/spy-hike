@@ -11,7 +11,7 @@ export default function AppLogo({
       className={`flex items-center justify-center shrink-0 overflow-hidden rounded-xl ${className}`}
     >
       <img 
-        src="/logo.jpeg" 
+        src="/logo.png" 
         alt="Find Your Trek Logo" 
         style={{ 
           width: size, 

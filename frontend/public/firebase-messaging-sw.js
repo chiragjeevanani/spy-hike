@@ -32,7 +32,7 @@ if (firebaseConfig.apiKey) {
     const body = payload.notification?.body || payload.data?.content || '';
     self.registration.showNotification(title, {
       body,
-      icon: '/logo.jpeg',
+      icon: '/logo.png',
       data: payload.data || {},
     });
   });
