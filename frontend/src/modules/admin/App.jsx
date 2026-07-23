@@ -26,6 +26,7 @@ import LoyaltyProgramView from './components/LoyaltyProgramView';
 import LandingCmsView from './components/LandingCmsView';
 import SiteContentView from './components/SiteContentView';
 import SettingsView from './components/SettingsView';
+import NotFoundPage from '../../components/NotFoundPage';
 
 const PATH_PREFIX = '/admin';
 
@@ -49,7 +50,7 @@ function getAdminTab(pathname) {
   if (p === 'legal') return 'Legal';
   if (p === 'settings') return 'Settings';
   if (p === 'login') return 'Login';
-  return 'Dashboard';
+  return 'NotFound';
 }
 
 // Pulls the :email (or 'new') segment out of /admin/users/:x or
@@ -194,6 +195,14 @@ export default function AdminApp() {
         return <SiteContentView darkMode={darkMode} />;
       case 'Settings':
         return <SettingsView admin={admin} darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode} />;
+      case 'NotFound':
+        return (
+          <NotFoundPage
+            homePath="/admin/dashboard"
+            homeLabel="Return to Admin Dashboard"
+            darkMode={darkMode}
+          />
+        );
       default:
         return <DashboardView onNavigate={navigateTo} darkMode={darkMode} />;
     }

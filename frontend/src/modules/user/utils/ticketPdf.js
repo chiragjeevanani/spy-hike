@@ -1,220 +1,172 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
-// Dependency-free PDF ticket generator. Hand-writes a single-page PDF
-// (boarding-pass ticket + hiker roster + bill summary) and downloads it.
-//
-// PDF text uses standard Helvetica/Courier fonts which only cover ASCII,
-// so the rupee glyph is written as "Rs." and other non-ASCII is stripped.
-
-const A4_W = 595;
-const A4_H = 842;
-
-const clean = (value) =>
-  String(value ?? '')
-    .replace(/₹/g, 'Rs.')
-    .replace(/[^\x20-\x7E]/g, '')
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
-
-// Same seed logic as the on-screen TravelTicket barcode.
-const barcodePattern = (seed = 'FINDYOURTREK') => {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = ((h * 31 + seed.charCodeAt(i)) & 0x7fffffff) >>> 0;
-  const bars = [];
-  for (let i = 0; i < 36; i++) {
-    h = ((h * 1103515245 + 12345) & 0x7fffffff) >>> 0;
-    bars.push((h % 3) + 1);
-  }
-  return bars;
-};
-
-export function downloadTicketPDF(booking) {
-  const ops = [];
-
-  // y is measured from the top of the page for readability; PDF origin is
-  // bottom-left, so flip when emitting.
-  const yy = (fromTop) => A4_H - fromTop;
-
-  const rect = (x, yTop, w, h, [r, g, b]) => {
-    ops.push(`${r} ${g} ${b} rg ${x} ${yy(yTop) - h} ${w} ${h} re f`);
-  };
-
-  const text = (x, yTop, str, { font = 'F1', size = 9, color = [0.13, 0.11, 0.09] } = {}) => {
-    const [r, g, b] = color;
-    ops.push(`BT /${font} ${size} Tf ${r} ${g} ${b} rg ${x} ${yy(yTop)} Td (${clean(str)}) Tj ET`);
-  };
-
-  const dashedLine = (x1, y1Top, x2, y2Top, [r, g, b] = [0.65, 0.6, 0.55]) => {
-    ops.push(`[3 3] 0 d ${r} ${g} ${b} RG 1 w ${x1} ${yy(y1Top)} m ${x2} ${yy(y2Top)} l S [] 0 d`);
-  };
-
-  const line = (x1, y1Top, x2, y2Top, [r, g, b] = [0.85, 0.82, 0.78]) => {
-    ops.push(`${r} ${g} ${b} RG 0.8 w ${x1} ${yy(y1Top)} m ${x2} ${yy(y2Top)} l S`);
-  };
-
-  // Brand palette (matches the app's brown theme)
-  const BROWN = [0.61, 0.4, 0.27];      // #9c6644
-  const ESPRESSO = [0.5, 0.33, 0.22];   // #7f5539
-  const INK = [0.13, 0.11, 0.09];
-  const MUTED = [0.48, 0.42, 0.37];
-  const GREEN = [0.02, 0.59, 0.41];
-  const CARD = [0.985, 0.975, 0.96];
-
-  const M = 40;               // page margin
-  const TICKET_W = A4_W - M * 2;
-  const stubX = M + TICKET_W - 130;
-
-  // ---------- Page header ----------
-  text(M, 52, 'FINDYOURTREK', { font: 'F2', size: 18, color: BROWN });
-  text(M + 92, 52, 'TREK BOARDING PASS', { font: 'F3', size: 9, color: MUTED });
-  text(M, 66, `Generated on ${new Date().toISOString().split('T')[0]}`, { size: 8, color: MUTED });
-
-  // ---------- Ticket ----------
-  const T = 84;               // ticket top
-  const TH = 190;             // ticket height
-
-  rect(M, T, TICKET_W, TH, CARD);
-  // Header band
-  rect(M, T, TICKET_W, 30, BROWN);
-  text(M + 14, T + 20, 'FINDYOURTREK  //  TREK BOARDING PASS', { font: 'F2', size: 10, color: [1, 1, 1] });
-  text(stubX + 14, T + 20, 'TREK PASS', { font: 'F3', size: 8, color: [1, 1, 1] });
-  // Stub perforation
-  dashedLine(stubX, T + 30, stubX, T + TH);
+export async function downloadTicketPDF(booking) {
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  container.style.width = '750px';
+  container.style.backgroundColor = '#FFFFFF';
+  container.style.padding = '32px';
+  container.style.fontFamily = 'sans-serif';
+  container.style.color = '#18181b';
 
   const leadHiker = booking.travelers?.[0]?.name || 'Registered Hiker';
-
-  // Main pane fields
-  const L = M + 14;
-  text(L, T + 50, 'HIKER', { size: 6.5, color: MUTED });
-  text(L, T + 63, leadHiker.toUpperCase(), { font: 'F2', size: 11 });
-
-  text(L, T + 82, 'EXPEDITION', { size: 6.5, color: MUTED });
-  text(L, T + 95, booking.tripName, { font: 'F2', size: 11 });
-  text(L, T + 107, booking.tripLocation, { size: 8.5, color: MUTED });
-
-  const col2 = L + 190;
-  const col3 = L + 300;
-  text(L, T + 126, 'DEPARTURE', { size: 6.5, color: MUTED });
-  text(L, T + 138, booking.selectedDate, { font: 'F3', size: 10 });
-  text(col2, T + 126, 'HIKERS', { size: 6.5, color: MUTED });
-  text(col2, T + 138, `${booking.travelersCount} PAX`, { font: 'F2', size: 10 });
-  text(col3, T + 126, 'STATUS', { size: 6.5, color: MUTED });
-  text(col3, T + 138, String(booking.status).toUpperCase(), {
-    font: 'F2', size: 10,
-    color: booking.status === 'Cancelled' ? [0.86, 0.15, 0.3] : GREEN
-  });
-
-  text(L, T + 156, 'ORGANIZER', { size: 6.5, color: MUTED });
-  text(L, T + 168, booking.organizerName, { font: 'F2', size: 9.5 });
-
-  // Barcode (bottom-left of main pane)
-  const bars = barcodePattern(booking.bookingId || booking.id);
-  let bx = col2;
-  for (const w of bars) {
-    rect(bx, T + 150, w, 24, INK);
-    bx += w + 1.5;
-  }
-  text(col2, T + 184, booking.bookingId, { font: 'F3', size: 8, color: MUTED });
-
-  // Stub fields
-  const S = stubX + 14;
-  text(S, T + 50, 'PERMIT', { size: 6.5, color: MUTED });
-  text(S, T + 62, booking.bookingId, { font: 'F3', size: 9 });
-  text(S, T + 80, 'DATE', { size: 6.5, color: MUTED });
-  text(S, T + 92, booking.selectedDate, { font: 'F3', size: 9 });
-  text(S, T + 110, 'PAX', { size: 6.5, color: MUTED });
-  text(S, T + 122, String(booking.travelersCount), { font: 'F2', size: 9 });
-  text(S, T + 140, 'FARE', { size: 6.5, color: MUTED });
-  text(S, T + 152, `Rs.${booking.finalAmount}`, { font: 'F2', size: 10, color: ESPRESSO });
-  text(S, T + 176, 'SCAN AT BASE CAMP', { size: 6, color: MUTED });
-
-  // ---------- Hikers roster ----------
-  let y = T + TH + 34;
-  text(M, y, 'HIKERS ROSTER', { font: 'F2', size: 10, color: ESPRESSO });
-  y += 6;
-  line(M, y, M + TICKET_W, y);
-  y += 16;
-
   const travelers = booking.travelers?.length
     ? booking.travelers
-    : [{ name: leadHiker, age: '-', gender: '-', emergencyContact: '-' }];
+    : [{ name: leadHiker, age: 'Adult', gender: 'Specified on ID', emergencyContact: 'Provided' }];
 
-  travelers.forEach((t, i) => {
-    text(M, y, `${i + 1}. ${t.name}`, { font: 'F2', size: 9 });
-    text(M + 200, y, `Age: ${t.age}   Gender: ${t.gender}`, { size: 8.5, color: MUTED });
-    text(M + 350, y, `SOS: ${t.emergencyContact}`, { size: 8.5, color: MUTED });
-    y += 16;
-  });
+  container.innerHTML = `
+    <div style="display: flex; items-center; justify-content: space-between; border-bottom: 2px solid #147347; padding-bottom: 16px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <img src="/logo.png" style="width: 48px; height: 48px; object-fit: contain; border-radius: 10px;" alt="Find Your Trek" />
+        <div>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 900; color: #147347; letter-spacing: 0.05em;">FIND YOUR TREK</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #71717a; font-family: monospace;">BOARDING PASS & PERMIT DOSSIER · ${new Date().toISOString().split('T')[0]}</p>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <span style="display: inline-block; padding: 4px 12px; background-color: #14734715; color: #147347; border: 1px solid #14734740; font-size: 11px; font-weight: 800; border-radius: 9999px; text-transform: uppercase;">
+          ${(booking.status || 'Upcoming').toUpperCase()}
+        </span>
+      </div>
+    </div>
 
-  // ---------- Bill summary ----------
-  y += 14;
-  text(M, y, 'SETTLED BILL SUMMARY', { font: 'F2', size: 10, color: ESPRESSO });
-  y += 6;
-  line(M, y, M + TICKET_W, y);
-  y += 16;
+    <!-- Ticket Box -->
+    <div style="border: 1px solid #e4e4e7; border-radius: 16px; overflow: hidden; background-color: #fcfdfc; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+      <div style="background-color: #147347; color: #ffffff; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; letter-spacing: 0.1em;">
+        <span>FINDYOURTREK · OFFICIAL TREK BOARDING PASS</span>
+        <span>TREK PASS</span>
+      </div>
 
-  const billRow = (label, value, opts = {}) => {
-    text(M, y, label, { size: 9, color: MUTED });
-    text(M + 380, y, value, { font: 'F2', size: 9, ...opts });
-    y += 15;
-  };
+      <div style="display: flex; position: relative;">
+        <!-- Main Pane -->
+        <div style="flex: 1; padding: 18px; space-y: 12px;">
+          <div style="margin-bottom: 12px;">
+            <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700; letter-spacing: 0.05em;">Hiker Name</span>
+            <span style="display: block; font-size: 15px; font-weight: 900; text-transform: uppercase; color: #09090b;">${leadHiker}</span>
+          </div>
 
-  billRow('Base Booking Fee', `Rs.${booking.finalAmount}`);
-  if (booking.couponUsed) {
-    billRow(`Coupon Applied (${booking.couponUsed})`, `- Rs.${booking.couponDiscount}`, { color: GREEN });
+          <div style="margin-bottom: 12px;">
+            <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700; letter-spacing: 0.05em;">Expedition</span>
+            <span style="display: block; font-size: 14px; font-weight: 800; color: #09090b;">${booking.tripName}</span>
+            <span style="display: block; font-size: 11px; color: #71717a;">${booking.tripLocation || 'Himalayas, India'}</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+            <div>
+              <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700;">Departure</span>
+              <span style="display: block; font-size: 12px; font-weight: 700; font-family: monospace;">${booking.selectedDate}</span>
+            </div>
+            <div>
+              <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700;">Hikers</span>
+              <span style="display: block; font-size: 12px; font-weight: 700;">${booking.travelersCount} Pax</span>
+            </div>
+            <div>
+              <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700;">Organizer</span>
+              <span style="display: block; font-size: 12px; font-weight: 700;">${booking.organizerName || 'Verified Treks'}</span>
+            </div>
+          </div>
+
+          <div style="border-top: 1px dashed #e4e4e7; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 10px; font-family: monospace; color: #71717a; letter-spacing: 0.15em;">PERMIT CODE: ${booking.bookingId || booking.id}</span>
+            <span style="font-size: 9px; color: #147347; font-weight: 700; text-transform: uppercase;">SCAN AT BASE CAMP GATE</span>
+          </div>
+        </div>
+
+        <!-- Stub -->
+        <div style="width: 170px; border-left: 2px dashed #14734730; background-color: #f4f7f4; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="margin-bottom: 10px;">
+              <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700;">Permit Code</span>
+              <span style="display: block; font-size: 12px; font-weight: 800; font-family: monospace; color: #147347;">${booking.bookingId || booking.id}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700;">Date</span>
+              <span style="display: block; font-size: 11px; font-weight: 700; font-family: monospace;">${booking.selectedDate}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <span style="display: block; font-size: 9px; text-transform: uppercase; color: #a1a1aa; font-weight: 700;">Total Fare</span>
+              <span style="display: block; font-size: 15px; font-weight: 900; color: #147347;">₹${booking.finalAmount}</span>
+            </div>
+          </div>
+          <div style="font-size: 8px; color: #a1a1aa; font-family: monospace; text-align: center;">VERIFIED BOARDING PASS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hikers Roster -->
+    <div style="margin-bottom: 20px;">
+      <h3 style="margin: 0 0 8px 0; font-size: 12px; font-weight: 800; color: #147347; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1.5px solid #147347; padding-bottom: 4px;">Registered Hikers Roster</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+        ${travelers.map((t, idx) => `
+          <tr style="border-bottom: 1px solid #f4f4f5;">
+            <td style="padding: 6px 0; font-weight: 700;">${idx + 1}. ${t.name}</td>
+            <td style="padding: 6px 0; color: #71717a;">Age: ${t.age && t.age !== 'null' ? t.age : '—'}</td>
+            <td style="padding: 6px 0; color: #71717a;">Gender: ${t.gender && t.gender !== 'null' ? t.gender : '—'}</td>
+            <td style="padding: 6px 0; color: #71717a; text-align: right;">Emergency: ${t.emergencyContact || 'On file'}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+
+    <!-- Bill Summary -->
+    <div style="margin-bottom: 24px;">
+      <h3 style="margin: 0 0 8px 0; font-size: 12px; font-weight: 800; color: #147347; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1.5px solid #147347; padding-bottom: 4px;">Settled Bill Summary</h3>
+      <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; color: #52525b;">
+        <span>Base Booking Fee</span>
+        <span style="font-weight: 700;">₹${booking.finalAmount}</span>
+      </div>
+      ${booking.couponUsed ? `
+        <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; color: #147347;">
+          <span>Coupon Applied (${booking.couponUsed})</span>
+          <span style="font-weight: 700;">- ₹${booking.couponDiscount}</span>
+        </div>
+      ` : ''}
+      <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; color: #147347;">
+        <span>Permit Royalties & Taxes</span>
+        <span style="font-weight: 700;">${booking.taxAmount ? `₹${booking.taxAmount}` : 'Included'}</span>
+      </div>
+      <div style="border-top: 1px dashed #d4d4d8; margin: 6px 0; padding-top: 6px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 900; color: #09090b;">
+        <span>TOTAL AMOUNT CLEARED</span>
+        <span style="color: #147347;">₹${booking.finalAmount}</span>
+      </div>
+    </div>
+
+    <!-- Footer Policy -->
+    <div style="font-size: 9px; color: #71717a; line-height: 1.5; border-top: 1px solid #f4f4f5; padding-top: 12px;">
+      <p style="margin: 0 0 3px 0;"><strong>Booking Reference:</strong> ${booking.bookingId || booking.id} · Booked on: ${booking.bookingDate || new Date().toISOString().split('T')[0]}</p>
+      <p style="margin: 0 0 3px 0;"><strong>Flexible Cancellation:</strong> 100% refund is eligible up to 48 hours prior to official departure date.</p>
+      <p style="margin: 0;"><strong>Hiker Notice:</strong> Carry a government photo ID matching lead hiker name. Present this pass at base camp control.</p>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#FFFFFF'
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: 'a4'
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`FindYourTrek-BoardingPass-${booking.bookingId || booking.id}.pdf`);
+  } catch (err) {
+    console.error('Failed to generate PDF:', err);
+  } finally {
+    document.body.removeChild(container);
   }
-  billRow('Permit Royalties & Tax', booking.taxAmount ? `Rs.${booking.taxAmount}` : 'Included', { color: GREEN });
-  y += 2;
-  dashedLine(M, y - 8, M + TICKET_W, y - 8);
-  text(M, y + 6, 'TOTAL VALUE CLEARED', { font: 'F2', size: 10 });
-  text(M + 380, y + 6, `Rs.${booking.finalAmount}`, { font: 'F2', size: 11, color: GREEN });
-  y += 30;
-
-  // ---------- Footer notes ----------
-  text(M, y, `Booked on: ${booking.bookingDate}    Permit Reference: ${booking.bookingId}`, { size: 8, color: MUTED });
-  y += 14;
-  text(M, y, 'Flexible Cancellation: 100% refund available up to 48 hours prior to the departure date.', { size: 8, color: MUTED });
-  y += 12;
-  text(M, y, 'Carry a government ID matching the lead hiker name. Show this pass at base camp gate control.', { size: 8, color: MUTED });
-
-  // ---------- Assemble the PDF ----------
-  const stream = ops.join('\n');
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_W} ${A4_H}] /Contents 4 0 R ` +
-      '/Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 7 0 R >> >> >>',
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'
-  ];
-
-  let pdf = '%PDF-1.4\n';
-  const offsets = [];
-  objects.forEach((body, i) => {
-    offsets.push(pdf.length);
-    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
-  });
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.forEach((off) => {
-    pdf += `${String(off).padStart(10, '0')} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-  const blob = new Blob([pdf], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Find Your Trek-Ticket-${booking.bookingId || booking.id}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }

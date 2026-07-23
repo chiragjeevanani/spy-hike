@@ -32,7 +32,7 @@ export default function AdminLogin({ onLoginSuccess }) {
       const admin = await authApi.loginAdmin(email, password);
       onLoginSuccess({ ...admin, role: admin.displayRole || 'Super Admin' });
     } catch (err) {
-      setError(err?.message || 'Invalid admin credentials. Use admin@findyourtrek.com / admin123');
+      setError(err?.message || 'Invalid admin credentials.');
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export default function AdminLogin({ onLoginSuccess }) {
                 className={`w-full pl-11 pr-4 py-3 rounded-xl border focus:ring-1 focus:ring-slate-400/15 outline-none bg-slate-50/50 text-slate-800 text-sm font-medium transition-all ${
                   fieldErrors.email ? 'border-rose-400 focus:border-rose-400' : 'border-slate-200 focus:border-slate-400'
                 }`}
-                placeholder="admin@findyourtrek.com"
+                placeholder="admin@example.com"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setFieldErrors(er => ({ ...er, email: '' })); }}
               />
@@ -123,16 +123,6 @@ export default function AdminLogin({ onLoginSuccess }) {
           </button>
         </form>
 
-        {/* Demo hints */}
-        <div className="mt-8 pt-6 border-t border-slate-100">
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 text-[11px] text-slate-500 leading-relaxed">
-            <span className="font-semibold text-slate-600">Quick Demo Access:</span>
-            <div className="mt-1 flex justify-between font-mono text-[10px]">
-              <div>Email: <span className="text-[#F27D26] font-semibold">admin@findyourtrek.com</span></div>
-              <div>Secret: <span className="text-[#F27D26] font-semibold">admin123</span></div>
-            </div>
-          </div>
-        </div>
 
       </div>
     </div>

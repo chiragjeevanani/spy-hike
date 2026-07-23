@@ -8,7 +8,9 @@ dotenv.config();
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 4000,
-  mongoUri: process.env.MONGO_URI || '',
+  mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/spy-hike',
+  adminEmail: process.env.ADMIN_EMAIL || 'superadmin@gmail.com',
+  adminPassword: process.env.ADMIN_PASSWORD || 'password123',
   jwtSecret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || '',

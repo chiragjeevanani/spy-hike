@@ -4,6 +4,7 @@
 // Run with: `npm run seed` (needs MONGO_URI in .env). Safe to run repeatedly.
 import mongoose from 'mongoose';
 import { connectDB, disconnectDB } from './config/db.js';
+import { env } from './config/env.js';
 import Admin from './models/Admin.js';
 import Trip from './models/Trip.js';
 import Category from './models/Category.js';
@@ -32,14 +33,29 @@ const CANONICAL_CATEGORIES = [
 ];
 
 async function upsertAdmin() {
-  const email = 'admin@findyourtrek.com';
-  if (await Admin.findOne({ email })) return;
-  await Admin.create({
-    name: 'System Administrator',
-    email,
-    passwordHash: await hashPassword('admin123'),
-    displayRole: 'Super Admin',
-  });
+  const email = (env.adminEmail || process.env.ADMIN_EMAIL || 'superadmin@gmail.com').toLowerCase();
+  const password = env.adminPassword || process.env.ADMIN_PASSWORD || 'password123';
+  const passwordHash = await hashPassword(password);
+
+  let admin = await Admin.findOne({ email });
+  if (!admin) {
+    admin = await Admin.findOne();
+  }
+
+  if (admin) {
+    admin.email = email;
+    admin.passwordHash = passwordHash;
+    admin.name = admin.name || 'System Administrator';
+    admin.displayRole = 'Super Admin';
+    await admin.save();
+  } else {
+    await Admin.create({
+      name: 'System Administrator',
+      email,
+      passwordHash,
+      displayRole: 'Super Admin',
+    });
+  }
 }
 
 async function upsertCategories() {
@@ -128,8 +144,7 @@ async function seed() {
   await upsertCoupons();
   await upsertTrips();
   console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} trips`);
-  console.log('✓ Seed complete:');
-  console.log('  admin     admin@findyourtrek.com / admin123');
+  console.log('✓ Seed complete: admin account updated from ENV credentials.');
   await disconnectDB();
 }
 

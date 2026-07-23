@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { getComputedBookingStatus, getStatusBadgeStyle } from '../../../utils/bookingStatus';
 
 export default function BookingsView({
   bookings,
@@ -36,7 +37,19 @@ export default function BookingsView({
   const toast = useToast();
   const reviewCommentRef = useRef(null);
 
-  const filteredBookings = bookings.filter(b => b.status === activeTab);
+  const filteredBookings = bookings.filter(b => {
+    const computed = getComputedBookingStatus(b);
+    if (activeTab === 'Upcoming') {
+      return computed === 'Upcoming' || computed === 'Reschedule Requested';
+    }
+    if (activeTab === 'Completed') {
+      return computed === 'Completed' || computed === 'Missed';
+    }
+    if (activeTab === 'Cancelled') {
+      return computed === 'Cancelled';
+    }
+    return true;
+  });
 
   // Trigger simulated chat drawer
   const handleContactOrganizer = (booking) => {
@@ -220,9 +233,15 @@ export default function BookingsView({
                 <div>
                   <div className="flex justify-between items-start gap-2">
                     <h3 className="font-serif text-lg font-semibold leading-tight truncate">{b.tripName}</h3>
-                    <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full shrink-0 ${statusPill(b.status)}`}>
-                      {b.status.toUpperCase()}
-                    </span>
+                    {(() => {
+                      const comp = getComputedBookingStatus(b);
+                      const badge = getStatusBadgeStyle(comp);
+                      return (
+                        <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full shrink-0 border ${badge.cls}`}>
+                          {badge.label.toUpperCase()}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <p className={`text-xs truncate mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.tripLocation}</p>
                 </div>

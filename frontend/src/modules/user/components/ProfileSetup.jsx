@@ -43,9 +43,20 @@ export default function ProfileSetup({ user, onComplete, darkMode }) {
     if (!fitnessLevel) errors.fitness = 'Please select your fitness level.';
     if (!gender) errors.gender = 'Please select your gender.';
     if (!age || age < 12 || age > 99) errors.age = 'Please enter a valid age between 12 and 99.';
-    if (!emergencyContactName.trim()) errors.emergencyName = 'Emergency contact name is required.';
-    const sosNumbersOnly = emergencyContactPhone.replace(/\D/g, '');
-    if (sosNumbersOnly.length < 10) errors.emergencyPhone = 'Emergency contact phone number must be at least 10 digits.';
+    const nameTrimmed = emergencyContactName.trim();
+    if (!nameTrimmed) {
+      errors.emergencyName = 'Emergency contact name is required.';
+    } else if (!/^[A-Za-z\s.'-]+$/.test(nameTrimmed)) {
+      errors.emergencyName = 'Emergency contact name must contain only letters.';
+    }
+
+    const phoneTrimmed = emergencyContactPhone.trim();
+    const digitsOnly = emergencyContactPhone.replace(/\D/g, '');
+    if (!phoneTrimmed) {
+      errors.emergencyPhone = 'Emergency contact phone number is required.';
+    } else if (!/^[0-9\s+-]+$/.test(phoneTrimmed) || digitsOnly.length < 10) {
+      errors.emergencyPhone = 'Emergency contact phone must contain only numbers (min 10 digits).';
+    }
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -242,7 +253,11 @@ export default function ProfileSetup({ user, onComplete, darkMode }) {
                 id="reg-emergency-name-input"
                 placeholder="e.g. Asha Jeevanani"
                 value={emergencyContactName}
-                onChange={e => { setEmergencyContactName(e.target.value); setFieldErrors(er => ({ ...er, emergencyName: '' })); }}
+                onChange={e => { 
+                  const cleaned = e.target.value.replace(/[^A-Za-z\s.'-]/g, '');
+                  setEmergencyContactName(cleaned); 
+                  setFieldErrors(er => ({ ...er, emergencyName: '' })); 
+                }}
                 className={`w-full text-xs px-3.5 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border transition-all ${
                   darkMode ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-gray-200 text-zinc-800'
                 } ${fieldErrors.emergencyName ? 'border-red-500 focus:border-red-500' : ''}`}
@@ -259,7 +274,11 @@ export default function ProfileSetup({ user, onComplete, darkMode }) {
                 id="reg-emergency-phone-input"
                 placeholder="e.g. +91 98765 43219"
                 value={emergencyContactPhone}
-                onChange={e => { setEmergencyContactPhone(e.target.value); setFieldErrors(er => ({ ...er, emergencyPhone: '' })); }}
+                onChange={e => { 
+                  const cleaned = e.target.value.replace(/[^0-9\s+-]/g, '');
+                  setEmergencyContactPhone(cleaned); 
+                  setFieldErrors(er => ({ ...er, emergencyPhone: '' })); 
+                }}
                 className={`w-full text-xs px-3.5 py-2.5 rounded-xl outline-hidden focus:border-forest-500 border transition-all ${
                   darkMode ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-gray-200 text-zinc-800'
                 } ${fieldErrors.emergencyPhone ? 'border-red-500 focus:border-red-500' : ''}`}

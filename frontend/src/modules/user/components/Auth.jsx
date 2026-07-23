@@ -176,8 +176,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       await authApi.requestOtp(phone);
       setOtpTimer(30);
       setMode('OTP_CONFIRM');
-      setSuccessMsg('OTP sent to your device! (demo code: 123456)');
-      toast.success('OTP sent to your device! (demo code: 123456)');
+      setSuccessMsg('OTP sent to your device!');
+      toast.success('OTP sent to your device!');
     } catch (err) {
       const message = errText(err, 'Could not send OTP. Please try again.');
       setErrorMsg(message);
@@ -204,7 +204,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         setBlockedReason('banned');
         setShowBannedModal(true);
       } else {
-        const message = errText(err, 'Incorrect OTP. Use 123456.');
+        const message = errText(err, 'Incorrect OTP. Please try again.');
         setErrorMsg(message);
         toast.error(message);
       }
@@ -304,7 +304,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       const sentOk = await regPhoneVerify.send();
       if (sentOk) {
         setRegisterStep(3);
-        toast.success('OTP code sent (demo code: 123456)');
+        toast.success('OTP code sent to your mobile.');
       } else {
         toast.error(regPhoneVerify.error || 'Failed to send OTP.');
       }
@@ -330,7 +330,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     try {
       const verifyOk = await regPhoneVerify.verify();
       if (!verifyOk) {
-        toast.error(regPhoneVerify.error || 'Incorrect OTP code. Try 123456.');
+        toast.error(regPhoneVerify.error || 'Incorrect OTP code.');
         setSubmitting(false);
         return;
       }
@@ -364,7 +364,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     try {
       await authApi.requestOtp(cleanPhone);
       setForgotStep(2);
-      toast.success('OTP sent to your mobile (demo code: 123456)');
+      toast.success('OTP sent to your mobile');
     } catch (err) {
       toast.error(err?.message || 'Could not send OTP. Try again.');
     } finally {
@@ -401,7 +401,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       toast.success('Password reset successfully! Please sign in.');
       setTimeout(() => setMode('LOGIN_EMAIL'), 2000);
     } catch (err) {
-      toast.error(err?.message || 'Could not reset password. Use OTP 123456.');
+      toast.error(err?.message || 'Could not reset password.');
     } finally {
       setSubmitting(false);
     }
@@ -551,21 +551,6 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               )}
             </button>
 
-            {/* Demo credentials hint */}
-            <div className={`p-3 rounded-xl border text-[11px] leading-relaxed ${
-              darkMode ? 'bg-zinc-950 border-zinc-800 text-zinc-400' : 'bg-gray-50 border-gray-200 text-zinc-500'
-            }`}>
-              <span className={`font-semibold block mb-1 ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {role === 'ORGANIZER' ? 'Quick Demo Access (Verified Organizer):' : 'Quick Demo Access:'}
-              </span>
-              <div className="flex justify-between font-mono text-[10px]">
-                <div>Email: <span className="text-spy-orange font-semibold">chiragjeevanani333@gmail.com</span></div>
-                <div>Pass: <span className="text-spy-orange font-semibold">findyourtrek123</span></div>
-              </div>
-              {role === 'ORGANIZER' && (
-                <p className="mt-1.5 opacity-80">This account is pre-approved as an organizer — any other email won't pass the Organizer gate.</p>
-              )}
-            </div>
           </form>
         )}
 
@@ -633,7 +618,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <input
                   type="text"
                   maxLength={6}
-                  placeholder="Enter 1234 or leave blank"
+                  placeholder="Enter 6-digit OTP"
                   value={otpCode}
                   onChange={e => setOtpCode(e.target.value)}
                   className="w-full text-sm font-semibold tracking-widest text-center pl-10 pr-4 py-3 rounded-xl outline-hidden border border-forest-500"
@@ -729,7 +714,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                       <input
                         type="text"
                         maxLength={6}
-                        placeholder="Enter 123456"
+                        placeholder="Enter 6-digit OTP"
                         value={forgotOtp}
                         onChange={e => setForgotOtp(e.target.value)}
                         className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border ${
@@ -835,7 +820,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                     <input
                       type="email"
                       id="reg-email"
-                      placeholder="chiragjeevanani333@gmail.com"
+                      placeholder="name@example.com"
                       value={regEmail}
                       onChange={e => setRegEmail(e.target.value)}
                       className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border ${
@@ -958,7 +943,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                       id="reg-otp"
                       inputMode="numeric"
                       maxLength={6}
-                      placeholder="Enter code (123456)"
+                      placeholder="Enter 6-digit OTP"
                       value={regPhoneVerify.code}
                       onChange={e => regPhoneVerify.setCode(e.target.value)}
                       className={`w-full text-xs pl-8 pr-4 py-2 rounded-xl outline-hidden focus:border-forest-500 border tracking-[0.3em] ${

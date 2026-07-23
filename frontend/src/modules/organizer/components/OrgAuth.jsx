@@ -210,7 +210,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
             <div className="flex gap-2 mt-2">
               <div className="relative flex-1">
                 <ShieldCheck size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                <input type="text" inputMode="numeric" maxLength={6} className={`${inputCls} pl-10 tracking-[0.3em]`} placeholder="Enter OTP (123456)" value={phoneVerify.code} onChange={e => phoneVerify.setCode(e.target.value)} />
+                <input type="text" inputMode="numeric" maxLength={6} className={`${inputCls} pl-10 tracking-[0.3em]`} placeholder="Enter 6-digit OTP" value={phoneVerify.code} onChange={e => phoneVerify.setCode(e.target.value)} />
               </div>
               <button
                 type="button"

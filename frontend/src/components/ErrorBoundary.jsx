@@ -23,7 +23,17 @@ export default class ErrorBoundary extends React.Component {
 
   handleGoHome = () => {
     this.setState({ hasError: false, error: null });
-    window.location.href = '/';
+    const path = window.location.pathname;
+
+    if (path.startsWith('/organizer') || localStorage.getItem('trekigo_org_user')) {
+      window.location.href = '/organizer/dashboard';
+    } else if (path.startsWith('/admin') || localStorage.getItem('trekigo_admin_user')) {
+      window.location.href = '/admin/dashboard';
+    } else if (path.startsWith('/app') || localStorage.getItem('trekigo_user')) {
+      window.location.href = '/app/';
+    } else {
+      window.location.href = '/';
+    }
   };
 
   render() {

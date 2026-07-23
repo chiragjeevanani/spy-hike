@@ -145,6 +145,66 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
           })}
         </div>
 
+        {/* Reschedule Requests Card */}
+        {bookings.some(b => b.rescheduleStatus === 'Pending') && (
+          <div className={`p-4 rounded-2xl border space-y-3 ${
+            darkMode ? 'bg-zinc-900 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-amber-500">
+                <Calendar size={18} />
+                <h3 className="font-display font-black text-sm uppercase tracking-wide">
+                  Pending Reschedule Requests ({bookings.filter(b => b.rescheduleStatus === 'Pending').length})
+                </h3>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              {bookings.filter(b => b.rescheduleStatus === 'Pending').map(b => (
+                <div key={b.id || b.bookingId} className={`p-3 rounded-xl border text-xs space-y-2 ${
+                  darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200'
+                }`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-white">{b.userName} ({b.bookingId})</p>
+                      <p className="text-[11px] opacity-70">{b.tripName}</p>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                      {b.selectedDate} → {b.requestedDate}
+                    </span>
+                  </div>
+
+                  {b.rescheduleReason && (
+                    <p className="text-[10px] italic opacity-80 bg-zinc-800/40 p-1.5 rounded-lg">
+                      "{b.rescheduleReason}"
+                    </p>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => onApproveReschedule?.(b.id || b.bookingId)}
+                      className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase"
+                    >
+                      Approve Date
+                    </button>
+                    <button
+                      onClick={() => {
+                        const reason = prompt('Please enter the rejection reason for the hiker:', 'No batch availability on requested date');
+                        if (reason !== null) {
+                          onRejectReschedule?.(b.id || b.bookingId, reason);
+                        }
+                      }}
+                      className="flex-1 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 font-bold text-[10px] uppercase"
+                    >
+                      Reject Request
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Loyalty rewards banner — admin-uploaded image/copy + live progress */}
         {showLoyaltyBanner && (
           <motion.button

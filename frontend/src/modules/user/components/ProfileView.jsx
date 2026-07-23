@@ -1666,7 +1666,7 @@ export default function ProfileView({
               {profileEmail.toLowerCase() !== user.email.toLowerCase() && (
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold uppercase tracking-wider opacity-75">
-                    Email Verification Code (Use 123456)
+                    Email Verification Code
                   </label>
                   <input
                     type="text"
@@ -1684,7 +1684,7 @@ export default function ProfileView({
               {profileMobile !== user.mobile && (
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold uppercase tracking-wider opacity-75">
-                    Mobile Verification Code (Use 123456)
+                    Mobile Verification Code
                   </label>
                   <input
                     type="text"

@@ -12,6 +12,16 @@ const isOrganizerPath = routePath === '/organizer' || routePath.startsWith('/org
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/ToastProvider';
+import OfflineStatusIndicator from './components/OfflineStatusIndicator';
+
+// Register service worker for offline page caching
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.error('Service Worker registration failed:', err);
+    });
+  });
+}
 
 async function bootstrap() {
   let AppComponent;
@@ -30,6 +40,7 @@ async function bootstrap() {
     <StrictMode>
       <ErrorBoundary>
         <ToastProvider>
+          <OfflineStatusIndicator />
           <AppComponent />
         </ToastProvider>
       </ErrorBoundary>

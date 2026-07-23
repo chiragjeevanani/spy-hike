@@ -5,19 +5,9 @@
 
 import React from 'react';
 import { Download, Mountain, MapPin } from 'lucide-react';
+import TicketQRCode from '../../../components/TicketQRCode';
 
-// Deterministic pseudo-barcode widths derived from the permit id so the
-// same booking always renders the same barcode.
-const barcodePattern = (seed = 'FINDYOURTREK') => {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = ((h * 31 + seed.charCodeAt(i)) & 0x7fffffff) >>> 0;
-  const bars = [];
-  for (let i = 0; i < 36; i++) {
-    h = ((h * 1103515245 + 12345) & 0x7fffffff) >>> 0;
-    bars.push((h % 3) + 1);
-  }
-  return bars;
-};
+// Helper component for fields
 
 /**
  * Boarding-pass style trek ticket. Renders the booking as a tearable
@@ -25,7 +15,6 @@ const barcodePattern = (seed = 'FINDYOURTREK') => {
  */
 export default function TravelTicket({ booking, darkMode, onDownload, notchClass }) {
   const leadHiker = booking.travelers?.[0]?.name || 'Registered Hiker';
-  const bars = barcodePattern(booking.bookingId || booking.id);
 
   const statusStyles =
     booking.status === 'Upcoming'
@@ -93,20 +82,15 @@ export default function TravelTicket({ booking, darkMode, onDownload, notchClass
             <Field label="Organizer" value={booking.organizerName} />
           </div>
 
-          {/* Barcode strip */}
-          <div className="pt-1">
-            <div className="flex items-end gap-px h-7" aria-hidden="true">
-              {bars.map((w, i) => (
-                <div
-                  key={i}
-                  style={{ width: `${w}px` }}
-                  className={`h-full ${darkMode ? 'bg-zinc-100' : 'bg-zinc-900'}`}
-                />
-              ))}
+          {/* Prominent High-Density Scannable QR Code */}
+          <div className="pt-2 pb-1 border-t border-zinc-200/50 dark:border-zinc-800 flex flex-col items-center">
+            <div className="w-full flex items-center justify-between mb-1.5">
+              <span className="text-[7px] uppercase tracking-widest opacity-60 font-bold">Scannable Boarding Pass Code</span>
+              <span className="text-[9px] font-mono font-bold tracking-[0.2em] text-emerald-500">
+                {booking.bookingId || booking.id}
+              </span>
             </div>
-            <span className="text-[8px] font-mono tracking-[0.3em] opacity-55 block mt-1">
-              {booking.bookingId}
-            </span>
+            <TicketQRCode value={booking.bookingId || booking.id} size={140} darkMode={darkMode} />
           </div>
         </div>
 

@@ -42,6 +42,27 @@ export const loadUserState = () => {
 
 export const saveUserState = (state) => {
   localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(state));
+  if (state?.isAuthenticated) {
+    // Single-role session enforcement: clear active organizer & admin sessions
+    try {
+      const orgState = localStorage.getItem('trekigo_org_user');
+      if (orgState) {
+        const parsed = JSON.parse(orgState);
+        if (parsed?.isAuthenticated) {
+          localStorage.setItem('trekigo_org_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+        }
+      }
+      const adminState = localStorage.getItem('trekigo_admin_user');
+      if (adminState) {
+        const parsed = JSON.parse(adminState);
+        if (parsed?.isAuthenticated) {
+          localStorage.setItem('trekigo_admin_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+        }
+      }
+    } catch (e) {
+      console.error('Error clearing secondary role sessions:', e);
+    }
+  }
 };
 
 export const loadWishlist = () => {

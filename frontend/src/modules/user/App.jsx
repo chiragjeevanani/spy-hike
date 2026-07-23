@@ -21,6 +21,7 @@ import MapView from './components/MapView';
 import LandingView from '../landing/LandingView';
 import PrivacyPolicyPage from '../landing/PrivacyPolicyPage';
 import SupportPage from '../landing/SupportPage';
+import NotFoundPage from '../../components/NotFoundPage';
 
 import {
   loadUserState, saveUserState,
@@ -114,7 +115,7 @@ const getInitialStateFromUrl = () => {
   }
 
   // 1. Authenticated Profile Setup & Onboarding Gate redirect rules
-  if (user.isAuthenticated) {
+  if (user.isAuthenticated && path !== '/login' && path !== '/register') {
     if (!user.profileSetupComplete) {
       tab = 'ProfileSetup';
       if (path !== '/profilesetup') {
@@ -222,6 +223,8 @@ const getInitialStateFromUrl = () => {
     tab = 'Login';
   } else if (path === '/register') {
     tab = 'Register';
+  } else {
+    tab = 'NotFound';
   }
   return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
 };
@@ -328,7 +331,7 @@ export default function App() {
     }
 
     // Redirect rules based on user auth/onboard states
-    if (currentUser.isAuthenticated) {
+    if (currentUser.isAuthenticated && path !== '/login' && path !== '/register') {
       if (!currentUser.profileSetupComplete) {
         setActiveTab('ProfileSetup');
         setSelectedTrip(null);
@@ -390,8 +393,8 @@ export default function App() {
       }
     }
 
-    // Authenticated & Onboarded: Redirect away from auth/onboard pages
-    if (currentUser.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide' || path === '/profilesetup')) {
+    // Authenticated & Onboarded: Redirect away from onboarding guide or profile setup if already complete
+    if (currentUser.isAuthenticated && currentUser.profileSetupComplete && currentUser.isOnboarded && (path === '/onboardingguide' || path === '/profilesetup')) {
       navigateTo('/', true, currentUser);
       return;
     }
@@ -523,7 +526,12 @@ export default function App() {
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
     } else {
-      navigateTo('/', true, currentUser);
+      setActiveTab('NotFound');
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     }
   };
 
@@ -1017,6 +1025,9 @@ export default function App() {
   if (activeTab === 'SupportPublic') {
     return <SupportPage darkMode={darkMode} />;
   }
+  if (activeTab === 'NotFound') {
+    return <NotFoundPage onGoHome={() => navigateTo('/')} darkMode={darkMode} />;
+  }
 
   return activeTab === 'Landing' ? (
     <LandingView
@@ -1137,6 +1148,18 @@ export default function App() {
                    booking={selectedBooking}
                    onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/bookings'); } }}
                    onModifyBookingStatus={handleModifyBookingStatus}
+                   availableRescheduleDates={(() => {
+                     const matchedTrip = trips.find(t => t.id === selectedBooking.tripId || t.name === selectedBooking.tripName);
+                     return matchedTrip?.availableDates || [selectedBooking.selectedDate];
+                   })()}
+                   onRequestReschedule={(bookingId, requestedDate, reason) => {
+                     setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
+                       ...b,
+                       rescheduleStatus: 'Pending',
+                       requestedDate,
+                       rescheduleReason: reason
+                     } : b));
+                   }}
                    onContactOrganizer={(b) => {
                      setPendingChatTripId(b.tripId);
                      setSelectedBooking(null);

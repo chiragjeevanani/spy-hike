@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
+import { upsertAdmin } from './seed.js';
 import mongoose from 'mongoose';
 
 async function start() {
@@ -12,7 +13,10 @@ async function start() {
     const server = app.listen(env.port, () => {
       console.log(`✓ Find Your Trek API listening on http://localhost:${env.port} (${env.nodeEnv})`);
       connectDB()
-        .then(() => console.log('✓ MongoDB connected'))
+        .then(async () => {
+          console.log('✓ MongoDB connected');
+          await upsertAdmin();
+        })
         .catch((err) => console.error('✗ MongoDB connection failed:', err.message));
     });
 

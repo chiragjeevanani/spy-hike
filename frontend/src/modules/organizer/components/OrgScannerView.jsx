@@ -163,6 +163,23 @@ export default function OrgScannerView({ onBack, darkMode }) {
       setAlreadyCheckedIn(!!result.alreadyCheckedIn);
       setPhase('found');
     } catch (err) {
+      // Fallback check against local bookings array (for offline/seeded mode)
+      try {
+        const storedBookingsRaw = localStorage.getItem('trekigo_bookings') || localStorage.getItem('trekigo_org_bookings');
+        if (storedBookingsRaw) {
+          const allStored = JSON.parse(storedBookingsRaw);
+          const matched = allStored.find(b => (b.bookingId && b.bookingId.toUpperCase() === code) || (b.id && b.id.toUpperCase() === code));
+          if (matched) {
+            setBooking(matched);
+            setAlreadyCheckedIn(matched.status === 'Completed');
+            setPhase('found');
+            setChecking(false);
+            return;
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback lookup failed:', fallbackErr);
+      }
       setErrMsg(err?.message || `Could not check in ticket: ${code}`);
       setPhase('error');
     } finally {

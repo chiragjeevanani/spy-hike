@@ -23,6 +23,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
 import PendingApprovalView from './components/PendingApprovalView';
+import NotFoundPage from '../../components/NotFoundPage';
 import OrgBottomNav from './components/OrgBottomNav';
 import OrgDashboardView from './components/OrgDashboardView';
 import OrgTripsView from './components/OrgTripsView';
@@ -53,7 +54,7 @@ function getOrgTab(pathname) {
   if (p === 'register') return 'Register';
   if (p === 'pending') return 'Pending';
   if (p === 'onboarding') return 'Onboarding';
-  return 'Dashboard';
+  return 'NotFound';
 }
 
 function tabToPath(tab, tripId = null) {
@@ -423,6 +424,16 @@ export default function OrgApp() {
       return null;
     }
 
+    if (activeTab === 'NotFound') {
+      return (
+        <NotFoundPage
+          homePath="/organizer/dashboard"
+          homeLabel="Return to Organizer Dashboard"
+          darkMode={darkMode}
+        />
+      );
+    }
+
     // 3. Pending approval
     if (organizer.isPendingApproval && !organizer.isApproved) {
       return (
@@ -472,6 +483,23 @@ export default function OrgApp() {
             onViewTrip={handleEditTrip}
             onOpenLoyalty={() => setShowOrgLoyalty(true)}
             onOpenFinancials={() => setShowOrgFinancials(true)}
+            onApproveReschedule={(bookingId) => {
+              setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
+                ...b,
+                selectedDate: b.requestedDate || b.selectedDate,
+                rescheduleStatus: 'Approved',
+                requestedDate: null
+              } : b));
+              toast.success('Reschedule request approved! Batch date updated.');
+            }}
+            onRejectReschedule={(bookingId, reason) => {
+              setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
+                ...b,
+                rescheduleStatus: 'Rejected',
+                rejectionReason: reason
+              } : b));
+              toast.error('Reschedule request declined.');
+            }}
             onOpenScanner={() => setShowScanner(true)}
             onOpenChats={() => setShowOrgChats(true)}
             chats={chats}

@@ -2,12 +2,96 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, Download, MessageSquare, Star, Receipt, ShieldAlert,
-  Phone, Mail, Globe, User, ExternalLink, X
+  Phone, Mail, Globe, User, ExternalLink, X, Calendar, Clock, CheckCircle2, AlertCircle, RefreshCw
 } from 'lucide-react';
 import TravelTicket from './TravelTicket';
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
+import { getComputedBookingStatus, getStatusBadgeStyle } from '../../../utils/bookingStatus';
+
+// Reschedule request feature inside BookingDetailsView
+export function RescheduleModal({ booking, availableDates = [], onClose, onSubmit, darkMode }) {
+  const [selectedNewDate, setSelectedNewDate] = useState(availableDates[0] || '');
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-55 flex items-center justify-center p-4">
+      <div className={`p-6 rounded-3xl max-w-sm w-full border relative ${
+        darkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'
+      }`}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded-full hover:bg-zinc-800/50">
+          <X size={16} />
+        </button>
+
+        <div className="flex items-center space-x-2 text-amber-500 mb-2">
+          <Calendar size={18} />
+          <h4 className="text-sm font-display font-black">Request Trip Reschedule</h4>
+        </div>
+        <p className="text-[11px] opacity-70 mb-4">
+          Select an available batch for <span className="font-bold">{booking.tripName}</span> offered by {booking.organizerName}.
+        </p>
+
+        {availableDates.length === 0 ? (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400 text-center mb-4">
+            No alternate upcoming batches available for this trek at the moment. Contact organizer directly via Message.
+          </div>
+        ) : (
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider block mb-1 opacity-80">
+                Select Available Batch Date *
+              </label>
+              <select
+                value={selectedNewDate}
+                onChange={(e) => setSelectedNewDate(e.target.value)}
+                className={`w-full text-xs p-2.5 rounded-xl border outline-none ${
+                  darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-zinc-50 border-zinc-300 text-zinc-900'
+                }`}
+              >
+                {availableDates.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider block mb-1 opacity-80">
+                Reason for Rescheduling (Optional)
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Flight delayed, health issue..."
+                rows={2}
+                className={`w-full text-xs p-2.5 rounded-xl border outline-none resize-none ${
+                  darkMode ? 'bg-zinc-950 border-zinc-800 text-white' : 'bg-zinc-50 border-zinc-300 text-zinc-900'
+                }`}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+          >
+            Cancel
+          </button>
+          {availableDates.length > 0 && (
+            <button
+              onClick={() => onSubmit(selectedNewDate, reason)}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-black shadow-md"
+            >
+              Submit Request
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function BookingDetailsView({
   booking,
@@ -17,14 +101,20 @@ export default function BookingDetailsView({
   onViewOrganizerProfile,
   onDownloadInvoice,
   onRateHike,
+  onRequestReschedule,
+  availableRescheduleDates = [],
   darkMode
 }) {
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const toast = useToast();
+
+  const computedStatus = getComputedBookingStatus(booking);
+  const statusBadge = getStatusBadgeStyle(computedStatus);
 
   const handleSubmitReview = (e) => {
     e.preventDefault();
@@ -38,6 +128,14 @@ export default function BookingDetailsView({
     setShowReviewModal(false);
     setReviewComment('');
     setReviewRating(5);
+  };
+
+  const handleRescheduleSubmit = (newDate, reason) => {
+    if (onRequestReschedule) {
+      onRequestReschedule(booking.id || booking.bookingId, newDate, reason);
+      toast.success(`Reschedule request for ${newDate} sent to organizer!`);
+    }
+    setShowRescheduleModal(false);
   };
 
   return (
@@ -77,23 +175,42 @@ export default function BookingDetailsView({
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           <div className="absolute bottom-4 inset-x-4 flex justify-between items-end">
             <div>
-              <span className={`text-[10px] font-sans font-black tracking-wider px-2.5 py-0.5 rounded-full ${
-                booking.status === 'Upcoming'
-                  ? 'bg-emerald-600 text-white'
-                  : booking.status === 'Completed'
-                  ? 'bg-zinc-605 text-white'
-                  : 'bg-rose-600 text-white'
-              }`}>
-                {booking.status.toUpperCase()}
+              <span className={`text-[10px] font-sans font-black tracking-wider px-2.5 py-0.5 rounded-full border ${statusBadge.cls}`}>
+                {statusBadge.label.toUpperCase()}
               </span>
               <h3 className="text-base font-display font-black text-white mt-1 leading-tight">{booking.tripName}</h3>
             </div>
           </div>
         </div>
 
+        {/* Rescheduling Banner Status */}
+        {booking.rescheduleStatus === 'Pending' && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-start gap-3">
+            <Clock size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Reschedule Request Pending</span>
+              <p className="text-[11px] opacity-80 mt-0.5">
+                Requested new date: <span className="font-bold">{booking.requestedDate}</span>. Waiting for {booking.organizerName} to review.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {booking.rescheduleStatus === 'Rejected' && (
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-3">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Reschedule Request Declined</span>
+              <p className="text-[11px] opacity-80 mt-0.5">
+                Reason: "{booking.rejectionReason || 'No availability on requested batch'}"
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Boarding-pass style trek ticket */}
         <TravelTicket
-          booking={booking}
+          booking={{ ...booking, status: computedStatus }}
           darkMode={darkMode}
           onDownload={() => downloadTicketPDF(booking)}
         />
@@ -211,7 +328,16 @@ export default function BookingDetailsView({
           Ticket PDF <Download size={10} />
         </button>
 
-        {booking.status === 'Completed' && (
+        {(computedStatus === 'Upcoming' || computedStatus === 'Missed') && (
+          <button
+            onClick={() => setShowRescheduleModal(true)}
+            className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-full text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all duration-200"
+          >
+            Reschedule <RefreshCw size={10} />
+          </button>
+        )}
+
+        {computedStatus === 'Completed' && (
           <button
             onClick={() => setShowReviewModal(true)}
             className="flex-1 py-2 bg-spy-orange hover:bg-spy-orange-hover text-white rounded-full text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all duration-200"
@@ -220,7 +346,7 @@ export default function BookingDetailsView({
           </button>
         )}
 
-        {booking.status === 'Upcoming' && (
+        {computedStatus === 'Upcoming' && (
           <button
             onClick={() => setShowCancelConfirm(true)}
             className="flex-1 py-2 rounded-full bg-rose-500/10 hover:bg-rose-500/15 text-rose-500 text-[9px] uppercase font-black tracking-wider cursor-pointer active:scale-95 transition-all text-center"
@@ -229,6 +355,16 @@ export default function BookingDetailsView({
           </button>
         )}
       </div>
+
+      {showRescheduleModal && (
+        <RescheduleModal
+          booking={booking}
+          availableDates={availableRescheduleDates}
+          onClose={() => setShowRescheduleModal(false)}
+          onSubmit={handleRescheduleSubmit}
+          darkMode={darkMode}
+        />
+      )}
 
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">

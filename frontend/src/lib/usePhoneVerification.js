@@ -39,7 +39,7 @@ export function usePhoneVerification(mobile) {
       await authApi.requestOtp(mobile);
       verifiedMobileRef.current = mobile; // track the number the OTP was sent to
       setSent(true);
-      setInfo('OTP sent to your mobile (demo code: 123456)');
+      setInfo('OTP sent to your mobile');
       return true;
     } catch (err) {
       setError(err?.message || 'Could not send OTP. Please try again.');
@@ -58,7 +58,7 @@ export function usePhoneVerification(mobile) {
       setInfo('Mobile number verified!');
       return true;
     } catch (err) {
-      setError(err?.message || 'Incorrect OTP. Use the demo code 123456.');
+      setError(err?.message || 'Incorrect OTP. Please try again.');
       return false;
     } finally { setBusy(false); }
   }, [mobile, code]);
