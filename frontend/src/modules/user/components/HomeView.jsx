@@ -11,6 +11,7 @@ import LocationPicker from './LocationPicker';
 import TrekDatePicker from './TrekDatePicker';
 import AppLogo from '../../../components/AppLogo';
 import SkeletonCard from '../../../components/SkeletonCard';
+import { matchesLocation } from '../utils/locationFilter';
 
 // Persisted chosen location (city / GPS). Google Maps API will later power the
 // live search + reverse-geocoding inside LocationPicker.
@@ -30,6 +31,7 @@ export default function HomeView({
   onToggleWishlist,
   onSelectTrek,
   onSwitchTab,
+  onApplyCategory,
   onApplySearch,
   onApplyDate,
   onOpenLoyalty,
@@ -37,15 +39,18 @@ export default function HomeView({
   notifications,
   onMarkNotificationRead,
   onClearNotifications,
+  userLocation,
+  onSelectLocation,
+  onOpenLocationPicker,
   darkMode
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activePromoIdx, setActivePromoIdx] = useState(0);
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
-  const [location, setLocation] = useState(loadLocation);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [trendingTreks, setTrendingTreks] = useState([]);
+
+  const activeLocation = userLocation || { label: 'India' };
 
   // Admin-curated Trending flag (Trek Categories catalog) drives the
   // "Trending destinations" grid below instead of static data.
@@ -53,11 +58,21 @@ export default function HomeView({
     treksApi.listTreks({ trending: 'true' }).then(setTrendingTreks).catch(() => setTrendingTreks([]));
   }, []);
 
+  // Filter trips for home view sections based on selected user location
+  const locationFilteredTrips = useMemo(() => {
+    if (!activeLocation || !activeLocation.label || activeLocation.label === 'India' || activeLocation.label === 'All') {
+      return trips;
+    }
+    return trips.filter(t => matchesLocation(t, activeLocation));
+  }, [trips, activeLocation]);
+
+  const hasTripsForLocation = locationFilteredTrips.length > 0;
+
   // Every date any organizer has a batch departing on — the calendar
   // highlights these as pickable.
   const availableDepartureDates = useMemo(
-    () => new Set(trips.flatMap(t => t.departureDates || [])),
-    [trips]
+    () => new Set(locationFilteredTrips.flatMap(t => t.departureDates || [])),
+    [locationFilteredTrips]
   );
 
   const handlePickDate = (dateStr) => {
@@ -67,9 +82,7 @@ export default function HomeView({
   };
 
   const handleSelectLocation = (loc) => {
-    setLocation(loc);
-    try { localStorage.setItem('trekigo_location', JSON.stringify(loc)); } catch (e) {}
-    setShowLocationPicker(false);
+    if (onSelectLocation) onSelectLocation(loc);
   };
 
   // Loyalty progress — admin-controlled thresholds/reward copy/banner asset.
@@ -112,7 +125,7 @@ export default function HomeView({
 
   // One card per unique trek name — multiple organizers offering the same
   // trek collapse into a single browsable entry (see utils/trekGroups.js).
-  const trekGroups = useMemo(() => groupTripsByTrekName(trips), [trips]);
+  const trekGroups = useMemo(() => groupTripsByTrekName(locationFilteredTrips), [locationFilteredTrips]);
 
 
   const unreadNotifications = notifications.filter(n => !n.read);
@@ -121,7 +134,7 @@ export default function HomeView({
   // category) headlines the "Featured trek" hero. No fallback — the section
   // stays hidden entirely until an admin actually marks something featured,
   // rather than arbitrarily spotlighting the first trek in the list.
-  const featuredTrip = useMemo(() => trips.find(t => t.featured), [trips]);
+  const featuredTrip = useMemo(() => locationFilteredTrips.find(t => t.featured), [locationFilteredTrips]);
   const featured = featuredTrip ? trekGroups.find(g => g.offers.some(o => o.id === featuredTrip.id)) || null : null;
 
   // "Popular Treks" is likewise admin-curated (Trips admin section's Popular
@@ -137,9 +150,9 @@ export default function HomeView({
   const trendingDestinations = useMemo(() => trendingTreks.map(trek => ({
     id: trek.id,
     name: trek.title,
-    hikes: trips.filter(t => t.trekId === trek.id && t.status === 'Published').length,
+    hikes: locationFilteredTrips.filter(t => t.trekId === trek.id && t.status === 'Published').length,
     img: trek.coverImage,
-  })), [trendingTreks, trips]);
+  })).filter(dest => dest.hikes > 0 || !location || location.label === 'India'), [trendingTreks, locationFilteredTrips, location]);
 
   const difficultyPill = (difficulty) =>
     difficulty === 'Easy'
@@ -164,13 +177,13 @@ export default function HomeView({
           {/* Location selector */}
           <button
             id="btn-location"
-            onClick={() => setShowLocationPicker(true)}
+            onClick={onOpenLocationPicker}
             className={`flex items-center gap-1 pl-2.5 pr-2 py-2 rounded-full border relative active:scale-95 cursor-pointer shadow-sm ${
               darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-gray-200'
             }`}
           >
             <MapPin size={14} className="text-spy-orange shrink-0" />
-            <span className="text-xs font-semibold truncate max-w-[120px]">{(location?.label || 'India').split(',')[0]}</span>
+            <span className="text-xs font-semibold truncate max-w-[120px]">{(activeLocation?.label || 'India').split(',')[0]}</span>
             <ChevronDown size={12} className="opacity-50 shrink-0" />
           </button>
 
@@ -348,6 +361,43 @@ export default function HomeView({
         </button>
       )}
 
+      {/* Location Empty State Card when no treks exist in the selected city */}
+      {!hasTripsForLocation && !tripsLoading && (
+        <div className={`mt-6 text-center py-10 px-5 rounded-3xl border border-dashed ${
+          darkMode ? 'bg-zinc-900/40 border-white/10' : 'bg-white border-zinc-200 shadow-xs'
+        }`}>
+          <div className="w-14 h-14 rounded-full bg-spy-orange/15 text-spy-orange flex items-center justify-center mx-auto mb-3">
+            <MapPin size={28} />
+          </div>
+          <h3 className="font-serif text-xl font-semibold">
+            No treks found in {activeLocation?.label?.split(',')[0] || 'this city'}
+          </h3>
+          <p className={`text-xs mt-2 max-w-xs mx-auto leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+            We couldn't find any active expeditions listed in {activeLocation?.label} right now. Switch city to discover nearby treks!
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-2.5 justify-center mt-5 max-w-xs mx-auto">
+            <button
+              type="button"
+              id="btn-change-city-home-empty"
+              onClick={onOpenLocationPicker}
+              className="bg-spy-orange hover:bg-orange-600 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-md active:scale-95 transition cursor-pointer"
+            >
+              Change City to Explore Nearby Treks
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectLocation({ label: 'India' })}
+              className={`text-xs font-bold px-4 py-3 rounded-xl border transition cursor-pointer ${
+                darkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-850' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-gray-50'
+              }`}
+            >
+              Explore All India Treks
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 5. Featured trek */}
       {featured && (
         <div className="mt-8">
@@ -488,14 +538,6 @@ export default function HomeView({
         </div>
       )}
 
-      {/* Location picker bottom sheet */}
-      <LocationPicker
-        open={showLocationPicker}
-        current={location}
-        onSelect={handleSelectLocation}
-        onClose={() => setShowLocationPicker(false)}
-        darkMode={darkMode}
-      />
 
       <TrekDatePicker
         open={showDatePicker}

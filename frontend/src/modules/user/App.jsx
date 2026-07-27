@@ -18,6 +18,7 @@ import ProfileView from './components/ProfileView';
 import BookingDetailsView from './components/BookingDetailsView';
 import OrganizerProfileView from './components/OrganizerProfileView';
 import LoyaltyRewardsView from './components/LoyaltyRewardsView';
+import LocationPicker from './components/LocationPicker';
 import MapView from './components/MapView';
 import LandingView from '../landing/LandingView';
 import PrivacyPolicyPage from '../landing/PrivacyPolicyPage';
@@ -283,11 +284,25 @@ export default function App() {
   const [profileSub, setProfileSub] = useState(() => getInitialStateFromUrl().profileSub);
   const [showLoyalty, setShowLoyalty] = useState(false);
 
-  // 3. Search & Filter dynamic bindings to propagate to Explore tab
+  // 3. Search & Filter & Location dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState('');
   const [exploreCategory, setExploreCategory] = useState('All');
   // Departure-date filter ('' = off) — set from the Home calendar, applied in Explore.
   const [exploreDate, setExploreDate] = useState('');
+  const [userLocation, setUserLocation] = useState(() => {
+    try {
+      const v = localStorage.getItem('trekigo_location');
+      if (v) return JSON.parse(v);
+    } catch (e) {}
+    return { label: 'India' };
+  });
+  const [showAppLocationPicker, setShowAppLocationPicker] = useState(false);
+
+  const handleSelectUserLocation = (loc) => {
+    setUserLocation(loc);
+    try { localStorage.setItem('trekigo_location', JSON.stringify(loc)); } catch (e) {}
+    setShowAppLocationPicker(false);
+  };
 
   const navigateTo = (path, replace = false, currentUser = user) => {
     const url = toBrowserPath(path);
@@ -968,6 +983,9 @@ export default function App() {
             notifications={notifications}
             onMarkNotificationRead={handleMarkNotificationRead}
             onClearNotifications={handleClearNotifications}
+            userLocation={userLocation}
+            onSelectLocation={handleSelectUserLocation}
+            onOpenLocationPicker={() => setShowAppLocationPicker(true)}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
           />
@@ -986,6 +1004,9 @@ export default function App() {
             onSetCategory={setExploreCategory}
             selectedDate={exploreDate}
             onSetDate={setExploreDate}
+            userLocation={userLocation}
+            onSelectLocation={handleSelectUserLocation}
+            onOpenLocationPicker={() => setShowAppLocationPicker(true)}
             darkMode={darkMode}
           />
         );
@@ -1287,6 +1308,14 @@ export default function App() {
                 {renderTabContent()}
               </motion.div>
             </AnimatePresence>
+            {/* Global Location Picker modal overlay */}
+            <LocationPicker
+              open={showAppLocationPicker}
+              current={userLocation}
+              onSelect={handleSelectUserLocation}
+              onClose={() => setShowAppLocationPicker(false)}
+              darkMode={darkMode}
+            />
           </div>
  
           {/* Floating Map button — only on Home & Explore, icon-only, sits with a

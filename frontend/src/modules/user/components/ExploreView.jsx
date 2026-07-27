@@ -4,6 +4,7 @@ import {
   Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus
 } from 'lucide-react';
 import { groupTripsByTrekName } from '../utils/trekGroups';
+import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
 
 export default function ExploreView({
@@ -18,6 +19,9 @@ export default function ExploreView({
   onSetCategory,
   selectedDate,
   onSetDate,
+  userLocation,
+  onSelectLocation,
+  onOpenLocationPicker,
   darkMode
 }) {
   
@@ -57,27 +61,18 @@ export default function ExploreView({
     return [...cities].sort();
   }, [trips]);
 
-  // Dynamic search + filters + sort core mathematical calculation.
-  // Operates on one card per unique trek name (see utils/trekGroups.js) —
-  // multiple organizers offering the same trek collapse into a single entry,
-  // using the highest-rated organizer's trip as the representative for
-  // name/location/category/etc, and the cheapest organizer's price for
-  // budget filtering & price sorting.
+  // Dynamic search + location + filters + sort core calculation.
   const filteredTreks = useMemo(() => {
     let result = groupTripsByTrekName(trips);
 
-    // 1. Search Query (checks Name, Location, City, State)
+    // 0. Selected location (city, state, region)
+    if (userLocation && userLocation.label && userLocation.label !== 'India' && userLocation.label !== 'All') {
+      result = result.filter(g => g.offers.some(o => matchesLocation(o, userLocation)));
+    }
+
+    // 1. Search Query (checks Name, Location, City, State, Starting Point, Category)
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(g => {
-        const t = g.representative;
-        return (
-          t.name.toLowerCase().includes(q) ||
-          t.location.toLowerCase().includes(q) ||
-          t.city.toLowerCase().includes(q) ||
-          t.state.toLowerCase().includes(q)
-        );
-      });
+      result = result.filter(g => g.offers.some(o => matchesQuery(o, searchQuery)));
     }
 
     // 2. Quick category selector
@@ -438,18 +433,47 @@ export default function ExploreView({
             <SkeletonCard darkMode={darkMode} />
           </div>
         ) : filteredTreks.length === 0 ? (
-          <div className="text-center py-16">
-            <span className="text-4xl block">🗺️</span>
-            <h3 className="font-serif text-xl font-semibold mt-3">No treks matched</h3>
-            <p className={`text-sm mt-1.5 px-6 leading-relaxed ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-              Try widening your search, budget, or duration — or clear the filters to start fresh.
+          <div className={`text-center py-12 px-5 rounded-3xl border border-dashed ${
+            darkMode ? 'bg-zinc-900/40 border-white/10' : 'bg-white border-zinc-200 shadow-xs'
+          }`}>
+            <div className="w-14 h-14 rounded-full bg-spy-orange/15 text-spy-orange flex items-center justify-center mx-auto mb-3">
+              <MapPin size={28} />
+            </div>
+            <h3 className="font-serif text-xl font-semibold">
+              {userLocation?.label && userLocation.label !== 'India'
+                ? `No treks found in ${userLocation.label.split(',')[0]}`
+                : 'No treks matched'}
+            </h3>
+            <p className={`text-xs mt-2 max-w-xs mx-auto leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              {userLocation?.label && userLocation.label !== 'India'
+                ? `We couldn't find any listed expeditions in ${userLocation.label} right now. Switch city to discover nearby adventures!`
+                : 'Try widening your search, budget, or duration — or clear the active filters to start fresh.'}
             </p>
-            <button
-              onClick={resetFilters}
-              className="mt-4 bg-forest-600 hover:bg-forest-700 text-white text-sm font-semibold px-5 py-2.5 rounded-full"
-            >
-              Clear filters
-            </button>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 justify-center mt-5 max-w-xs mx-auto">
+              {userLocation?.label && userLocation.label !== 'India' && (
+                <button
+                  type="button"
+                  id="btn-change-city-explore-empty"
+                  onClick={onOpenLocationPicker}
+                  className="bg-spy-orange hover:bg-orange-600 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-md active:scale-95 transition cursor-pointer"
+                >
+                  Change City to Explore Nearby Treks
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  resetFilters();
+                  if (onSelectLocation) onSelectLocation({ label: 'India' });
+                }}
+                className={`text-xs font-bold px-4 py-3 rounded-xl border transition cursor-pointer ${
+                  darkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-850' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-gray-50'
+                }`}
+              >
+                Explore All India Treks
+              </button>
+            </div>
           </div>
         ) : (
           filteredTreks.map((group, idx) => {
