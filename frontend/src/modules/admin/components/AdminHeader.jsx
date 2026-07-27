@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Sun, Moon, Bell, Search, ChevronRight, Check } from 'lucide-react';
+import { Sun, Moon, Bell, Search, ChevronRight, Check, Menu } from 'lucide-react';
 import { loadBroadcastHistory } from '../utils/storage';
 
-export default function AdminHeader({ activeTab, admin, darkMode, onToggleDarkMode }) {
+export default function AdminHeader({ activeTab, admin, darkMode, onToggleDarkMode, onOpenMobileMenu }) {
   const [showNotifications, setShowNotifications] = useState(false);
   
   // Load some notifications/broadcasts as recent items
@@ -10,17 +10,27 @@ export default function AdminHeader({ activeTab, admin, darkMode, onToggleDarkMo
 
   return (
     <header 
-      className={`h-16 sticky top-0 px-6 border-b flex items-center justify-between z-20 transition-all duration-300 ${
+      className={`h-16 sticky top-0 px-4 sm:px-6 border-b flex items-center justify-between z-20 transition-all duration-300 ${
         darkMode 
           ? 'bg-[#0E162F]/90 border-slate-800 text-slate-100 backdrop-blur-md' 
           : 'bg-white/95 border-slate-200 text-slate-800 backdrop-blur-md'
       }`}
     >
-      {/* Breadcrumb info */}
-      <div className="flex items-center gap-2.5 text-xs font-semibold tracking-wide">
-        <span className="text-slate-400">Find Your Trek Admin</span>
-        <ChevronRight size={12} className="text-slate-400" />
-        <span className={darkMode ? 'text-white' : 'text-slate-800'}>{activeTab}</span>
+      {/* Mobile Hamburger & Breadcrumb info */}
+      <div className="flex items-center gap-2 sm:gap-2.5 text-xs font-semibold tracking-wide min-w-0">
+        <button
+          onClick={onOpenMobileMenu}
+          className={`p-2 rounded-lg border md:hidden transition-colors mr-1 ${
+            darkMode ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-200 bg-slate-50 text-slate-700'
+          }`}
+          title="Open Admin Menu"
+        >
+          <Menu size={16} />
+        </button>
+
+        <span className="text-slate-400 hidden sm:inline truncate">Find Your Trek Admin</span>
+        <ChevronRight size={12} className="text-slate-400 hidden sm:inline shrink-0" />
+        <span className={`truncate font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{activeTab}</span>
       </div>
 
       {/* Global Controls */}

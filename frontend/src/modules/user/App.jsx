@@ -9,6 +9,7 @@ import ProfileSetup from './components/ProfileSetup';
 import HomeView from './components/HomeView';
 import ExploreView from './components/ExploreView';
 import TrekOrganizersView from './components/TrekOrganizersView';
+import TrekDetailsView from './components/TrekDetailsView';
 import TripDetailsView from './components/TripDetailsView';
 import BookingFlow from './components/BookingFlow';
 import BookingsView from './components/BookingsView';
@@ -22,6 +23,7 @@ import LandingView from '../landing/LandingView';
 import PrivacyPolicyPage from '../landing/PrivacyPolicyPage';
 import SupportPage from '../landing/SupportPage';
 import NotFoundPage from '../../components/NotFoundPage';
+import treksApi from '../../lib/treksApi';
 
 import {
   loadUserState, saveUserState,
@@ -169,7 +171,9 @@ const getInitialStateFromUrl = () => {
   const allTrips = loadTrips();
   const allBookings = loadBookings();
 
-  if (path === '/explore') {
+  if (path === '/' || path === '' || path === '/home') {
+    tab = 'Home';
+  } else if (path === '/explore') {
     tab = 'Explore';
   } else if (path === '/bookings') {
     tab = 'Bookings';
@@ -181,7 +185,9 @@ const getInitialStateFromUrl = () => {
     tab = 'Profile';
     profileSub = PROFILE_SUB_ROUTES[path];
   } else if (path.startsWith('/trek/')) {
-    const trekSlug = path.replace('/trek/', '');
+    const subPath = path.replace('/trek/', '');
+    const isOrganizers = subPath.endsWith('/organizers');
+    const trekSlug = isOrganizers ? subPath.replace('/organizers', '') : subPath;
     const foundTrip = allTrips.find(t => slugifyTrekName(t.name) === trekSlug);
     if (foundTrip) {
       tab = 'Explore';
@@ -265,6 +271,11 @@ export default function App() {
   const [selectedBooking, setSelectedBooking] = useState(() => getInitialStateFromUrl().selectedBooking);
   const [selectedOrganizer, setSelectedOrganizer] = useState(() => getInitialStateFromUrl().selectedOrganizer);
   const [selectedTrekName, setSelectedTrekName] = useState(() => getInitialStateFromUrl().trekName);
+  const [showOrganizersList, setShowOrganizersList] = useState(() => {
+    const p = window.location.pathname;
+    return p.startsWith('/trek/') && p.endsWith('/organizers');
+  });
+  const [catalogTreks, setCatalogTreks] = useState([]);
   // Which Profile sub-page is deep-linked (e.g. '/app/profile/settings') —
   // null means the main Profile menu. Kept in sync with the URL both ways:
   // ProfileView reads it as `initialSub` and reports taps back via
@@ -444,10 +455,15 @@ export default function App() {
       setSelectedTrekName(null);
       setProfileSub(PROFILE_SUB_ROUTES[path]);
     } else if (path.startsWith('/trek/')) {
-      const trekSlug = path.replace('/trek/', '');
+      const subPath = path.replace('/trek/', '');
+      const isOrganizers = subPath.endsWith('/organizers');
+      const trekSlug = isOrganizers ? subPath.replace('/organizers', '') : subPath;
       const foundTrip = trips.find(t => slugifyTrekName(t.name) === trekSlug);
-      if (foundTrip) {
-        setSelectedTrekName(foundTrip.name);
+      const foundCatalog = catalogTreks.find(ct => slugifyTrekName(ct.title || ct.name || '') === trekSlug || ct.id === trekSlug);
+      const targetName = foundTrip ? foundTrip.name : (foundCatalog ? (foundCatalog.title || foundCatalog.name) : null);
+      if (targetName) {
+        setSelectedTrekName(targetName);
+        setShowOrganizersList(isOrganizers);
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
@@ -642,7 +658,12 @@ export default function App() {
   // marketing page reflects whatever the admin has published in the CMS.
   useEffect(() => {
     let cancelled = false;
+    try {
+      sessionStorage.setItem('fyt_last_module', 'hiker');
+      localStorage.setItem('fyt_last_module', 'hiker');
+    } catch (e) {}
     landingApi.getContent().then((c) => { if (!cancelled && c) setLandingContent(c); }).catch(() => {});
+    treksApi.listTreks().then((list) => { if (!cancelled && Array.isArray(list)) setCatalogTreks(list); }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
@@ -1064,9 +1085,36 @@ export default function App() {
         /* 3. Main Dashboard flow viewport screen */
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
           
+          {/* Dynamic master trek details page overlay */}
+          <AnimatePresence mode="wait">
+            {selectedTrekName && !showOrganizersList && !selectedTrip && !activeBookingTrip && (
+              <motion.div
+                key="overlay-trek-details"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                className={`absolute inset-0 z-47 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+              >
+                <TrekDetailsView
+                  trek={
+                    catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
+                    || trips.find(t => t.name === selectedTrekName)
+                  }
+                  offers={trips.filter(t => t.name === selectedTrekName)}
+                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                  onViewOrganisers={(tName) => navigateTo(`/trek/${slugifyTrekName(tName)}/organizers`)}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  darkMode={darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Dynamic trek -> choose organizer listing absolute overlay */}
           <AnimatePresence mode="wait">
-            {selectedTrekName && !selectedTrip && !activeBookingTrip && (
+            {selectedTrekName && showOrganizersList && !selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trek-organizers"
                 initial={{ x: '100%' }}
@@ -1078,7 +1126,7 @@ export default function App() {
                 <TrekOrganizersView
                   trekName={selectedTrekName}
                   offers={trips.filter(t => t.name === selectedTrekName)}
-                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo(`/trek/${slugifyTrekName(selectedTrekName)}`); } }}
                   onSelectOrganizerOffer={(t) => navigateTo(`/trip/${t.id}`)}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}

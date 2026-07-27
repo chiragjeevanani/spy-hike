@@ -21,8 +21,8 @@ export default function SwitchTransition({ darkMode, label = 'Switching to Organ
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className={`absolute inset-0 z-60 flex flex-col items-center justify-center gap-7 px-6 backdrop-blur-md ${
-        darkMode ? 'bg-black/50' : 'bg-white/60'
+      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-7 px-6 backdrop-blur-xl ${
+        darkMode ? 'bg-zinc-950/98 text-white' : 'bg-slate-900/98 text-white'
       }`}
     >
       {showScene && (
@@ -41,9 +41,9 @@ export default function SwitchTransition({ darkMode, label = 'Switching to Organ
         initial={{ opacity: 0, scale: 0.7, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 320, damping: 20, delay: 0.1 }}
-        className="flex items-center gap-2.5 bg-zinc-900 text-white pl-4 pr-5 py-3.5 rounded-full shadow-2xl"
+        className="flex items-center gap-2.5 bg-zinc-900/90 text-white border border-white/10 pl-4 pr-5 py-3.5 rounded-full shadow-2xl backdrop-blur-md"
       >
-        <Repeat size={18} className="shrink-0" />
+        <Repeat size={18} className="shrink-0 text-emerald-400" />
         <span className="text-sm font-semibold whitespace-nowrap">{label}</span>
       </motion.div>
     </motion.div>

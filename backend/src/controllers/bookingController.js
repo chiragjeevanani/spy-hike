@@ -84,12 +84,17 @@ export const createBooking = asyncHandler(async (req, res) => {
       if (!redeemed) throw ApiError.conflict('This coupon just reached its redemption limit — please remove it and try again.');
     }
 
-    const user = await User.findById(req.user.sub);
-
-    // Stubbed payment (create order + verify).
+    // -------------------------------------------------------------------------
+    // Razorpay Integration (Disabled for Pay on Arrival)
+    // Uncomment the lines below when re-enabling online Razorpay gateway checkout.
+    // -------------------------------------------------------------------------
+    /*
     const order = await paymentProvider.createOrder({ amount: pricing.finalAmount, receipt: tripId });
     const payment = await paymentProvider.verifyPayment({ orderId: order.id });
     if (!payment.verified) throw ApiError.badRequest('Payment could not be verified');
+    const paymentRef = payment.paymentRef;
+    */
+    const paymentRef = `POA_${Date.now()}`;
 
     const { couponId, ...pricingFields } = pricing;
     const booking = await Booking.create({
@@ -105,7 +110,7 @@ export const createBooking = asyncHandler(async (req, res) => {
       bookingDate: todayStr(),
       selectedDate,
       travelers,
-      paymentRef: payment.paymentRef,
+      paymentRef,
       status: 'Upcoming',
       ...pricingFields,
     });

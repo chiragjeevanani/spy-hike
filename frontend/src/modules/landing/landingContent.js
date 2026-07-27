@@ -87,7 +87,6 @@ export const DEFAULT_LANDING_CONTENT = {
     items: [
       { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, pay via simulated gateways, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
       { key: 'organizer', title: 'Organizer Portal', badge: 'Agency Access', desc: 'Designed for local trekking agencies. Publish multi-day itineraries, manage seat inventory, upload dynamic photo galleries, and coordinate with hikers.', cta: 'Launch Organizer Portal', features: ['Dynamic Hike Form Builder', 'Booking Roster Trackers', 'Simulated Hiker Reply Chat', 'Verification Wizard'] },
-      { key: 'admin', title: 'Admin Console', badge: 'Platform Control', desc: 'Central moderation panel. Review agency registrations, verify legal credentials, audit active listings, and analyze site-wide booking revenue.', cta: 'Launch Admin Console', features: ['Agency Approval System', 'Global Trip Moderation', 'Hiker Roster Audits', 'Platform Revenue Insights'] },
     ],
   },
   testimonials: {
@@ -130,6 +129,9 @@ export function mergeLandingContent(partial) {
   const out = {};
   for (const section of Object.keys(DEFAULT_LANDING_CONTENT)) {
     out[section] = { ...DEFAULT_LANDING_CONTENT[section], ...(partial[section] || {}) };
+  }
+  if (Array.isArray(out.portals?.items)) {
+    out.portals.items = out.portals.items.filter((p) => p.key !== 'admin');
   }
   return out;
 }

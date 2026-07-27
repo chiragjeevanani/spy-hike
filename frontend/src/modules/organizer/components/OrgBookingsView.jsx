@@ -95,22 +95,22 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
               }`}
             >
               {/* Top row */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 ${darkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                    {(booking.userName || 'U').charAt(0)}
+              <div className="flex items-start justify-between mb-3 gap-2 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>
+                    {(booking.userName || 'U').charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-bold">{booking.userName}</p>
-                    <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{booking.userEmail}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-bold truncate leading-tight">{booking.userName}</p>
+                    <p className={`text-[11px] truncate mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{booking.userEmail}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${statusColor(booking.status)}`}>
+                <div className="flex flex-col items-end gap-1 shrink-0 ml-auto">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap ${statusColor(booking.status)}`}>
                     {statusIcon(booking.status)} {booking.status}
                   </span>
                   {booking.loyaltyRewardApplied && (
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange flex items-center gap-1">
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange flex items-center gap-1 whitespace-nowrap">
                       <Gift size={9} /> Reward Applied
                     </span>
                   )}
@@ -121,17 +121,17 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
               <p className={`text-xs font-semibold mb-3 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{booking.tripName}</p>
 
               {/* Details row */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-2.5 text-xs flex-wrap">
                   <span className={`flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    <Users size={11} /> {booking.hikersCount} hiker{booking.hikersCount > 1 ? 's' : ''}
+                    <Users size={11} className="shrink-0" /> {booking.hikersCount} hiker{booking.hikersCount > 1 ? 's' : ''}
                   </span>
-                  <span className={`flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    <CalendarCheck size={11} /> {booking.selectedDate}
+                  <span className={`flex items-center gap-1 whitespace-nowrap ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    <CalendarCheck size={11} className="shrink-0" /> {booking.selectedDate}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-spy-orange font-black text-sm">
-                  <IndianRupee size={12} />{booking.finalAmount?.toLocaleString('en-IN')}
+                <div className="flex items-center gap-1 text-spy-orange font-black text-sm whitespace-nowrap ml-auto">
+                  <IndianRupee size={12} className="shrink-0" />{booking.finalAmount?.toLocaleString('en-IN')}
                 </div>
               </div>
 

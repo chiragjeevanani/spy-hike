@@ -102,8 +102,12 @@ export default function HomeView({
   };
 
   const handleDestinationClick = (destName) => {
-    onApplySearch(destName);
-    onSwitchTab('Explore');
+    if (onSelectTrek) {
+      onSelectTrek(destName);
+    } else {
+      onApplySearch(destName);
+      onSwitchTab('Explore');
+    }
   };
 
   // One card per unique trek name — multiple organizers offering the same
@@ -166,7 +170,7 @@ export default function HomeView({
             }`}
           >
             <MapPin size={14} className="text-spy-orange shrink-0" />
-            <span className="text-xs font-semibold truncate max-w-[58px]">{(location?.label || 'India').split(',')[0]}</span>
+            <span className="text-xs font-semibold truncate max-w-[120px]">{(location?.label || 'India').split(',')[0]}</span>
             <ChevronDown size={12} className="opacity-50 shrink-0" />
           </button>
 
@@ -443,7 +447,7 @@ export default function HomeView({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className={`block text-[10px] uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>From</span>
+                      <span className={`block text-[10px] uppercase font-bold tracking-wider ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Starting from</span>
                       <span className={`text-lg font-bold ${darkMode ? 'text-elegant-orange' : 'text-forest-600'}`}>₹{group.minPrice}</span>
                     </div>
                   </div>
@@ -552,11 +556,25 @@ export default function HomeView({
                   notifications.map(item => (
                     <div
                       key={item.id}
-                      onClick={() => onMarkNotificationRead(item.id)}
-                      className={`p-3 rounded-xl border flex flex-col gap-1 cursor-pointer transition-all ${
+                      onClick={() => {
+                        onMarkNotificationRead(item.id);
+                        setShowNotificationDrawer(false);
+                        const title = (item.title || '').toLowerCase();
+                        const content = (item.content || '').toLowerCase();
+                        if (title.includes('booking') || content.includes('booking') || content.includes('booked')) {
+                          onSwitchTab('Bookings');
+                        } else if (title.includes('explore') || title.includes('trek') || content.includes('trek')) {
+                          onSwitchTab('Explore');
+                        } else if (title.includes('reward') || title.includes('loyalty') || content.includes('loyalty')) {
+                          onSwitchTab('Profile');
+                        } else {
+                          onSwitchTab('Bookings');
+                        }
+                      }}
+                      className={`p-3 rounded-xl border flex flex-col gap-1 cursor-pointer transition-all hover:scale-[0.99] active:scale-95 ${
                         item.read 
-                          ? (darkMode ? 'bg-zinc-900/30 border-zinc-900/50 text-zinc-400' : 'bg-gray-55 border-gray-100 text-zinc-502')
-                          : (darkMode ? 'bg-forest-950/20 border-forest-900/30 font-medium text-white shadow-xs' : 'bg-green-50/70 border-green-100 font-medium')
+                          ? (darkMode ? 'bg-zinc-900/30 border-zinc-900/50 text-zinc-400' : 'bg-gray-50 border-gray-100 text-zinc-600')
+                          : (darkMode ? 'bg-forest-950/40 border-forest-500/30 font-medium text-white shadow-xs' : 'bg-green-50/80 border-green-200 font-medium text-zinc-900')
                       }`}
                     >
                       <div className="flex justify-between items-center text-xs font-bold">

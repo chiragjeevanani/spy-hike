@@ -290,12 +290,6 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
                   >
                     Organizer Portal
                   </button>
-                  <button 
-                    onClick={() => { setMobileMenuOpen(false); onLaunchAdmin(); }}
-                    className="w-full py-3 rounded-xl border border-zinc-300 dark:border-elegant-border font-semibold text-center text-zinc-400 dark:text-zinc-500"
-                  >
-                    Admin Console
-                  </button>
                 </div>
               </motion.div>
             )}
@@ -765,7 +759,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
             <motion.div 
               {...scrollTriggerSettings}
               variants={staggerContainer}
-              className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+              className={`grid grid-cols-1 ${portals.length === 2 ? 'md:grid-cols-2 max-w-4xl mx-auto' : 'lg:grid-cols-3'} gap-8`}
             >
               {portals.map((portal) => (
                 <motion.div 

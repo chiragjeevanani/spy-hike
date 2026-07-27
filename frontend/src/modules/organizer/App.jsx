@@ -241,7 +241,12 @@ export default function OrgApp() {
     } catch { /* keep current state on transient failure */ }
   }, []);
 
-  // Trip CRUD — the API owns id/trekId/organizer snapshot/price; TripFormView
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('fyt_last_module', 'organizer');
+      localStorage.setItem('fyt_last_module', 'organizer');
+    } catch (e) {}
+  }, []);
   // passes the full form payload and the backend rebuilds the canonical trip.
   const handleSaveTrip = async (savedTrip) => {
     try {
@@ -604,6 +609,10 @@ export default function OrgApp() {
                 onMarkAllRead={handleMarkAllNotificationsRead}
                 onClear={handleClearNotifications}
                 onBack={() => setShowOrgNotifications(false)}
+                onNavigateTab={(tab) => {
+                  setShowOrgNotifications(false);
+                  navigateTo(tab);
+                }}
                 darkMode={darkMode}
               />
             </motion.div>

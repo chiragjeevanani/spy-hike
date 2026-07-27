@@ -5,8 +5,25 @@ export default function NotFoundPage({ onGoHome, homePath, homeLabel = 'Return t
   const handleHomeClick = () => {
     if (onGoHome) {
       onGoHome();
-    } else if (homePath) {
+      return;
+    }
+    if (homePath) {
       window.location.href = homePath;
+      return;
+    }
+
+    let lastModule = '';
+    try {
+      lastModule = sessionStorage.getItem('fyt_last_module') || localStorage.getItem('fyt_last_module') || '';
+    } catch (e) {}
+
+    const path = window.location.pathname;
+    const ref = typeof document !== 'undefined' ? document.referrer : '';
+
+    if (lastModule === 'organizer' || path.startsWith('/organizer') || ref.includes('/organizer')) {
+      window.location.href = '/organizer';
+    } else if (lastModule === 'admin' || path.startsWith('/admin') || ref.includes('/admin')) {
+      window.location.href = '/admin';
     } else {
       window.location.href = '/app';
     }

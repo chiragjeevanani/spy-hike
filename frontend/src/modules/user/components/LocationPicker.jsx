@@ -27,7 +27,14 @@ const POPULAR_LOCATIONS = [
 //   GET https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=API_KEY
 // then use results[0].formatted_address. For now we show the raw coordinates.
 async function reverseGeocode(lat, lng) {
-  return `Near ${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+    const data = await res.json();
+    const city = data?.address?.city || data?.address?.town || data?.address?.state_district || data?.address?.county || data?.address?.state || 'Dehradun';
+    return city;
+  } catch (e) {
+    return 'Dehradun';
+  }
 }
 
 export default function LocationPicker({ open, current, onSelect, onClose, darkMode }) {

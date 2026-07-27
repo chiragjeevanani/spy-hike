@@ -1,17 +1,52 @@
-# Local Workspace & AI Agents Configs
-branch_structure.json
-temp_auto_push.bat
-temp_interactive_push.bat
-.vscode/
-.gemini/
-.claude/
-.qoder/
-.kiro/
-.antigravityignore
-.mcp.json
-.opencode.json
+# Dependencies & package logs
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# OS generated files
+# Environment Variables & Secrets
+.env
+.env.*
+*.env
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Build outputs, bundles & archives
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+*.zip
+*.tar.gz
+*.rar
+*.7z
+frontend/dump/
+dump/
+
+# Testing & Coverage
+coverage/
+**/coverage/
+.code-review-graph/
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+blob-report/
+**/blob-report/
+.cache/
+**/.cache/
+
+# Local Workspace, IDEs & AI Tools
+.vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
 .DS_Store?
 ._*
@@ -19,44 +54,22 @@ temp_interactive_push.bat
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Python virtual environment
-.venv/
-venv/
-ENV/
-env/
+.gemini/
+.claude/
+.qoder/
+.kiro/
+.agents/
+.antigravityignore
+.mcp.json
+.opencode.json
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+temp_*.bat
+temp_*.sh
 
-# Build outputs, dumps, and temporary files
-frontend/785z15.zip
-frontend/dump/
-dist/
-build/
-out/
-
-# Added by code-review-graph
-.code-review-graph/
-
-# Playwright e2e artifacts
-frontend/test-results/
-frontend/playwright-report/
-frontend/blob-report/
-frontend/playwright/.cache/
-
-# Local Environment Variables & Secrets
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
-
-# Node / package manager dependencies & logs
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Serverless & deployments
+# Serverless & Deployment cache
 .vercel/
 .serverless/

@@ -223,44 +223,44 @@ export default function BookingsView({
               transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
               whileHover={{ y: -3 }}
               onClick={() => onSelectBooking(b)}
-              className={`rounded-3xl overflow-hidden p-3 flex gap-3.5 shadow-md cursor-pointer ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+              className={`rounded-3xl overflow-hidden p-3 flex gap-2.5 sm:gap-3.5 shadow-md cursor-pointer ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
             >
-              <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0">
                 <img src={b.tripImage} alt={b.tripName} className="w-full h-full object-cover" />
               </div>
 
               <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                 <div>
-                  <div className="flex justify-between items-start gap-2">
-                    <h3 className="font-serif text-lg font-semibold leading-tight truncate">{b.tripName}</h3>
+                  <div className="flex flex-col xs:flex-row xs:items-start justify-between gap-1 sm:gap-2">
+                    <h3 className="font-serif text-sm sm:text-base font-semibold leading-snug break-words line-clamp-2 pr-1">{b.tripName}</h3>
                     {(() => {
                       const comp = getComputedBookingStatus(b);
                       const badge = getStatusBadgeStyle(comp);
                       return (
-                        <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full shrink-0 border ${badge.cls}`}>
+                        <span className={`text-[9px] sm:text-[10px] font-bold tracking-wider px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0 border whitespace-nowrap self-start ${badge.cls}`}>
                           {badge.label.toUpperCase()}
                         </span>
                       );
                     })()}
                   </div>
-                  <p className={`text-xs truncate mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.tripLocation}</p>
+                  <p className={`text-[11px] sm:text-xs truncate mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.tripLocation}</p>
                 </div>
 
-                <div className={`flex justify-between items-center mt-2 pt-2 border-t ${darkMode ? 'border-white/5' : 'border-gray-100'}`}>
-                  <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{b.selectedDate}</span>
-                  <div className="flex items-center gap-2.5">
+                <div className={`flex items-center justify-between mt-2 pt-2 border-t gap-2 flex-wrap sm:flex-nowrap ${darkMode ? 'border-white/5' : 'border-gray-100'}`}>
+                  <span className={`text-[11px] sm:text-xs whitespace-nowrap ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.selectedDate}</span>
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
                     <button
                       type="button"
                       id={`btn-message-organizer-${b.bookingId.toLowerCase()}`}
                       onClick={(e) => { e.stopPropagation(); handleContactOrganizer(b); }}
                       title="Message organizer"
-                      className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition ${
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition ${
                         darkMode ? 'bg-white/5 text-forest-400 hover:bg-white/10' : 'bg-forest-50 text-forest-600 hover:bg-forest-100'
                       }`}
                     >
                       <MessageSquare size={13} />
                     </button>
-                    <span className={`font-serif text-lg font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
+                    <span className={`font-serif text-base sm:text-lg font-semibold whitespace-nowrap ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
                   </div>
                 </div>
               </div>

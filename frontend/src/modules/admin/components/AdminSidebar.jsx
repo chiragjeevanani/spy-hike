@@ -10,7 +10,7 @@ import trekRequestsApi from '../../../lib/trekRequestsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import AppLogo from '../../../components/AppLogo';
 
-export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collapsed, setCollapsed, darkMode }) {
+export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collapsed, setCollapsed, darkMode, mobileOpen, onCloseMobile }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -54,14 +54,32 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
     { id: 'Settings', label: 'Settings', icon: Settings },
   ];
 
+  const handleSelectNav = (id) => {
+    onSelectTab(id);
+    if (onCloseMobile) onCloseMobile();
+  };
+
   return (
-    <div 
-      className={`h-screen sticky top-0 flex flex-col border-r transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] z-30 shrink-0 ${
-        darkMode 
-          ? 'bg-[#0E162F] border-slate-800 text-slate-200' 
-          : 'bg-white border-slate-200 text-slate-700'
-      } ${collapsed ? 'w-20' : 'w-64'}`}
-    >
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden"
+        />
+      )}
+
+      <div 
+        className={`h-screen sticky top-0 flex flex-col border-r transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] z-45 shrink-0 ${
+          darkMode 
+            ? 'bg-[#0E162F] border-slate-800 text-slate-200' 
+            : 'bg-white border-slate-200 text-slate-700'
+        } ${collapsed ? 'w-20' : 'w-64'} ${
+          mobileOpen
+            ? 'fixed inset-y-0 left-0 z-50 w-72 flex shadow-2xl translate-x-0'
+            : 'hidden md:flex'
+        }`}
+      >
       {/* Sidebar Header Brand */}
       <div className={`p-5 flex items-center border-b ${
         collapsed ? 'justify-center' : 'justify-between'
@@ -104,7 +122,7 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
           return (
             <button
               key={item.id}
-              onClick={() => onSelectTab(item.id)}
+              onClick={() => handleSelectNav(item.id)}
               className={`flex items-center text-sm font-semibold tracking-wide transition-all duration-400 ease-[cubic-bezier(0.25,1,0.5,1)] group relative ${
                 collapsed 
                   ? 'justify-center mx-auto w-12 h-12 rounded-2xl' 
@@ -179,5 +197,6 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
         darkMode={darkMode}
       />
     </div>
+    </>
   );
 }

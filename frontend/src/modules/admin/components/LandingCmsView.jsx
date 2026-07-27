@@ -295,7 +295,7 @@ export default function LandingCmsView({ darkMode }) {
       </Section>
 
       {/* PORTALS */}
-      <Section {...sectionProps('portals')} title="Portal Gateways" subtitle="The 3 role launch cards" visible={draft.portals.visible} onToggleVisible={(v) => setSection('portals', { visible: v })} onReset={() => resetSection('portals')}>
+      <Section {...sectionProps('portals')} title="Portal Gateways" subtitle="Role launch cards" visible={draft.portals.visible} onToggleVisible={(v) => setSection('portals', { visible: v })} onReset={() => resetSection('portals')}>
         <Field label="Heading"><TextInput value={draft.portals.heading} onChange={(v) => setSection('portals', { heading: v })} darkMode={darkMode} /></Field>
         <Field label="Subheading"><TextArea value={draft.portals.subheading} onChange={(v) => setSection('portals', { subheading: v })} darkMode={darkMode} rows={2} /></Field>
         <div className="space-y-2.5">

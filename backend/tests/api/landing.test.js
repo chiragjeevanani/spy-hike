@@ -24,7 +24,7 @@ describe('Landing content CMS', () => {
     expect(res.status).toBe(200);
     expect(res.body.content.hero.titleHighlight).toBe('Verified Guides');
     expect(res.body.content.features.items).toHaveLength(4);
-    expect(res.body.content.portals.items.map((p) => p.key)).toEqual(['hiker', 'organizer', 'admin']);
+    expect(res.body.content.portals.items.map((p) => p.key)).toEqual(['hiker', 'organizer']);
     expect(res.body.content.faq.items.length).toBeGreaterThan(0);
   });
 

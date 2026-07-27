@@ -17,8 +17,33 @@ const TYPE_COLOR = {
   Payment: 'text-amber-400 bg-amber-400/10',
 };
 
-export default function OrgNotificationsView({ notifications, onMarkRead, onMarkAllRead, onClear, onBack, darkMode }) {
+export default function OrgNotificationsView({ notifications, onMarkRead, onMarkAllRead, onClear, onBack, onNavigateTab, darkMode }) {
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleNotificationClick = (n) => {
+    if (!n.read) {
+      onMarkRead(n.id);
+    }
+    if (onNavigateTab) {
+      const type = (n.type || '').toLowerCase();
+      const title = (n.title || '').toLowerCase();
+      const content = (n.content || '').toLowerCase();
+
+      if (type === 'booking' || title.includes('booking') || content.includes('booked') || content.includes('traveler')) {
+        onNavigateTab('Bookings');
+      } else if (type === 'payment' || title.includes('payout') || title.includes('financial')) {
+        onNavigateTab('Financials');
+      } else if (type === 'promo' || title.includes('reward') || title.includes('loyalty')) {
+        onNavigateTab('Loyalty');
+      } else if (type === 'chat' || title.includes('message')) {
+        onNavigateTab('Chats');
+      } else if (type === 'trip' || title.includes('expedition') || title.includes('trek')) {
+        onNavigateTab('Trips');
+      } else {
+        onNavigateTab('Bookings');
+      }
+    }
+  };
 
   return (
     <div className={`h-full flex flex-col overflow-hidden font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
@@ -63,11 +88,11 @@ export default function OrgNotificationsView({ notifications, onMarkRead, onMark
               <button
                 type="button"
                 key={n.id}
-                onClick={() => !n.read && onMarkRead(n.id)}
-                className={`w-full text-left p-3.5 rounded-2xl flex gap-3 transition ${
+                onClick={() => handleNotificationClick(n)}
+                className={`w-full text-left p-3.5 rounded-2xl flex gap-3 cursor-pointer active:scale-[0.99] transition ${
                   n.read
-                    ? (darkMode ? 'bg-zinc-900/40' : 'bg-white shadow-xs')
-                    : (darkMode ? 'bg-zinc-900 border border-spy-orange/20' : 'bg-white border border-spy-orange/25 shadow-sm')
+                    ? (darkMode ? 'bg-zinc-900/40 hover:bg-zinc-900/70' : 'bg-white shadow-xs hover:bg-gray-100/80')
+                    : (darkMode ? 'bg-zinc-900 border border-spy-orange/30 hover:border-spy-orange/50 shadow-sm' : 'bg-white border border-spy-orange/30 shadow-sm hover:bg-orange-50/50')
                 }`}
               >
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${colorCls}`}>

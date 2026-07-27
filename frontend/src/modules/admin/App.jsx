@@ -90,6 +90,7 @@ export default function AdminApp() {
   const [activeTab, setActiveTab] = useState(() => getAdminTab(window.location.pathname));
   const [profileParam, setProfileParam] = useState(() => getProfileParam(window.location.pathname));
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Sync back-button routing
   useEffect(() => {
@@ -228,6 +229,8 @@ export default function AdminApp() {
         collapsed={collapsed}
         setCollapsed={setCollapsed}
         darkMode={darkMode}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       {/* Page Content layout */}
@@ -242,6 +245,7 @@ export default function AdminApp() {
           admin={admin}
           darkMode={darkMode}
           onToggleDarkMode={handleToggleDarkMode}
+          onOpenMobileMenu={() => setMobileSidebarOpen(true)}
         />
 
         {/* Dynamic Inner Panel View with AnimatePresence */}

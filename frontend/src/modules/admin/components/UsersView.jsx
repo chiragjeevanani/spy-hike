@@ -72,7 +72,7 @@ export default function UsersView({ onOpenProfile, darkMode }) {
   }`;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
 
       {/* Title */}
       <div className="flex justify-between items-center flex-wrap gap-4">

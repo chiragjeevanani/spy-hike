@@ -137,7 +137,7 @@ export default function BookingFlow({
   const loyaltyMaxDiscount = loadLoyaltyConfig().customer.maxDiscountAmount;
   
   // Payment Options
-  const [paymentGateway, setPaymentGateway] = useState('Razorpay');
+  const [paymentGateway, setPaymentGateway] = useState('Pay on Arrival');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentFinished, setPaymentFinished] = useState(false);
   const [bookingError, setBookingError] = useState('');
@@ -972,14 +972,14 @@ export default function BookingFlow({
 
             {/* Secure payment partner logo info */}
             <div className="flex items-center justify-center gap-1.5 pt-2 text-[10px] opacity-75 font-semibold text-zinc-500">
-              <ShieldCheck size={12} className="text-forest-660 dark:text-forest-400" />
-              <span>Payments secured and processed via Razorpay Express</span>
+              <ShieldCheck size={12} className="text-forest-600 dark:text-forest-400" />
+              <span>Pay on Arrival at Base Camp • Instantly Credited to Organizer Wallet</span>
             </div>
 
             {isProcessingPayment && (
               <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/35 flex items-center justify-center gap-3">
                 <div className="w-3.5 h-3.5 rounded-full border-2 border-spy-orange border-t-transparent animate-spin" />
-                <span className="text-xs font-semibold text-spy-orange">Routing secure tokens via {paymentGateway}...</span>
+                <span className="text-xs font-semibold text-spy-orange">Confirming reservation with {paymentGateway}...</span>
               </div>
             )}
 
@@ -1008,11 +1008,11 @@ export default function BookingFlow({
             </span>
 
             <h2 className="text-xl font-display font-black tracking-tight leading-tight">
-              Booking Succeeded!
+              Booking Reserved!
             </h2>
             
             <p className="text-xs text-zinc-500 max-w-xs mx-auto -mt-1 pb-4 leading-relaxed">
-              Your permit reservation code is validated. Receipt ID: <span className="font-mono text-spy-orange font-bold">{createdBooking.bookingId}</span>
+              Your permit slot is confirmed. Pay on arrival at base camp. Receipt ID: <span className="font-mono text-spy-orange font-bold">{createdBooking.bookingId}</span>
             </p>
 
             {/* Custom vector ticket coupon cards */}
@@ -1042,7 +1042,8 @@ export default function BookingFlow({
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[8px] opacity-50 block font-mono">TOTAL PAID</span>
+                  <span className="text-[8px] opacity-50 block font-mono">PAYMENT MODE</span>
+                  <span className="text-[10px] font-extrabold text-emerald-500 block">Pay on Arrival</span>
                   <span className={`text-xs font-extrabold font-sans ${darkMode ? 'text-emerald-450' : 'text-emerald-700'}`}>₹{createdBooking.finalAmount}</span>
                 </div>
               </div>
@@ -1140,13 +1141,13 @@ export default function BookingFlow({
                   ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/60 hover:border-emerald-400 shadow-lg shadow-emerald-900/10'
                   : 'bg-emerald-50/60 border-emerald-500/30 text-emerald-700 hover:bg-emerald-100/90 hover:border-emerald-500 shadow-md shadow-emerald-950/5'
                 : darkMode
-                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
-                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
+                ? 'bg-spy-orange/20 border-spy-orange/50 text-spy-orange hover:bg-spy-orange/30 shadow-lg cursor-pointer'
+                : 'bg-spy-orange border-spy-orange text-white hover:bg-orange-600 shadow-md cursor-pointer'
             }`}
           >
             {finalPayAmount === 0
               ? <>Confirm Free Booking <Gift size={14} /></>
-              : <>Pay ₹{finalPayAmount} <ShieldCheck size={14} /></>}
+              : <>Pay on Arrival (₹{finalPayAmount}) <ShieldCheck size={14} /></>}
           </button>
         </div>
       )}

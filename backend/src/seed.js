@@ -7,6 +7,7 @@ import { connectDB, disconnectDB } from './config/db.js';
 import { env } from './config/env.js';
 import Admin from './models/Admin.js';
 import Trip from './models/Trip.js';
+import Trek from './models/Trek.js';
 import Category from './models/Category.js';
 import Coupon from './models/Coupon.js';
 import { hashPassword } from './utils/password.js';
@@ -137,13 +138,67 @@ async function upsertTrips() {
   }
 }
 
+async function upsertTreks() {
+  for (const t of HIKING_TRIPS) {
+    const trekId = slugify(t.name);
+    const trekDoc = {
+      _id: trekId,
+      title: t.name,
+      location: t.location,
+      startingPoint: t.startingPoint || t.pickupPoints?.[0] || t.location,
+      state: t.state || '',
+      city: t.city || '',
+      difficulty: t.difficulty || 'Moderate',
+      durationDays: t.durationDays || 2,
+      distanceKm: t.distanceKm || 10,
+      elevationMeters: t.elevationMeters || 1000,
+      coverImage: t.coverImage,
+      galleryImages: t.galleryImages || [],
+      category: t.category || '',
+      description: t.description || '',
+      itinerary: t.itinerary || [],
+      thingsToCarry: t.thingsToCarry || [
+        'Personal medication (if any)',
+        'Strong backpack (Preferably water proof)',
+        'Fresh pair of clothes',
+        'Toiletries',
+        'Mosquito Repellent Cream',
+        'Water bottles (at least 2 liters of water)',
+        'Torch with new batteries (must in case of emergency)',
+        'Energy snacks & drinks (Chocolate bars, Electrolyte drinks)',
+        'Sunglasses & Sunscreen',
+        'Rain Coat (Highly Suggested)',
+        'Shoes with good grip'
+      ],
+      included: t.included && t.included.length ? t.included : [
+        'Forest permission & entry permits',
+        'Transport from base city to trek start point',
+        'Accommodation in Geodesic Dome Tents / Homestays',
+        'Veg Meals (Breakfast, Packed Lunch, Evening Snacks & Dinner)',
+        'Certified Wilderness Sherpa Guides & Safety Equipment'
+      ],
+      notIncluded: t.notIncluded && t.notIncluded.length ? t.notIncluded : [
+        'GST 5%',
+        'Personal luggage offloading charges',
+        'Medical emergency evacuation costs',
+        'Anything not explicitly mentioned under Inclusions'
+      ],
+      highlights: t.highlights || [],
+      status: 'Active',
+      trending: !!t.featured,
+    };
+    await Trek.updateOne({ _id: trekId }, { $set: trekDoc }, { upsert: true });
+  }
+}
+
 async function seed() {
   await connectDB();
   await upsertAdmin();
   await upsertCategories();
   await upsertCoupons();
+  await upsertTreks();
   await upsertTrips();
-  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} trips`);
+  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} catalog treks, ${HIKING_TRIPS.length} trips`);
   console.log('✓ Seed complete: admin account updated from ENV credentials.');
   await disconnectDB();
 }

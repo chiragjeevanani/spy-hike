@@ -157,3 +157,28 @@ button, a {
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.6s infinite linear;
 }
+
+/* Dynamic text sizing & small viewport protection (320px - 380px screens) */
+@media (max-width: 380px) {
+  html {
+    font-size: 14.5px;
+  }
+}
+
+/* Custom extra-small breakpoint utility fallback */
+@custom-media --xs (min-width: 380px);
+
+/* Line clamp utilities for preventing text truncation overflow */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

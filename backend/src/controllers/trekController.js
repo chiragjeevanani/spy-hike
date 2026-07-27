@@ -35,7 +35,11 @@ export const adminListTreks = asyncHandler(async (req, res) => {
 
 export const createTrek = asyncHandler(async (req, res) => {
   validateTrekFields(req.body);
-  const { title, location, state, city, difficulty, durationDays, distanceKm, elevationMeters, coverImage, category, description, trending } = req.body;
+  const {
+    title, location, startingPoint, state, city, difficulty, durationDays,
+    distanceKm, elevationMeters, coverImage, galleryImages, category, description,
+    itinerary, thingsToCarry, included, notIncluded, highlights, trending
+  } = req.body;
 
   const id = slugify(title);
   if (!id) throw ApiError.badRequest('Title must contain at least one letter or number');
@@ -47,6 +51,7 @@ export const createTrek = asyncHandler(async (req, res) => {
     _id: id,
     title: title.trim(),
     location: location.trim(),
+    startingPoint: (startingPoint || '').trim(),
     state: (state || '').trim(),
     city: (city || '').trim(),
     difficulty,
@@ -54,8 +59,14 @@ export const createTrek = asyncHandler(async (req, res) => {
     distanceKm: Number(distanceKm),
     elevationMeters: Number(elevationMeters) || 0,
     coverImage,
+    galleryImages: Array.isArray(galleryImages) ? galleryImages : [],
     category: category || '',
     description: description || '',
+    itinerary: Array.isArray(itinerary) ? itinerary : [],
+    thingsToCarry: Array.isArray(thingsToCarry) ? thingsToCarry : [],
+    included: Array.isArray(included) ? included : [],
+    notIncluded: Array.isArray(notIncluded) ? notIncluded : [],
+    highlights: Array.isArray(highlights) ? highlights : [],
     status: 'Active',
     trending: !!trending,
   });
@@ -79,6 +90,7 @@ export const updateTrek = asyncHandler(async (req, res) => {
 
   if (f.title !== undefined) trek.title = f.title.trim();
   if (f.location !== undefined) trek.location = f.location.trim();
+  if (f.startingPoint !== undefined) trek.startingPoint = f.startingPoint.trim();
   if (f.state !== undefined) trek.state = f.state.trim();
   if (f.city !== undefined) trek.city = f.city.trim();
   if (f.difficulty !== undefined) trek.difficulty = f.difficulty;
@@ -86,8 +98,14 @@ export const updateTrek = asyncHandler(async (req, res) => {
   if (f.distanceKm !== undefined) trek.distanceKm = Number(f.distanceKm);
   if (f.elevationMeters !== undefined) trek.elevationMeters = Number(f.elevationMeters) || 0;
   if (f.coverImage !== undefined) trek.coverImage = f.coverImage;
+  if (f.galleryImages !== undefined) trek.galleryImages = Array.isArray(f.galleryImages) ? f.galleryImages : [];
   if (f.category !== undefined) trek.category = f.category;
   if (f.description !== undefined) trek.description = f.description;
+  if (f.itinerary !== undefined) trek.itinerary = Array.isArray(f.itinerary) ? f.itinerary : [];
+  if (f.thingsToCarry !== undefined) trek.thingsToCarry = Array.isArray(f.thingsToCarry) ? f.thingsToCarry : [];
+  if (f.included !== undefined) trek.included = Array.isArray(f.included) ? f.included : [];
+  if (f.notIncluded !== undefined) trek.notIncluded = Array.isArray(f.notIncluded) ? f.notIncluded : [];
+  if (f.highlights !== undefined) trek.highlights = Array.isArray(f.highlights) ? f.highlights : [];
   if (f.status !== undefined) trek.status = f.status === 'Inactive' ? 'Inactive' : 'Active';
   if (f.trending !== undefined) trek.trending = !!f.trending;
 

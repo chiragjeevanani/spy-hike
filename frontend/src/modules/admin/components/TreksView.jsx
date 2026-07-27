@@ -10,9 +10,32 @@ import { scrollToFirstError } from '../../../utils/formValidation';
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
 const emptyForm = () => ({
-  title: '', location: '', state: '', city: '',
+  title: '', location: '', startingPoint: '', state: '', city: '',
   difficulty: 'Moderate', durationDays: '', distanceKm: '', elevationMeters: '',
   coverImage: '', category: '', description: '',
+  itinerary: [{ day: 1, title: 'Arrival & Base Camp Assembly', description: 'Reach base camp, meet trek guides, and prepare gear.' }],
+  thingsToCarry: [
+    'Personal medication (if any)',
+    'Strong backpack (Preferably water proof)',
+    'Fresh pair of clothes',
+    'Toiletries',
+    'Water bottles (at least 2 liters)',
+    'Torch with new batteries',
+    'Rain Coat (Highly Suggested)',
+    'Shoes with good grip'
+  ],
+  included: [
+    'Forest permission & entry permits',
+    'Transport from base city to trek start point',
+    'Accommodation in Geodesic Tents / Homestays',
+    'Veg Meals during trek',
+    'Certified Sherpa Guides & Safety Equipment'
+  ],
+  notIncluded: [
+    'GST 5%',
+    'Personal luggage offloading charges',
+    'Medical emergency evacuation costs'
+  ],
 });
 
 export default function TreksView({ darkMode }) {
@@ -48,6 +71,7 @@ export default function TreksView({ darkMode }) {
     setForm({
       title: trek.title || '',
       location: trek.location || '',
+      startingPoint: trek.startingPoint || '',
       state: trek.state || '',
       city: trek.city || '',
       difficulty: trek.difficulty || 'Moderate',
@@ -57,6 +81,10 @@ export default function TreksView({ darkMode }) {
       coverImage: trek.coverImage || '',
       category: trek.category || '',
       description: trek.description || '',
+      itinerary: trek.itinerary && trek.itinerary.length ? trek.itinerary : [{ day: 1, title: 'Day 1 Assembly', description: 'Reach base location.' }],
+      thingsToCarry: trek.thingsToCarry && trek.thingsToCarry.length ? trek.thingsToCarry : ['Strong backpack', 'Shoes with good grip', 'Water bottles'],
+      included: trek.included && trek.included.length ? trek.included : ['Forest permits', 'Certified Guide'],
+      notIncluded: trek.notIncluded && trek.notIncluded.length ? trek.notIncluded : ['Personal expenses', 'GST'],
     });
     setFormError('');
     setFieldErrors({});
@@ -98,6 +126,7 @@ export default function TreksView({ darkMode }) {
     const fields = {
       title: form.title.trim(),
       location: form.location.trim(),
+      startingPoint: form.startingPoint.trim(),
       state: form.state.trim(),
       city: form.city.trim(),
       difficulty: form.difficulty,
@@ -107,6 +136,10 @@ export default function TreksView({ darkMode }) {
       coverImage: form.coverImage,
       category: form.category.trim(),
       description: form.description.trim(),
+      itinerary: form.itinerary.filter(i => i.title.trim()),
+      thingsToCarry: form.thingsToCarry.filter(t => t.trim()),
+      included: form.included.filter(i => i.trim()),
+      notIncluded: form.notIncluded.filter(i => i.trim()),
     };
 
     setSaving(true);
