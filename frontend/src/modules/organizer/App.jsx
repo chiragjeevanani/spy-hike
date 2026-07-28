@@ -695,17 +695,13 @@ export default function OrgApp() {
               transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
-              <div className={`shrink-0 px-4 pt-4 pb-2 ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}>
-                <button
-                  type="button"
-                  onClick={() => setShowOrgChats(false)}
-                  className={`text-xs font-bold flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}
-                >
-                  ← Back
-                </button>
-              </div>
               <div className="flex-1 min-h-0">
-                <OrgChatsView chats={chats} onSendMessage={handleSendOrgMessage} darkMode={darkMode} />
+                <OrgChatsView
+                  chats={chats}
+                  onSendMessage={handleSendOrgMessage}
+                  onBack={() => setShowOrgChats(false)}
+                  darkMode={darkMode}
+                />
               </div>
             </motion.div>
           )}

@@ -16,6 +16,7 @@ import {
 import { notifyCustomer, notifyOrganizer } from '../services/notificationService.js';
 import { findOrCreateChat } from './chatController.js';
 import { paymentProvider } from '../integrations/payments.js';
+import { autoResolveBookingStatuses } from '../utils/bookingStatusHelper.js';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -161,12 +162,14 @@ export const createBooking = asyncHandler(async (req, res) => {
 
 // GET /bookings — the signed-in customer's own bookings.
 export const listMyBookings = asyncHandler(async (req, res) => {
+  await autoResolveBookingStatuses();
   const bookings = await Booking.find({ userEmail: req.user.email }).sort({ createdAt: -1 });
   res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
 });
 
 // GET /bookings/:id — one of the customer's bookings (by bookingId or _id).
 export const getMyBooking = asyncHandler(async (req, res) => {
+  await autoResolveBookingStatuses();
   const booking = await Booking.findOne({ userEmail: req.user.email, ...idMatch(req.params.id) });
   if (!booking) throw ApiError.notFound('Booking not found');
   res.json({ booking: booking.toPublicJSON() });
@@ -213,6 +216,7 @@ export const cancelBooking = asyncHandler(async (req, res) => {
 
 // GET /organizer/bookings — bookings for the approved organizer's trips.
 export const listOrganizerBookings = asyncHandler(async (req, res) => {
+  await autoResolveBookingStatuses();
   const bookings = await Booking.find({ organizerEmail: req.organizer.email }).sort({ createdAt: -1 });
   res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
 });
@@ -238,6 +242,7 @@ export const checkinBooking = asyncHandler(async (req, res) => {
 
   booking.checkedInAt = new Date().toISOString();
   booking.checkedInBy = req.organizer.email;
+  booking.status = 'Ongoing';
   await booking.save();
   res.json({ booking: booking.toPublicJSON(), alreadyCheckedIn: false });
 });
@@ -269,6 +274,7 @@ export const redeemOrganizerReward = asyncHandler(async (req, res) => {
 
 // GET /admin/bookings — all bookings.
 export const listAllBookings = asyncHandler(async (req, res) => {
+  await autoResolveBookingStatuses();
   const bookings = await Booking.find().sort({ createdAt: -1 });
   res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
 });

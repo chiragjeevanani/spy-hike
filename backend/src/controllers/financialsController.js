@@ -5,6 +5,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notifyOrganizer } from '../services/notificationService.js';
 
+import { autoResolveBookingStatuses } from '../utils/bookingStatusHelper.js';
+
 // Format checks for a real payout destination — this data drives where money
 // actually gets sent, so it's validated for real rather than trusted as-is.
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
@@ -16,13 +18,14 @@ const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]{1}$/;
 // everything already requested/settled (Processing + Paid payouts). Refunds
 // need no reversal here because cancelled bookings are simply excluded.
 async function computeAvailable(organizerEmail) {
+  await autoResolveBookingStatuses();
   const [bookings, payouts] = await Promise.all([
     Booking.find({ organizerEmail, status: { $ne: 'Cancelled' } }),
     Payout.find({ organizerEmail, status: { $in: ['Processing', 'Paid'] } }),
   ]);
   const earned = bookings.reduce((s, b) => s + (b.organizerPayout || 0), 0);
   const committed = payouts.reduce((s, p) => s + p.amount, 0);
-  return { earned, committed, available: Math.round((earned - committed) * 100) / 100 };
+  return { earned, committed, available: Math.max(0, Math.round((earned - committed) * 100) / 100) };
 }
 
 // GET /organizer/financials — balance summary + payout history.

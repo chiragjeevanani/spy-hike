@@ -11,8 +11,10 @@ import bookingsApi from '../../../lib/bookingsApi';
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const map = {
-    Upcoming:  { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
+    Upcoming:  { cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30',  dot: 'bg-amber-400' },
+    Ongoing:   { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
     Completed: { cls: 'bg-blue-500/15 text-blue-400 border-blue-500/30',         dot: 'bg-blue-400' },
+    Missed:    { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          dot: 'bg-rose-400' },
     Cancelled: { cls: 'bg-red-500/15 text-red-400 border-red-500/30',            dot: 'bg-red-400' },
   };
   const s = map[status] || map['Upcoming'];

@@ -47,7 +47,7 @@ const bookingSchema = new mongoose.Schema(
     refundPercent: { type: Number, default: 0 },
     cancelledAt: { type: String, default: null },
     paymentRef: String,
-    status: { type: String, enum: ['Upcoming', 'Completed', 'Cancelled'], default: 'Upcoming' },
+    status: { type: String, enum: ['Upcoming', 'Ongoing', 'Completed', 'Missed', 'Cancelled'], default: 'Upcoming' },
     // Phase 6 (check-in) fields, present but unused until then.
     checkedInAt: { type: String, default: null },
     checkedInBy: { type: String, default: null },

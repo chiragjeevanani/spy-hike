@@ -42,15 +42,15 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
   const bankFieldRefs = useRef({});
 
   const activeBookings = bookings.filter(b => b.status !== 'Cancelled');
-  const completedBookings = bookings.filter(b => b.status === 'Completed');
-  const upcomingBookings = bookings.filter(b => b.status === 'Upcoming');
+  const scannedBookings = activeBookings.filter(b => !!b.checkedInAt || b.isCheckedIn);
+  const unscannedBookings = activeBookings.filter(b => !b.checkedInAt && !b.isCheckedIn);
 
   const totalGross = activeBookings.reduce((s, b) => s + (b.finalAmount || 0), 0);
   const totalCommission = activeBookings.reduce((s, b) => s + commissionOf(b), 0);
   const totalNet = totalGross - totalCommission;
 
-  const settledNet = completedBookings.reduce((s, b) => s + netOf(b), 0);
-  const pendingNet = upcomingBookings.reduce((s, b) => s + netOf(b), 0);
+  const settledNet = scannedBookings.reduce((s, b) => s + netOf(b), 0);
+  const pendingNet = unscannedBookings.reduce((s, b) => s + netOf(b), 0);
 
   const paidOut = payouts.filter(p => p.status === 'Paid').reduce((s, p) => s + p.amount, 0);
   const processingAmount = payouts.filter(p => p.status === 'Processing').reduce((s, p) => s + p.amount, 0);

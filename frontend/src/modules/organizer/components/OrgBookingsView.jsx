@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CalendarCheck, Users, IndianRupee, ChevronRight, Search, Filter, CheckCircle, XCircle, Clock, Gift, Sparkles } from 'lucide-react';
 import { getAvailableOrganizerVoucher } from '../../../utils/loyalty';
 
-const STATUS_FILTERS = ['All', 'Upcoming', 'Completed', 'Cancelled'];
+const STATUS_FILTERS = ['All', 'Upcoming', 'Ongoing', 'Completed', 'Missed', 'Cancelled'];
 
 export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMode }) {
   const [filter, setFilter] = useState('All');
@@ -25,13 +25,17 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
 
   const statusIcon = (s) => {
     if (s === 'Upcoming') return <Clock size={13} className="text-amber-400" />;
-    if (s === 'Completed') return <CheckCircle size={13} className="text-emerald-400" />;
+    if (s === 'Ongoing') return <Sparkles size={13} className="text-emerald-400" />;
+    if (s === 'Completed') return <CheckCircle size={13} className="text-blue-400" />;
+    if (s === 'Missed') return <XCircle size={13} className="text-rose-400" />;
     return <XCircle size={13} className="text-red-400" />;
   };
 
   const statusColor = (s) => {
     if (s === 'Upcoming') return 'bg-amber-500/15 text-amber-400';
-    if (s === 'Completed') return 'bg-emerald-500/15 text-emerald-400';
+    if (s === 'Ongoing') return 'bg-emerald-500/15 text-emerald-400';
+    if (s === 'Completed') return 'bg-blue-500/15 text-blue-400';
+    if (s === 'Missed') return 'bg-rose-500/15 text-rose-400';
     return 'bg-red-500/15 text-red-400';
   };
 

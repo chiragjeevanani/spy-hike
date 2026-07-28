@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, Send, ArrowLeft } from 'lucide-react';
 
-export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
+export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode }) {
   const [selectedChat, setSelectedChat] = useState(null);
   const [inputText, setInputText] = useState('');
   const bottomRef = useRef(null);
@@ -94,9 +94,24 @@ export default function OrgChatsView({ chats, onSendMessage, darkMode }) {
 
   return (
     <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
-      <div className={`px-5 pt-5 pb-4 shrink-0 ${darkMode ? 'bg-gradient-to-b from-zinc-900/80 to-transparent' : 'bg-gradient-to-b from-orange-50 to-transparent'}`}>
-        <h1 className="text-xl font-display font-black tracking-tight mb-0.5">Messages</h1>
-        <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chats.length} active conversation{chats.length !== 1 ? 's' : ''}</p>
+      <div className={`px-5 pt-5 pb-4 shrink-0 flex items-center gap-3 ${darkMode ? 'bg-gradient-to-b from-zinc-900/80 to-transparent' : 'bg-gradient-to-b from-orange-50 to-transparent'}`}>
+        {onBack && (
+          <button
+            id="btn-back-org-messages"
+            type="button"
+            onClick={onBack}
+            className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition shrink-0 ${
+              darkMode ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700' : 'bg-white text-zinc-600 shadow-sm hover:bg-zinc-100'
+            }`}
+            aria-label="Go back"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        )}
+        <div>
+          <h1 className="text-xl font-display font-black tracking-tight mb-0.5">Messages</h1>
+          <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chats.length} active conversation{chats.length !== 1 ? 's' : ''}</p>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-8 space-y-3">
