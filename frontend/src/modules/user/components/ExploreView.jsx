@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus
+  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { groupTripsByTrekName } from '../utils/trekGroups';
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
@@ -24,7 +24,12 @@ export default function ExploreView({
   onOpenLocationPicker,
   darkMode
 }) {
-  
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+
+  // Pagination state
+  const ITEMS_PER_PAGE = 8;
+  const [currentPage, setCurrentPage] = useState(1);
+
   // Budget slider ceiling — defaults to ₹400 to match this catalog's seed
   // prices, but organizer-created trips can carry real-world per-person
   // pricing (₹1000s via pickup options), so the ceiling scales up to fit
@@ -42,6 +47,11 @@ export default function ExploreView({
   const [filterMinSeats, setFilterMinSeats] = useState(1);
   const [filterPickupCity, setFilterPickupCity] = useState('All');
   const [sortOption, setSortOption] = useState('Popular');
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption, userLocation]);
 
   // Categories quick toggles
   const categoriesList = ['All', 'Trekking', 'Hiking', 'Camping', 'Adventure Tours', 'Nature Walks', 'Weekend Trips'];
@@ -476,62 +486,105 @@ export default function ExploreView({
             </div>
           </div>
         ) : (
-          filteredTreks.map((group, idx) => {
-            const trip = group.representative;
-            const isSaved = wishlist.includes(trip.id);
-            const diffText = trip.difficulty === 'Easy' ? 'text-emerald-700' : trip.difficulty === 'Moderate' ? 'text-amber-700' : 'text-rose-700';
+          (() => {
+            const totalPages = Math.max(1, Math.ceil(filteredTreks.length / ITEMS_PER_PAGE));
+            const paginated = filteredTreks.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
             return (
-              <motion.div
-                key={group.trekName}
-                id={`trip-list-card-${trip.id}`}
-                onClick={() => onSelectTrek(group.trekName)}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
-                whileHover={{ y: -3 }}
-                className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
-              >
-                {/* Cover */}
-                <div className="relative h-52 overflow-hidden">
-                  <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
-                  <span className={`absolute top-3.5 left-3.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
-                    {trip.difficulty}
-                  </span>
-                  <button
-                    id={`btn-toggle-wishlist-explore-${trip.id}`}
-                    onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
-                    className={`absolute top-3.5 right-3.5 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition z-20 ${
-                      isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
-                    }`}
-                  >
-                    <Heart size={16} fill={isSaved ? 'white' : 'none'} />
-                  </button>
-                </div>
+              <>
+                {paginated.map((group, idx) => {
+                  const trip = group.representative;
+                  const isSaved = wishlist.includes(trip.id);
+                  const diffText = trip.difficulty === 'Easy' ? 'text-emerald-700' : trip.difficulty === 'Moderate' ? 'text-amber-700' : 'text-rose-700';
+                  return (
+                    <motion.div
+                      key={group.trekName}
+                      id={`trip-list-card-${trip.id}`}
+                      onClick={() => onSelectTrek(group.trekName)}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
+                      whileHover={{ y: -3 }}
+                      className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+                    >
+                      {/* Cover */}
+                      <div className="relative h-52 overflow-hidden">
+                        <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
+                        <span className={`absolute top-3.5 left-3.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
+                          {trip.difficulty}
+                        </span>
+                        <button
+                          id={`btn-toggle-wishlist-explore-${trip.id}`}
+                          onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
+                          className={`absolute top-3.5 right-3.5 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition z-20 ${
+                            isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
+                          }`}
+                        >
+                          <Heart size={16} fill={isSaved ? 'white' : 'none'} />
+                        </button>
+                      </div>
 
-                {/* Details */}
-                <div className="p-5">
-                  <h3 className="font-serif text-xl font-semibold leading-tight">{trip.name}</h3>
+                      {/* Details */}
+                      <div className="p-5">
+                        <h3 className="font-serif text-xl font-semibold leading-tight">{trip.name}</h3>
 
-                  <div className={`flex items-center gap-x-4 gap-y-1.5 flex-wrap text-xs mt-2.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    <span className="flex items-center gap-1"><MapPin size={13} className="opacity-70" /> {trip.location}</span>
-                    <span className="flex items-center gap-1"><Clock size={13} className="opacity-70" /> {trip.durationDays} Days</span>
-                    <span className="flex items-center gap-1"><Users size={13} className="opacity-70" /> {trip.availableSeats} slots</span>
-                    {group.organizerCount > 1 && (
-                      <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
-                    )}
+                        <div className={`flex items-center gap-x-4 gap-y-1.5 flex-wrap text-xs mt-2.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          <span className="flex items-center gap-1"><MapPin size={13} className="opacity-70" /> {trip.location}</span>
+                          <span className="flex items-center gap-1"><Clock size={13} className="opacity-70" /> {trip.durationDays} Days</span>
+                          <span className="flex items-center gap-1"><Users size={13} className="opacity-70" /> {trip.availableSeats} slots</span>
+                          {group.organizerCount > 1 && (
+                            <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-end justify-between mt-4">
+                          <div>
+                            <span className={`text-[11px] font-semibold block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Starting from</span>
+                            <span className={`font-serif text-2xl font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{group.minPrice}</span>
+                          </div>
+                          <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>per person</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="col-span-full flex items-center justify-between pt-6 border-t border-zinc-200/60 dark:border-white/10 mt-4">
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        currentPage === 1
+                          ? 'opacity-40 cursor-not-allowed text-zinc-400'
+                          : darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 shadow-xs'
+                      }`}
+                    >
+                      <ChevronLeft size={14} /> Previous
+                    </button>
+
+                    <span className={`text-xs font-semibold ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Page <span className={darkMode ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>{currentPage}</span> of {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        currentPage === totalPages
+                          ? 'opacity-40 cursor-not-allowed text-zinc-400'
+                          : darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 shadow-xs'
+                      }`}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
                   </div>
-
-                  <div className="flex items-end justify-between mt-4">
-                    <div>
-                      <span className={`text-[11px] font-semibold block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Starting from</span>
-                      <span className={`font-serif text-2xl font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{group.minPrice}</span>
-                    </div>
-                    <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>per person</span>
-                  </div>
-                </div>
-              </motion.div>
+                )}
+              </>
             );
-          })
+          })()
         )}
       </div>
 

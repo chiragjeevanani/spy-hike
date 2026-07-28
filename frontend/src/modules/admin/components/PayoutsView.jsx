@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Banknote, Search, CheckCircle2, XCircle, Clock, Download, FileSpreadsheet,
-  IndianRupee, Landmark, Smartphone, X, AlertTriangle, Hash, ArrowDownLeft,
+  IndianRupee, Landmark, Smartphone, X, AlertTriangle, Hash, ArrowDownLeft, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import bookingsApi from '../../../lib/bookingsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
@@ -24,6 +24,8 @@ export default function PayoutsView({ darkMode }) {
   const [summary, setSummary] = useState({ pendingAmount: 0, paidAmount: 0, rejectedAmount: 0, pendingCount: 0, paidCount: 0, rejectedCount: 0, totalCount: 0 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -225,61 +227,96 @@ export default function PayoutsView({ darkMode }) {
             <tbody className={`divide-y text-xs font-semibold ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
               {payouts.length === 0 ? (
                 <tr><td colSpan="7" className="text-center py-10 text-slate-400">No payout requests found.</td></tr>
-              ) : payouts.map((p) => {
-                const meta = STATUS_META[p.status] || STATUS_META.Processing;
-                const StatusIcon = meta.icon;
-                return (
-                  <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
-                    <td className="py-4 px-6"><span className="font-mono font-bold text-[#F27D26]">{p.reference || p.id.slice(-8)}</span></td>
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col">
-                        <span className="font-bold">{p.organizerName || '—'}</span>
-                        <span className="text-[10px] text-slate-400">{p.agencyName || p.organizerEmail}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                        {p.method === 'UPI' ? <Smartphone size={12} /> : <Landmark size={12} />}
-                        <span>{p.method === 'UPI' ? (p.bank?.upiId || 'UPI') : (p.bank?.accountNumberMasked || 'Bank')}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 font-black text-slate-800 dark:text-white">{inr(p.amount)}</td>
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase ${meta.cls}`}>
-                        <StatusIcon size={11} /> {meta.label}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-slate-400">{fmtDate(p.requestedAt)}</td>
-                    <td className="py-4 px-6 text-right space-x-1.5 whitespace-nowrap">
-                      {p.status === 'Processing' ? (
-                        <>
-                          <button onClick={() => setApproveTarget(p)} title="Approve & settle"
-                            className="p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all">
-                            <CheckCircle2 size={14} />
-                          </button>
-                          <button onClick={() => { setRejectTarget(p); setRejectReason(''); }} title="Reject"
-                            className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all">
-                            <XCircle size={14} />
-                          </button>
-                        </>
-                      ) : null}
-                      <button onClick={() => setDetail(p)} title="View details"
-                        className="p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-all">
-                        <Hash size={14} />
-                      </button>
-                      {p.status !== 'Processing' && (
-                        <button onClick={() => downloadPayoutReceiptPDF(p)} title="Download receipt"
+              ) : (() => {
+                const totalPages = Math.max(1, Math.ceil(payouts.length / ITEMS_PER_PAGE));
+                const paginated = payouts.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+                return paginated.map((p) => {
+                  const meta = STATUS_META[p.status] || STATUS_META.Processing;
+                  const StatusIcon = meta.icon;
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                      <td className="py-4 px-6"><span className="font-mono font-bold text-[#F27D26]">{p.reference || p.id.slice(-8)}</span></td>
+                      <td className="py-4 px-6">
+                        <div className="flex flex-col">
+                          <span className="font-bold">{p.organizerName || '—'}</span>
+                          <span className="text-[10px] text-slate-400">{p.agencyName || p.organizerEmail}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                          {p.method === 'UPI' ? <Smartphone size={12} /> : <Landmark size={12} />}
+                          <span>{p.method === 'UPI' ? (p.bank?.upiId || 'UPI') : (p.bank?.accountNumberMasked || 'Bank')}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 font-black text-slate-800 dark:text-white">{inr(p.amount)}</td>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase ${meta.cls}`}>
+                          <StatusIcon size={11} /> {meta.label}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-slate-400">{fmtDate(p.requestedAt)}</td>
+                      <td className="py-4 px-6 text-right space-x-1.5 whitespace-nowrap">
+                        {p.status === 'Processing' ? (
+                          <>
+                            <button onClick={() => setApproveTarget(p)} title="Approve & settle"
+                              className="p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all">
+                              <CheckCircle2 size={14} />
+                            </button>
+                            <button onClick={() => { setRejectTarget(p); setRejectReason(''); }} title="Reject"
+                              className="p-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all">
+                              <XCircle size={14} />
+                            </button>
+                          </>
+                        ) : null}
+                        <button onClick={() => setDetail(p)} title="View details"
                           className="p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-all">
-                          <Download size={14} />
+                          <Hash size={14} />
                         </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                        {p.status !== 'Processing' && (
+                          <button onClick={() => downloadPayoutReceiptPDF(p)} title="Download receipt"
+                            className="p-1.5 rounded-lg border hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-all">
+                            <Download size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {payouts.length > ITEMS_PER_PAGE && (
+          <div className={`px-6 py-3 border-t flex items-center justify-between text-xs font-semibold ${darkMode ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-slate-50/60 border-slate-100 text-slate-500'}`}>
+            <button
+              type="button"
+              disabled={page === 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className={`px-3 py-1.5 rounded-lg border flex items-center gap-1 transition ${
+                page === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              <ChevronLeft size={13} /> Previous
+            </button>
+
+            <span>
+              Page <span className="font-bold text-slate-900 dark:text-white">{page}</span> of {Math.ceil(payouts.length / ITEMS_PER_PAGE)}
+            </span>
+
+            <button
+              type="button"
+              disabled={page >= Math.ceil(payouts.length / ITEMS_PER_PAGE)}
+              onClick={() => setPage(p => Math.min(Math.ceil(payouts.length / ITEMS_PER_PAGE), p + 1))}
+              className={`px-3 py-1.5 rounded-lg border flex items-center gap-1 transition ${
+                page >= Math.ceil(payouts.length / ITEMS_PER_PAGE) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              Next <ChevronRight size={13} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Approve confirm */}

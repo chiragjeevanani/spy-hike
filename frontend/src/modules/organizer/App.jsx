@@ -196,6 +196,7 @@ export default function OrgApp() {
   const openFinancials = () => {
     window.history.pushState({ modal: 'financials' }, '');
     setShowOrgFinancials(true);
+    refreshPayouts();
   };
   const openCoupons = () => {
     window.history.pushState({ modal: 'coupons' }, '');
