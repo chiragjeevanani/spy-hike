@@ -136,12 +136,37 @@ export default function OrgApp() {
     }
   }, [organizer?.email, organizer?.isAuthenticated]);
 
-  // History popstate
+  // History popstate — handle native hardware back button / swipe gestures for all overlays & modals
   useEffect(() => {
-    const handlePop = () => setActiveTab(getOrgTab(window.location.pathname));
+    const handlePop = () => {
+      if (showOrgChats) { setShowOrgChats(false); return; }
+      if (showOrgFinancials) { setShowOrgFinancials(false); return; }
+      if (showOrgCoupons) { setShowOrgCoupons(false); return; }
+      if (showOrgNotifications) { setShowOrgNotifications(false); return; }
+      if (showOrgLoyalty) { setShowOrgLoyalty(false); return; }
+      if (showScanner) { setShowScanner(false); return; }
+      if (deleteTripTarget) { setDeleteTripTarget(null); return; }
+      if (editingTrip) { setEditingTrip(null); return; }
+      if (activeTab === 'NewTrip' || activeTab === 'EditTrip') {
+        setActiveTab('Trips');
+        return;
+      }
+      setActiveTab(getOrgTab(window.location.pathname));
+    };
+
     window.addEventListener('popstate', handlePop);
     return () => window.removeEventListener('popstate', handlePop);
-  }, []);
+  }, [
+    showOrgChats,
+    showOrgFinancials,
+    showOrgCoupons,
+    showOrgNotifications,
+    showOrgLoyalty,
+    showScanner,
+    deleteTripTarget,
+    editingTrip,
+    activeTab,
+  ]);
 
   // Dark mode
   useEffect(() => {
@@ -163,6 +188,38 @@ export default function OrgApp() {
   useEffect(() => {
     if (organizer.isAuthenticated) initPushNotifications();
   }, [organizer.isAuthenticated]);
+
+  const openChats = () => {
+    window.history.pushState({ modal: 'chats' }, '');
+    setShowOrgChats(true);
+  };
+  const openFinancials = () => {
+    window.history.pushState({ modal: 'financials' }, '');
+    setShowOrgFinancials(true);
+  };
+  const openCoupons = () => {
+    window.history.pushState({ modal: 'coupons' }, '');
+    setShowOrgCoupons(true);
+  };
+  const openLoyalty = () => {
+    window.history.pushState({ modal: 'loyalty' }, '');
+    setShowOrgLoyalty(true);
+  };
+  const openNotifications = () => {
+    window.history.pushState({ modal: 'notifications' }, '');
+    setShowOrgNotifications(true);
+  };
+  const openScanner = () => {
+    window.history.pushState({ modal: 'scanner' }, '');
+    setShowScanner(true);
+  };
+  const closeCurrentOverlay = (setter) => {
+    if (window.history.state?.modal) {
+      window.history.back();
+    } else {
+      setter(false);
+    }
+  };
 
   const navigateTo = useCallback((tab, replace = false, tripId = null) => {
     const path = tabToPath(tab, tripId);
@@ -509,8 +566,8 @@ export default function OrgApp() {
             notifications={notifications}
             onNavigate={handleDashboardNavigate}
             onViewTrip={handleEditTrip}
-            onOpenLoyalty={() => setShowOrgLoyalty(true)}
-            onOpenFinancials={() => setShowOrgFinancials(true)}
+            onOpenLoyalty={openLoyalty}
+            onOpenFinancials={openFinancials}
             onApproveReschedule={(bookingId) => {
               setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
                 ...b,
@@ -528,8 +585,8 @@ export default function OrgApp() {
               } : b));
               toast.error('Reschedule request declined.');
             }}
-            onOpenScanner={() => setShowScanner(true)}
-            onOpenChats={() => setShowOrgChats(true)}
+            onOpenScanner={openScanner}
+            onOpenChats={openChats}
             chats={chats}
             darkMode={darkMode}
           />
@@ -555,9 +612,9 @@ export default function OrgApp() {
           <OrgProfileView
             organizer={organizer}
             onLogout={handleLogout}
-            onOpenLoyalty={() => setShowOrgLoyalty(true)}
-            onOpenFinancials={() => setShowOrgFinancials(true)}
-            onOpenCoupons={() => setShowOrgCoupons(true)}
+            onOpenLoyalty={openLoyalty}
+            onOpenFinancials={openFinancials}
+            onOpenCoupons={openCoupons}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onFullscreenChange={setNavHidden}
@@ -595,8 +652,7 @@ export default function OrgApp() {
           />
         )}
 
-        {/* Loyalty Rewards full-screen overlay — reachable from both the
-            Dashboard banner and the Profile menu row */}
+        {/* Loyalty Rewards full-screen overlay */}
         <AnimatePresence>
           {showOrgLoyalty && (
             <motion.div
@@ -610,15 +666,15 @@ export default function OrgApp() {
             >
               <OrgLoyaltyView
                 organizer={organizer}
-                onBack={() => setShowOrgLoyalty(false)}
-                onGoBookings={() => { setShowOrgLoyalty(false); navigateTo('Bookings'); }}
+                onBack={() => closeCurrentOverlay(setShowOrgLoyalty)}
+                onGoBookings={() => { closeCurrentOverlay(setShowOrgLoyalty); navigateTo('Bookings'); }}
                 darkMode={darkMode}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Notifications full-screen overlay — reachable from the Dashboard bell */}
+        {/* Notifications full-screen overlay */}
         <AnimatePresence>
           {showOrgNotifications && (
             <motion.div
@@ -635,9 +691,9 @@ export default function OrgApp() {
                 onMarkRead={handleMarkNotificationRead}
                 onMarkAllRead={handleMarkAllNotificationsRead}
                 onClear={handleClearNotifications}
-                onBack={() => setShowOrgNotifications(false)}
+                onBack={() => closeCurrentOverlay(setShowOrgNotifications)}
                 onNavigateTab={(tab) => {
-                  setShowOrgNotifications(false);
+                  closeCurrentOverlay(setShowOrgNotifications);
                   navigateTo(tab);
                 }}
                 darkMode={darkMode}
@@ -646,8 +702,7 @@ export default function OrgApp() {
           )}
         </AnimatePresence>
 
-        {/* Financials full-screen overlay — reachable from the Dashboard
-            revenue card and the Profile menu row */}
+        {/* Financials full-screen overlay */}
         <AnimatePresence>
           {showOrgFinancials && (
             <motion.div
@@ -665,14 +720,14 @@ export default function OrgApp() {
                 payouts={payouts}
                 onSaveBankDetails={handleSaveBankDetails}
                 onRequestPayout={handleRequestPayout}
-                onBack={() => setShowOrgFinancials(false)}
+                onBack={() => closeCurrentOverlay(setShowOrgFinancials)}
                 darkMode={darkMode}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Coupons full-screen overlay — reachable from the Profile menu row */}
+        {/* Coupons full-screen overlay */}
         <AnimatePresence>
           {showOrgCoupons && (
             <motion.div
@@ -685,7 +740,7 @@ export default function OrgApp() {
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
               <OrgCouponsView
-                onBack={() => setShowOrgCoupons(false)}
+                onBack={() => closeCurrentOverlay(setShowOrgCoupons)}
                 darkMode={darkMode}
               />
             </motion.div>
@@ -705,7 +760,7 @@ export default function OrgApp() {
               className="absolute inset-0 z-50"
             >
               <OrgScannerView
-                onBack={() => setShowScanner(false)}
+                onBack={() => closeCurrentOverlay(setShowScanner)}
                 darkMode={darkMode}
               />
             </motion.div>
@@ -728,7 +783,7 @@ export default function OrgApp() {
                 <OrgChatsView
                   chats={chats}
                   onSendMessage={handleSendOrgMessage}
-                  onBack={() => setShowOrgChats(false)}
+                  onBack={() => closeCurrentOverlay(setShowOrgChats)}
                   darkMode={darkMode}
                 />
               </div>

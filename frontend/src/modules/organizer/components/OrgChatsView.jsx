@@ -11,6 +11,18 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
     if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [selectedChat?.messages]);
 
+  // Handle native hardware / gesture back button when viewing a chat thread
+  useEffect(() => {
+    if (selectedChat) {
+      window.history.pushState({ subview: 'chat-detail' }, '');
+      const handlePop = () => {
+        setSelectedChat(null);
+      };
+      window.addEventListener('popstate', handlePop);
+      return () => window.removeEventListener('popstate', handlePop);
+    }
+  }, [selectedChat]);
+
   const handleSend = () => {
     if (!inputText.trim() || !selectedChat) return;
     onSendMessage(selectedChat.id, inputText.trim());
@@ -30,15 +42,15 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
     const chat = chats.find(c => c.id === selectedChat.id) || selectedChat;
     return (
       <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
-        {/* Chat header */}
-        <div className={`shrink-0 px-4 pt-5 pb-3 flex items-center gap-3 ${darkMode ? 'bg-zinc-900/80 border-b border-white/5' : 'bg-white border-b border-zinc-100 shadow-sm'}`}>
-          <button type="button" onClick={() => setSelectedChat(null)} className={`p-2 rounded-xl ${darkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-            <ArrowLeft size={17} />
+        {/* Chat header with safe-area status bar padding */}
+        <div className={`shrink-0 px-4 pt-12 pb-3.5 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? 'bg-zinc-900/95 border-b border-white/5' : 'bg-white border-b border-zinc-100 shadow-sm'}`}>
+          <button type="button" onClick={() => setSelectedChat(null)} className={`p-2 rounded-xl active:scale-95 transition ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`} aria-label="Back to conversations">
+            <ArrowLeft size={18} />
           </button>
           <img src={avatarFor(chat)} alt={chat.userName} className="w-10 h-10 rounded-full object-cover" />
           <div>
-            <p className="font-bold text-sm">{chat.userName}</p>
-            <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chat.tripName}</p>
+            <p className="font-bold text-sm leading-tight">{chat.userName}</p>
+            <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chat.tripName}</p>
           </div>
         </div>
 
@@ -94,7 +106,8 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
 
   return (
     <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
-      <div className={`px-5 pt-5 pb-4 shrink-0 flex items-center gap-3 ${darkMode ? 'bg-gradient-to-b from-zinc-900/80 to-transparent' : 'bg-gradient-to-b from-orange-50 to-transparent'}`}>
+      {/* Header with safe-area status bar padding */}
+      <div className={`px-5 pt-12 pb-4 shrink-0 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? 'bg-gradient-to-b from-zinc-900/90 to-transparent' : 'bg-gradient-to-b from-orange-50 to-transparent'}`}>
         {onBack && (
           <button
             id="btn-back-org-messages"
