@@ -246,6 +246,30 @@ export default function OrgApp() {
     } catch { /* keep current state on transient failure */ }
   }, []);
 
+  // Re-fetch this organizer's payouts from the API (source of truth).
+  const refreshPayouts = useCallback(async () => {
+    if (!organizer.isAuthenticated) return;
+    try {
+      if (getToken()) {
+        const list = await bookingsApi.listPayouts();
+        if (Array.isArray(list)) {
+          setPayouts(list);
+          saveOrgPayouts(list);
+        }
+      } else {
+        setPayouts(loadOrgPayouts());
+      }
+    } catch {
+      setPayouts(loadOrgPayouts());
+    }
+  }, [organizer.isAuthenticated]);
+
+  useEffect(() => {
+    if (organizer.isAuthenticated) {
+      refreshPayouts();
+    }
+  }, [organizer.isAuthenticated, activeTab, showOrgFinancials, refreshPayouts]);
+
   useEffect(() => {
     try {
       sessionStorage.setItem('fyt_last_module', 'organizer');
@@ -396,19 +420,11 @@ export default function OrgApp() {
       return;
     }
 
-    const payoutId = `PO-${Date.now()}`;
+    const payoutId = `PO-${Date.now().toString().slice(-6)}`;
     const method = organizer?.bankDetails?.upiId?.trim() ? 'UPI' : 'Bank Transfer';
     const newPayout = { id: payoutId, amount, method, status: 'Processing', requestedAt: new Date().toISOString(), completedAt: null, utr: null };
     setPayouts(prev => { const next = [...prev, newPayout]; saveOrgPayouts(next); return next; });
-    setTimeout(() => {
-      setPayouts(prev => {
-        const next = prev.map(p => p.id === payoutId
-          ? { ...p, status: 'Paid', completedAt: new Date().toISOString(), utr: `UTR${Math.floor(100000000000 + Math.random() * 900000000000)}` }
-          : p);
-        saveOrgPayouts(next);
-        return next;
-      });
-    }, 2200);
+    toast.success('Payout requested successfully!');
   };
 
   // ─── Routing render ────────────────────────────────────────────────────────

@@ -104,6 +104,80 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
     galleryImages: trip?.galleryImages || [],
   });
 
+  // Background gallery processing state: allows instant 0ms preview & removal
+  const [galleryItems, setGalleryItems] = useState(() => {
+    const initial = trip?.galleryImages || [];
+    return initial.map((url, i) => ({
+      id: `init-${i}-${Date.now()}`,
+      url,
+      isUploading: false,
+    }));
+  });
+
+  const syncGalleryToForm = (items) => {
+    const readyUrls = items.map((item) => item.url);
+    setForm((prev) => ({ ...prev, galleryImages: readyUrls }));
+  };
+
+  const handleGalleryFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    files.forEach((file) => {
+      const tempId = `up-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const previewUrl = URL.createObjectURL(file);
+
+      setGalleryItems((prev) => {
+        const next = [...prev, { id: tempId, url: previewUrl, isUploading: true }];
+        syncGalleryToForm(next);
+        return next;
+      });
+
+      // Compress and convert in background while user fills out form
+      compressImage(file)
+        .then((compressedUrl) => {
+          if (compressedUrl) {
+            setGalleryItems((prev) => {
+              const next = prev.map((item) =>
+                item.id === tempId ? { ...item, url: compressedUrl, isUploading: false } : item
+              );
+              syncGalleryToForm(next);
+              return next;
+            });
+          }
+        })
+        .catch(() => {
+          setGalleryItems((prev) => {
+            const next = prev.map((item) =>
+              item.id === tempId ? { ...item, isUploading: false } : item
+            );
+            syncGalleryToForm(next);
+            return next;
+          });
+        });
+    });
+
+    e.target.value = '';
+  };
+
+  const handleRemoveGalleryItem = (idToRemove) => {
+    setGalleryItems((prev) => {
+      const next = prev.filter((item) => item.id !== idToRemove);
+      syncGalleryToForm(next);
+      return next;
+    });
+  };
+
+  const handleAddGalleryUrl = (urlStr) => {
+    if (!urlStr || !urlStr.trim()) return;
+    const newItem = { id: `url-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, url: urlStr.trim(), isUploading: false };
+    setGalleryItems((prev) => {
+      const next = [...prev, newItem];
+      syncGalleryToForm(next);
+      return next;
+    });
+  };
+
   const [section, setSection] = useState('basic');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -316,7 +390,7 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
   const [isPublishSuccess, setIsPublishSuccess] = useState(false);
   const [savingTargetStatus, setSavingTargetStatus] = useState('Published');
 
-  const runProgressStep = (targetProgress, stageIdx, message, delayMs = 300) => {
+  const runProgressStep = (targetProgress, stageIdx, message, delayMs = 30) => {
     return new Promise(resolve => {
       setPublishProgress(targetProgress);
       setCurrentStageIndex(stageIdx);
@@ -359,11 +433,9 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
     setIsPublishSuccess(false);
 
     try {
-      // Stage 0: Photos & Media
-      await runProgressStep(25, 0, 'Uploading trek photos & media files...', 350);
-
-      // Stage 1: Validation
-      await runProgressStep(50, 1, 'Validating trip details & batch dates...', 350);
+      // Stage 0 & 1: Rapid initialization & validation
+      await runProgressStep(35, 0, 'Uploading trek photos & media files...', 30);
+      await runProgressStep(70, 1, 'Validating trip details & batch dates...', 30);
 
       const pricingTiers = validTiers.map((t, i) => ({
         id: t.label.toLowerCase().replace(/\s+/g, '-') || `tier-${i}`,
@@ -402,23 +474,20 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
         updatedAt: new Date().toISOString(),
       };
 
-      // Stage 2: Safety & Background Checks
-      await runProgressStep(75, 2, 'Performing background checks & safety verification...', 350);
-
-      // Stage 3: Registration with Hike catalog
-      await runProgressStep(90, 3, 'Registering trip with Hike catalog...', 200);
+      // Stage 2 & 3: Save to network & catalog
+      await runProgressStep(90, 3, 'Registering trip with catalog...', 20);
 
       // Execute network save
       await onSave(savedTrip);
 
       // Success
-      await runProgressStep(100, 3, 'Trek successfully saved!', 200);
+      await runProgressStep(100, 3, 'Trek successfully saved!', 50);
       setIsPublishSuccess(true);
 
       setTimeout(() => {
         setSaving(false);
         setModalOpen(false);
-      }, 1200);
+      }, 200);
     } catch (err) {
       setSaving(false);
       setPublishError(err?.message || 'Could not save trip. Please check network connection and try again.');
@@ -702,16 +771,22 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
           <label className={labelCls}>Gallery Images (Trip Details Slider)</label>
           
           <div className="grid grid-cols-4 gap-2 mb-3">
-            {form.galleryImages.map((img, idx) => (
-              <div key={idx} className="relative aspect-video rounded-xl overflow-hidden group border border-zinc-250/60 dark:border-white/5">
-                <img src={img} alt={`gallery-${idx}`} className="w-full h-full object-cover" />
+            {galleryItems.map((item, idx) => (
+              <div key={item.id} className="relative aspect-video rounded-xl overflow-hidden group border border-zinc-250/60 dark:border-white/5">
+                <img src={item.url} alt={`gallery-${idx}`} className={`w-full h-full object-cover transition ${item.isUploading ? 'opacity-70 blur-[0.5px]' : ''}`} />
+                
+                {item.isUploading && (
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-[9px] font-bold gap-1 pointer-events-none">
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Processing...</span>
+                  </div>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => {
-                    const updated = form.galleryImages.filter((_, i) => i !== idx);
-                    set('galleryImages', updated);
-                  }}
+                  onClick={() => handleRemoveGalleryItem(item.id)}
                   className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer"
+                  title="Remove image"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -723,19 +798,12 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
               darkMode ? 'border-white/10 hover:border-spy-orange/40 bg-zinc-950/40' : 'border-zinc-200 hover:border-spy-orange/40 bg-zinc-55 hover:bg-zinc-100'
             }`}>
               <Plus size={16} className="text-spy-orange" />
-              <span className="text-[8px] font-bold mt-0.5 text-zinc-400">Add Photo</span>
+              <span className="text-[8px] font-bold mt-0.5 text-zinc-400">Add Photos</span>
               <input
                 type="file"
                 accept="image/*"
-                onChange={async (e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const compressed = await compressImage(file);
-                    if (compressed) {
-                      set('galleryImages', [...form.galleryImages, compressed]);
-                    }
-                  }
-                }}
+                multiple
+                onChange={handleGalleryFileSelect}
                 className="hidden"
               />
             </label>
@@ -752,7 +820,7 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   if (e.target.value.trim()) {
-                    set('galleryImages', [...form.galleryImages, e.target.value.trim()]);
+                    handleAddGalleryUrl(e.target.value.trim());
                     e.target.value = '';
                   }
                 }
@@ -763,7 +831,7 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
               onClick={() => {
                 const input = document.getElementById('gallery-url-input');
                 if (input && input.value.trim()) {
-                  set('galleryImages', [...form.galleryImages, input.value.trim()]);
+                  handleAddGalleryUrl(input.value.trim());
                   input.value = '';
                 }
               }}

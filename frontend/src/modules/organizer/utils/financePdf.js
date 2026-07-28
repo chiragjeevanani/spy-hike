@@ -86,7 +86,7 @@ export function downloadFinancialReportPDF({ organizer, bookings, payouts }) {
 
   // ---------- Page 1 header ----------
   text(M, 40, 'FINDYOURTREK', { font: 'F2', size: 20, color: BROWN });
-  text(M + 112, 40, 'FINANCIAL REPORT', { font: 'F3', size: 10, color: MUTED });
+  text(A4_W - M - 110, 40, 'FINANCIAL REPORT', { font: 'F3', size: 10, color: MUTED });
   text(M, 58, `${organizer?.agencyName || organizer?.name || 'Partner'}  -  ${organizer?.email || ''}`, { size: 9, color: MUTED });
   text(M, 72, `Generated ${new Date().toLocaleString('en-IN')}  -  Report Period: All-Time`, { size: 8, color: MUTED });
   line(M, 82, A4_W - M, 82);

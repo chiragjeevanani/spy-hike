@@ -50,9 +50,9 @@ export function downloadPayoutReceiptPDF(payout) {
   const statusColor = payout.status === 'Paid' ? GREEN : payout.status === 'Rejected' ? RED : AMBER;
 
   // Header
-  text(M, 52, 'FINDYOURTREK', { font: 'F2', size: 18, color: BROWN });
-  text(M + 92, 52, 'ORGANIZER PAYOUT RECEIPT', { font: 'F3', size: 9, color: MUTED });
-  text(M, 66, `Generated on ${new Date().toISOString().split('T')[0]}`, { size: 8, color: MUTED });
+  text(M, 46, 'FINDYOURTREK', { font: 'F2', size: 18, color: BROWN });
+  text(A4_W - M - 145, 46, 'ORGANIZER PAYOUT RECEIPT', { font: 'F3', size: 9, color: MUTED });
+  text(M, 64, `Generated on ${new Date().toISOString().split('T')[0]}`, { size: 8, color: MUTED });
 
   // Amount / status card
   const T = 86;

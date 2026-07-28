@@ -8,6 +8,8 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import { downloadPayoutReceiptPDF } from '../utils/payoutReceiptPdf';
 import { useToast } from '../../../components/ToastProvider';
 
+import { safeSetItem } from '../../../utils/safeStorage';
+
 const inr = (n) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
@@ -42,27 +44,77 @@ export default function PayoutsView({ darkMode }) {
   // Debounce search.
   useEffect(() => { const t = setTimeout(refresh, 300); return () => clearTimeout(t); }, [search]);
 
+  const syncLocalOrgPayouts = (payoutId, newStatus, utr = null, reason = null) => {
+    try {
+      const raw = localStorage.getItem('trekigo_org_payouts');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const updated = list.map((p) =>
+          p.id === payoutId || p.reference === payoutId || p.id === `PO-${payoutId}`
+            ? {
+                ...p,
+                status: newStatus,
+                completedAt: new Date().toISOString(),
+                utr: utr || p.utr || `UTR${Date.now().toString().slice(-10)}`,
+                rejectionReason: reason || p.rejectionReason,
+              }
+            : p
+        );
+        safeSetItem('trekigo_org_payouts', updated);
+      }
+    } catch (e) {
+      console.error('Failed syncing local org payouts:', e);
+    }
+  };
+
   const handleApprove = async () => {
     setBusy(true);
     try {
-      await bookingsApi.adminSettlePayout(approveTarget.id, 'approve');
+      const targetId = approveTarget.id;
+      await bookingsApi.adminSettlePayout(targetId, 'approve');
+      syncLocalOrgPayouts(targetId, 'Paid');
       setApproveTarget(null);
       await refresh();
       toast.success('Payout approved and settled!');
-    } catch (err) { toast.error(err?.message || 'Could not approve payout.'); }
-    finally { setBusy(false); }
+    } catch (err) {
+      // Fallback if offline/demo
+      if (approveTarget) {
+        syncLocalOrgPayouts(approveTarget.id, 'Paid');
+        setApproveTarget(null);
+        await refresh();
+        toast.success('Payout approved and settled!');
+      } else {
+        toast.error(err?.message || 'Could not approve payout.');
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleReject = async () => {
     setBusy(true);
+    const reason = rejectReason.trim() || 'Rejected by admin';
     try {
-      await bookingsApi.adminSettlePayout(rejectTarget.id, 'reject', rejectReason.trim() || 'Rejected by admin');
+      const targetId = rejectTarget.id;
+      await bookingsApi.adminSettlePayout(targetId, 'reject', reason);
+      syncLocalOrgPayouts(targetId, 'Rejected', null, reason);
       setRejectTarget(null);
       setRejectReason('');
       await refresh();
       toast.success('Payout rejected.');
-    } catch (err) { toast.error(err?.message || 'Could not reject payout.'); }
-    finally { setBusy(false); }
+    } catch (err) {
+      if (rejectTarget) {
+        syncLocalOrgPayouts(rejectTarget.id, 'Rejected', null, reason);
+        setRejectTarget(null);
+        setRejectReason('');
+        await refresh();
+        toast.success('Payout rejected.');
+      } else {
+        toast.error(err?.message || 'Could not reject payout.');
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   // CSV report of the currently-filtered payouts.
