@@ -1,4 +1,5 @@
 import { HIKING_TRIPS } from '../data/trips';
+import { safeSetItem } from '../../../utils/safeStorage';
 
 const USER_STORAGE_KEY = 'trekigo_user';
 const WISHLIST_STORAGE_KEY = 'trekigo_wishlist';
@@ -41,23 +42,23 @@ export const loadUserState = () => {
 };
 
 export const saveUserState = (state) => {
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(state));
+  safeSetItem(USER_STORAGE_KEY, state);
   if (state?.isAuthenticated) {
-    localStorage.setItem('trekigo_active_role', 'hiker');
+    safeSetItem('trekigo_active_role', 'hiker');
     try {
       const orgState = localStorage.getItem('trekigo_org_user');
       if (orgState) {
         const parsed = JSON.parse(orgState);
         // Only clear organizer session if it belongs to a completely different email/user
         if (parsed?.isAuthenticated && parsed?.email && state?.email && parsed.email !== state.email) {
-          localStorage.setItem('trekigo_org_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+          safeSetItem('trekigo_org_user', { ...parsed, isAuthenticated: false });
         }
       }
       const adminState = localStorage.getItem('trekigo_admin_user');
       if (adminState) {
         const parsed = JSON.parse(adminState);
         if (parsed?.isAuthenticated && parsed?.email && state?.email && parsed.email !== state.email) {
-          localStorage.setItem('trekigo_admin_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+          safeSetItem('trekigo_admin_user', { ...parsed, isAuthenticated: false });
         }
       }
     } catch (e) {
@@ -83,7 +84,7 @@ export const loadWishlist = () => {
 };
 
 export const saveWishlist = (val) => {
-  localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(val));
+  safeSetItem(WISHLIST_STORAGE_KEY, val);
 };
 
 export const loadBookings = () => {
@@ -97,7 +98,7 @@ export const loadBookings = () => {
 };
 
 export const saveBookings = (val) => {
-  localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(val));
+  safeSetItem(BOOKINGS_STORAGE_KEY, val);
 };
 
 export const loadNotifications = () => {
@@ -111,7 +112,7 @@ export const loadNotifications = () => {
 };
 
 export const saveNotifications = (val) => {
-  localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(val));
+  safeSetItem(NOTIFICATIONS_STORAGE_KEY, val);
 };
 
 export const loadChats = () => {
@@ -125,7 +126,7 @@ export const loadChats = () => {
 };
 
 export const saveChats = (val) => {
-  localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(val));
+  safeSetItem(CHAT_STORAGE_KEY, val);
 };
 
 export const loadTrips = () => {
@@ -139,7 +140,7 @@ export const loadTrips = () => {
 };
 
 export const saveTrips = (val) => {
-  localStorage.setItem(TRIPS_STORAGE_KEY, JSON.stringify(val));
+  safeSetItem(TRIPS_STORAGE_KEY, val);
 };
 
 export const loadDarkMode = () => {
@@ -153,5 +154,6 @@ export const loadDarkMode = () => {
 };
 
 export const saveDarkMode = (val) => {
-  localStorage.setItem(DARK_MODE_KEY, JSON.stringify(val));
+  safeSetItem(DARK_MODE_KEY, val);
 };
+

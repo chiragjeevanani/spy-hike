@@ -1,3 +1,5 @@
+import { safeSetItem } from '../../../utils/safeStorage';
+
 const ADMIN_USER_KEY = 'trekigo_admin_user';
 const ADMIN_DARK_MODE_KEY = 'trekigo_admin_darkmode';
 const ADMIN_USER_OVERRIDES_KEY = 'trekigo_admin_user_overrides';
@@ -33,7 +35,7 @@ export const loadAdminUser = () => {
 };
 
 export const saveAdminUser = (user) => {
-  localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(user));
+  safeSetItem(ADMIN_USER_KEY, user);
   if (user?.isAuthenticated) {
     // Single-role session enforcement: clear active customer & organizer sessions
     try {
@@ -41,14 +43,14 @@ export const saveAdminUser = (user) => {
       if (userState) {
         const parsed = JSON.parse(userState);
         if (parsed?.isAuthenticated) {
-          localStorage.setItem('trekigo_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+          safeSetItem('trekigo_user', { ...parsed, isAuthenticated: false });
         }
       }
       const orgState = localStorage.getItem('trekigo_org_user');
       if (orgState) {
         const parsed = JSON.parse(orgState);
         if (parsed?.isAuthenticated) {
-          localStorage.setItem('trekigo_org_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+          safeSetItem('trekigo_org_user', { ...parsed, isAuthenticated: false });
         }
       }
     } catch (e) {
@@ -66,8 +68,9 @@ export const loadAdminDarkMode = () => {
 };
 
 export const saveAdminDarkMode = (val) => {
-  localStorage.setItem(ADMIN_DARK_MODE_KEY, JSON.stringify(val));
+  safeSetItem(ADMIN_DARK_MODE_KEY, val);
 };
+
 
 // ─── Users storage ──────────────────────────────────────────────────────────
 const loadJSON = (key, fallback) => {
@@ -134,7 +137,7 @@ export const getUserByEmail = (email) => loadAllUsers().find(u => u.email === em
 export const saveUserFields = (email, fields) => {
   const overrides = loadJSON(ADMIN_USER_OVERRIDES_KEY, {});
   overrides[email] = { ...overrides[email], ...fields };
-  localStorage.setItem(ADMIN_USER_OVERRIDES_KEY, JSON.stringify(overrides));
+  safeSetItem(ADMIN_USER_OVERRIDES_KEY, overrides);
 
   // Keep a currently-live traveller session in sync so status/profile edits
   // actually take effect for them, not just in the admin's own view of them.
@@ -143,7 +146,7 @@ export const saveUserFields = (email, fields) => {
     if (activeUser) {
       const parsed = JSON.parse(activeUser);
       if (parsed.email === email) {
-        localStorage.setItem('trekigo_user', JSON.stringify({ ...parsed, ...fields }));
+        safeSetItem('trekigo_user', { ...parsed, ...fields });
       }
     }
   } catch (e) { console.error(e); }
@@ -169,14 +172,14 @@ export const createUser = (fields) => {
     bookingsCount: 0,
   };
   created.push(newUser);
-  localStorage.setItem(ADMIN_CREATED_USERS_KEY, JSON.stringify(created));
+  safeSetItem(ADMIN_CREATED_USERS_KEY, created);
   return newUser;
 };
 
 export const deleteUser = (email) => {
   const deleted = new Set(loadJSON(ADMIN_DELETED_USERS_KEY, []));
   deleted.add(email);
-  localStorage.setItem(ADMIN_DELETED_USERS_KEY, JSON.stringify([...deleted]));
+  safeSetItem(ADMIN_DELETED_USERS_KEY, [...deleted]);
 };
 
 // ─── Organizers storage ──────────────────────────────────────────────────────
@@ -208,7 +211,7 @@ export const saveOrganizerStatus = (email, approve, reject = false) => {
         // Toggle suspend/reactivate
         accounts[idx].isApproved = !accounts[idx].isApproved;
       }
-      localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
+      safeSetItem('trekigo_org_accounts', accounts);
       
       // If it matches the current logged-in organizer, update their active profile state
       const currentOrg = localStorage.getItem('trekigo_org_user');
@@ -217,7 +220,7 @@ export const saveOrganizerStatus = (email, approve, reject = false) => {
         if (parsed.email === email) {
           parsed.isApproved = accounts[idx].isApproved;
           parsed.isPendingApproval = accounts[idx].isPendingApproval;
-          localStorage.setItem('trekigo_org_user', JSON.stringify(parsed));
+          safeSetItem('trekigo_org_user', parsed);
         }
       }
     }
@@ -236,14 +239,14 @@ export const saveOrganizerFields = (email, fields) => {
     const idx = accounts.findIndex(a => a.email === email);
     if (idx < 0) return;
     accounts[idx] = { ...accounts[idx], ...fields };
-    localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
+    safeSetItem('trekigo_org_accounts', accounts);
 
     // Keep a currently-live organizer session in sync
     const currentOrg = localStorage.getItem('trekigo_org_user');
     if (currentOrg) {
       const parsed = JSON.parse(currentOrg);
       if (parsed.email === email) {
-        localStorage.setItem('trekigo_org_user', JSON.stringify({ ...parsed, ...fields }));
+        safeSetItem('trekigo_org_user', { ...parsed, ...fields });
       }
     }
   } catch (e) {
@@ -271,13 +274,13 @@ export const createOrganizer = (fields) => {
     isPendingApproval: false,
   };
   accounts.push(newOrg);
-  localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
+  safeSetItem('trekigo_org_accounts', accounts);
   return newOrg;
 };
 
 export const deleteOrganizerAccount = (email) => {
   const accounts = loadAllOrganizers().filter(a => a.email !== email);
-  localStorage.setItem('trekigo_org_accounts', JSON.stringify(accounts));
+  safeSetItem('trekigo_org_accounts', accounts);
 };
 
 // ─── Trips storage ───────────────────────────────────────────────────────────
@@ -300,7 +303,7 @@ export const saveTripStatus = (tripId, status) => {
       const idx = trips.findIndex(t => t.id === tripId);
       if (idx >= 0) {
         trips[idx].status = status;
-        localStorage.setItem('trekigo_trips', JSON.stringify(trips));
+        safeSetItem('trekigo_trips', trips);
       }
     }
     
@@ -311,7 +314,7 @@ export const saveTripStatus = (tripId, status) => {
       const oIdx = orgTrips.findIndex(t => t.id === tripId);
       if (oIdx >= 0) {
         orgTrips[oIdx].status = status;
-        localStorage.setItem('trekigo_org_trips', JSON.stringify(orgTrips));
+        safeSetItem('trekigo_org_trips', orgTrips);
       }
     }
   } catch (e) {
@@ -324,12 +327,12 @@ export const deleteTripAdmin = (tripId) => {
     const val = localStorage.getItem('trekigo_trips');
     if (val) {
       const trips = JSON.parse(val).filter(t => t.id !== tripId);
-      localStorage.setItem('trekigo_trips', JSON.stringify(trips));
+      safeSetItem('trekigo_trips', trips);
     }
     const orgVal = localStorage.getItem('trekigo_org_trips');
     if (orgVal) {
       const orgTrips = JSON.parse(orgVal).filter(t => t.id !== tripId);
-      localStorage.setItem('trekigo_org_trips', JSON.stringify(orgTrips));
+      safeSetItem('trekigo_org_trips', orgTrips);
     }
   } catch (e) {
     console.error(e);
@@ -403,7 +406,7 @@ export const saveBookingStatusAdmin = (bookingId, status) => {
       const idx = bookings.findIndex(b => b.bookingId === bookingId || b.id === bookingId);
       if (idx >= 0) {
         bookings[idx].status = status;
-        localStorage.setItem('trekigo_bookings', JSON.stringify(bookings));
+        safeSetItem('trekigo_bookings', bookings);
       }
     }
     const orgBookingsVal = localStorage.getItem('trekigo_org_bookings');
@@ -412,7 +415,7 @@ export const saveBookingStatusAdmin = (bookingId, status) => {
       const idx = bookings.findIndex(b => b.bookingId === bookingId || b.id === bookingId);
       if (idx >= 0) {
         bookings[idx].status = status;
-        localStorage.setItem('trekigo_org_bookings', JSON.stringify(bookings));
+        safeSetItem('trekigo_org_bookings', bookings);
       }
     }
   } catch (e) {
@@ -437,7 +440,7 @@ export const broadcastNotification = (title, content, type, target) => {
       const uVal = localStorage.getItem('trekigo_notifications');
       const uNotifs = uVal ? JSON.parse(uVal) : [];
       uNotifs.unshift(newNotif);
-      localStorage.setItem('trekigo_notifications', JSON.stringify(uNotifs));
+      safeSetItem('trekigo_notifications', uNotifs);
     }
     // And organizer notification list
     if (target === 'organizers' || target === 'both') {
@@ -447,7 +450,7 @@ export const broadcastNotification = (title, content, type, target) => {
         ...newNotif,
         id: `aon-${Date.now()}`
       });
-      localStorage.setItem('trekigo_org_notifications', JSON.stringify(oNotifs));
+      safeSetItem('trekigo_org_notifications', oNotifs);
     }
     
     // Store broadcast history
@@ -457,7 +460,7 @@ export const broadcastNotification = (title, content, type, target) => {
       ...newNotif,
       target,
     });
-    localStorage.setItem('trekigo_admin_broadcasts', JSON.stringify(bh));
+    safeSetItem('trekigo_admin_broadcasts', bh);
   } catch (e) {
     console.error(e);
   }

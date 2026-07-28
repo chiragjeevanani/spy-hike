@@ -7,6 +7,8 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
 
+import { compressImage } from '../../../utils/imageCompressor';
+
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
 export default function TrekRequestsView({ darkMode }) {
@@ -51,9 +53,21 @@ export default function TrekRequestsView({ darkMode }) {
   const handleEditFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => { setForm(f => ({ ...f, coverImage: reader.result })); setImageError(false); setFieldErrors(er => ({ ...er, coverImage: '' })); };
-      reader.readAsDataURL(file);
+      compressImage(file)
+        .then((compressedUrl) => {
+          setForm((f) => ({ ...f, coverImage: compressedUrl }));
+          setImageError(false);
+          setFieldErrors((er) => ({ ...er, coverImage: '' }));
+        })
+        .catch(() => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setForm((f) => ({ ...f, coverImage: reader.result }));
+            setImageError(false);
+            setFieldErrors((er) => ({ ...er, coverImage: '' }));
+          };
+          reader.readAsDataURL(file);
+        });
     }
   };
 

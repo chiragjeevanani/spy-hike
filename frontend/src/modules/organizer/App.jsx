@@ -19,6 +19,7 @@ import { getToken } from '../../lib/apiClient';
 import { initPushNotifications } from '../../utils/pushNotifications';
 import { useToast } from '../../components/ToastProvider';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { safeSetItem } from '../../utils/safeStorage';
 
 import OrgOnboarding from './components/OrgOnboarding';
 import OrgAuth from './components/OrgAuth';
@@ -170,6 +171,9 @@ export default function OrgApp() {
     } else {
       window.history.pushState({ tab }, '', path);
     }
+    if (path && path.startsWith('/organizer')) {
+      safeSetItem('trekigo_last_route', path);
+    }
     setActiveTab(tab);
   }, []);
 
@@ -259,9 +263,11 @@ export default function OrgApp() {
       await refreshOrgTrips();
       setEditingTrip(null);
       navigateTo('Trips', false);
+      return true;
     } catch (err) {
       const detail = err?.details ? Object.values(err.details).join('\n') : err?.message;
       toast.error(`Could not save trip: ${detail || 'Unknown error'}`);
+      throw new Error(detail || err?.message || 'Failed to save trip');
     }
   };
 

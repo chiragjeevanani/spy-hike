@@ -20,8 +20,8 @@ export function createApp() {
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: '10mb' })); // base64 image uploads can be large
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '50mb' })); // base64 image uploads can be large
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.use(async (req, res, next) => {
     if (req.path.startsWith('/api/v1/admin') || req.path.includes('/admin')) {

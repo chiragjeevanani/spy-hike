@@ -38,6 +38,7 @@ import {
 import { slugifyTrekName } from './utils/trekGroups';
 import { downloadTicketPDF } from './utils/ticketPdf';
 import { syncCustomerVouchers, hydrateCustomerLoyalty } from '../../utils/loyalty';
+import { safeSetItem } from '../../utils/safeStorage';
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
@@ -310,6 +311,9 @@ export default function App() {
       window.history.replaceState({ path: url }, '', url);
     } else {
       window.history.pushState({ path: url }, '', url);
+    }
+    if (url && url !== '/' && url !== '/login') {
+      safeSetItem('trekigo_last_route', url);
     }
     handleRouteChange(currentUser);
   };

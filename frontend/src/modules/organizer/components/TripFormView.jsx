@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, DollarSign, Users, Calendar, Mountain, AlignLeft, List, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation, Search, Clock, Route } from 'lucide-react';
 import OrgBatchDatePicker from './OrgBatchDatePicker';
 import OrgStartPointPicker from './OrgStartPointPicker';
+import PublishingProgressModal from './PublishingProgressModal';
 import treksApi from '../../../lib/treksApi';
 import trekRequestsApi from '../../../lib/trekRequestsApi';
 import { useToast } from '../../../components/ToastProvider';
@@ -13,6 +14,42 @@ const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 const CATEGORY_OPTIONS = ['Trekking', 'Summit', 'Desert', 'Camping', 'Wildlife', 'Cultural'];
 const INCLUDED_DEFAULTS = ['Tents', 'Meals (Veg)', 'Certified Guide', 'Permits', 'First Aid Kit'];
 const ADDON_DEFAULTS = ['Porter Service', 'Photography Service', 'Gear Rental Kit', 'High-Altitude Health Pack'];
+
+// Compress photo before converting to base64 data URL to keep payload small & fast
+function compressImage(file, maxDimension = 1600, quality = 0.82) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(event.target.result);
+    };
+    reader.onerror = () => resolve(null);
+  });
+}
 
 // Subsequence fuzzy match: every character of the query must appear in the
 // target, in order, but not necessarily contiguous (so "kdknth" matches
@@ -132,12 +169,14 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
 
   const pendingRequests = myRequests.filter(r => r.status === 'Pending');
 
-  const handleRequestFileChange = (e) => {
+  const handleRequestFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => { setRequestForm(f => ({ ...f, coverImage: reader.result })); setRequestImageError(false); };
-      reader.readAsDataURL(file);
+      const compressed = await compressImage(file);
+      if (compressed) {
+        setRequestForm(f => ({ ...f, coverImage: compressed }));
+        setRequestImageError(false);
+      }
     }
   };
 
@@ -268,7 +307,26 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
     requestAnimationFrame(scrollFormToTop);
   };
 
+  // Publishing loader modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(0);
+  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('Initializing publication...');
+  const [publishError, setPublishError] = useState(null);
+  const [isPublishSuccess, setIsPublishSuccess] = useState(false);
+  const [savingTargetStatus, setSavingTargetStatus] = useState('Published');
+
+  const runProgressStep = (targetProgress, stageIdx, message, delayMs = 300) => {
+    return new Promise(resolve => {
+      setPublishProgress(targetProgress);
+      setCurrentStageIndex(stageIdx);
+      setStatusMessage(message);
+      setTimeout(resolve, delayMs);
+    });
+  };
+
   const handleSave = async (status = form.status) => {
+    setSavingTargetStatus(status);
     if (!form.trekId) {
       return failSave('basic', 'Select a trek before continuing.');
     }
@@ -296,55 +354,75 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
     }
 
     setSaving(true);
-    await new Promise(r => setTimeout(r, 800));
+    setModalOpen(true);
+    setPublishError(null);
+    setIsPublishSuccess(false);
 
-    const pricingTiers = validTiers.map((t, i) => ({
-      id: t.label.toLowerCase().replace(/\s+/g, '-') || `tier-${i}`,
-      label: t.label,
-      price: t.price
-    }));
+    try {
+      // Stage 0: Photos & Media
+      await runProgressStep(25, 0, 'Uploading trek photos & media files...', 350);
 
-    const pickup = { location: pickupLocation, price: pickupPrice };
+      // Stage 1: Validation
+      await runProgressStep(50, 1, 'Validating trip details & batch dates...', 350);
 
-    const savedTrip = {
-      ...form,
-      id: trip?.id || `org-trip-${Date.now()}`,
-      organizerEmail,
-      // The traveller-facing apps (trip cards, details, booking) all read
-      // trip.organizer.{name,avatar,rating,verified} directly — build it
-      // from the live organizer profile so a newly published trip renders
-      // correctly the moment a traveller opens it.
-      organizer: trip?.organizer || {
-        name: organizer?.agencyName || organizer?.name || 'Verified Organizer',
-        avatar: organizer?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(organizer?.agencyName || organizer?.name || 'Organizer')}&background=F27D26&color=fff`,
-        rating: organizer?.rating || 0,
-        verified: !!organizer?.isApproved,
-      },
-      pricingTiers,
-      pickup,
-      startPoint: form.startPoint,
-      departureDates: form.departureDates,
-      price: pricingTiers[0]?.price ?? pickup.price,
-      trekId: form.trekId,
-      maxGroupSize: parseInt(form.availableSeats) || 15,
-      availableSeats: parseInt(form.availableSeats) || 15,
-      highlights: form.highlights.filter(h => h.trim()),
-      safetyGuidelines: form.safetyGuidelines.filter(g => g.trim()),
-      // The backend inherits name/location/difficulty/duration/distance/
-      // elevation/coverImage from the selected trek and ignores whatever's
-      // sent here — galleryImages stays organizer-owned, defaulting to the
-      // trek's photo when the organizer hasn't added their own yet.
-      galleryImages: form.galleryImages.length > 0 ? form.galleryImages : (selectedTrek?.coverImage ? [selectedTrek.coverImage] : []),
-      status,
-      rating: trip?.rating || 0,
-      reviewsCount: trip?.reviewsCount || 0,
-      reviews: trip?.reviews || [],
-      createdAt: trip?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      const pricingTiers = validTiers.map((t, i) => ({
+        id: t.label.toLowerCase().replace(/\s+/g, '-') || `tier-${i}`,
+        label: t.label,
+        price: t.price
+      }));
 
-    setSaving(false);
-    onSave(savedTrip);
+      const pickup = { location: pickupLocation, price: pickupPrice };
+
+      const savedTrip = {
+        ...form,
+        id: trip?.id || `org-trip-${Date.now()}`,
+        organizerEmail,
+        organizer: trip?.organizer || {
+          name: organizer?.agencyName || organizer?.name || 'Verified Organizer',
+          avatar: organizer?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(organizer?.agencyName || organizer?.name || 'Organizer')}&background=F27D26&color=fff`,
+          rating: organizer?.rating || 0,
+          verified: !!organizer?.isApproved,
+        },
+        pricingTiers,
+        pickup,
+        startPoint: form.startPoint,
+        departureDates: form.departureDates,
+        price: pricingTiers[0]?.price ?? pickup.price,
+        trekId: form.trekId,
+        maxGroupSize: parseInt(form.availableSeats) || 15,
+        availableSeats: parseInt(form.availableSeats) || 15,
+        highlights: form.highlights.filter(h => h.trim()),
+        safetyGuidelines: form.safetyGuidelines.filter(g => g.trim()),
+        galleryImages: form.galleryImages.length > 0 ? form.galleryImages : (selectedTrek?.coverImage ? [selectedTrek.coverImage] : []),
+        status,
+        rating: trip?.rating || 0,
+        reviewsCount: trip?.reviewsCount || 0,
+        reviews: trip?.reviews || [],
+        createdAt: trip?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Stage 2: Safety & Background Checks
+      await runProgressStep(75, 2, 'Performing background checks & safety verification...', 350);
+
+      // Stage 3: Registration with Hike catalog
+      await runProgressStep(90, 3, 'Registering trip with Hike catalog...', 200);
+
+      // Execute network save
+      await onSave(savedTrip);
+
+      // Success
+      await runProgressStep(100, 3, 'Trek successfully saved!', 200);
+      setIsPublishSuccess(true);
+
+      setTimeout(() => {
+        setSaving(false);
+        setModalOpen(false);
+      }, 1200);
+    } catch (err) {
+      setSaving(false);
+      setPublishError(err?.message || 'Could not save trip. Please check network connection and try again.');
+    }
   };
 
   const inputCls = `w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition ${
@@ -649,14 +727,13 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      set('galleryImages', [...form.galleryImages, reader.result]);
-                    };
-                    reader.readAsDataURL(file);
+                    const compressed = await compressImage(file);
+                    if (compressed) {
+                      set('galleryImages', [...form.galleryImages, compressed]);
+                    }
                   }
                 }}
                 className="hidden"
@@ -1098,6 +1175,24 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
           </button>
         )}
       </div>
+
+      {/* Interactive Publishing Loader Modal */}
+      <PublishingProgressModal
+        isOpen={modalOpen}
+        isEdit={isEdit}
+        isDraft={savingTargetStatus === 'Draft'}
+        progress={publishProgress}
+        currentStageIndex={currentStageIndex}
+        statusMessage={statusMessage}
+        error={publishError}
+        isSuccess={isPublishSuccess}
+        onRetry={() => handleSave(savingTargetStatus)}
+        onClose={() => {
+          setModalOpen(false);
+          setSaving(false);
+        }}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

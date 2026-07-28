@@ -1,3 +1,5 @@
+import { safeSetItem } from '../../../utils/safeStorage';
+
 const ORG_USER_KEY = 'trekigo_org_user';
 const ORG_TRIPS_KEY = 'trekigo_org_trips';
 const ORG_BOOKINGS_KEY = 'trekigo_org_bookings';
@@ -51,23 +53,23 @@ export const loadOrgUser = () => {
 };
 
 export const saveOrgUser = (state) => {
-  localStorage.setItem(ORG_USER_KEY, JSON.stringify(state));
+  safeSetItem(ORG_USER_KEY, state);
   if (state?.isAuthenticated) {
-    localStorage.setItem('trekigo_active_role', 'organizer');
+    safeSetItem('trekigo_active_role', 'organizer');
     try {
       const userState = localStorage.getItem('trekigo_user');
       if (userState) {
         const parsed = JSON.parse(userState);
         // Only clear user session if it belongs to a completely different email/user
         if (parsed?.isAuthenticated && parsed?.email && state?.email && parsed.email !== state.email) {
-          localStorage.setItem('trekigo_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+          safeSetItem('trekigo_user', { ...parsed, isAuthenticated: false });
         }
       }
       const adminState = localStorage.getItem('trekigo_admin_user');
       if (adminState) {
         const parsed = JSON.parse(adminState);
         if (parsed?.isAuthenticated && parsed?.email && state?.email && parsed.email !== state.email) {
-          localStorage.setItem('trekigo_admin_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
+          safeSetItem('trekigo_admin_user', { ...parsed, isAuthenticated: false });
         }
       }
     } catch (e) {
@@ -93,7 +95,7 @@ export const loadOrgTrips = (orgEmail) => {
 };
 
 export const saveOrgTrips = (trips) => {
-  localStorage.setItem(ORG_TRIPS_KEY, JSON.stringify(trips));
+  safeSetItem(ORG_TRIPS_KEY, trips);
 };
 
 export const loadOrgBookings = (orgEmail) => {
@@ -108,7 +110,7 @@ export const loadOrgBookings = (orgEmail) => {
 };
 
 export const saveOrgBookings = (bookings) => {
-  localStorage.setItem(ORG_BOOKINGS_KEY, JSON.stringify(bookings));
+  safeSetItem(ORG_BOOKINGS_KEY, bookings);
 };
 
 export const loadOrgNotifications = () => {
@@ -120,7 +122,7 @@ export const loadOrgNotifications = () => {
 };
 
 export const saveOrgNotifications = (val) => {
-  localStorage.setItem(ORG_NOTIFICATIONS_KEY, JSON.stringify(val));
+  safeSetItem(ORG_NOTIFICATIONS_KEY, val);
 };
 
 export const loadOrgChats = () => {
@@ -132,7 +134,7 @@ export const loadOrgChats = () => {
 };
 
 export const saveOrgChats = (val) => {
-  localStorage.setItem(ORG_CHATS_KEY, JSON.stringify(val));
+  safeSetItem(ORG_CHATS_KEY, val);
 };
 
 export const loadOrgDarkMode = () => {
@@ -144,7 +146,7 @@ export const loadOrgDarkMode = () => {
 };
 
 export const saveOrgDarkMode = (val) => {
-  localStorage.setItem(ORG_DARK_MODE_KEY, JSON.stringify(val));
+  safeSetItem(ORG_DARK_MODE_KEY, val);
 };
 
 export const loadOrgPayouts = () => {
@@ -156,5 +158,6 @@ export const loadOrgPayouts = () => {
 };
 
 export const saveOrgPayouts = (val) => {
-  localStorage.setItem(ORG_PAYOUTS_KEY, JSON.stringify(val));
+  safeSetItem(ORG_PAYOUTS_KEY, val);
 };
+

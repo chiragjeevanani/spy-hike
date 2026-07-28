@@ -11,6 +11,7 @@
 
 import loyaltyApi from '../lib/loyaltyApi';
 import { getToken } from '../lib/apiClient';
+import { safeSetItem } from './safeStorage';
 
 const CONFIG_KEY = 'trekigo_loyalty_config';
 const CUSTOMER_VOUCHERS_KEY = 'trekigo_loyalty_customer_vouchers';
@@ -65,7 +66,7 @@ export const loadLoyaltyConfig = () => {
 
 export const saveLoyaltyConfig = (config) => {
   const withStamp = { ...config, updatedAt: new Date().toISOString() };
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(withStamp));
+  safeSetItem(CONFIG_KEY, withStamp);
   return withStamp;
 };
 
@@ -81,7 +82,7 @@ const loadVouchers = (key) => {
 };
 
 const saveVouchers = (key, vouchers) => {
-  localStorage.setItem(key, JSON.stringify(vouchers));
+  safeSetItem(key, vouchers);
 };
 
 // Compares lifetime progress against the threshold and mints any newly
@@ -230,7 +231,7 @@ export async function hydrateLoyaltyConfig() {
 
 // Writes a server config into the cache without stamping updatedAt anew.
 function saveVouchersConfig(config) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(mergeConfig(config)));
+  safeSetItem(CONFIG_KEY, mergeConfig(config));
 }
 
 export async function hydrateCustomerLoyalty() {
@@ -239,7 +240,7 @@ export async function hydrateCustomerLoyalty() {
     const [config, me] = await Promise.all([loyaltyApi.getConfig(), loyaltyApi.getCustomerLoyalty()]);
     if (config) saveVouchersConfig(config);
     if (Array.isArray(me?.vouchers)) saveVouchers(CUSTOMER_VOUCHERS_KEY, me.vouchers);
-    if (me?.progress) localStorage.setItem(CUSTOMER_PROGRESS_KEY, JSON.stringify(me.progress));
+    if (me?.progress) safeSetItem(CUSTOMER_PROGRESS_KEY, me.progress);
     return me;
   } catch { return null; }
 }
@@ -250,7 +251,7 @@ export async function hydrateOrganizerLoyalty() {
     const [config, data] = await Promise.all([loyaltyApi.getConfig(), loyaltyApi.getOrganizerLoyalty()]);
     if (config) saveVouchersConfig(config);
     if (Array.isArray(data?.vouchers)) saveVouchers(ORG_VOUCHERS_KEY, data.vouchers);
-    if (data?.progress) localStorage.setItem(ORG_PROGRESS_KEY, JSON.stringify(data.progress));
+    if (data?.progress) safeSetItem(ORG_PROGRESS_KEY, data.progress);
     return data;
   } catch { return null; }
 }

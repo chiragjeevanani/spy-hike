@@ -23,5 +23,8 @@ export default defineConfig(() => {
     },
     // Serve index.html for all routes (SPA fallback)
     appType: 'spa',
+    build: {
+      chunkSizeWarningLimit: 2000,
+    },
   };
 });
