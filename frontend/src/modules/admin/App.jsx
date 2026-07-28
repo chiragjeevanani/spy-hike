@@ -254,10 +254,11 @@ export default function AdminApp() {
             <motion.div
               key={activeTab}
               className="absolute inset-0 flex flex-col"
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.18, ease: 'easeInOut' }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              style={{ willChange: 'opacity, transform' }}
             >
               {renderView()}
             </motion.div>
