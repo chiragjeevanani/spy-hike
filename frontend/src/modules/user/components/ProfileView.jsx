@@ -135,6 +135,7 @@ export default function ProfileView({
     setCurrentSub(sub);
     onNavigateProfile?.(sub);
   };
+  const [orgSwitching, setOrgSwitching] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
@@ -152,9 +153,9 @@ export default function ProfileView({
   // The partner application takes over the whole screen — ask the shell to
   // hide the bottom nav while it's open (restored on back/unmount).
   useEffect(() => {
-    if (onFullscreenChange) onFullscreenChange(currentSub === 'BECOME_ORGANIZER');
+    if (onFullscreenChange) onFullscreenChange(currentSub === 'BECOME_ORGANIZER' || orgSwitching);
     return () => { if (onFullscreenChange) onFullscreenChange(false); };
-  }, [currentSub, onFullscreenChange]);
+  }, [currentSub, orgSwitching, onFullscreenChange]);
 
   useEffect(() => {
     setProfileName(user.name || '');
@@ -225,7 +226,6 @@ export default function ProfileView({
   ]);
 
   // Become an Organizer flow
-  const [orgSwitching, setOrgSwitching] = useState(false);
   const [orgForm, setOrgForm] = useState({
     agencyName: '', agencyWebsite: '', socialMediaLink: '', yearsExperience: '', bio: '',
     govtIdType: 'Aadhaar', govtIdNumber: '', documentName: ''
@@ -518,13 +518,9 @@ export default function ProfileView({
   // (already-vetted accounts) or opens the partner application form.
   const handleBecomeOrganizer = () => {
     setOrgSwitching(true);
-    const startTime = Date.now();
 
     authApi.getLinkedOrganizerStatus()
       .then(async (statusRes) => {
-        const elapsed = Date.now() - startTime;
-        const delay = Math.max(0, ORGANIZER_TRANSITION_MS - elapsed);
-
         if (statusRes.isOrganizer) {
           const orgUser = {
             ...statusRes.organizer,
@@ -534,23 +530,23 @@ export default function ProfileView({
             isApproved: statusRes.isApproved,
             isPendingApproval: statusRes.isPendingApproval,
           };
-          try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser)); } catch (e) {}
+          try {
+            localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser));
+            localStorage.setItem('trekigo_active_role', 'organizer');
+          } catch (e) {}
           setTimeout(() => {
             window.location.href = '/organizer';
-          }, delay);
+          }, 1400);
         } else {
           setOrgSwitching(false);
           goSub('BECOME_ORGANIZER');
         }
       })
       .catch(() => {
-        const elapsed = Date.now() - startTime;
-        const delay = Math.max(0, ORGANIZER_TRANSITION_MS - elapsed);
-
         if (user.isOrganizer) {
           setTimeout(() => {
             redirectToOrganizerPanel();
-          }, delay);
+          }, 1400);
         } else {
           setOrgSwitching(false);
           goSub('BECOME_ORGANIZER');
@@ -640,10 +636,10 @@ export default function ProfileView({
         {currentSub === 'MAIN' && (
           <motion.div
             key="MAIN"
-            initial={{ opacity: 0, x: -15 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -15 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: -8, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="flex-1 overflow-y-auto no-scrollbar pb-8"
           >
           
@@ -903,10 +899,10 @@ export default function ProfileView({
         {currentSub === 'EDIT_PERSONAL' && (
           <motion.form
             key="EDIT_PERSONAL"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             onSubmit={handleSavePersonalInfo}
             noValidate
             className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
@@ -1004,10 +1000,10 @@ export default function ProfileView({
         {currentSub === 'BECOME_ORGANIZER' && (
           <motion.form
             key="BECOME_ORGANIZER"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 28, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
             onSubmit={handleSubmitOrgApplication}
             noValidate
             // Full-screen overlay (covers the bottom nav) — applying to become
@@ -1187,10 +1183,10 @@ export default function ProfileView({
         {currentSub === 'EDIT_STATS' && (
           <motion.form
             key="EDIT_STATS"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             onSubmit={handleSaveStatsInfo}
             className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
           >
@@ -1259,10 +1255,10 @@ export default function ProfileView({
         {currentSub === 'MY_REVIEWS' && (
           <motion.div
             key="MY_REVIEWS"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
           >
           <div className={subHeaderCls}>
@@ -1311,10 +1307,10 @@ export default function ProfileView({
         {currentSub === 'SETTINGS' && (
           <motion.div
             key="SETTINGS"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="flex-1 flex flex-col px-5 pt-4 overflow-y-auto no-scrollbar pb-8 space-y-5"
           >
           <div className={subHeaderCls}>
@@ -1430,10 +1426,10 @@ export default function ProfileView({
         {currentSub === 'SUPPORT' && (
           <motion.div
             key="SUPPORT"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
           >
           <div className={subHeaderCls}>
@@ -1566,10 +1562,10 @@ export default function ProfileView({
         {currentSub === 'LIVE_CHAT_SUPPORT' && (
           <motion.div
             key="LIVE_CHAT_SUPPORT"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="flex-1 flex flex-col px-5 pt-4 pb-4 overflow-hidden justify-between"
           >
 

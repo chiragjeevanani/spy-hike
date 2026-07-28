@@ -1103,7 +1103,6 @@ export default function App() {
           darkMode={darkMode} 
         />
       ) : (
-        /* 3. Main Dashboard flow viewport screen */
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
           
           {/* Dynamic master trek details page overlay */}
@@ -1111,10 +1110,10 @@ export default function App() {
             {selectedTrekName && !showOrganizersList && !selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trek-details"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                 className={`absolute inset-0 z-47 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TrekDetailsView
@@ -1138,10 +1137,10 @@ export default function App() {
             {selectedTrekName && showOrganizersList && !selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trek-organizers"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                 className={`absolute inset-0 z-48 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TrekOrganizersView
@@ -1162,10 +1161,10 @@ export default function App() {
             {selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trip-details"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                 className={`absolute inset-0 z-50 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TripDetailsView
@@ -1186,10 +1185,10 @@ export default function App() {
              {activeBookingTrip && (
                <motion.div
                  key="overlay-booking-flow"
-                 initial={{ y: '100%' }}
-                 animate={{ y: 0 }}
-                 exit={{ y: '100%' }}
-                 transition={{ type: 'spring', damping: 26, stiffness: 200 }}
+                 initial={{ opacity: 0, y: 32, scale: 0.97 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: 24, scale: 0.97 }}
+                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                  className={`absolute inset-0 z-45 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <BookingFlow
@@ -1207,10 +1206,10 @@ export default function App() {
              {selectedBooking && (
                <motion.div
                  key="overlay-booking-details"
-                 initial={{ x: '100%' }}
-                 animate={{ x: 0 }}
-                 exit={{ x: '100%' }}
-                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                 initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                 transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                  className={`absolute inset-0 z-50 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <BookingDetailsView
@@ -1247,16 +1246,16 @@ export default function App() {
                </motion.div>
              )}
            </AnimatePresence>
-
+ 
            {/* Dynamic Organizer Profile page absolute overlay */}
            <AnimatePresence mode="wait">
              {selectedOrganizer && (
                <motion.div
                  key="overlay-organizer-profile"
-                 initial={{ x: '100%' }}
-                 animate={{ x: 0 }}
-                 exit={{ x: '100%' }}
-                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                 initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                 transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                  className={`absolute inset-0 z-55 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <OrganizerProfileView
@@ -1272,16 +1271,16 @@ export default function App() {
                </motion.div>
              )}
            </AnimatePresence>
-
+ 
            {/* Dynamic Loyalty Rewards page absolute overlay */}
            <AnimatePresence mode="wait">
              {showLoyalty && (
                <motion.div
                  key="overlay-loyalty-rewards"
-                 initial={{ x: '100%' }}
-                 animate={{ x: 0 }}
-                 exit={{ x: '100%' }}
-                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                 initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                 transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                  className={`absolute inset-0 z-55 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <LoyaltyRewardsView
@@ -1293,16 +1292,16 @@ export default function App() {
                </motion.div>
              )}
            </AnimatePresence>
-
+ 
           {/* Main Tabs view renderer */}
           <div className="flex-1 flex flex-col overflow-hidden relative">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
+                initial={{ opacity: 0, scale: 0.98, filter: 'blur(3px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 1.01, filter: 'blur(3px)' }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 className="flex-1 flex flex-col overflow-hidden"
               >
                 {renderTabContent()}

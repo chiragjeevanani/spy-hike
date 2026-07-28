@@ -136,10 +136,10 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+          initial={{ opacity: 0, y: 28, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.98 }}
+          transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           className={`absolute inset-0 z-60 flex flex-col ${darkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-800'}`}
         >
           {/* Header */}

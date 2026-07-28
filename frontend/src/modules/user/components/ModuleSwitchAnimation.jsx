@@ -198,13 +198,13 @@ function CampScene() {
 }
 
 // ─── Flip container ──────────────────────────────────────────────────────────
-export default function ModuleSwitchAnimation({ toTraveller = false, flipDurationSec = 2.6 }) {
+export default function ModuleSwitchAnimation({ toTraveller = false, flipDurationSec = 1.2 }) {
   const Front = toTraveller ? CampScene : ClimbingScene;
   const Back = toTraveller ? ClimbingScene : CampScene;
 
   // NB: keep `filter`/`opacity` off the preserve-3d element — those force it to
   // flatten and break the flip. The card shadow lives on the faces instead.
-  const faceClass = 'absolute inset-0 rounded-[26px] overflow-hidden shadow-[0_18px_30px_rgba(11,18,32,0.34)]';
+  const faceClass = 'absolute inset-0 rounded-[26px] overflow-hidden shadow-[0_18px_30px_rgba(11,18,32,0.34)] transform-gpu';
   const faceStyle = { backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' };
   const gloss = {
     background: 'radial-gradient(120% 85% at 26% 12%, rgba(255,255,255,0.4), rgba(255,255,255,0) 46%)',
@@ -212,13 +212,13 @@ export default function ModuleSwitchAnimation({ toTraveller = false, flipDuratio
   };
 
   return (
-    <div className="w-full h-full" style={{ perspective: 820, perspectiveOrigin: '50% 42%' }}>
+    <div className="w-full h-full transform-gpu" style={{ perspective: 820, perspectiveOrigin: '50% 42%' }}>
       <motion.div
-        className="relative w-full h-full"
-        style={{ transformStyle: 'preserve-3d' }}
+        className="relative w-full h-full transform-gpu"
+        style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}
         initial={{ rotateY: 0, scale: 1 }}
-        animate={{ rotateY: [0, 0, 180, 180], scale: [1, 0.9, 0.9, 1] }}
-        transition={{ duration: flipDurationSec, times: [0, 0.3, 0.72, 1], ease: [0.62, 0, 0.35, 1] }}
+        animate={{ rotateY: 180, scale: [1, 0.92, 1] }}
+        transition={{ duration: flipDurationSec, ease: [0.4, 0, 0.2, 1] }}
       >
         <div className={faceClass} style={faceStyle}>
           <Front />

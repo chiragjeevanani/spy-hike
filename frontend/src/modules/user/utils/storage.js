@@ -43,24 +43,30 @@ export const loadUserState = () => {
 export const saveUserState = (state) => {
   localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(state));
   if (state?.isAuthenticated) {
-    // Single-role session enforcement: clear active organizer & admin sessions
+    localStorage.setItem('trekigo_active_role', 'hiker');
     try {
       const orgState = localStorage.getItem('trekigo_org_user');
       if (orgState) {
         const parsed = JSON.parse(orgState);
-        if (parsed?.isAuthenticated) {
+        // Only clear organizer session if it belongs to a completely different email/user
+        if (parsed?.isAuthenticated && parsed?.email && state?.email && parsed.email !== state.email) {
           localStorage.setItem('trekigo_org_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
         }
       }
       const adminState = localStorage.getItem('trekigo_admin_user');
       if (adminState) {
         const parsed = JSON.parse(adminState);
-        if (parsed?.isAuthenticated) {
+        if (parsed?.isAuthenticated && parsed?.email && state?.email && parsed.email !== state.email) {
           localStorage.setItem('trekigo_admin_user', JSON.stringify({ ...parsed, isAuthenticated: false }));
         }
       }
     } catch (e) {
-      console.error('Error clearing secondary role sessions:', e);
+      console.error('Error managing secondary role sessions:', e);
+    }
+  } else {
+    const active = localStorage.getItem('trekigo_active_role');
+    if (active === 'hiker') {
+      localStorage.removeItem('trekigo_active_role');
     }
   }
 };

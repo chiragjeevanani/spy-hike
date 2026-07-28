@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut, Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus, Gift, LifeBuoy, Info, Instagram, AlertCircle, Wallet, TicketPercent } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
@@ -14,7 +14,7 @@ import { scrollToFirstError } from '../../../utils/formValidation';
 
 const TRAVELLER_TRANSITION_MS = 3000;
 
-export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, onOpenCoupons, darkMode, onToggleDarkMode }) {
+export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, onOpenCoupons, darkMode, onToggleDarkMode, onFullscreenChange }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const [editing, setEditing] = useState(false);
@@ -23,12 +23,21 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
   const [showAbout, setShowAbout] = useState(false);
   const [travSwitching, setTravSwitching] = useState(false);
 
+  useEffect(() => {
+    if (onFullscreenChange) onFullscreenChange(travSwitching);
+    return () => { if (onFullscreenChange) onFullscreenChange(false); };
+  }, [travSwitching, onFullscreenChange]);
+
   const handleSwitchToTraveller = () => {
     setTravSwitching(true);
-    // Mint a customer-scoped token before navigating — the organizer token
-    // currently held won't pass the traveller app's customer-only checks.
-    authApi.getCustomerToken().catch(() => {});
-    setTimeout(() => { window.location.href = '/app'; }, TRAVELLER_TRANSITION_MS);
+    localStorage.setItem('trekigo_active_role', 'hiker');
+    authApi.getCustomerToken()
+      .catch(() => {})
+      .finally(() => {
+        setTimeout(() => {
+          window.location.href = '/app';
+        }, 1400);
+      });
   };
   const [form, setForm] = useState({
     name: organizer?.name || '',
@@ -450,10 +459,10 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
       {/* Help & Support overlay */}
       {showHelpSupport && (
         <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+          initial={{ opacity: 0, y: 28, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.98 }}
+          transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           className="absolute inset-0 z-50 flex flex-col"
         >
           <OrgHelpSupportView organizer={organizer} onBack={() => setShowHelpSupport(false)} darkMode={darkMode} />
@@ -463,10 +472,10 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
       {/* About overlay */}
       {showAbout && (
         <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+          initial={{ opacity: 0, y: 28, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.98 }}
+          transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           className="absolute inset-0 z-50 flex flex-col"
         >
           <OrgAboutView onBack={() => setShowAbout(false)} darkMode={darkMode} />

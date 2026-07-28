@@ -90,6 +90,7 @@ export default function OrgApp() {
   const toast = useToast();
   const [chats, setChats] = useState([]);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
+  const [navHidden, setNavHidden] = useState(false);
 
   // Load organizer-specific data. Trips + bookings come from the API for a
   // real (token-backed) session; both fall back to localStorage so the
@@ -537,6 +538,7 @@ export default function OrgApp() {
             onOpenCoupons={() => setShowOrgCoupons(true)}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
+            onFullscreenChange={setNavHidden}
           />
         ),
       };
@@ -544,7 +546,7 @@ export default function OrgApp() {
       return tabContent[activeTab] || tabContent['Dashboard'];
     };
 
-    const showBottomNav = BOTTOM_NAV_TABS.includes(activeTab);
+    const showBottomNav = BOTTOM_NAV_TABS.includes(activeTab) && !navHidden;
 
     return (
       <>
@@ -553,10 +555,10 @@ export default function OrgApp() {
             <motion.div
               key={activeTab}
               className="absolute inset-0 flex flex-col"
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -12 }}
-              transition={{ duration: 0.22, ease: 'easeInOut' }}
+              initial={{ opacity: 0, scale: 0.98, filter: 'blur(3px)' }}
+              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, scale: 1.01, filter: 'blur(3px)' }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
               {mainContent()}
             </motion.div>
@@ -576,10 +578,10 @@ export default function OrgApp() {
           {showOrgLoyalty && (
             <motion.div
               key="overlay-org-loyalty"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
               <OrgLoyaltyView
@@ -597,10 +599,10 @@ export default function OrgApp() {
           {showOrgNotifications && (
             <motion.div
               key="overlay-org-notifications"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
               <OrgNotificationsView
@@ -625,10 +627,10 @@ export default function OrgApp() {
           {showOrgFinancials && (
             <motion.div
               key="overlay-org-financials"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
               <OrgFinancialsView
@@ -649,10 +651,10 @@ export default function OrgApp() {
           {showOrgCoupons && (
             <motion.div
               key="overlay-org-coupons"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
               <OrgCouponsView
@@ -668,10 +670,10 @@ export default function OrgApp() {
           {showScanner && (
             <motion.div
               key="overlay-org-scanner"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
               className="absolute inset-0 z-50"
             >
               <OrgScannerView
@@ -687,10 +689,10 @@ export default function OrgApp() {
           {showOrgChats && (
             <motion.div
               key="overlay-org-chats"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
             >
               <div className={`shrink-0 px-4 pt-4 pb-2 ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}>

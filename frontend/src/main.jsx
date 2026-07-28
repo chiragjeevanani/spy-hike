@@ -8,7 +8,24 @@ import './index.css';
 // by the organizer panel module.
 const routePath = window.location.pathname;
 const isAdminPath = routePath === '/admin' || routePath.startsWith('/admin/');
-const isOrganizerPath = routePath === '/organizer' || routePath.startsWith('/organizer/');
+let isOrganizerPath = routePath === '/organizer' || routePath.startsWith('/organizer/');
+
+// If opening default app root path, check persistent active role
+if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/app' || routePath === '/app/')) {
+  try {
+    const activeRole = localStorage.getItem('trekigo_active_role');
+    const rawOrgUser = localStorage.getItem('trekigo_org_user');
+    if (rawOrgUser) {
+      const orgUser = JSON.parse(rawOrgUser);
+      if (orgUser?.isAuthenticated && activeRole === 'organizer') {
+        isOrganizerPath = true;
+        window.history.replaceState(null, '', '/organizer/dashboard');
+      }
+    }
+  } catch (e) {
+    console.error('Error checking persistent active role:', e);
+  }
+}
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/ToastProvider';

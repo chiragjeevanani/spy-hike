@@ -101,6 +101,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       ORG_USER_STORAGE_KEY,
       JSON.stringify({ ...organizerAccount, rememberMe }),
     );
+    localStorage.setItem('trekigo_active_role', 'organizer');
     window.location.href = '/organizer';
   };
 
@@ -114,7 +115,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     setTimeout(() => {
       setRole(nextRole);
       setRoleSwitchLabel(null);
-    }, ROLE_TOGGLE_TRANSITION_MS);
+    }, 1400);
   };
 
   const handleLoginEmail = async (e) => {
@@ -136,7 +137,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         const organizer = await authApi.loginOrganizer(email, password);
         setSuccessMsg('Organizer access verified! Redirecting to your dashboard...');
         setShowOrgTransition(true);
-        setTimeout(() => redirectToOrganizerPanel(organizer), ORGANIZER_TRANSITION_MS);
+        setTimeout(() => redirectToOrganizerPanel(organizer), 1400);
       } else {
         const user = await authApi.loginCustomer(email, password);
         setSuccessMsg('Logged in successfully!');

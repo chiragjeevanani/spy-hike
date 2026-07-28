@@ -1055,10 +1055,10 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
         <AnimatePresence mode="wait">
           <motion.div
             key={section}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 12, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.99 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
             {(sectionContent[section] || (() => null))()}
           </motion.div>
