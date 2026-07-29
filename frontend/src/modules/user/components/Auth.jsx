@@ -123,23 +123,34 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (!email || !password) {
-      setErrorMsg('Please specify both email and password.');
-      toast.error('Please specify both email and password.');
+    const inputVal = email.trim();
+    if (!inputVal || !password) {
+      setErrorMsg('Please specify both email/phone number and password.');
+      toast.error('Please specify both email/phone number and password.');
+      return;
+    }
+
+    const isPhone = /^\d+$/.test(inputVal);
+    if (isPhone && !/^\d{10}$/.test(inputVal)) {
+      setErrorMsg('Please enter a valid 10-digit phone number or email address.');
+      toast.error('Please enter a valid 10-digit phone number or email address.');
+      return;
+    }
+    if (!isPhone && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inputVal)) {
+      setErrorMsg('Please enter a valid email address or 10-digit phone number.');
+      toast.error('Please enter a valid email address or 10-digit phone number.');
       return;
     }
 
     setSubmitting(true);
     try {
       if (role === 'ORGANIZER') {
-        // Organizer login hits the organizer endpoint directly — it fails if
-        // this account isn't registered as an organizer.
-        const organizer = await authApi.loginOrganizer(email, password);
+        const organizer = await authApi.loginOrganizer(inputVal, password);
         setSuccessMsg('Organizer access verified! Redirecting to your dashboard...');
         setShowOrgTransition(true);
         setTimeout(() => redirectToOrganizerPanel(organizer), 1400);
       } else {
-        const user = await authApi.loginCustomer(email, password);
+        const user = await authApi.loginCustomer(inputVal, password);
         setSuccessMsg('Logged in successfully!');
         onSuccess({ ...user, rememberMe });
       }
@@ -458,12 +469,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
             </p>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold tracking-wider uppercase opacity-80">Email</label>
+              <label className="text-[11px] font-semibold tracking-wider uppercase opacity-80">Email Address or Phone Number</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                 <input
-                  type="email"
-                  placeholder="name@example.com"
+                  type="text"
+                  placeholder="Email address or 10-digit phone number"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className={`w-full text-sm pl-10 pr-4 py-3 rounded-xl outline-hidden focus:border-forest-500 border transition-all ${

@@ -15,6 +15,7 @@ import authApi from '../../../lib/authApi';
 import contentApi from '../../../lib/contentApi';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { formatGovtIdInput, getGovtIdMeta } from '../../../utils/govtIdHelper';
 
 // Mirrors Auth.jsx — the organizer panel runs as an independent mini-SPA with
 // its own session storage, so switching modules means seeding that store and
@@ -817,19 +818,6 @@ export default function ProfileView({
                   </span>
                   <ChevronRight size={17} className="opacity-40" />
                 </button>
-
-                {/* Restart onboarding tutorial */}
-                <button
-                  onClick={onTriggerOnboarding}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Compass size={19} className="text-forest-500" /> Start Onboarding Guide
-                  </span>
-                  <Sparkles size={16} className="text-spy-orange animate-pulse" />
-                </button>
               </div>
             </div>
 
@@ -1008,16 +996,16 @@ export default function ProfileView({
             noValidate
             // Full-screen overlay (covers the bottom nav) — applying to become
             // a partner is a focused flow, not a tab-level screen.
-            className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar p-4 ${
+            className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
               darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
             }`}
           >
-          <div className="space-y-4 flex-1">
+          <div className="space-y-4 flex-1 max-w-lg w-full mx-auto">
             <div className={subHeaderCls}>
               <button type="button" onClick={() => { setOrgFormError(''); goSub('MAIN'); }} className={subBackBtnCls}>
                 <ArrowLeft size={17} />
               </button>
-              <h3 className={`${subTitleCls} flex items-center gap-2`}>
+              <h3 className={`${subTitleCls} flex items-center gap-2 text-base sm:text-lg`}>
                 <Building2 size={19} className="text-spy-orange" /> Become an Organizer
               </h3>
             </div>
@@ -1052,17 +1040,34 @@ export default function ProfileView({
               {orgFieldErrors.agencyName && <p className="text-[11px] font-semibold text-red-500">{orgFieldErrors.agencyName}</p>}
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Website (Optional)</label>
-              <input
-                type="url"
-                placeholder="https://yourwebsite.com"
-                value={orgForm.agencyWebsite}
-                onChange={e => setOrgForm({ ...orgForm, agencyWebsite: e.target.value })}
-                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
-                }`}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-wider opacity-65">Website (Optional)</label>
+                <input
+                  type="url"
+                  placeholder="https://yourwebsite.com"
+                  value={orgForm.agencyWebsite}
+                  onChange={e => setOrgForm({ ...orgForm, agencyWebsite: e.target.value })}
+                  className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                    darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-wider opacity-65">Years of Experience</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  placeholder="e.g. 5"
+                  value={orgForm.yearsExperience}
+                  onChange={e => setOrgForm({ ...orgForm, yearsExperience: e.target.value })}
+                  className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                    darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
+                  }`}
+                />
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -1080,21 +1085,6 @@ export default function ProfileView({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Years of Experience</label>
-              <input
-                type="number"
-                min="0"
-                max="50"
-                placeholder="e.g. 5"
-                value={orgForm.yearsExperience}
-                onChange={e => setOrgForm({ ...orgForm, yearsExperience: e.target.value })}
-                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
-                }`}
-              />
-            </div>
-
-            <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-wider opacity-65">About Your Agency</label>
               <textarea
                 rows={3}
@@ -1108,38 +1098,61 @@ export default function ProfileView({
             </div>
 
             {/* Verification */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Government ID Type</label>
-              <select
-                value={orgForm.govtIdType}
-                onChange={e => setOrgForm({ ...orgForm, govtIdType: e.target.value })}
-                className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                  darkMode ? 'bg-elegant-card border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
-                }`}
-              >
-                <option value="Aadhaar">Aadhaar Card</option>
-                <option value="PAN">PAN Card</option>
-                <option value="GST">GST Certificate</option>
-                <option value="Passport">Passport</option>
-                <option value="TIN">Travel India License (TIN)</option>
-              </select>
-            </div>
+            {(() => {
+              const orgIdMeta = getGovtIdMeta(orgForm.govtIdType);
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-wider opacity-65">Government ID Type</label>
+                    <select
+                      value={orgForm.govtIdType}
+                      onChange={e => {
+                        const newType = e.target.value;
+                        setOrgForm({
+                          ...orgForm,
+                          govtIdType: newType,
+                          govtIdNumber: formatGovtIdInput(newType, orgForm.govtIdNumber),
+                        });
+                        setOrgFormError('');
+                        clearOrgError('govtIdNumber');
+                      }}
+                      className={`w-full text-sm px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
+                        darkMode ? 'bg-elegant-card border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
+                      }`}
+                    >
+                      <option value="Aadhaar">Aadhaar Card</option>
+                      <option value="PAN">PAN Card</option>
+                      <option value="GST">GST Certificate</option>
+                      <option value="Passport">Passport</option>
+                      <option value="TIN">Travel India License (TIN)</option>
+                    </select>
+                  </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-65">ID Number *</label>
-              <div className="relative">
-                <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                <input
-                  ref={orgGovtIdNumberRef}
-                  type="text"
-                  placeholder="Enter your ID number"
-                  value={orgForm.govtIdNumber}
-                  onChange={e => { setOrgForm({ ...orgForm, govtIdNumber: e.target.value }); setOrgFormError(''); clearOrgError('govtIdNumber'); }}
-                  className={orgInputCls('govtIdNumber', 'pl-10 pr-3.5')}
-                />
-              </div>
-              {orgFieldErrors.govtIdNumber && <p className="text-[11px] font-semibold text-red-500">{orgFieldErrors.govtIdNumber}</p>}
-            </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-wider opacity-65">ID Number *</label>
+                    <div className="relative">
+                      <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                      <input
+                        ref={orgGovtIdNumberRef}
+                        type="text"
+                        inputMode={orgIdMeta.inputMode}
+                        maxLength={orgIdMeta.maxLength}
+                        placeholder={orgIdMeta.placeholder}
+                        value={orgForm.govtIdNumber}
+                        onChange={e => {
+                          const formatted = formatGovtIdInput(orgForm.govtIdType, e.target.value);
+                          setOrgForm({ ...orgForm, govtIdNumber: formatted });
+                          setOrgFormError('');
+                          clearOrgError('govtIdNumber');
+                        }}
+                        className={orgInputCls('govtIdNumber', 'pl-10 pr-3.5')}
+                      />
+                    </div>
+                    {orgFieldErrors.govtIdNumber && <p className="text-[11px] font-semibold text-red-500">{orgFieldErrors.govtIdNumber}</p>}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-wider opacity-65">Verification Document</label>
@@ -1168,14 +1181,14 @@ export default function ProfileView({
             <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
               By applying, you agree to Find Your Trek's Partner Terms of Service. All ID information is encrypted and secure.
             </p>
-          </div>
 
-          <button
-            type="submit"
-            className="w-full mt-4 py-4 bg-spy-orange hover:bg-spy-orange-hover text-white font-bold rounded-2xl text-sm uppercase tracking-wide flex items-center justify-center gap-2 active:scale-[0.99] transition"
-          >
-            Submit Application <ChevronRight size={16} />
-          </button>
+            <button
+              type="submit"
+              className="w-full mt-4 py-4 bg-spy-orange hover:bg-spy-orange-hover text-white font-bold rounded-2xl text-sm uppercase tracking-wide flex items-center justify-center gap-2 active:scale-[0.99] transition cursor-pointer shadow-lg shadow-spy-orange/20"
+            >
+              Submit Application <ChevronRight size={16} />
+            </button>
+          </div>
           </motion.form>
         )}
 

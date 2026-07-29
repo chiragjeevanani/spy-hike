@@ -65,3 +65,38 @@ export const sendOrganizerMessage = asyncHandler(async (req, res) => {
   await chat.save();
   res.json({ chat: chat.toPublicJSON() });
 });
+
+export const markOrganizerChatRead = asyncHandler(async (req, res) => {
+  const chat = await Chat.findById(req.params.chatId);
+  if (!chat) throw ApiError.notFound('Chat not found');
+  if (chat.organizerEmail !== req.organizer.email) {
+    throw ApiError.forbidden('This conversation belongs to another organizer');
+  }
+  let modified = false;
+  chat.messages.forEach(m => {
+    if (m.sender === 'user' && !m.read) {
+      m.read = true;
+      modified = true;
+    }
+  });
+  if (modified) {
+    await chat.save();
+  }
+  res.json({ chat: chat.toPublicJSON() });
+});
+
+export const markCustomerChatRead = asyncHandler(async (req, res) => {
+  const chat = await Chat.findOne({ tripId: req.params.tripId, userEmail: req.user.email });
+  if (!chat) throw ApiError.notFound('Chat not found');
+  let modified = false;
+  chat.messages.forEach(m => {
+    if (m.sender === 'organizer' && !m.read) {
+      m.read = true;
+      modified = true;
+    }
+  });
+  if (modified) {
+    await chat.save();
+  }
+  res.json({ chat: chat.toPublicJSON() });
+});

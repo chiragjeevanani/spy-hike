@@ -30,11 +30,13 @@ export const socialApi = {
   // ─── Chat (customer) ───
   getChats: () => api.get('/chats').then((r) => r.chats),
   sendMessage: (tripId, text) => api.post(`/chats/${encodeURIComponent(tripId)}/messages`, { text }).then((r) => r.chat),
+  markChatRead: (tripId) => api.patch(`/chats/${encodeURIComponent(tripId)}/read`),
 
   // ─── Chat (organizer) ───
   getOrganizerChats: () => api.get('/organizer/chats').then((r) => r.chats),
   sendOrganizerMessage: (chatId, text) =>
     api.post(`/organizer/chats/${encodeURIComponent(chatId)}/messages`, { text }).then((r) => r.chat),
+  markOrganizerChatRead: (chatId) => api.patch(`/organizer/chats/${encodeURIComponent(chatId)}/read`),
 
   // ─── Admin broadcast ───
   broadcast: (payload) => api.post('/admin/broadcast', payload).then((r) => r.broadcast),

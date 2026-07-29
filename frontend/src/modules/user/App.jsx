@@ -45,8 +45,9 @@ import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
 import contentApi from '../../lib/contentApi';
 import { loadLandingContentLocal } from '../landing/landingContent';
-import { getToken } from '../../lib/apiClient';
 import { initPushNotifications } from '../../utils/pushNotifications';
+import { requestPushPermission, HikerAlerts } from '../../utils/pushNotificationService';
+import { useToast } from '../../components/ToastProvider';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -238,6 +239,7 @@ const getInitialStateFromUrl = () => {
 };
 
 export default function App() {
+  const toast = useToast();
   // 1. Core State registers loaded from local persistence
   const [user, setUser] = useState(() => loadUserState());
   const [wishlist, setWishlist] = useState(() => loadWishlist());
@@ -660,18 +662,68 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user.isAuthenticated]);
 
-  // Hydrate wishlist / notifications / chats from the API for a real (token)
-  // session. Notifications + the welcome chat are emitted server-side on
-  // booking, so re-run when the booking roster changes. Tokenless (seeded)
-  // sessions keep their localStorage state.
+  const knownHikerMsgCountRef = useRef(null);
+  const knownHikerNotifCountRef = useRef(null);
+
+  // Live polling interval for instant real-time push alerts of notifications & messages for Hikers
   useEffect(() => {
     if (!user.isAuthenticated || !getToken()) return;
-    let cancelled = false;
-    socialApi.getWishlist().then((w) => { if (!cancelled && Array.isArray(w)) setWishlist(w); }).catch(() => {});
-    socialApi.getNotifications().then((n) => { if (!cancelled && Array.isArray(n) && n.length) setNotifications(n); }).catch(() => {});
-    socialApi.getChats().then((c) => { if (!cancelled && Array.isArray(c) && c.length) setChats(c); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [user.isAuthenticated, bookings.length]);
+
+    requestPushPermission();
+
+    const pollHikerUpdates = async () => {
+      try {
+        // 1. Live Sync Hiker Notifications
+        const freshNotifs = await socialApi.getNotifications();
+        if (Array.isArray(freshNotifs)) {
+          if (knownHikerNotifCountRef.current !== null && freshNotifs.length > knownHikerNotifCountRef.current) {
+            const latestNotif = freshNotifs[0];
+            if (latestNotif && !latestNotif.read) {
+              HikerAlerts.tripNotice(latestNotif.title, latestNotif.content, toast);
+            }
+          }
+          knownHikerNotifCountRef.current = freshNotifs.length;
+          setNotifications(freshNotifs);
+          saveNotifications(freshNotifs);
+        }
+
+        // 2. Live Sync Incoming Organizer Messages
+        const freshChats = await socialApi.getChats();
+        if (Array.isArray(freshChats)) {
+          if (knownHikerMsgCountRef.current !== null) {
+            freshChats.forEach(chat => {
+              const cId = String(chat.id || chat._id);
+              const orgMsgs = (chat.messages || []).filter(m => m.sender === 'organizer');
+              const prevCount = knownHikerMsgCountRef.current.get(cId) || 0;
+
+              if (orgMsgs.length > prevCount) {
+                const latestOrgMsg = orgMsgs[orgMsgs.length - 1];
+                if (latestOrgMsg) {
+                  HikerAlerts.newMessage(chat.organizerName || chat.agencyName || 'Organizer', latestOrgMsg.text, toast);
+                }
+              }
+            });
+          }
+
+          const newCounts = new Map();
+          freshChats.forEach(c => {
+            const cId = String(c.id || c._id);
+            const orgMsgs = (c.messages || []).filter(m => m.sender === 'organizer');
+            newCounts.set(cId, orgMsgs.length);
+          });
+          knownHikerMsgCountRef.current = newCounts;
+          setChats(freshChats);
+          saveChats(freshChats);
+        }
+      } catch (err) {
+        /* Ignore background polling errors */
+      }
+    };
+
+    pollHikerUpdates();
+    const timer = setInterval(pollHikerUpdates, 5000);
+    return () => clearInterval(timer);
+  }, [user.isAuthenticated]);
 
   // Public landing-page content — fetched once on mount (no auth) so the
   // marketing page reflects whatever the admin has published in the CMS.

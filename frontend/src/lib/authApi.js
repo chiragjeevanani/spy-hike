@@ -19,8 +19,8 @@ function accept(res) {
 export const authApi = {
   // ─── Customer ───
   registerCustomer: (payload) => api.post('/auth/register', payload, { auth: false }).then(accept),
-  loginCustomer: (email, password) =>
-    api.post('/auth/login', { email, password }, { auth: false }).then(accept),
+  loginCustomer: (identifier, password) =>
+    api.post('/auth/login', { identifier, email: identifier, mobile: identifier, password }, { auth: false }).then(accept),
   requestOtp: (mobile) => api.post('/auth/otp/request', { mobile }, { auth: false }),
   verifyOtp: (mobile, code, name) =>
     api.post('/auth/otp/verify', { mobile, code, name }, { auth: false }).then(accept),
@@ -50,8 +50,8 @@ export const authApi = {
   // in both apps (same User document, no second account).
   applyAsOrganizer: (payload) =>
     api.post('/auth/organizer/apply', payload).then(accept),
-  loginOrganizer: (email, password) =>
-    api.post('/auth/organizer/login', { email, password }, { auth: false }).then(accept),
+  loginOrganizer: (identifier, password) =>
+    api.post('/auth/organizer/login', { identifier, email: identifier, mobile: identifier, password }, { auth: false }).then(accept),
   // Also mints and stores an organizer-scoped token (via the customer's
   // existing token) so subsequent organizer-only calls carry the right role —
   // switching roles for a unified account needs no password re-entry.

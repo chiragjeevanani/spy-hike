@@ -8,6 +8,7 @@ import {
   loadOrgNotifications, saveOrgNotifications,
   loadOrgDarkMode, saveOrgDarkMode,
   loadOrgPayouts, saveOrgPayouts,
+  loadOrgChats, saveOrgChats,
 } from './utils/storage';
 import { syncOrganizerVouchers, markOrganizerVoucherUsed, hydrateOrganizerLoyalty } from '../../utils/loyalty';
 import authApi from '../../lib/authApi';
@@ -17,6 +18,7 @@ import loyaltyApi from '../../lib/loyaltyApi';
 import socialApi from '../../lib/socialApi';
 import { getToken } from '../../lib/apiClient';
 import { initPushNotifications } from '../../utils/pushNotifications';
+import { requestPushPermission, OrganizerAlerts } from '../../utils/pushNotificationService';
 import { useToast } from '../../components/ToastProvider';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { safeSetItem } from '../../utils/safeStorage';
@@ -96,6 +98,10 @@ export default function OrgApp() {
   // Load organizer-specific data. Trips + bookings come from the API for a
   // real (token-backed) session; both fall back to localStorage so the
   // seeded/offline paths keep working.
+  const knownBookingIdsRef = useRef(null);
+  const knownChatMsgCountRef = useRef(null);
+
+  // Initial load for organizer data
   useEffect(() => {
     if (organizer?.isAuthenticated && organizer?.email) {
       if (organizer.isApproved) {
@@ -110,18 +116,12 @@ export default function OrgApp() {
       const orgBookings = loadOrgBookings(organizer.email);
       setBookings(orgBookings);
 
-      // Lifetime "bookings via app" backs the loyalty progress bar — keep the
-      // organizer's totalBookings stat honest against their actual booking
-      // roster, then mint any newly-earned reward vouchers. A real session
-      // pulls the server's authoritative voucher ledger; otherwise mint locally.
       const lifetimeBookings = Math.max(organizer.totalBookings || 0, orgBookings.length);
       if (getToken()) {
         hydrateOrganizerLoyalty();
-        // Pull server-emitted notifications (e.g. "New Booking Received").
         socialApi.getOrganizerNotifications()
           .then((list) => { if (Array.isArray(list) && list.length) setNotifications(list); })
           .catch(() => {});
-        // Pull two-way customer↔organizer chat threads.
         socialApi.getOrganizerChats()
           .then((list) => { if (Array.isArray(list)) setChats(list); })
           .catch(() => {});
@@ -135,6 +135,87 @@ export default function OrgApp() {
       }
     }
   }, [organizer?.email, organizer?.isAuthenticated]);
+
+  // Live polling interval for instant real-time sync of Bookings, Messages, and Notifications
+  useEffect(() => {
+    if (!organizer?.isAuthenticated || !organizer?.isApproved) return;
+
+    // Request browser push notification permission if supported
+    requestPushPermission();
+
+    const pollLiveUpdates = async () => {
+      if (!getToken()) return;
+
+      try {
+        // 1. Live Sync Bookings
+        const freshBookings = await bookingsApi.listOrganizer();
+        if (Array.isArray(freshBookings)) {
+          if (knownBookingIdsRef.current !== null) {
+            const newBookings = freshBookings.filter(b => {
+              const bId = b.id || b.bookingId || b._id;
+              return bId && !knownBookingIdsRef.current.has(bId);
+            });
+
+            newBookings.forEach(newB => {
+              OrganizerAlerts.newBooking(newB, toast);
+            });
+          }
+
+          const currentIds = new Set(freshBookings.map(b => b.id || b.bookingId || b._id).filter(Boolean));
+          knownBookingIdsRef.current = currentIds;
+          setBookings(freshBookings);
+          saveOrgBookings(freshBookings);
+        }
+
+        // 2. Live Sync Customer Chats & Messages
+        const freshChats = await socialApi.getOrganizerChats();
+        if (Array.isArray(freshChats)) {
+          if (knownChatMsgCountRef.current !== null) {
+            freshChats.forEach(chat => {
+              const cId = String(chat.id || chat._id);
+              const incomingUserMsgs = (chat.messages || []).filter(m => m.sender === 'user');
+              const prevCount = knownChatMsgCountRef.current.get(cId) || 0;
+
+              if (incomingUserMsgs.length > prevCount) {
+                const latestUserMsg = incomingUserMsgs[incomingUserMsgs.length - 1];
+                if (latestUserMsg) {
+                  const senderName = chat.userName || 'Traveller';
+                  const msgText = latestUserMsg.text || 'Sent a message';
+                  OrganizerAlerts.newMessage(senderName, msgText, toast);
+                }
+              }
+            });
+          }
+
+          const newCounts = new Map();
+          freshChats.forEach(c => {
+            const cId = String(c.id || c._id);
+            const userMsgs = (c.messages || []).filter(m => m.sender === 'user');
+            newCounts.set(cId, userMsgs.length);
+          });
+          knownChatMsgCountRef.current = newCounts;
+          setChats(freshChats);
+          saveOrgChats(freshChats);
+        }
+
+        // 3. Live Sync Notifications
+        const freshNotifs = await socialApi.getOrganizerNotifications();
+        if (Array.isArray(freshNotifs)) {
+          setNotifications(freshNotifs);
+          saveOrgNotifications(freshNotifs);
+        }
+      } catch (err) {
+        /* Ignore transient background network errors */
+      }
+    };
+
+    // Initial poll check
+    pollLiveUpdates();
+
+    // Poll every 5 seconds for instant updates without page refresh
+    const pollInterval = setInterval(pollLiveUpdates, 5000);
+    return () => clearInterval(pollInterval);
+  }, [organizer?.isAuthenticated, organizer?.isApproved, organizer?.email]);
 
   // History popstate — handle native hardware back button / swipe gestures for all overlays & modals
   useEffect(() => {
@@ -279,21 +360,75 @@ export default function OrgApp() {
     window.location.href = SHARED_LOGIN_PATH;
   };
 
+  // Auto-verify approval status from server on page load / refresh & poll if pending
+  useEffect(() => {
+    if (!organizer?.isAuthenticated) return;
+
+    const checkStatus = async () => {
+      try {
+        if (!getToken()) return;
+        const fresh = await authApi.fetchMe();
+        if (fresh) {
+          const isNowApproved = Boolean(fresh.isApproved);
+          const updated = {
+            ...organizer,
+            ...fresh,
+            isApproved: isNowApproved,
+            isPendingApproval: !isNowApproved,
+          };
+          saveOrgUser(updated);
+          setOrganizer(updated);
+
+          if (isNowApproved) {
+            tripsApi.listOrganizerTrips().then(setTrips).catch(() => {});
+            setBookings(loadOrgBookings(updated.email));
+            if (activeTab === 'Pending' || window.location.pathname.includes('/pending')) {
+              navigateTo('Dashboard', true);
+            }
+          }
+        }
+      } catch (err) {
+        /* Ignore background network errors */
+      }
+    };
+
+    // Run immediately on page load / mount
+    checkStatus();
+
+    // Poll every 8 seconds while waiting for admin approval
+    if (!organizer.isApproved) {
+      const timer = setInterval(checkStatus, 8000);
+      return () => clearInterval(timer);
+    }
+  }, [organizer?.isAuthenticated, organizer?.email, organizer?.isApproved]);
+
   const handleToggleDarkMode = () => setDarkMode(p => !p);
 
   // Re-fetch the real approval status from the API on "Check Status" click.
-  // Approval is admin-driven — this no longer self-approves; it reflects
-  // whatever an admin has (or hasn't) done in the admin console.
   const handleCheckApproval = async () => {
-    const fresh = await authApi.fetchMe();
-    if (!fresh) return; // token expired → the auth gate will bounce to login
-    const updated = { ...organizer, ...fresh };
-    saveOrgUser(updated);
-    setOrganizer(updated);
-    if (updated.isApproved) {
-      tripsApi.listOrganizerTrips().then(setTrips).catch(() => {});
-      setBookings(loadOrgBookings(updated.email));
-      navigateTo('Dashboard', true);
+    try {
+      const fresh = await authApi.fetchMe();
+      if (!fresh) return;
+      const isNowApproved = Boolean(fresh.isApproved);
+      const updated = {
+        ...organizer,
+        ...fresh,
+        isApproved: isNowApproved,
+        isPendingApproval: !isNowApproved,
+      };
+      saveOrgUser(updated);
+      setOrganizer(updated);
+
+      if (isNowApproved) {
+        toast.success('🎉 Your application has been approved! Welcome to Find Your Trek.');
+        tripsApi.listOrganizerTrips().then(setTrips).catch(() => {});
+        setBookings(loadOrgBookings(updated.email));
+        navigateTo('Dashboard', true);
+      } else {
+        toast.info('Application still under review. We will notify you once approved.');
+      }
+    } catch (e) {
+      toast.error('Could not check status. Please verify connection.');
     }
   };
 
@@ -415,12 +550,19 @@ export default function OrgApp() {
     saveOrgBookings(updated);
   };
 
+  const [autoEditProfile, setAutoEditProfile] = useState(false);
+
   const handleBottomNavChange = (tab) => navigateTo(tab);
 
-  const handleDashboardNavigate = (tab) => {
+  const handleDashboardNavigate = (tab, opts) => {
     if (tab === 'NewTrip') { handleNewTrip(); return; }
     if (tab === 'Notifications') {
       setShowOrgNotifications(true);
+      return;
+    }
+    if (opts?.edit || tab === 'EditProfile') {
+      setAutoEditProfile(true);
+      navigateTo('Profile');
       return;
     }
     navigateTo(tab);
@@ -451,6 +593,31 @@ export default function OrgApp() {
     socialApi.sendOrganizerMessage(chatId, text.trim())
       .then((chat) => setChats((prev) => prev.map((c) => (c.id === chat.id ? chat : c))))
       .catch((err) => toast.error(err?.message || 'Could not send message.'));
+  };
+
+  const handleMarkOrgChatRead = (chatId) => {
+    setChats((prev) => {
+      let changed = false;
+      const updated = prev.map((c) => {
+        if (String(c.id) === String(chatId)) {
+          const hasUnread = (c.messages || []).some((m) => m.sender === 'user' && !m.read);
+          if (hasUnread) {
+            changed = true;
+            return {
+              ...c,
+              messages: (c.messages || []).map((m) => (m.sender === 'user' ? { ...m, read: true } : m)),
+            };
+          }
+        }
+        return c;
+      });
+      if (changed) {
+        saveOrgChats(updated);
+        if (getToken()) socialApi.markOrganizerChatRead(chatId).catch(() => {});
+        return updated;
+      }
+      return prev;
+    });
   };
 
   const handleSaveBankDetails = (bankDetails) => {
@@ -537,6 +704,11 @@ export default function OrgApp() {
         return (
           <TripFormView
             trip={null}
+            existingTrips={trips}
+            onEditExistingTrip={(existingTrip) => {
+              setEditingTrip(existingTrip);
+              setActiveTab('EditTrip');
+            }}
             organizer={organizer}
             organizerEmail={organizer.email}
             onSave={handleSaveTrip}
@@ -549,6 +721,11 @@ export default function OrgApp() {
         return (
           <TripFormView
             trip={editingTrip}
+            existingTrips={trips}
+            onEditExistingTrip={(existingTrip) => {
+              setEditingTrip(existingTrip);
+              setActiveTab('EditTrip');
+            }}
             organizer={organizer}
             organizerEmail={organizer.email}
             onSave={handleSaveTrip}
@@ -619,6 +796,8 @@ export default function OrgApp() {
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onFullscreenChange={setNavHidden}
+            autoEditProfile={autoEditProfile}
+            onClearAutoEdit={() => setAutoEditProfile(false)}
           />
         ),
       };
@@ -784,6 +963,7 @@ export default function OrgApp() {
                 <OrgChatsView
                   chats={chats}
                   onSendMessage={handleSendOrgMessage}
+                  onMarkRead={handleMarkOrgChatRead}
                   onBack={() => closeCurrentOverlay(setShowOrgChats)}
                   darkMode={darkMode}
                 />

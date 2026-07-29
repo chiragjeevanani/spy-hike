@@ -9,7 +9,7 @@ import { getOrganizerLoyalty } from '../controllers/loyaltyController.js';
 import {
   listOrganizerNotifications, markOrganizerNotificationRead, markAllOrganizerNotificationsRead,
 } from '../controllers/notificationController.js';
-import { listOrganizerChats, sendOrganizerMessage } from '../controllers/chatController.js';
+import { listOrganizerChats, sendOrganizerMessage, markOrganizerChatRead } from '../controllers/chatController.js';
 import {
   getOrganizerFinancials, listOrganizerPayouts, requestPayout, updateBankDetails,
 } from '../controllers/financialsController.js';
@@ -62,6 +62,7 @@ router.patch('/organizer/notifications/read-all', markAllOrganizerNotificationsR
 router.patch('/organizer/notifications/:id/read', markOrganizerNotificationRead);
 router.get('/organizer/chats', requireApprovedOrganizer, listOrganizerChats);
 router.post('/organizer/chats/:chatId/messages', requireApprovedOrganizer, sendOrganizerMessage);
+router.patch('/organizer/chats/:chatId/read', requireApprovedOrganizer, markOrganizerChatRead);
 
 router.get('/organizer/financials', requireApprovedOrganizer, getOrganizerFinancials);
 router.get('/organizer/payouts', requireApprovedOrganizer, listOrganizerPayouts);

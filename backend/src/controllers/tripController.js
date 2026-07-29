@@ -139,6 +139,16 @@ export const listOrganizerTrips = asyncHandler(async (req, res) => {
 export const createTrip = asyncHandler(async (req, res) => {
   validateTripPayload(req.body);
   const fields = await buildTripFields(req.body, req.organizer);
+
+  // Check if organizer already has a trip for this same trek or trekId
+  const existing = await Trip.findOne({
+    organizerEmail: req.organizer.email,
+    $or: [{ trekId: fields.trekId }, { name: fields.name }],
+  });
+  if (existing) {
+    throw ApiError.badRequest(`You have already posted a trip for '${fields.name}'. Organizers cannot post multiple trips under the same trek category. You can edit your existing trip instead.`);
+  }
+
   const trip = await Trip.create({
     _id: makeTripId(fields.name),
     ...fields,

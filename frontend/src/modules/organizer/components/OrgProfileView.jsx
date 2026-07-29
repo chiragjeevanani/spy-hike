@@ -14,14 +14,25 @@ import { scrollToFirstError } from '../../../utils/formValidation';
 
 const TRAVELLER_TRANSITION_MS = 3000;
 
-export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, onOpenCoupons, darkMode, onToggleDarkMode, onFullscreenChange }) {
+export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onOpenFinancials, onOpenCoupons, darkMode, onToggleDarkMode, onFullscreenChange, autoEditProfile, onClearAutoEdit }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(Boolean(autoEditProfile));
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpSupport, setShowHelpSupport] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [travSwitching, setTravSwitching] = useState(false);
+
+  useEffect(() => {
+    if (autoEditProfile) {
+      setEditing(true);
+    }
+  }, [autoEditProfile]);
+
+  const closeEditModal = () => {
+    setEditing(false);
+    if (onClearAutoEdit) onClearAutoEdit();
+  };
 
   useEffect(() => {
     if (onFullscreenChange) onFullscreenChange(travSwitching);
@@ -352,7 +363,7 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
         >
           <div className={`flex-1 flex flex-col overflow-y-auto ${darkMode ? 'bg-zinc-950' : 'bg-gray-50'}`}>
             <div className={`px-5 pt-5 pb-4 shrink-0 flex items-center gap-3 ${darkMode ? 'bg-zinc-900/80 border-b border-white/5' : 'bg-white border-b border-zinc-100 shadow-sm'}`}>
-              <button type="button" onClick={() => setEditing(false)} className={`p-2 rounded-xl ${darkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}><X size={17} /></button>
+              <button type="button" onClick={closeEditModal} className={`p-2 rounded-xl cursor-pointer ${darkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}><X size={17} /></button>
               <h2 className="text-lg font-display font-black">Edit Profile</h2>
             </div>
             <div className="flex-1 px-5 py-5 space-y-4">

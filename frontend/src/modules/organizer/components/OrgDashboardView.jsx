@@ -110,8 +110,10 @@ export default function OrgDashboardView({ organizer, trips, bookings, notificat
               <p className="opacity-80">Please fill in your support email, phone, and agency headline to display correctly on public trek listings.</p>
             </div>
             <button
-              onClick={() => onNavigate('Profile')}
-              className="self-start sm:self-center px-4 py-2 bg-spy-orange hover:bg-[#d96d1a] text-white rounded-xl font-bold transition-all text-[11px] active:scale-95 shadow-xs"
+              type="button"
+              id="btn-complete-profile-dashboard"
+              onClick={() => onNavigate('Profile', { edit: true })}
+              className="self-start sm:self-center px-4.5 py-2.5 bg-spy-orange hover:bg-[#d96d1a] text-white rounded-xl font-bold transition-all text-xs active:scale-95 shadow-md shadow-spy-orange/20 cursor-pointer shrink-0"
             >
               Complete Now
             </button>

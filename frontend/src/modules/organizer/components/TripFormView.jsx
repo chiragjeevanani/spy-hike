@@ -73,8 +73,9 @@ function fuzzyScore(query, target) {
   return qi === q.length ? score : null;
 }
 
-export default function TripFormView({ trip = null, organizer = null, organizerEmail, onSave, onBack, darkMode }) {
+export default function TripFormView({ trip = null, existingTrips = [], onEditExistingTrip = null, organizer = null, organizerEmail, onSave, onBack, darkMode }) {
   const isEdit = !!trip;
+  const [duplicateModalTrip, setDuplicateModalTrip] = useState(null);
 
   const [form, setForm] = useState({
     trekId: trip?.trekId || null,
@@ -317,6 +318,15 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
     .map(r => r.trek);
 
   const handleSelectTrek = (trek) => {
+    if (!isEdit && Array.isArray(existingTrips)) {
+      const alreadyPostedTrip = existingTrips.find(t =>
+        t.id !== trip?.id && (t.trekId === trek.id || t.name?.toLowerCase() === trek.title?.toLowerCase())
+      );
+      if (alreadyPostedTrip) {
+        setDuplicateModalTrip({ trek, existingTrip: alreadyPostedTrip });
+        return;
+      }
+    }
     set('trekId', trek.id);
     setPickingTrek(false);
     setErrors({});
@@ -403,6 +413,16 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
     setSavingTargetStatus(status);
     if (!form.trekId) {
       return failSave('basic', 'Select a trek before continuing.');
+    }
+
+    if (!isEdit && Array.isArray(existingTrips)) {
+      const alreadyPostedTrip = existingTrips.find(t =>
+        t.id !== trip?.id && (t.trekId === form.trekId || t.name?.toLowerCase() === selectedTrek?.title?.toLowerCase())
+      );
+      if (alreadyPostedTrip) {
+        setDuplicateModalTrip({ trek: selectedTrek || { title: alreadyPostedTrip.name }, existingTrip: alreadyPostedTrip });
+        return failSave('basic', `You have already posted a trip for '${selectedTrek?.title || alreadyPostedTrip.name}'. Organizers cannot post multiple trips under the same trek category. You can edit your existing trip instead.`);
+      }
     }
 
     const validTiers = form.pricingTiers
@@ -733,26 +753,53 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
                 ) : filteredTreks.length === 0 ? (
                   <p className="text-center text-xs font-bold py-6 text-zinc-400">No treks found.</p>
                 ) : (
-                  filteredTreks.map(trek => (
-                    <button
-                      key={trek.id}
-                      type="button"
-                      onClick={() => handleSelectTrek(trek)}
-                      className={`w-full flex items-center gap-3 p-3 text-left transition ${darkMode ? 'hover:bg-white/5' : 'hover:bg-zinc-50'}`}
-                    >
-                      <img src={trek.coverImage} alt={trek.title} className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold truncate">{trek.title}</p>
-                        <p className={`text-xs truncate ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{trek.location}</p>
-                        <div className="flex items-center gap-2 mt-1 text-[10px] font-bold text-zinc-400">
-                          <span>{trek.difficulty}</span>
-                          <span>{trek.durationDays}D</span>
-                          <span>{trek.distanceKm}km</span>
+                  filteredTreks.map(trek => {
+                    const alreadyPostedTrip = (!isEdit && Array.isArray(existingTrips))
+                      ? existingTrips.find(t => t.id !== trip?.id && (t.trekId === trek.id || t.name?.toLowerCase() === trek.title?.toLowerCase()))
+                      : null;
+
+                    return (
+                      <button
+                        key={trek.id}
+                        type="button"
+                        onClick={() => {
+                          if (alreadyPostedTrip) {
+                            setDuplicateModalTrip({ trek, existingTrip: alreadyPostedTrip });
+                            return;
+                          }
+                          handleSelectTrek(trek);
+                        }}
+                        className={`w-full flex items-center gap-3 p-3 text-left transition ${
+                          alreadyPostedTrip
+                            ? 'opacity-85 bg-amber-500/5 hover:bg-amber-500/10'
+                            : darkMode ? 'hover:bg-white/5' : 'hover:bg-zinc-50'
+                        }`}
+                      >
+                        <img src={trek.coverImage} alt={trek.title} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold truncate">{trek.title}</p>
+                            {alreadyPostedTrip && (
+                              <span className="bg-amber-500/20 text-amber-500 text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0">
+                                Already Posted
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs truncate ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{trek.location}</p>
+                          <div className="flex items-center gap-2 mt-1 text-[10px] font-bold text-zinc-400">
+                            <span>{trek.difficulty}</span>
+                            <span>{trek.durationDays}D</span>
+                            <span>{trek.distanceKm}km</span>
+                          </div>
                         </div>
-                      </div>
-                      {form.trekId === trek.id && <Check size={16} className="text-spy-orange shrink-0" />}
-                    </button>
-                  ))
+                        {form.trekId === trek.id ? (
+                          <Check size={16} className="text-spy-orange shrink-0" />
+                        ) : alreadyPostedTrip ? (
+                          <span className="text-[11px] font-bold text-spy-orange shrink-0 underline">Edit Trip</span>
+                        ) : null}
+                      </button>
+                    );
+                  })
                 )}
               </div>
               <button
@@ -1261,6 +1308,67 @@ export default function TripFormView({ trip = null, organizer = null, organizerE
         }}
         darkMode={darkMode}
       />
+
+      {/* Duplicate Trek Category Modal */}
+      <AnimatePresence>
+        {duplicateModalTrip && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className={`w-full max-w-md p-6 rounded-3xl space-y-4 shadow-2xl border ${
+                darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500 shrink-0">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-lg">Trek Already Posted</h3>
+                  <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Category Duplicate Notice</p>
+                </div>
+              </div>
+
+              <p className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                You have already created a trip for <strong className="text-spy-orange">{duplicateModalTrip.trek?.title || duplicateModalTrip.existingTrip?.name}</strong>.
+                Organizers cannot post multiple trips under the same trek category. You can edit your existing trip details and batches instead.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = duplicateModalTrip.existingTrip;
+                    setDuplicateModalTrip(null);
+                    if (onEditExistingTrip && target) {
+                      onEditExistingTrip(target);
+                    }
+                  }}
+                  className="flex-1 py-3 px-4 bg-spy-orange hover:bg-[#d96d1a] text-white text-xs font-bold rounded-2xl transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md shadow-spy-orange/20 cursor-pointer"
+                >
+                  <Edit3 size={15} /> Edit Existing Trip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateModalTrip(null)}
+                  className={`py-3 px-4 text-xs font-bold rounded-2xl border transition active:scale-95 cursor-pointer ${
+                    darkMode ? 'border-white/10 text-zinc-300 hover:bg-white/5' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-100'
+                  }`}
+                >
+                  Choose Another Trek
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

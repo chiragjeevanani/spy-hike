@@ -99,10 +99,18 @@ export const registerCustomer = asyncHandler(async (req, res) => {
 });
 
 export const loginCustomer = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email: (email || '').toLowerCase() });
+  const { email, identifier, mobile, password } = req.body;
+  const input = (identifier || email || mobile || '').trim();
+  if (!input) throw ApiError.badRequest('Email address or phone number is required');
+  if (!password) throw ApiError.badRequest('Password is required');
+
+  const isPhone = /^\d+$/.test(input);
+  const user = isPhone
+    ? await User.findOne({ mobile: input })
+    : await User.findOne({ email: input.toLowerCase() });
+
   if (!user || !(await comparePassword(password, user.passwordHash))) {
-    throw ApiError.unauthorized('Invalid email or password');
+    throw ApiError.unauthorized('Invalid email address, phone number, or password');
   }
   assertLoginAllowed(user);
   res.json(customerAuthResponse(user));
@@ -423,10 +431,18 @@ export const applyAsOrganizer = asyncHandler(async (req, res) => {
 // POST /auth/organizer/login — organizer panel login.
 // Finds the User by email, checks password, requires isOrganizer === true.
 export const loginOrganizer = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email: (email || '').toLowerCase() });
+  const { email, identifier, mobile, password } = req.body;
+  const input = (identifier || email || mobile || '').trim();
+  if (!input) throw ApiError.badRequest('Email address or phone number is required');
+  if (!password) throw ApiError.badRequest('Password is required');
+
+  const isPhone = /^\d+$/.test(input);
+  const user = isPhone
+    ? await User.findOne({ mobile: input })
+    : await User.findOne({ email: input.toLowerCase() });
+
   if (!user || !(await comparePassword(password, user.passwordHash))) {
-    throw ApiError.unauthorized('Invalid email or password');
+    throw ApiError.unauthorized('Invalid email address, phone number, or password');
   }
   if (!user.isOrganizer) {
     throw ApiError.forbidden("This account has no organizer profile. Apply from the customer app first.");

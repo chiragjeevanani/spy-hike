@@ -2,14 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, Send, ArrowLeft } from 'lucide-react';
 
-export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode }) {
+export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack, darkMode }) {
   const [selectedChat, setSelectedChat] = useState(null);
   const [inputText, setInputText] = useState('');
-  const bottomRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
+  // Smooth internal scroll for messages container without shifting the window layout
   useEffect(() => {
-    if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedChat?.messages]);
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [selectedChat?.id, selectedChat?.messages?.length]);
+
+  // Mark chat as read whenever a conversation thread is opened or updated
+  useEffect(() => {
+    if (selectedChat?.id && onMarkRead) {
+      onMarkRead(selectedChat.id);
+    }
+  }, [selectedChat?.id, selectedChat?.messages?.length, onMarkRead]);
 
   // Handle native hardware / gesture back button when viewing a chat thread
   useEffect(() => {
@@ -22,6 +32,13 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
       return () => window.removeEventListener('popstate', handlePop);
     }
   }, [selectedChat]);
+
+  const handleSelectChat = (chat) => {
+    setSelectedChat(chat);
+    if (onMarkRead) {
+      onMarkRead(chat.id);
+    }
+  };
 
   const handleSend = () => {
     if (!inputText.trim() || !selectedChat) return;
@@ -39,7 +56,7 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
   };
 
   if (selectedChat) {
-    const chat = chats.find(c => c.id === selectedChat.id) || selectedChat;
+    const chat = chats.find(c => String(c.id) === String(selectedChat.id)) || selectedChat;
     return (
       <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
         {/* Chat header with safe-area status bar padding */}
@@ -55,7 +72,7 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {chat.messages.map((msg) => {
             const isOrg = msg.sender === 'organizer';
             return (
@@ -144,7 +161,7 @@ export default function OrgChatsView({ chats, onSendMessage, onBack, darkMode })
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
-                onClick={() => setSelectedChat(chat)}
+                onClick={() => handleSelectChat(chat)}
                 className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-all ${
                   darkMode ? 'bg-zinc-900 border border-white/5 hover:border-white/10' : 'bg-white border border-zinc-100 shadow-sm hover:shadow'
                 }`}

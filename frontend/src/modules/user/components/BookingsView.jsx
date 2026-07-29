@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, attachFollow } from 'motion/react';
 import {
   Download, MessageSquare, Star, ArrowLeft, Send, Sparkles, CalendarDays, Receipt, X
 } from 'lucide-react';
