@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map, AlertTriangle } from 'lucide-react';
 import PhoneFrame from './components/PhoneFrame';
@@ -44,6 +44,7 @@ import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
 import contentApi from '../../lib/contentApi';
+import { getToken } from '../../lib/apiClient';
 import { loadLandingContentLocal } from '../landing/landingContent';
 import { initPushNotifications } from '../../utils/pushNotifications';
 import { requestPushPermission, HikerAlerts } from '../../utils/pushNotificationService';
