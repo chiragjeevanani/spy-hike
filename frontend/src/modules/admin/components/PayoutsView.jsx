@@ -9,6 +9,7 @@ import { downloadPayoutReceiptPDF } from '../utils/payoutReceiptPdf';
 import { useToast } from '../../../components/ToastProvider';
 
 import { safeSetItem } from '../../../utils/safeStorage';
+import { AdminSkeletonTableRow } from './AdminSkeleton';
 
 const inr = (n) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -21,6 +22,7 @@ const STATUS_META = {
 
 export default function PayoutsView({ darkMode }) {
   const [payouts, setPayouts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({ pendingAmount: 0, paidAmount: 0, rejectedAmount: 0, pendingCount: 0, paidCount: 0, rejectedCount: 0, totalCount: 0 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -34,12 +36,14 @@ export default function PayoutsView({ darkMode }) {
   const toast = useToast();
 
   const refresh = () => {
+    setLoading(true);
     const params = {};
     if (statusFilter !== 'All') params.status = statusFilter;
     if (search.trim()) params.search = search.trim();
     return bookingsApi.adminListPayouts(params)
       .then((r) => { setPayouts(r.payouts || []); if (r.summary) setSummary(r.summary); })
-      .catch(() => setPayouts([]));
+      .catch(() => setPayouts([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { refresh(); }, [statusFilter]);
@@ -225,7 +229,11 @@ export default function PayoutsView({ darkMode }) {
               </tr>
             </thead>
             <tbody className={`divide-y text-xs font-semibold ${darkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-              {payouts.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <AdminSkeletonTableRow key={i} darkMode={darkMode} cols={7} />
+                ))
+              ) : payouts.length === 0 ? (
                 <tr><td colSpan="7" className="text-center py-10 text-slate-400">No payout requests found.</td></tr>
               ) : (() => {
                 const totalPages = Math.max(1, Math.ceil(payouts.length / ITEMS_PER_PAGE));

@@ -8,11 +8,13 @@ import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
 
 import { compressImage } from '../../../utils/imageCompressor';
+import { AdminSkeletonCard } from './AdminSkeleton';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
 export default function TrekRequestsView({ darkMode }) {
   const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('Pending'); // 'Pending' or 'All'
   const [editingRequest, setEditingRequest] = useState(null);
   const [form, setForm] = useState(null);
@@ -28,7 +30,13 @@ export default function TrekRequestsView({ darkMode }) {
   const fieldRefs = useRef({});
   const FIELD_ORDER = ['title', 'location', 'durationDays', 'distanceKm', 'coverImage'];
 
-  const refresh = () => trekRequestsApi.listAll().then(setRequests).catch(() => setRequests([]));
+  const refresh = () => {
+    setLoading(true);
+    return trekRequestsApi.listAll()
+      .then(setRequests)
+      .catch(() => setRequests([]))
+      .finally(() => setLoading(false));
+  };
   useEffect(() => { refresh(); }, []);
 
   const pendingList = requests.filter(r => r.status === 'Pending');
@@ -175,7 +183,13 @@ export default function TrekRequestsView({ darkMode }) {
         </button>
       </div>
 
-      {(activeSubTab === 'Pending' ? pendingList : allList).length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <AdminSkeletonCard darkMode={darkMode} />
+          <AdminSkeletonCard darkMode={darkMode} />
+          <AdminSkeletonCard darkMode={darkMode} />
+        </div>
+      ) : (activeSubTab === 'Pending' ? pendingList : allList).length === 0 ? (
         <div className={`${cardCls} text-center py-12 text-slate-400`}>
           {activeSubTab === 'Pending' ? 'No pending category requests.' : 'No requests yet.'}
         </div>

@@ -3,16 +3,24 @@ import { Search, Calendar, IndianRupee, User, Eye, X, FileText, TrendingUp } fro
 import bookingsApi from '../../../lib/bookingsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
+import { AdminSkeletonTableRow } from './AdminSkeleton';
 
 export default function BookingsView({ darkMode }) {
   const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const toast = useToast();
 
-  const refresh = () => bookingsApi.listAll().then(setBookings).catch(() => setBookings([]));
+  const refresh = () => {
+    setLoading(true);
+    return bookingsApi.listAll()
+      .then(setBookings)
+      .catch(() => setBookings([]))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     refresh();
@@ -160,7 +168,11 @@ export default function BookingsView({ darkMode }) {
             <tbody className={`divide-y text-xs font-semibold ${
               darkMode ? 'divide-slate-850' : 'divide-slate-100'
             }`}>
-              {filteredBookings.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <AdminSkeletonTableRow key={i} darkMode={darkMode} cols={7} />
+                ))
+              ) : filteredBookings.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center py-10 text-slate-400">
                     No bookings found.

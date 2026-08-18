@@ -7,14 +7,13 @@ import tripsApi from '../../../lib/tripsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { AdminSkeletonTableRow } from './AdminSkeleton';
 
 const FIELD_ORDER = ['code', 'value', 'tripIds'];
 
-// Admin moderation of organizer-authored coupons: edit/pause/delete only.
-// Organizers remain the sole authors — there is deliberately no "Create"
-// button here (see backend/src/controllers/adminOrganizerCouponController.js).
 export default function OrganizerCouponsView({ darkMode }) {
   const [coupons, setCoupons] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [allTrips, setAllTrips] = useState([]);
   const [search, setSearch] = useState('');
   const [editingCoupon, setEditingCoupon] = useState(null);
@@ -28,7 +27,13 @@ export default function OrganizerCouponsView({ darkMode }) {
   const tripsRef = useRef(null);
   const fieldRefs = { code: codeRef, value: valueRef, tripIds: tripsRef };
 
-  const refresh = () => adminOrganizerCouponsApi.list({ search }).then(setCoupons).catch(() => setCoupons([]));
+  const refresh = () => {
+    setLoading(true);
+    return adminOrganizerCouponsApi.list({ search })
+      .then(setCoupons)
+      .catch(() => setCoupons([]))
+      .finally(() => setLoading(false));
+  };
   useEffect(() => { refresh(); }, [search]);
   useEffect(() => { tripsApi.listAllTrips().then(setAllTrips).catch(() => setAllTrips([])); }, []);
 
@@ -180,7 +185,11 @@ export default function OrganizerCouponsView({ darkMode }) {
               </tr>
             </thead>
             <tbody className={`divide-y text-xs font-semibold ${darkMode ? 'divide-slate-850' : 'divide-slate-100'}`}>
-              {coupons.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <AdminSkeletonTableRow key={i} darkMode={darkMode} cols={8} />
+                ))
+              ) : coupons.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="text-center py-10 text-slate-400">
                     No organizer coupons found.

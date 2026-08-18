@@ -3,12 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Thin fetch wrapper for the Find Your Trek backend API. Every module's storage
-// helpers call through this instead of touching `fetch` directly, so auth,
-// base URL, JSON handling, and error shaping live in one place.
-//
-// As of Phase 0 nothing calls this yet — it's introduced ahead of the
-// per-feature localStorage → API migrations in later phases.
+// Thin fetch wrapper for the Find Your Trek backend API with built-in
+// in-memory GET request caching to prevent redundant API re-fetching.
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
 
@@ -35,6 +31,26 @@ export const setToken = (token) => {
 
 export const clearToken = () => setToken(null);
 
+// In-Memory GET Response Cache Map
+const responseCache = new Map();
+const DEFAULT_TTL_MS = 60 * 1000; // 60 seconds TTL
+
+/**
+ * Clears the in-memory API response cache.
+ * Pass a path substring to selectively invalidate matching endpoints (e.g. '/treks').
+ */
+export const clearApiCache = (pathSubstring = null) => {
+  if (!pathSubstring) {
+    responseCache.clear();
+    return;
+  }
+  for (const key of responseCache.keys()) {
+    if (key.includes(pathSubstring)) {
+      responseCache.delete(key);
+    }
+  }
+};
+
 // Error thrown for any non-2xx response, carrying the HTTP status and the
 // server's `{ error: { message, details } }` body so callers can branch on it.
 export class ApiClientError extends Error {
@@ -46,7 +62,19 @@ export class ApiClientError extends Error {
   }
 }
 
-async function request(method, path, body, { auth = true } = {}) {
+async function request(method, path, body, { auth = true, cache = true, forceRefresh = false, ttlMs = DEFAULT_TTL_MS } = {}) {
+  const isGet = method === 'GET';
+  const cacheKey = `${path}:${auth}:${getToken() || ''}`;
+
+  // 1. Check in-memory cache for GET requests
+  if (isGet && cache && !forceRefresh && responseCache.has(cacheKey)) {
+    const entry = responseCache.get(cacheKey);
+    if (Date.now() - entry.timestamp < ttlMs) {
+      // Return a deep copy to prevent callers mutating cached objects directly
+      return JSON.parse(JSON.stringify(entry.data));
+    }
+  }
+
   const headers = { 'Content-Type': 'application/json' };
   if (auth) {
     const token = getToken();
@@ -74,6 +102,17 @@ async function request(method, path, body, { auth = true } = {}) {
     }
     throw new ApiClientError(res.status, message, data?.error?.details);
   }
+
+  // 2. Cache successful GET responses
+  if (isGet && cache) {
+    responseCache.set(cacheKey, { timestamp: Date.now(), data });
+  }
+
+  // 3. Automatically invalidate cache on mutations (POST, PUT, PATCH, DELETE)
+  if (!isGet) {
+    clearApiCache();
+  }
+
   return data;
 }
 
@@ -83,6 +122,7 @@ export const api = {
   put: (path, body, opts) => request('PUT', path, body, opts),
   patch: (path, body, opts) => request('PATCH', path, body, opts),
   del: (path, opts) => request('DELETE', path, undefined, opts),
+  clearCache: clearApiCache,
   baseUrl: API_BASE_URL,
 };
 

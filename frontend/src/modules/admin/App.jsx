@@ -246,6 +246,9 @@ export default function AdminApp() {
           darkMode={darkMode}
           onToggleDarkMode={handleToggleDarkMode}
           onOpenMobileMenu={() => setMobileSidebarOpen(true)}
+          onSelectTab={navigateTo}
+          onOpenUserProfile={openUserProfile}
+          onOpenOrganizerProfile={openOrganizerProfile}
         />
 
         {/* Dynamic Inner Panel View with AnimatePresence */}

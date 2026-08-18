@@ -5,9 +5,11 @@ import adminApi from '../../../lib/adminApi';
 import { getToken } from '../../../lib/apiClient';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
+import { AdminSkeletonCard } from './AdminSkeleton';
 
 export default function OrganizersView({ onOpenProfile, darkMode }) {
   const [organizers, setOrganizers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('Pending'); // 'Pending' or 'All'
   const [approvalAction, setApprovalAction] = useState(null); // { id, email, name, approve, reject, currentlyApproved }
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, email, name }
@@ -16,12 +18,15 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
   // Real registered organizers when the admin is signed in; localStorage seed
   // roster otherwise (offline / no backend).
   const refresh = () => {
+    setLoading(true);
     if (getToken()) {
       adminApi.listOrganizers()
         .then((list) => setOrganizers(Array.isArray(list) ? list : loadAllOrganizers()))
-        .catch(() => setOrganizers(loadAllOrganizers()));
+        .catch(() => setOrganizers(loadAllOrganizers()))
+        .finally(() => setLoading(false));
     } else {
       setOrganizers(loadAllOrganizers());
+      setLoading(false);
     }
   };
 
@@ -125,7 +130,14 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
       </div>
 
       {/* Tab Render */}
-      {activeSubTab === 'Pending' ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <AdminSkeletonCard darkMode={darkMode} />
+          <AdminSkeletonCard darkMode={darkMode} />
+          <AdminSkeletonCard darkMode={darkMode} />
+          <AdminSkeletonCard darkMode={darkMode} />
+        </div>
+      ) : activeSubTab === 'Pending' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {pendingList.length === 0 ? (
             <div className={`${cardCls} col-span-2 text-center py-12 text-slate-400`}>

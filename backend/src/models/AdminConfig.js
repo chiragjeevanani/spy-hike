@@ -37,11 +37,25 @@ adminConfigSchema.methods.toPublicJSON = function toPublicJSON() {
 
 const AdminConfig = mongoose.model('AdminConfig', adminConfigSchema);
 
-// Find-or-create the singleton config document.
+let cachedConfig = null;
+let lastFetchTime = 0;
+const CONFIG_CACHE_TTL_MS = 15 * 1000; // 15 seconds in-memory cache
+
+// Find-or-create the singleton config document (cached in memory).
 export async function getConfig() {
+  if (cachedConfig && (Date.now() - lastFetchTime < CONFIG_CACHE_TTL_MS)) {
+    return cachedConfig;
+  }
   let cfg = await AdminConfig.findById('platform');
   if (!cfg) cfg = await AdminConfig.create({ _id: 'platform' });
+  cachedConfig = cfg;
+  lastFetchTime = Date.now();
   return cfg;
+}
+
+export function invalidateConfigCache() {
+  cachedConfig = null;
+  lastFetchTime = 0;
 }
 
 export default AdminConfig;

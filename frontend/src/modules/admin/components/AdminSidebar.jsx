@@ -31,8 +31,8 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, collaps
 
     checkPending();
     checkPendingRequests();
-    // Poll every 5 seconds to keep dashboard reactive
-    const interval = setInterval(() => { checkPending(); checkPendingRequests(); }, 5000);
+    // Poll every 30 seconds to keep dashboard badge updated without excessive API calls
+    const interval = setInterval(() => { checkPending(); checkPendingRequests(); }, 30000);
     return () => clearInterval(interval);
   }, []);
 

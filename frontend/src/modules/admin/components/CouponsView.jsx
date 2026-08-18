@@ -7,6 +7,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import OrganizerCouponsView from './OrganizerCouponsView';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { AdminSkeletonTableRow } from './AdminSkeleton';
 
 const FIELD_ORDER = ['code', 'value'];
 
@@ -26,6 +27,7 @@ const emptyForm = () => ({
 export default function CouponsView({ darkMode }) {
   const [tab, setTab] = useState('platform'); // 'platform' | 'organizer'
   const [coupons, setCoupons] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [editingCoupon, setEditingCoupon] = useState(null); // null = closed, {} = new, {...} = edit
@@ -38,7 +40,13 @@ export default function CouponsView({ darkMode }) {
   const valueRef = useRef(null);
   const fieldRefs = { code: codeRef, value: valueRef };
 
-  const refresh = () => couponsApi.list().then(setCoupons).catch(() => setCoupons([]));
+  const refresh = () => {
+    setLoading(true);
+    return couponsApi.list()
+      .then(setCoupons)
+      .catch(() => setCoupons([]))
+      .finally(() => setLoading(false));
+  };
   useEffect(() => { refresh(); }, []);
 
   const openCreate = () => {
@@ -274,7 +282,11 @@ export default function CouponsView({ darkMode }) {
               </tr>
             </thead>
             <tbody className={`divide-y text-xs font-semibold ${darkMode ? 'divide-slate-850' : 'divide-slate-100'}`}>
-              {filteredCoupons.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <AdminSkeletonTableRow key={i} darkMode={darkMode} cols={7} />
+                ))
+              ) : filteredCoupons.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center py-10 text-slate-400">
                     No coupons matching criteria found.

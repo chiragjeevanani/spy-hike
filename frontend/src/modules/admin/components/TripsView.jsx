@@ -3,9 +3,11 @@ import { Search, Compass, Pause, Play, Trash2, MapPin, Star, TrendingUp, Users, 
 import tripsApi from '../../../lib/tripsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
+import { AdminSkeletonCard } from './AdminSkeleton';
 
 export default function TripsView({ onOpenOrganizer, darkMode }) {
   const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [diffFilter, setDiffFilter] = useState('All');
@@ -16,7 +18,13 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
   const [deleteTarget, setDeleteTarget] = useState(null); // tripId
   const toast = useToast();
 
-  const refresh = () => tripsApi.listAllTrips().then(setTrips).catch(() => setTrips([]));
+  const refresh = () => {
+    setLoading(true);
+    return tripsApi.listAllTrips()
+      .then(setTrips)
+      .catch(() => setTrips([]))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     refresh();
@@ -184,7 +192,16 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
 
       {/* Trips list grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTrips.length === 0 ? (
+        {loading ? (
+          <>
+            <AdminSkeletonCard darkMode={darkMode} />
+            <AdminSkeletonCard darkMode={darkMode} />
+            <AdminSkeletonCard darkMode={darkMode} />
+            <AdminSkeletonCard darkMode={darkMode} />
+            <AdminSkeletonCard darkMode={darkMode} />
+            <AdminSkeletonCard darkMode={darkMode} />
+          </>
+        ) : filteredTrips.length === 0 ? (
           <div className={`${cardCls} col-span-3 text-center py-12 text-slate-400`}>
             No trips matching criteria found.
           </div>
