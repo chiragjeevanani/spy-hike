@@ -41,6 +41,13 @@ const trekSchema = new mongoose.Schema(
   { timestamps: true, _id: false },
 );
 
+// The catalog had no indexes at all, so every public list was a collection
+// scan plus an in-memory sort. Both public reads filter on `status`.
+// `title` trails each key so the { title: 1 } sort is served by the index
+// rather than an in-memory SORT stage.
+trekSchema.index({ status: 1, title: 1 });               // GET /treks
+trekSchema.index({ status: 1, trending: 1, title: 1 });  // GET /treks?trending=true
+
 trekSchema.methods.toPublicJSON = function toPublicJSON() {
   const obj = this.toObject({ versionKey: false });
   obj.id = obj._id;

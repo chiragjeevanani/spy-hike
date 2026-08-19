@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { groupTripsByTrekName } from '../utils/trekGroups';
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
+import treksApi from '../../../lib/treksApi';
+import tripsApi from '../../../lib/tripsApi';
 
 export default function ExploreView({
   trips,
@@ -25,24 +26,43 @@ export default function ExploreView({
   darkMode
 }) {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [allTreks, setAllTreks] = useState([]);
+
+  // Full active trek catalog — used to surface "Coming soon" cards for
+  // treks an admin has added that no organizer has posted a trip under yet
+  // (otherwise those treks are invisible anywhere in the customer app).
+  useEffect(() => {
+    treksApi.listTreks().then(setAllTreks).catch(() => setAllTreks([]));
+  }, []);
 
   // Pagination state
   const ITEMS_PER_PAGE = 8;
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Browse feed, fetched a page at a time from the server.
+  const [groups, setGroups] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [pickupCities, setPickupCities] = useState([]);
+
   // Budget slider ceiling — defaults to ₹400 to match this catalog's seed
   // prices, but organizer-created trips can carry real-world per-person
   // pricing (₹1000s via pickup options), so the ceiling scales up to fit
   // whatever's actually listed rather than silently hiding pricier treks.
+  // Derived from the current page plus whatever the parent already holds, so
+  // the slider can't cap below a price the user can actually see.
   const priceCeiling = useMemo(
-    () => Math.max(400, ...trips.map(t => t.price || 0)),
-    [trips]
+    () => Math.max(400, ...trips.map(t => t.price || 0), ...groups.map(g => g.maxPrice || 0)),
+    [trips, groups]
   );
 
   // Advanced filters state
   const [showFilters, setShowFilters] = useState(false);
   const [filterDifficulty, setFilterDifficulty] = useState('All');
-  const [filterBudget, setFilterBudget] = useState(() => Math.max(400, ...trips.map(t => t.price || 0)));
+  // null means "no cap" rather than a number derived from whatever happened to
+  // be loaded — otherwise a small first page would pin the slider low and hide
+  // every trek above it.
+  const [filterBudget, setFilterBudget] = useState(null);
   const [filterDuration, setFilterDuration] = useState(8);
   const [filterMinSeats, setFilterMinSeats] = useState(1);
   const [filterPickupCity, setFilterPickupCity] = useState('All');
@@ -57,92 +77,80 @@ export default function ExploreView({
   const categoriesList = ['All', 'Trekking', 'Hiking', 'Camping', 'Adventure Tours', 'Nature Walks', 'Weekend Trips'];
 
   // Every pickup city any organizer offers, across all treks — powers the
-  // "Pickup City" filter below so travellers can browse by where they'll board.
-  const pickupCities = useMemo(() => {
-    const cities = new Set();
-    trips.forEach(t => {
-      const pickup = t.pickup || t.pickupOptions?.[0];
-      if (pickup) {
-        cities.add(pickup.location);
-      } else if (t.pickupPoints?.length) {
-        t.pickupPoints.forEach(p => cities.add(p));
-      }
-    });
-    return [...cities].sort();
-  }, [trips]);
+  // "Pickup City" filter below. Comes from the server rather than the current
+  // page, or the dropdown would only ever list the cities you can already see.
+  useEffect(() => {
+    tripsApi.listPickupCities().then(setPickupCities).catch(() => setPickupCities([]));
+  }, []);
 
-  // Dynamic search + location + filters + sort core calculation.
-  const filteredTreks = useMemo(() => {
-    let result = groupTripsByTrekName(trips);
+  // The whole filter/group/sort pipeline runs in the database now. It used to
+  // live here, which is why the app had to fetch the entire catalog up front:
+  // you cannot page a list you still have to group yourself.
+  const cityFilter = useMemo(() => {
+    const label = userLocation?.label?.trim();
+    if (!label || label === 'India' || label === 'All') return '';
+    return label.split(',')[0].trim();
+  }, [userLocation]);
 
-    // 0. Selected location (city, state, region)
+  const query = useMemo(() => ({
+    page: currentPage,
+    limit: ITEMS_PER_PAGE,
+    search: searchQuery.trim() || undefined,
+    category: selectedCategory !== 'All' ? selectedCategory : undefined,
+    difficulty: filterDifficulty !== 'All' ? filterDifficulty : undefined,
+    date: selectedDate || undefined,
+    pickupCity: filterPickupCity !== 'All' ? filterPickupCity : undefined,
+    city: cityFilter || undefined,
+    maxPrice: filterBudget != null && filterBudget < priceCeiling ? filterBudget : undefined,
+    maxDuration: filterDuration < 8 ? filterDuration : undefined,
+    minSeats: filterMinSeats > 1 ? filterMinSeats : undefined,
+    sort: sortOption,
+  }), [
+    currentPage, searchQuery, selectedCategory, filterDifficulty, selectedDate,
+    filterPickupCity, cityFilter, filterBudget, priceCeiling, filterDuration,
+    filterMinSeats, sortOption,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingGroups(true);
+    tripsApi.listTrekGroups(query)
+      .then((res) => {
+        if (cancelled) return;
+        setGroups(res.groups || []);
+        setHasMore(!!res.hasMore);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGroups([]);
+        setHasMore(false);
+      })
+      .finally(() => { if (!cancelled) setLoadingGroups(false); });
+    return () => { cancelled = true; };
+  }, [query]);
+
+  const filteredTreks = groups;
+
+  // "Coming soon" — catalog treks with no published trip yet. Kept out of
+  // filteredTreks/pagination above since Trek objects don't carry the
+  // price/seats/rating fields those filters and sorts depend on; only
+  // location + free-text search apply here.
+  const comingSoonTreks = useMemo(() => {
+    // tripCount comes from the server — deriving it here would mean holding
+    // every trip in memory again, which is exactly what paging removed.
+    let result = allTreks.filter(t => (t.tripCount || 0) === 0);
     if (userLocation && userLocation.label && userLocation.label !== 'India' && userLocation.label !== 'All') {
-      result = result.filter(g => g.offers.some(o => matchesLocation(o, userLocation)));
+      result = result.filter(t => matchesLocation(t, userLocation));
     }
-
-    // 1. Search Query (checks Name, Location, City, State, Starting Point, Category)
     if (searchQuery.trim()) {
-      result = result.filter(g => g.offers.some(o => matchesQuery(o, searchQuery)));
+      result = result.filter(t => matchesQuery(t, searchQuery));
     }
-
-    // 2. Quick category selector
-    if (selectedCategory && selectedCategory !== 'All') {
-      result = result.filter(g => g.representative.category === selectedCategory);
-    }
-
-    // 3. Departure date (from the Home calendar) — keep the trek if ANY
-    // organizer has a batch leaving on that exact day
-    if (selectedDate) {
-      result = result.filter(g =>
-        g.offers.some(o => (o.departureDates || []).includes(selectedDate))
-      );
-    }
-
-    // 3b. Pickup city — keep the trek if ANY organizer boards from there
-    if (filterPickupCity !== 'All') {
-      result = result.filter(g =>
-        g.offers.some(o => {
-          const pickup = o.pickup || o.pickupOptions?.[0];
-          const cities = pickup ? [pickup.location] : (o.pickupPoints || []);
-          return cities.includes(filterPickupCity);
-        })
-      );
-    }
-
-    // 4. Difficulty Level
-    if (filterDifficulty !== 'All') {
-      result = result.filter(g => g.representative.difficulty === filterDifficulty);
-    }
-
-    // 4. Budget Range (cheapest organizer offering this trek)
-    result = result.filter(g => g.minPrice <= filterBudget);
-
-    // 5. Duration days
-    result = result.filter(g => g.representative.durationDays <= filterDuration);
-
-    // 6. Minimum available seats
-    result = result.filter(g => g.representative.availableSeats >= filterMinSeats);
-
-    // 7. Sort core criteria
-    if (sortOption === 'Popular') {
-      result.sort((a, b) => b.representative.reviewsCount - a.representative.reviewsCount);
-    } else if (sortOption === 'PriceLowToHigh') {
-      result.sort((a, b) => a.minPrice - b.minPrice);
-    } else if (sortOption === 'PriceHighToLow') {
-      result.sort((a, b) => b.minPrice - a.minPrice);
-    } else if (sortOption === 'HighestRated') {
-      result.sort((a, b) => b.representative.rating - a.representative.rating);
-    } else if (sortOption === 'Newest') {
-      // simulated newest by sorting ID length
-      result.sort((a, b) => b.representative.id.localeCompare(a.representative.id));
-    }
-
     return result;
-  }, [trips, searchQuery, selectedCategory, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption]);
+  }, [allTreks, trips, userLocation, searchQuery]);
 
   const resetFilters = () => {
     setFilterDifficulty('All');
-    setFilterBudget(priceCeiling);
+    setFilterBudget(null);
     setFilterDuration(8);
     setFilterMinSeats(1);
     setFilterPickupCity('All');
@@ -155,7 +163,7 @@ export default function ExploreView({
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (filterDifficulty !== 'All') count++;
-    if (filterBudget < priceCeiling) count++;
+    if (filterBudget != null && filterBudget < priceCeiling) count++;
     if (filterDuration < 8) count++;
     if (filterMinSeats > 1) count++;
     if (filterPickupCity !== 'All') count++;
@@ -340,14 +348,14 @@ export default function ExploreView({
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-[11px] font-bold uppercase tracking-wider opacity-55">Max budget</label>
-                  <span className={`text-sm font-bold ${darkMode ? 'text-elegant-orange' : 'text-forest-600'}`}>₹{filterBudget}</span>
+                  <span className={`text-sm font-bold ${darkMode ? 'text-elegant-orange' : 'text-forest-600'}`}>₹{filterBudget ?? priceCeiling}</span>
                 </div>
                 <input
                   type="range"
                   min={40}
                   max={priceCeiling}
                   step={10}
-                  value={filterBudget}
+                  value={filterBudget ?? priceCeiling}
                   onChange={e => setFilterBudget(Number(e.target.value))}
                   className={`w-full accent-forest-600 pointer-events-auto h-1.5 rounded-lg cursor-pointer ${darkMode ? 'bg-zinc-800' : 'bg-gray-200'}`}
                 />
@@ -429,14 +437,19 @@ export default function ExploreView({
 
         {/* Results meta */}
         <div className="flex justify-between items-center text-xs">
-          <span className={darkMode ? 'text-zinc-500' : 'text-zinc-400'}>{filteredTreks.length} treks found</span>
+          <span className={darkMode ? 'text-zinc-500' : 'text-zinc-400'}>
+            {/* Only this page is loaded, so an exact total would cost an extra
+                count query — say what's shown instead of claiming a total. */}
+            {filteredTreks.length} trek{filteredTreks.length === 1 ? '' : 's'}
+            {(hasMore || currentPage > 1) ? ` on page ${currentPage}` : ' found'}
+          </span>
           {activeFiltersCount > 0 && (
             <span className="text-spy-orange font-semibold">Filters applied</span>
           )}
         </div>
 
         {/* Empty state */}
-        {tripsLoading ? (
+        {loadingGroups ? (
           <div className="space-y-5">
             <SkeletonCard darkMode={darkMode} />
             <SkeletonCard darkMode={darkMode} />
@@ -487,8 +500,8 @@ export default function ExploreView({
           </div>
         ) : (
           (() => {
-            const totalPages = Math.max(1, Math.ceil(filteredTreks.length / ITEMS_PER_PAGE));
-            const paginated = filteredTreks.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+            // The server already returned exactly this page.
+            const paginated = filteredTreks;
             return (
               <>
                 {paginated.map((group, idx) => {
@@ -548,15 +561,17 @@ export default function ExploreView({
                   );
                 })}
 
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
+                {/* Pagination. There is no page count — the server reports
+                    whether another page exists rather than paying for a full
+                    count on every request. */}
+                {(hasMore || currentPage > 1) && (
                   <div className="col-span-full flex items-center justify-between pt-6 border-t border-zinc-200/60 dark:border-white/10 mt-4">
                     <button
                       type="button"
-                      disabled={currentPage === 1}
+                      disabled={currentPage === 1 || loadingGroups}
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                        currentPage === 1
+                        currentPage === 1 || loadingGroups
                           ? 'opacity-40 cursor-not-allowed text-zinc-400'
                           : darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 shadow-xs'
                       }`}
@@ -565,15 +580,15 @@ export default function ExploreView({
                     </button>
 
                     <span className={`text-xs font-semibold ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      Page <span className={darkMode ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>{currentPage}</span> of {totalPages}
+                      Page <span className={darkMode ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>{currentPage}</span>
                     </span>
 
                     <button
                       type="button"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={!hasMore || loadingGroups}
+                      onClick={() => setCurrentPage(p => p + 1)}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                        currentPage === totalPages
+                        !hasMore || loadingGroups
                           ? 'opacity-40 cursor-not-allowed text-zinc-400'
                           : darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 shadow-xs'
                       }`}
@@ -585,6 +600,45 @@ export default function ExploreView({
               </>
             );
           })()
+        )}
+
+        {/* Coming soon — catalog treks with no published trip yet. Non-
+            bookable preview cards, kept separate from the filtered/paginated
+            results above. */}
+        {!loadingGroups && comingSoonTreks.length > 0 && (
+          <div className="pt-2">
+            <h2 className="font-serif text-lg font-semibold tracking-tight mb-1">Coming soon</h2>
+            <p className={`text-xs mb-3.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              New trek categories awaiting an organizer's first batch.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {comingSoonTreks.map((trek, idx) => (
+                <motion.div
+                  key={trek.id}
+                  onClick={() => onSelectTrek(trek.title)}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="h-28 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
+                >
+                  <img
+                    src={trek.coverImage}
+                    alt={trek.title}
+                    className="w-full h-full object-cover grayscale-[35%] transition-transform duration-300 group-hover:scale-105 brightness-[0.6]"
+                  />
+                  <span className="absolute top-2 left-2 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-white/90 text-zinc-800">
+                    Coming soon
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-3 flex flex-col justify-end">
+                    <h5 className="text-sm font-semibold text-white leading-tight font-serif">{trek.title}</h5>
+                    <span className="text-[10px] text-zinc-300 font-medium">{[trek.city, trek.state].filter(Boolean).join(', ') || trek.location}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

@@ -295,38 +295,48 @@ export const checkAvailability = asyncHandler(async (req, res) => {
   res.json({ available: true });
 });
 
+// POST /upload — pushes a base64 image to Cloudinary and returns its URL.
+//
+// This route must NEVER fall back to returning the base64 payload. Doing so
+// stored the image inside the Mongo document that referenced it, which grew a
+// single trip record past 1.8 MB and made GET /trips?limit=100 an 18 MB, 28s
+// response. Both failure paths below therefore surface an error instead: a
+// visible upload failure is recoverable, a silent 300 KB data URI is not.
 export const uploadImage = asyncHandler(async (req, res) => {
-  const { file } = req.body;
+  const { file, folder = 'find-your-trek' } = req.body;
   if (!file) throw ApiError.badRequest('file base64 data is required');
 
   const { cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret } = env;
   if (!cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret) {
-    console.warn('Cloudinary credentials not set in .env. Falling back to local base64 URI.');
-    return res.json({ url: file });
+    throw new ApiError(500, 'Image hosting is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.');
   }
 
-  try {
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const signature = crypto
-      .createHash('sha1')
-      .update(`timestamp=${timestamp}` + cloudinaryApiSecret)
-      .digest('hex');
+  const timestamp = Math.round(Date.now() / 1000);
+  // Cloudinary signs every param except file/api_key/resource_type, sorted
+  // alphabetically and joined with & — so `folder` sorts before `timestamp`.
+  const signature = crypto
+    .createHash('sha1')
+    .update(`folder=${folder}&timestamp=${timestamp}` + cloudinaryApiSecret)
+    .digest('hex');
 
+  let data;
+  try {
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file, api_key: cloudinaryApiKey, timestamp, signature }),
+        body: JSON.stringify({ file, folder, api_key: cloudinaryApiKey, timestamp, signature }),
       },
     );
-    const data = await response.json();
-    if (!response.ok || data.error) throw new Error(data.error?.message || 'Cloudinary upload failed');
-    res.json({ url: data.secure_url });
+    data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error?.message || `Cloudinary responded ${response.status}`);
   } catch (err) {
     console.error('Cloudinary upload error:', err);
-    res.json({ url: file, error: err.message });
+    throw new ApiError(502, `Image upload failed: ${err.message}`);
   }
+
+  res.json({ url: data.secure_url, publicId: data.public_id });
 });
 
 // ── Organizer ─────────────────────────────────────────────────────────────────

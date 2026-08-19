@@ -30,9 +30,14 @@ export default function OrganizerProfileView({
   // Generate dynamic about description if not exists
   const simulatedAbout = `Established in 2018, ${organizer.name} has grown to become one of the premier outdoor expedition operators. We specialize in custom alpine routing, high-altitude trekking courses, and wilderness exploration across diverse terrains. With a 100% safety record and a team of certified Wilderness First Responders (WFR), we focus on delivering immersive, eco-friendly, and educational mountain journeys. Our local guides carry deep geological and cultural knowledge of the valleys, ensuring your expedition is safe, authentic, and unforgettable.`;
 
-  // Collect gallery images from the organizer's trips
+  // Collect gallery images from the organizer's trips. These come from the
+  // catalog list, which omits galleryImages to keep browse payloads small, so
+  // fall back to each trip's cover rather than spreading undefined.
   const galleryImages = organizerTrips.reduce((acc, trip) => {
-    return [...acc, ...trip.galleryImages];
+    const images = Array.isArray(trip.galleryImages) && trip.galleryImages.length
+      ? trip.galleryImages
+      : [trip.coverImage].filter(Boolean);
+    return [...acc, ...images];
   }, []).slice(0, 8); // Keep up to 8 images
 
   // If no gallery images, use default placeholders

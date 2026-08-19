@@ -48,15 +48,19 @@ export default function HomeView({
   const [activePromoIdx, setActivePromoIdx] = useState(0);
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [trendingTreks, setTrendingTreks] = useState([]);
+  const [allTreks, setAllTreks] = useState([]);
 
   const activeLocation = userLocation || { label: 'India' };
 
-  // Admin-curated Trending flag (Trek Categories catalog) drives the
-  // "Trending destinations" grid below instead of static data.
+  // One fetch of the active trek catalog serves both the "Trending
+  // destinations" grid and the "Coming soon" cards below. `?trending=true` is
+  // a strict subset of this list, so asking for it separately was a second
+  // round trip for data already on the way.
   useEffect(() => {
-    treksApi.listTreks({ trending: 'true' }).then(setTrendingTreks).catch(() => setTrendingTreks([]));
+    treksApi.listTreks().then(setAllTreks).catch(() => setAllTreks([]));
   }, []);
+
+  const trendingTreks = useMemo(() => allTreks.filter(t => t.trending), [allTreks]);
 
   // Filter trips for home view sections based on selected user location
   const locationFilteredTrips = useMemo(() => {
@@ -147,12 +151,25 @@ export default function HomeView({
 
   // Trending destinations grid — one card per admin-marked trending trek,
   // with the "local expeditions" count reflecting real published trips.
+  // `tripCount` is computed server-side, so this no longer needs every trip in
+  // memory to count offerings per trek.
   const trendingDestinations = useMemo(() => trendingTreks.map(trek => ({
     id: trek.id,
     name: trek.title,
-    hikes: locationFilteredTrips.filter(t => t.trekId === trek.id && t.status === 'Published').length,
+    hikes: trek.tripCount || 0,
     img: trek.coverImage,
-  })).filter(dest => dest.hikes > 0 || !location || location.label === 'India'), [trendingTreks, locationFilteredTrips, location]);
+  })).filter(dest => dest.hikes > 0), [trendingTreks]);
+
+  // "Coming soon" — catalog treks (any admin-added trek, not just trending
+  // ones) that no organizer has posted a published trip under yet, so they'd
+  // otherwise never appear anywhere in the customer app. Checked against the
+  // full unfiltered trip list (a trek posted only in another city still
+  // counts as "has a trip"), then matched against the active location using
+  // the trek's own location fields.
+  const comingSoonTreks = useMemo(() => allTreks
+    .filter(t => (t.tripCount || 0) === 0)
+    .filter(t => matchesLocation(t, activeLocation)),
+  [allTreks, activeLocation]);
 
   const difficultyPill = (difficulty) =>
     difficulty === 'Easy'
@@ -538,6 +555,45 @@ export default function HomeView({
         </div>
       )}
 
+      {/* 8b. Coming Soon — catalog treks with no published trip yet. Kept
+          visually distinct (grayscale + badge, non-bookable) so it reads as
+          a preview, not a bookable listing. */}
+      {comingSoonTreks.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-serif text-2xl font-medium tracking-tight mb-1">Coming soon</h2>
+          <p className={`text-xs mb-3.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+            New trek categories awaiting an organizer's first batch.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            {comingSoonTreks.map((trek, idx) => (
+              <motion.div
+                key={trek.id}
+                onClick={() => handleDestinationClick(trek.title)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.04, duration: 0.25 }}
+                className="h-28 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
+              >
+                <img
+                  src={trek.coverImage}
+                  alt={trek.title}
+                  className="w-full h-full object-cover grayscale-[35%] transition-transform duration-300 group-hover:scale-105 brightness-[0.6]"
+                />
+                <span className="absolute top-2 left-2 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-white/90 text-zinc-800">
+                  Coming soon
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-3 flex flex-col justify-end">
+                  <h5 className="text-sm font-semibold text-white leading-tight font-serif">{trek.title}</h5>
+                  <span className="text-[10px] text-zinc-300 font-medium">{[trek.city, trek.state].filter(Boolean).join(', ') || trek.location}</span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <TrekDatePicker
         open={showDatePicker}

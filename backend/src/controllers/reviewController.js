@@ -60,6 +60,30 @@ export const createReview = asyncHandler(async (req, res) => {
   res.status(201).json({ review: review.toPublicJSON() });
 });
 
+// GET /reviews/mine — the signed-in customer's own reviews, newest first.
+//
+// Profile used to build this in the browser by scanning every trip's embedded
+// `reviews` array for one matching the user's display name. That broke when
+// list responses stopped shipping `reviews`, and it was wrong anyway: two
+// customers with the same name saw each other's. Matching on userEmail against
+// the Review collection is both correct and a single indexed query.
+export const listMyReviews = asyncHandler(async (req, res) => {
+  const reviews = await Review.find({ userEmail: req.user.email }).sort({ createdAt: -1 });
+
+  // Profile shows which trip each review belongs to, so resolve the names in
+  // one query rather than N.
+  const tripIds = [...new Set(reviews.map((r) => r.tripId))];
+  const trips = await Trip.find({ _id: { $in: tripIds } }).select('name');
+  const nameById = new Map(trips.map((t) => [t._id, t.name]));
+
+  res.json({
+    reviews: reviews.map((r) => ({
+      ...r.toPublicJSON(),
+      tripName: nameById.get(r.tripId) || '',
+    })),
+  });
+});
+
 // GET /trips/:id/reviews — a trip's reviews (newest first).
 export const listTripReviews = asyncHandler(async (req, res) => {
   const reviews = await Review.find({ tripId: req.params.id }).sort({ createdAt: -1 });

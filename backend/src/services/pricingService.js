@@ -7,16 +7,26 @@ const round2 = (n) => Math.round(n * 100) / 100;
 
 // Authoritatively computes a booking's money breakdown from the trip + the
 // customer's tier selection, mirroring BookingFlow.jsx exactly:
-//   perPersonPrice = tier.price + pickupAddOn
+//   perPersonPrice = tier.price          (already inclusive — see below)
 //   baseCost       = Σ (count × perPersonPrice)
 //   discount       = coupon (flat/%/capped, min-booking gated)
 //   loyalty        = min(admin's maxDiscountAmount, taxable) when redeemed
-//   tax            = round((taxable − loyalty) × taxRate%)
-//   final          = taxable − loyalty + tax
+//   final          = taxable − loyalty
 //   commission     = round(final × commissionRate%)   (snapshotted on booking)
 //   payout         = final − commission
 // A redeemed loyalty voucher comps up to the admin-configured cap, not the
 // whole booking — a trip priced above the cap still charges the remainder.
+//
+// Two things this deliberately does NOT add, because the tier price already
+// contains both — adding either charged the customer more than the checkout
+// quoted them:
+//   • pickup.price is the per-person price *departing from that city*, not a
+//     surcharge on top of it ("the per-person price from there — e.g. Manali
+//     ₹6000", TripFormView), and trip.price is stored as the same figure.
+//     Adding it double-counted the identical amount.
+//   • Trip prices are tax-inclusive ("already includes taxes & permits").
+//     config.taxRate is kept for reporting and stays on the response as
+//     taxAmount: 0, but never inflates what the customer owes.
 //
 // `selections` is [{ id?, label?, count }]. Returns the full breakdown the
 // Booking document snapshots.
@@ -24,12 +34,11 @@ export async function computeBookingPricing(trip, { selections, couponCode, useL
   const config = await getConfig();
 
   // Resolve the effective tier list (implicit single tier for legacy/untiered
-  // trips) and the flat pickup add-on.
+  // trips). `unitPrice` backs the implicit tier only.
   const hasTiers = Array.isArray(trip.pricingTiers) && trip.pricingTiers.length > 0;
   const pickup = trip.pickup && Number.isFinite(trip.pickup.price) ? trip.pickup : null;
   const unitPrice = pickup ? pickup.price : trip.price;
   const tiers = hasTiers ? trip.pricingTiers : [{ id: 'standard', label: 'Per Traveler', price: unitPrice }];
-  const pickupAddOn = hasTiers && pickup ? pickup.price : 0;
 
   // Build the per-tier breakdown from the customer's selection.
   const tierByKey = new Map();
@@ -44,7 +53,7 @@ export async function computeBookingPricing(trip, { selections, couponCode, useL
     if (count <= 0) continue;
     const tier = tierByKey.get(sel.id) || tierByKey.get((sel.label || '').toLowerCase());
     if (!tier) throw ApiError.badRequest(`Unknown pricing tier: ${sel.label || sel.id}`);
-    const perPersonPrice = tier.price + pickupAddOn;
+    const perPersonPrice = tier.price;
     travelerBreakdown.push({
       id: tier.id,
       label: tier.label,
@@ -83,8 +92,9 @@ export async function computeBookingPricing(trip, { selections, couponCode, useL
   }
 
   const afterLoyalty = round2(Math.max(0, taxable - loyaltyDiscountAmount));
-  const taxAmount = round2(afterLoyalty * (config.taxRate / 100));
-  const finalAmount = round2(afterLoyalty + taxAmount);
+  // Tax-inclusive pricing: the customer owes exactly what checkout quoted.
+  const taxAmount = 0;
+  const finalAmount = afterLoyalty;
 
   const commissionRate = config.commissionRate;
   const commissionAmount = round2(finalAmount * (commissionRate / 100));

@@ -93,7 +93,6 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
               </motion.div>
             );
           })}
-          <div ref={bottomRef} />
         </div>
 
         {/* Input bar */}

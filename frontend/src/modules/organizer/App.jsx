@@ -986,7 +986,7 @@ export default function OrgApp() {
       )}
 
       <div
-        id="trekigo-org-viewport"
+        id="findyourtrek-org-viewport"
         className={`relative w-full h-screen md:max-w-[400px] md:shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
           darkMode ? 'bg-elegant-app text-white shadow-[#050807]/90' : 'bg-[#FAF8F2] text-zinc-800 shadow-zinc-200/40'
         }`}

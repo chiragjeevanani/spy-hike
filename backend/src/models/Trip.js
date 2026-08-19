@@ -82,6 +82,15 @@ const tripSchema = new mongoose.Schema(
   { timestamps: true, _id: false },
 );
 
+// Indexes for the queries the catalog actually runs. Every public list filters
+// on `status`, so it leads each compound key; the trailing fields then let
+// Mongo satisfy the sort from the index instead of loading the matches and
+// sorting them in memory.
+tripSchema.index({ status: 1, featured: -1, rating: -1 }); // GET /trips default sort
+tripSchema.index({ status: 1, category: 1 });              // ?category= filter
+tripSchema.index({ trekId: 1, status: 1 });                // trek offers + "has any trip"
+tripSchema.index({ organizerEmail: 1, status: 1 });        // organizer's own listings
+
 // Frontend-shaped object: `id` (not `_id`), everything else flat as §6.1.
 tripSchema.methods.toPublicJSON = function toPublicJSON() {
   const obj = this.toObject({ versionKey: false });

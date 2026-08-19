@@ -11,10 +11,15 @@ import api from './apiClient.js';
 
 export const bookingsApi = {
   // ─── Customer ───
-  create: (payload) => api.post('/bookings', payload).then((r) => r.booking),
+  // Reserving seats changes live availability on the trip and its departures.
+  create: (payload) =>
+    api.post('/bookings', payload, { invalidates: ['/trips', '/departures'] }).then((r) => r.booking),
   listMine: () => api.get('/bookings').then((r) => r.bookings),
   getMine: (id) => api.get(`/bookings/${encodeURIComponent(id)}`).then((r) => r.booking),
-  cancel: (id) => api.post(`/bookings/${encodeURIComponent(id)}/cancel`).then((r) => r.booking),
+  // Cancelling releases the seats back to the trip and its departures.
+  cancel: (id) =>
+    api.post(`/bookings/${encodeURIComponent(id)}/cancel`, undefined, { invalidates: ['/trips', '/departures'] })
+      .then((r) => r.booking),
 
   // ─── Organizer financials & payouts ───
   getFinancials: () => api.get('/organizer/financials'),

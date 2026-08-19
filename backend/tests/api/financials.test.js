@@ -60,12 +60,12 @@ describe('Cancellation & policy refund', () => {
     const cust = await customerToken();
     const trip = await makeTrip(org, [30]);
     const booking = await book(cust, trip.id, dateInDays(30));
-    // final = (1000) + 5% tax = 1050.
+    // Prices are tax-inclusive: final = 1000.
     const res = await request(app).post(`/api/v1/bookings/${booking.bookingId}/cancel`).set('Authorization', `Bearer ${cust}`);
     expect(res.status).toBe(200);
     expect(res.body.booking.status).toBe('Cancelled');
     expect(res.body.booking.refundPercent).toBe(100);
-    expect(res.body.booking.refundAmount).toBe(1050);
+    expect(res.body.booking.refundAmount).toBe(1000);
   });
 
   it('gives a 50% refund in the 7–14 day window and releases the seats', async () => {
@@ -79,7 +79,7 @@ describe('Cancellation & policy refund', () => {
 
     const res = await request(app).post(`/api/v1/bookings/${booking.bookingId}/cancel`).set('Authorization', `Bearer ${cust}`);
     expect(res.body.booking.refundPercent).toBe(50);
-    expect(res.body.booking.refundAmount).toBe(525); // 50% of 1050
+    expect(res.body.booking.refundAmount).toBe(500); // 50% of 1000
 
     const after = await Departure.findOne({ tripId: trip.id, date });
     expect(after.availableSeats).toBe(10); // seat returned
@@ -114,14 +114,14 @@ describe('Organizer financials & payouts', () => {
     const b1 = await book(cust, trip.id, dateInDays(30));
     await book(cust, trip.id, dateInDays(40));
 
-    // Each booking: final 1050, commission 10% = 105, payout 945. Two → 1890.
+    // Each booking: final 1000, commission 10% = 100, payout 900. Two → 1800.
     let fin = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
-    expect(fin.body.financials.available).toBe(1890);
+    expect(fin.body.financials.available).toBe(1800);
 
     // Cancel one → its payout leaves the balance.
     await request(app).post(`/api/v1/bookings/${b1.bookingId}/cancel`).set('Authorization', `Bearer ${cust}`);
     fin = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
-    expect(fin.body.financials.available).toBe(945);
+    expect(fin.body.financials.available).toBe(900);
   });
 
   const setBank = (org) => request(app).patch('/api/v1/organizer/bank-details').set('Authorization', `Bearer ${org}`)
@@ -141,7 +141,7 @@ describe('Organizer financials & payouts', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org, [30]);
-    await book(cust, trip.id, dateInDays(30)); // available 945
+    await book(cust, trip.id, dateInDays(30)); // available 900
     await setBank(org);
 
     const over = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 5000 });
@@ -154,7 +154,7 @@ describe('Organizer financials & payouts', () => {
     expect(ok.body.payout.bank.accountNumberMasked).toBe('••••7890');
 
     const fin = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
-    expect(fin.body.financials.available).toBe(445);
+    expect(fin.body.financials.available).toBe(400);
   });
 
   it('admin settles a payout to Paid with a UTR and notifies the organizer', async () => {
@@ -180,7 +180,7 @@ describe('Organizer financials & payouts', () => {
     const cust = await customerToken();
     const admin = await adminToken();
     const trip = await makeTrip(org, [30]);
-    await book(cust, trip.id, dateInDays(30)); // available 945
+    await book(cust, trip.id, dateInDays(30)); // available 900
     await setBank(org);
     const req = await request(app).post('/api/v1/organizer/payouts').set('Authorization', `Bearer ${org}`).send({ amount: 500 });
 
@@ -190,7 +190,7 @@ describe('Organizer financials & payouts', () => {
 
     // Rejected amount returns to available.
     const fin = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
-    expect(fin.body.financials.available).toBe(945);
+    expect(fin.body.financials.available).toBe(900);
   });
 
   it('cannot settle an already-settled payout (400)', async () => {

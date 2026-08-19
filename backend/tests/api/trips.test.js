@@ -81,7 +81,34 @@ describe('Public catalog', () => {
     const names = res.body.trips.map((t) => t.name);
     expect(names).toContain('Published One');
     expect(names).not.toContain('Draft One');
-    expect(res.body).toHaveProperty('total');
+    // Paging is answered by hasMore; `total` costs a second full scan and is
+    // only computed when a caller explicitly asks for it.
+    expect(res.body).toHaveProperty('hasMore', false);
+    expect(res.body).not.toHaveProperty('total');
+
+    const withTotal = await request(app).get('/api/v1/trips?withTotal=true');
+    expect(withTotal.body.total).toBe(1);
+  });
+
+  it('omits detail-only fields from the list but returns them on a single trip', async () => {
+    const token = await approvedOrganizerToken();
+    const trek = await createTrek({ title: 'Projection Trek' });
+    await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${token}`)
+      .send(validTrip(trek, { status: 'Published' }));
+
+    const list = await request(app).get('/api/v1/trips');
+    const card = list.body.trips[0];
+    for (const field of ['itinerary', 'faqs', 'reviews', 'galleryImages', 'description', 'included']) {
+      expect(card[field]).toBeUndefined();
+    }
+    // Everything a browse card actually renders must survive the projection.
+    for (const field of ['id', 'name', 'location', 'coverImage', 'price', 'difficulty', 'durationDays', 'availableSeats', 'pricingTiers', 'organizer']) {
+      expect(card[field]).toBeDefined();
+    }
+
+    const detail = await request(app).get(`/api/v1/trips/${card.id}`);
+    expect(detail.body.trip.itinerary).toBeDefined();
+    expect(detail.body.trip.included).toBeDefined();
   });
 
   it('filters by search term', async () => {

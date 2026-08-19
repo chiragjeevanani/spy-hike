@@ -54,9 +54,9 @@ describe('Admin analytics', () => {
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.status).toBe(200);
-    // 2 Solo = 2000 base + 5% tax = 2100 GMV; commission 10% = 210.
-    expect(res.body.overview.gmv).toBe(2100);
-    expect(res.body.overview.commission).toBe(210);
+    // 2 Solo = 2000 base, tax-inclusive → 2000 GMV; commission 10% = 200.
+    expect(res.body.overview.gmv).toBe(2000);
+    expect(res.body.overview.commission).toBe(200);
     expect(res.body.overview.bookings).toBe(1);
     expect(res.body.overview.trips).toBe(1);
     expect(res.body.overview.users).toBeGreaterThanOrEqual(1);

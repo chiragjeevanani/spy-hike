@@ -14,6 +14,17 @@ export const tripsApi = {
     const qs = new URLSearchParams(params).toString();
     return api.get(`/trips${qs ? `?${qs}` : ''}`, { auth: false }).then((r) => r.trips);
   },
+  // Explore's browse feed: one entry per trek with every organizer's offering
+  // already collapsed, filtered/sorted/paged by the server. Returns the whole
+  // envelope because the caller needs `hasMore` to drive paging.
+  listTrekGroups: (params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const qs = new URLSearchParams(clean).toString();
+    return api.get(`/trek-groups${qs ? `?${qs}` : ''}`, { auth: false });
+  },
+  listPickupCities: () => api.get('/pickup-cities', { auth: false }).then((r) => r.cities),
   getTrip: (id) => api.get(`/trips/${encodeURIComponent(id)}`, { auth: false }).then((r) => r.trip),
   getTripDepartures: (id) =>
     api.get(`/trips/${encodeURIComponent(id)}/departures`, { auth: false }).then((r) => r.departures),

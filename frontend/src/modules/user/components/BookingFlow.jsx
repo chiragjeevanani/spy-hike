@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform, animate } from 'motion/react';
 import {
   ArrowLeft, ArrowRight, Calendar, Users, FileText, Ticket, CreditCard, CheckCircle2,
-  Sparkles, Percent, ShieldCheck, Download, Share2, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus
+  Sparkles, Percent, ShieldCheck, Download, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus,
+  RotateCw, Home
 } from 'lucide-react';
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed, loadLoyaltyConfig } from '../../../utils/loyalty';
 import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
 import { useToast } from '../../../components/ToastProvider';
+import TravelTicket from './TravelTicket';
+import { downloadTicketPDF } from '../utils/ticketPdf';
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -61,10 +64,421 @@ const ConfettiPopper = () => {
   );
 };
 
+// Thermal receipt paper stays warm-white with dark ink in both themes — a real
+// printout doesn't invert, and the light paper against the dark app chrome is
+// what sells the "physical receipt" read.
+const PAPER = '#fbfaf7';
+const INK = '#27272a';
+
+// Zigzag polygon for a torn-off paper edge, drawn as an SVG under the receipt.
+const tearPolygon = (w = 300, h = 9, teeth = 26) => {
+  const step = w / teeth;
+  const pts = ['0,0', `${w},0`];
+  for (let i = teeth; i >= 0; i -= 1) {
+    pts.push(`${(i * step).toFixed(1)},${i % 2 === 0 ? h : h * 0.25}`);
+  }
+  return pts.join(' ');
+};
+
+// Deterministic bar widths so the same booking always prints the same barcode.
+const barcodeBars = (seed) => {
+  const src = seed || 'FINDYOURTREK';
+  return Array.from({ length: 46 }, (_, i) => {
+    const code = src.charCodeAt(i % src.length) || 42;
+    return ((code * (i + 3)) % 4) + 1;
+  });
+};
+
+const ReceiptLine = ({ label, value, strong = false }) => (
+  <div className="flex justify-between items-baseline gap-2 text-[8.5px] leading-[1.5]">
+    <span className="opacity-55 tracking-wider shrink-0">{label}</span>
+    <span className={`text-right truncate ${strong ? 'font-black' : 'font-semibold'}`}>{value}</span>
+  </div>
+);
+
+const Perforation = () => (
+  <div className="my-1.5 border-t border-dashed" style={{ borderColor: 'rgba(39,39,42,0.28)' }} />
+);
+
+/**
+ * Coerces phone input to exactly the 10 digits the API accepts (/^\d{10}$/).
+ *
+ * Digits only, capped at 10. A pasted number carrying an Indian country code
+ * or a trunk prefix is unwrapped first — blindly truncating "+919876543210"
+ * to its first ten characters would silently store "9198765432", a different
+ * number that still looks valid.
+ */
+const toTenDigits = (raw) => {
+  let digits = String(raw ?? '').replace(/\D/g, '');
+  if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits.slice(0, 10);
+};
+
+// Printer chassis with the feed slot. `tone` colours the status lamp so the
+// same unit reads as working (success) or faulted (failure).
+const PrinterChassis = ({ tone = 'ok', busy, reduceMotion }) => {
+  const lamp = tone === 'ok' ? 'bg-emerald-400' : 'bg-rose-500';
+  const label = tone === 'ok' ? 'RDY' : 'ERR';
+  return (
+    <div className="rounded-t-2xl px-3.5 pt-3 pb-2 border border-b-0 border-zinc-950 shadow-xl bg-gradient-to-b from-zinc-700 to-zinc-900">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="font-mono text-[7px] tracking-[0.2em] text-zinc-400">FIND YOUR TREK · THERMAL POS</span>
+        <div className="flex items-center gap-1">
+          <motion.span
+            className={`w-1.5 h-1.5 rounded-full ${lamp}`}
+            animate={reduceMotion || !busy ? { opacity: 1 } : { opacity: [1, 0.25, 1] }}
+            transition={{ duration: 0.55, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <span className="font-mono text-[7px] text-zinc-500">{label}</span>
+        </div>
+      </div>
+      {/* Feed slot. The inner shadow reads as depth the paper emerges from. */}
+      <div className="h-[7px] rounded-full bg-black border border-black shadow-[inset_0_2px_3px_rgba(0,0,0,0.95)]" />
+    </div>
+  );
+};
+
+/**
+ * Paper emerging from the printer slot.
+ *
+ * The first version animated the wrapper's `height` from 0 to auto, which
+ * forces a layout pass on every frame and stutters on a phone. This drives a
+ * single motion value instead and derives two GPU-composited properties from
+ * it — `clip-path` for the reveal and `translateY` for the feed travel — so
+ * nothing reflows while it runs. Reserving the final height up front also
+ * removes the layout shift that used to shunt the buttons down the page.
+ *
+ * `keyframes`/`times` let the caller shape the feed: a steady pull for a
+ * successful print, or one that hitches partway when the transaction fails.
+ */
+const PaperFeed = ({
+  children,
+  duration = 2,
+  delay = 0.3,
+  keyframes = [0, 1],
+  times,
+  reduceMotion,
+  onDone,
+}) => {
+  const progress = useMotionValue(reduceMotion ? 1 : 0);
+  // Reveal top-down: inset() clips from the bottom, so 100% -> 0% uncovers.
+  const clipPath = useTransform(progress, (p) => `inset(0 0 ${(1 - p) * 100}% 0)`);
+  // The sheet lags slightly behind its own reveal, which reads as the rollers
+  // pulling it rather than the image simply appearing.
+  const y = useTransform(progress, (p) => (1 - p) * -14);
+  // The slot casts its shadow onto the sheet just below it — a fixed position,
+  // not one that chases the leading edge. It fades in as soon as paper starts
+  // to show. Opacity only, so nothing here triggers layout either.
+  const shadowOpacity = useTransform(progress, (p) => Math.min(p * 6, 1));
+
+  useEffect(() => {
+    if (reduceMotion) { progress.set(1); onDone?.(); return undefined; }
+    const controls = animate(progress, keyframes, {
+      duration,
+      delay,
+      times,
+      ease: 'linear',
+      onComplete: () => onDone?.(),
+    });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="relative">
+      <motion.div
+        style={{ clipPath, willChange: 'clip-path' }}
+        className="relative"
+      >
+        <motion.div style={{ y, willChange: 'transform' }}>
+          {children}
+        </motion.div>
+      </motion.div>
+
+      <motion.div
+        aria-hidden
+        style={{ opacity: shadowOpacity, willChange: 'opacity' }}
+        className="pointer-events-none absolute inset-x-0 top-0 h-5 z-10 bg-gradient-to-b from-black/40 to-transparent"
+      />
+    </div>
+  );
+};
+
+// Success confirmation — a POS printer feeding a receipt out of its slot.
+const ReceiptPrintout = ({ booking, items, subtotal, discount, loyaltyDiscount, pickupLabel }) => {
+  const reduceMotion = useReducedMotion();
+  const feed = reduceMotion ? 0 : 2.1;
+  const start = reduceMotion ? 0 : 0.32;
+  const [printing, setPrinting] = useState(!reduceMotion);
+
+  const bars = useMemo(() => barcodeBars(booking.bookingId), [booking.bookingId]);
+  const printedAt = useMemo(
+    () => new Date().toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    }),
+    []
+  );
+
+  return (
+    <div className="flex flex-col items-center pt-1">
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center gap-1.5 mb-3"
+      >
+        <ShieldCheck size={13} className="text-emerald-500" />
+        <span className="text-[9px] font-mono font-black uppercase tracking-[0.2em] text-emerald-500">
+          Payment Authorised
+        </span>
+      </motion.div>
+
+      {/* Printer chassis + feed slot */}
+      <motion.div
+        initial={{ opacity: 0, y: -12, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="w-[300px] max-w-full relative z-20"
+      >
+        <PrinterChassis tone="ok" busy={printing} reduceMotion={reduceMotion} />
+      </motion.div>
+
+      {/* Paper feeding out */}
+      <div
+        className="w-[276px] max-w-full relative z-10"
+        style={{ filter: 'drop-shadow(0 10px 16px rgba(0,0,0,0.30))' }}
+      >
+        <PaperFeed
+          duration={feed}
+          delay={start}
+          reduceMotion={reduceMotion}
+          onDone={() => setPrinting(false)}
+        >
+          <div>
+            <div className="px-4 pt-4 pb-3 font-mono" style={{ backgroundColor: PAPER, color: INK }}>
+              <div className="text-center">
+                <div className="text-[13px] font-black tracking-[0.28em]">FIND YOUR TREK</div>
+                <div className="text-[7px] tracking-[0.22em] opacity-60 mt-1">ADVENTURE BOOKING RECEIPT</div>
+              </div>
+
+              <Perforation />
+              <ReceiptLine label="RECEIPT" value={booking.bookingId} strong />
+              <ReceiptLine label="PRINTED" value={printedAt} />
+
+              <Perforation />
+              <div className="text-[9px] font-black leading-snug mb-1">{booking.tripName}</div>
+              <ReceiptLine label="DEPARTS" value={booking.selectedDate} />
+              <ReceiptLine label="HIKERS" value={booking.travelersCount} />
+              <ReceiptLine label="LEAD" value={booking.travelers?.[0]?.name || '—'} />
+              {pickupLabel && <ReceiptLine label="PICKUP" value={`Ex-${pickupLabel}`} />}
+
+              <Perforation />
+              {items.map(item => (
+                <ReceiptLine
+                  key={item.id}
+                  label={`${item.count} × ${item.label}`}
+                  value={`₹${item.subtotal}`}
+                />
+              ))}
+
+              <Perforation />
+              <ReceiptLine label="SUBTOTAL" value={`₹${subtotal}`} />
+              {discount > 0 && <ReceiptLine label="COUPON" value={`-₹${discount}`} />}
+              {loyaltyDiscount > 0 && <ReceiptLine label="REWARD" value={`-₹${loyaltyDiscount}`} />}
+
+              <div
+                className="flex justify-between items-baseline mt-2 pt-2 border-t-2 border-dashed"
+                style={{ borderColor: 'rgba(39,39,42,0.4)' }}
+              >
+                <span className="text-[10px] font-black tracking-[0.15em]">TOTAL</span>
+                <span className="text-[16px] font-black leading-none">₹{booking.finalAmount}</span>
+              </div>
+
+              <div
+                className="mt-2.5 text-center text-[7.5px] font-black tracking-[0.15em] py-1.5 border border-dashed"
+                style={{ borderColor: 'rgba(39,39,42,0.35)' }}
+              >
+                ** PAY ON ARRIVAL AT BASE CAMP **
+              </div>
+
+              <div className="flex items-end justify-center gap-[1.5px] h-9 mt-3.5">
+                {bars.map((w, i) => (
+                  <span key={i} className="h-full" style={{ width: w, backgroundColor: INK }} />
+                ))}
+              </div>
+              <div className="text-center text-[7.5px] tracking-[0.3em] mt-1.5 opacity-70">
+                {booking.bookingId}
+              </div>
+
+              <div className="text-center text-[7px] tracking-[0.18em] opacity-50 mt-2.5">
+                THANK YOU · THE TRAIL AWAITS
+              </div>
+            </div>
+
+            <svg viewBox="0 0 300 9" preserveAspectRatio="none" className="block w-full h-[9px]">
+              <polygon points={tearPolygon()} fill={PAPER} />
+            </svg>
+          </div>
+        </PaperFeed>
+      </div>
+    </div>
+  );
+};
+
+// Failure state — the same printer, printing a decline slip. It feeds steadily,
+// hitches partway as the transaction is refused, finishes short, and takes a
+// DECLINED stamp. Sharing the success screen's mechanism means the outcome is
+// carried by what gets printed rather than by an unrelated animation.
+const PaymentFailedScreen = ({ message, onTryAgain, onGoHome, darkMode }) => {
+  const reduceMotion = useReducedMotion();
+  const feed = reduceMotion ? 0 : 1.5;
+  const start = reduceMotion ? 0 : 0.3;
+  const [printing, setPrinting] = useState(!reduceMotion);
+  // The stamp lands once the paper has stopped moving.
+  const stampDelay = reduceMotion ? 0 : start + feed + 0.12;
+
+  return (
+    <div className="py-2 flex flex-col items-center text-center">
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center gap-1.5 mb-3"
+      >
+        <X size={13} className="text-rose-500" />
+        <span className="text-[9px] font-mono font-black uppercase tracking-[0.2em] text-rose-500">
+          Payment Declined
+        </span>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: -12, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="w-[300px] max-w-full relative z-20"
+      >
+        <PrinterChassis tone="err" busy={printing} reduceMotion={reduceMotion} />
+      </motion.div>
+
+      <div className="relative w-[276px] max-w-full">
+        <div style={{ filter: 'drop-shadow(0 10px 16px rgba(0,0,0,0.30))' }}>
+          <PaperFeed
+            duration={feed}
+            delay={start}
+            // Steady pull, a stall at ~60% as the gateway refuses, then a
+            // short final push — the paper "jams" rather than running clean.
+            keyframes={[0, 0.55, 0.58, 1]}
+            times={[0, 0.45, 0.72, 1]}
+            reduceMotion={reduceMotion}
+            onDone={() => setPrinting(false)}
+          >
+            <div className="px-4 pt-4 pb-3 font-mono" style={{ backgroundColor: PAPER, color: INK }}>
+              <div className="text-center">
+                <div className="text-[11px] font-black tracking-[0.24em]">FIND YOUR TREK</div>
+                <div className="text-[7px] tracking-[0.2em] opacity-60 mt-1">TRANSACTION RECORD</div>
+              </div>
+
+              <Perforation />
+              {/* Printed content trails off — the slip never completed. */}
+              <div className="space-y-[4px] py-0.5">
+                {[94, 72, 86].map((w, i) => (
+                  <div key={i} className="h-[3px] rounded-sm" style={{ width: `${w}%`, backgroundColor: 'rgba(39,39,42,0.2)' }} />
+                ))}
+              </div>
+              <Perforation />
+
+              <div className="text-center text-[8px] font-black tracking-[0.14em] text-rose-600 py-1">
+                ** TRANSACTION NOT COMPLETED **
+              </div>
+              <div className="flex justify-between text-[7.5px] opacity-60 pt-0.5">
+                <span className="tracking-wider">STATUS</span>
+                <span className="font-black text-rose-600">DECLINED</span>
+              </div>
+
+              {/* Cut short — no barcode, no total, no thank-you line. */}
+              <div className="h-3" />
+            </div>
+
+            <svg viewBox="0 0 300 9" preserveAspectRatio="none" className="block w-full h-[9px]">
+              <polygon points={tearPolygon()} fill={PAPER} />
+            </svg>
+          </PaperFeed>
+        </div>
+
+        {/* DECLINED stamp slamming onto the finished slip */}
+        <motion.div
+          initial={{ scale: 2.7, opacity: 0, rotate: -34 }}
+          animate={{ scale: 1, opacity: 1, rotate: -13 }}
+          transition={{ delay: stampDelay, type: 'spring', stiffness: 300, damping: 13 }}
+          className="absolute left-1/2 bottom-8 -translate-x-1/2 z-20"
+        >
+          <span
+            className="block px-3 py-1 rounded-[3px] border-[3px] border-rose-600 text-rose-600 font-display font-black text-[15px] tracking-[0.2em]"
+            style={{ opacity: 0.92 }}
+          >
+            DECLINED
+          </span>
+        </motion.div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: stampDelay + 0.25, duration: 0.3 }}
+        className="w-full flex flex-col items-center pt-5"
+      >
+        <h2 className="text-lg font-display font-black tracking-tight">Payment Failed</h2>
+        <p className="text-xs text-zinc-500 max-w-[262px] mt-1.5 leading-relaxed">{message}</p>
+
+        {/* Try Again returns to the checkout rather than firing the payment
+            straight off the failure screen — the traveller gets to review the
+            date, travellers and coupon before paying again. */}
+        <div className="w-full max-w-xs space-y-2.5 mt-6">
+          <button
+            type="button"
+            id="btn-payment-retry"
+            onClick={onTryAgain}
+            className={`w-full py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border flex items-center justify-center gap-2 transition-all duration-300 active:scale-98 cursor-pointer ${
+              darkMode
+                ? 'bg-rose-950/40 border-rose-500/50 text-rose-300 hover:bg-rose-950/70 hover:border-rose-400 shadow-lg shadow-rose-950/20'
+                : 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-950/10'
+            }`}
+          >
+            <RotateCw size={14} />
+            Try Again
+          </button>
+
+          <button
+            type="button"
+            id="btn-payment-go-home"
+            onClick={onGoHome}
+            className={`w-full py-3.5 rounded-2xl text-xs font-bold border flex items-center justify-center gap-2 transition-all duration-300 active:scale-95 cursor-pointer ${
+              darkMode
+                ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'
+            }`}
+          >
+            <Home size={13} />
+            Go to Home
+          </button>
+        </div>
+
+        <p className="text-[10px] text-zinc-500 mt-4 max-w-[250px] leading-relaxed">
+          Nothing was charged and your seats are not reserved yet.
+        </p>
+      </motion.div>
+    </div>
+  );
+};
+
 export default function BookingFlow({
   trip,
   onCancel,
   onConfirmBooking,
+  // Leaves the booking flow for the home tab. Distinct from onCancel, which
+  // steps back to the trip the traveller came from.
+  onGoHome,
   darkMode
 }) {
   const toast = useToast();
@@ -141,17 +555,21 @@ export default function BookingFlow({
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentFinished, setPaymentFinished] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  // Takes over the step-3 checkout with the declined-receipt screen so the
+  // failure (and the retry) is impossible to miss.
+  const [paymentFailed, setPaymentFailed] = useState(false);
   
   // Constructed ticket fields once succeeded
   const [createdBooking, setCreatedBooking] = useState(null);
-  const [showShareModal, setShowShareModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
 
-  // Departure batch dates for this specific trip (falls back to simulated
-  // dates for records saved before per-trip departures existed)
-  const availableDates = trip.departureDates?.length
-    ? trip.departureDates
-    : ['2026-07-10', '2026-07-20', '2026-08-05', '2026-08-20', '2026-09-02'];
+  // Departure batch dates this organizer has actually scheduled.
+  //
+  // This used to fall back to five hard-coded 2026 dates when a trip had none,
+  // which made a trek with no batches look bookable and let the customer buy a
+  // seat on a departure that does not exist. No dates now means no booking.
+  const availableDates = trip.departureDates?.length ? trip.departureDates : [];
 
   // Live per-date seat availability from the API (Phase 3). Map of
   // "YYYY-MM-DD" → availableSeats. Empty until the fetch resolves; while empty
@@ -187,18 +605,27 @@ export default function BookingFlow({
   // departure's live seats when known, else the trip-level number.
   const effectiveSeats = selectedSeatsLeft !== null ? selectedSeatsLeft : trip.availableSeats;
 
+  // The only dates a customer may actually book: scheduled, still in the
+  // future, and with seats left. Everything downstream gates on this — the
+  // calendar, the default selection, and whether step 1 can be completed.
+  const isBookableDate = (dateStr) => (
+    !!dateStr && availableDates.includes(dateStr) && dateStr >= todayStr && !isSoldOut(dateStr)
+  );
+  const bookableDates = availableDates.filter(isBookableDate);
+  // Wait for live seat data before declaring a trek unbookable, so a slow
+  // request doesn't briefly accuse an organizer of having no departures.
+  const hasNoDepartures = availableDates.length === 0
+    || (departuresLoaded && bookableDates.length === 0);
 
 
-  // Calendar states
-  const [calYear, setCalYear] = useState(() => {
-    const initialDateStr = selectedDate || availableDates.find(dt => dt >= todayStr) || availableDates[0];
-    return initialDateStr ? parseInt(initialDateStr.split('-')[0]) : new Date().getFullYear();
-  });
-  
-  const [calMonth, setCalMonth] = useState(() => {
-    const initialDateStr = selectedDate || availableDates.find(dt => dt >= todayStr) || availableDates[0];
-    return initialDateStr ? parseInt(initialDateStr.split('-')[1]) - 1 : new Date().getMonth();
-  });
+
+  // Calendar states — open on the first upcoming departure's month, never on a
+  // past month whose cells are all greyed out.
+  const initialCalendarDate = selectedDate
+    || availableDates.find(dt => dt >= todayStr)
+    || todayStr;
+  const [calYear, setCalYear] = useState(() => parseInt(initialCalendarDate.split('-')[0], 10));
+  const [calMonth, setCalMonth] = useState(() => parseInt(initialCalendarDate.split('-')[1], 10) - 1);
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -285,11 +712,19 @@ export default function BookingFlow({
     });
   };
 
-  // If the selected departure is sold out, clear the traveler selection so the
-  // count reads 0 and Continue is blocked — you can't book a full batch.
+  // Clear the traveler selection whenever it no longer fits the chosen
+  // departure — either it sold out, or the customer set a count against the
+  // trip-level capacity and then picked a batch with fewer seats than that.
+  // Resetting to 0 blocks Continue and makes them re-pick within the real cap.
   useEffect(() => {
-    if (departuresLoaded && effectiveSeats <= 0 && travelersCount > 0) {
+    if (!departuresLoaded || travelersCount === 0) return;
+    if (travelersCount > effectiveSeats) {
       setTierCounts({});
+      toast.error(
+        effectiveSeats <= 0
+          ? 'That departure is sold out — pick another date.'
+          : `Only ${effectiveSeats} seat${effectiveSeats === 1 ? '' : 's'} left on that date. Choose your travelers again.`
+      );
     }
   }, [departuresLoaded, effectiveSeats]);
 
@@ -309,18 +744,13 @@ export default function BookingFlow({
     }
   }, [travelersCount]);
 
-  // Set default initial date: the first upcoming date that still has seats
-  // (re-runs once live availability loads, so we never default to a sold-out
-  // batch). Falls back to the first upcoming/any date when seat data is absent.
+  // Never pick a departure on the customer's behalf — choosing one is the
+  // whole point of step 1, and a pre-filled date is a date nobody consciously
+  // agreed to. This only ever *clears* a selection that has stopped being
+  // valid (its batch sold out, or the date passed while the tab sat open).
   useEffect(() => {
-    const upcoming = availableDates.filter(dt => dt >= todayStr);
-    const bookable = upcoming.find(dt => !isSoldOut(dt)) || availableDates.find(dt => !isSoldOut(dt));
-    const fallback = upcoming[0] || availableDates[0];
-    const target = bookable || fallback;
-    if (!selectedDate || isSoldOut(selectedDate)) {
-      if (target) setSelectedDate(target);
-    }
-  }, [departuresLoaded]);
+    if (selectedDate && !isBookableDate(selectedDate)) setSelectedDate('');
+  }, [departuresLoaded, availableDates.length, selectedDate]);
 
   // Confetti timeout auto-reset
   useEffect(() => {
@@ -361,7 +791,32 @@ export default function BookingFlow({
     return null;
   };
 
+  // Step 1 is mandatory: a real, in-future departure with enough seats must be
+  // chosen before anything else. Enforced here as well as on the button, so
+  // it holds however the step is advanced.
+  const canProceedFromStep1 = isBookableDate(selectedDate)
+    && travelersCount > 0
+    && travelersCount <= effectiveSeats;
+
   const handleContinue = () => {
+    if (step === 1) {
+      if (hasNoDepartures) {
+        toast.error('This organizer has no upcoming departures for this trek.');
+        return;
+      }
+      if (!isBookableDate(selectedDate)) {
+        toast.error('Choose a departure date to continue.');
+        return;
+      }
+      if (travelersCount < 1) {
+        toast.error('Add at least one traveler to continue.');
+        return;
+      }
+      if (travelersCount > effectiveSeats) {
+        toast.error(`Only ${effectiveSeats} seat${effectiveSeats === 1 ? '' : 's'} left on this departure.`);
+        return;
+      }
+    }
     if (step === 2) {
       const error = validateTravelers();
       if (error) {
@@ -434,7 +889,6 @@ export default function BookingFlow({
 
   const handleProcessPayment = async () => {
     setIsProcessingPayment(true);
-    setBookingError('');
 
     try {
       // The server computes all pricing/commission authoritatively, reserves
@@ -458,13 +912,40 @@ export default function BookingFlow({
 
       setPaymentFinished(true);
       setCreatedBooking(booking);
+      setBookingError('');
+      setPaymentFailed(false);
       setStep(4); // Success is now Step 4
     } catch (err) {
-      const message = err?.message || 'Payment failed. Please try again.';
-      setBookingError(message);
-      toast.error(message);
+      // The declined screen carries the message itself — a toast on top of a
+      // full-screen takeover is just noise.
+      setBookingError(err?.message || 'We could not confirm your reservation. Please try again.');
+      setPaymentFailed(true);
     } finally {
       setIsProcessingPayment(false);
+    }
+  };
+
+  // Dismisses the declined screen and puts the traveller back on the step-3
+  // checkout, where they can review everything and press Pay again.
+  const handleReturnToCheckout = () => {
+    setPaymentFailed(false);
+    setBookingError('');
+  };
+
+  // Renders the boarding pass off-screen and saves it locally as a PDF. It
+  // rasterises the ticket, so it can take a moment — the button reports that
+  // rather than appearing to do nothing.
+  const handleSaveTicketPdf = async () => {
+    if (!createdBooking || savingPdf) return;
+    setSavingPdf(true);
+    try {
+      await downloadTicketPDF(createdBooking);
+      toast.success('Ticket saved to your device.');
+      setShowTicketModal(false);
+    } catch (err) {
+      toast.error(err?.message || 'Could not generate the PDF. Please try again.');
+    } finally {
+      setSavingPdf(false);
     }
   };
 
@@ -511,7 +992,7 @@ export default function BookingFlow({
       {/* Forms switcher viewport */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={step}
+          key={paymentFailed ? 'declined' : step}
           initial={{ opacity: 0, y: 12, scale: 0.99 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.99 }}
@@ -525,7 +1006,36 @@ export default function BookingFlow({
               <Calendar className="text-forest-500" size={18} />
               <h2 className="text-base font-display font-black">Expedition Details</h2>
             </div>
-            
+
+            {/* No batches scheduled, or every one has passed or sold out. Say so
+                plainly instead of showing a calendar where nothing is clickable. */}
+            {hasNoDepartures && (
+              <div className={`p-4 rounded-2xl border text-center ${
+                darkMode ? 'bg-amber-950/20 border-amber-500/25' : 'bg-amber-50 border-amber-300/60'
+              }`}>
+                <Info size={18} className="mx-auto mb-2 text-amber-500" />
+                <h3 className="text-xs font-display font-black mb-1">No departures available</h3>
+                <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  {availableDates.length === 0
+                    ? 'This organizer hasn’t scheduled any batches for this trek yet.'
+                    : 'Every batch for this trek has either departed or sold out.'}
+                  {' '}Check another organizer, or come back once new dates are posted.
+                </p>
+                <button
+                  type="button"
+                  id="btn-no-departures-back"
+                  onClick={onCancel}
+                  className={`mt-3.5 w-full py-2.5 rounded-xl text-[11px] font-bold border transition active:scale-95 cursor-pointer ${
+                    darkMode
+                      ? 'bg-zinc-900/40 border-white/10 text-zinc-300 hover:bg-zinc-800/60'
+                      : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                  }`}
+                >
+                  Browse other organizers
+                </button>
+              </div>
+            )}
+
             {/* 1. Date selection calendar */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-2">Select Departure Date (Available Calendar Slots)</label>
@@ -630,6 +1140,15 @@ export default function BookingFlow({
                   <span className="font-bold text-forest-600 dark:text-forest-400">
                     {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
+                </div>
+              )}
+
+              {/* Nothing is selected by default, so say what to do — otherwise
+                  the disabled Continue button has no visible explanation. */}
+              {!selectedDate && !hasNoDepartures && (
+                <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium px-1 text-amber-600 dark:text-amber-400">
+                  <Info size={12} className="shrink-0" />
+                  Pick a highlighted departure date to continue.
                 </div>
               )}
             </div>
@@ -817,13 +1336,22 @@ export default function BookingFlow({
                     <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Emergency Phone *</label>
                     <input
                       type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
                       name="emergencyContact"
                       placeholder="e.g. 9876543210"
+                      maxLength={10}
                       value={tr.emergencyContact}
-                      onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', e.target.value)}
+                      onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', toTenDigits(e.target.value))}
                       className={fieldCls('emergencyContact')}
                     />
-                    {err.emergencyContact && <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>}
+                    {err.emergencyContact
+                      ? <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>
+                      : tr.emergencyContact.length > 0 && tr.emergencyContact.length < 10 && (
+                        <p className="text-[10px] font-semibold opacity-50">
+                          {10 - tr.emergencyContact.length} more digit{10 - tr.emergencyContact.length === 1 ? '' : 's'}
+                        </p>
+                      )}
                   </div>
                 </div>
                 );
@@ -832,8 +1360,18 @@ export default function BookingFlow({
           </div>
         )}
 
+        {/* Payment declined — takes over the checkout until retried */}
+        {step === 3 && paymentFailed && (
+          <PaymentFailedScreen
+            message={bookingError}
+            onTryAgain={handleReturnToCheckout}
+            onGoHome={onGoHome}
+            darkMode={darkMode}
+          />
+        )}
+
         {/* Step 3: Checkout & Payment with Coupon */}
-        {step === 3 && (
+        {step === 3 && !paymentFailed && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <CreditCard className="text-forest-500" size={18} />
@@ -991,86 +1529,35 @@ export default function BookingFlow({
           </div>
         )}
 
-        {/* Step 4: Booking Success Screen */}
+        {/* Step 4: Booking Success — receipt prints out as the confirmation */}
         {step === 4 && createdBooking && (
-          <div className="space-y-4 text-center py-6">
-            <div className="flex justify-center mb-2">
-              <div className="relative">
-                {/* Outer pulse ring */}
-                <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
-                {/* Icon fills entire circle cleanly */}
-                <CheckCircle2 size={72} className="relative text-emerald-500 drop-shadow-lg" strokeWidth={1.5} />
-              </div>
-            </div>
+          <div className="py-2">
+            <ReceiptPrintout
+              booking={createdBooking}
+              items={tierBreakdown.filter(t => t.count > 0)}
+              subtotal={baseCostTotal}
+              discount={appliedDiscountValue}
+              loyaltyDiscount={loyaltyDiscountValue}
+              pickupLabel={pickup?.location}
+            />
 
-            <span className="bg-emerald-500 text-white font-mono text-[8px] font-black tracking-widest px-2.5 py-1 rounded-full uppercase">
-              CONFIRMED EXPEDITION PASS
-            </span>
-
-            <h2 className="text-xl font-display font-black tracking-tight leading-tight">
-              Booking Reserved!
-            </h2>
-            
-            <p className="text-xs text-zinc-500 max-w-xs mx-auto -mt-1 pb-4 leading-relaxed">
-              Your permit slot is confirmed. Pay on arrival at base camp. Receipt ID: <span className="font-mono text-spy-orange font-bold">{createdBooking.bookingId}</span>
-            </p>
-
-            {/* Custom vector ticket coupon cards */}
-            <div className={`p-4 rounded-3xl border border-dashed relative overflow-hidden text-left mx-auto max-w-sm ${
-              darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-gray-300'
-            }`}>
-              {/* Semi circles vectors in card edges representing tickets */}
-              <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-zinc-950/90 rounded-full border border-zinc-800" />
-              <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-zinc-950/90 rounded-full border border-zinc-800" />
-
-              <div className="space-y-2">
-                <span className="text-[8px] opacity-50 block font-mono">ADVENTURE PROPERTY</span>
-                <h4 className="text-xs font-black line-clamp-1">{createdBooking.tripName}</h4>
-                <div className="flex items-center gap-1.5 text-[9px] text-zinc-400">
-                  <span>📅 slot: {createdBooking.selectedDate}</span>
-                  <span>•</span>
-                  <span>👨 {createdBooking.travelersCount} {createdBooking.travelersCount === 1 ? 'Hiker' : 'Hikers'}</span>
-                </div>
-              </div>
-
-              <hr className="my-3 border-dashed border-zinc-805" />
-
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="text-[8px] opacity-50 block font-mono">HIKER PRINCIPAL</span>
-                  <span className="text-[11px] font-bold">{createdBooking.travelers[0]?.name}</span>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[8px] opacity-50 block font-mono">PAYMENT MODE</span>
-                  <span className="text-[10px] font-extrabold text-emerald-500 block">Pay on Arrival</span>
-                  <span className={`text-xs font-extrabold font-sans ${darkMode ? 'text-emerald-450' : 'text-emerald-700'}`}>₹{createdBooking.finalAmount}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive actions */}
-            <div className="flex justify-center gap-3 pt-6 cursor-pointer pointer-events-auto">
+            {/* Actions land once the paper has finished feeding */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 2.55, duration: 0.35 }}
+              className="flex justify-center pt-7"
+            >
               <button
                 id="btn-download-ticket"
                 onClick={() => setShowTicketModal(true)}
-                className={`px-4 py-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition ${
+                className={`px-5 py-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                   darkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-350 hover:bg-zinc-850' : 'bg-white border-gray-255 text-zinc-700'
                 }`}
               >
                 <Download size={14} /> Download Ticket
               </button>
-
-              <button
-                id="btn-share-booking"
-                onClick={() => setShowShareModal(true)}
-                className={`px-4 py-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition ${
-                  darkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-350 hover:bg-zinc-850' : 'bg-white border-gray-255 text-zinc-700'
-                }`}
-              >
-                <Share2 size={13} /> Share Booking
-              </button>
-            </div>
+            </motion.div>
           </div>
         )}
 
@@ -1097,10 +1584,10 @@ export default function BookingFlow({
           <button
             type="button"
             id={`btn-booking-step-${step}-continue`}
-            disabled={step === 1 && travelersCount === 0}
+            disabled={step === 1 && !canProceedFromStep1}
             onClick={handleContinue}
             className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 ${
-              step === 1 && travelersCount === 0
+              step === 1 && !canProceedFromStep1
                 ? 'opacity-40 cursor-not-allowed border-zinc-700 text-zinc-500'
                 : darkMode
                 ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10 cursor-pointer'
@@ -1113,7 +1600,7 @@ export default function BookingFlow({
         </div>
       )}
 
-      {step === 3 && (
+      {step === 3 && !paymentFailed && (
         <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 flex gap-3 shrink-0">
           <button
             type="button"
@@ -1153,7 +1640,12 @@ export default function BookingFlow({
       )}
 
       {step === 4 && (
-        <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 shrink-0">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 2.7, duration: 0.35 }}
+          className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 shrink-0"
+        >
           <button
             type="button"
             id="btn-booking-done-finish"
@@ -1166,95 +1658,68 @@ export default function BookingFlow({
           >
             Access Bookings Dashboard
           </button>
-        </div>
+        </motion.div>
       )}
 
       {/* ======================= */}
       {/* Dynamic Popups/Modals  */}
       {/* ======================= */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
-          <div className={`p-6 rounded-3xl max-w-xs text-center relative ${
-            darkMode ? 'bg-zinc-900' : 'bg-white shadow-md'
-          }`}>
-            <span className="text-3xl block mb-2">📢</span>
-            <h4 className="text-sm font-bold font-display">Share Adventure</h4>
-            <p className="text-[11px] text-zinc-500 mt-1 pb-4 leading-normal">
-              Direct social API simulator. Invite other adventurers to join the trail:
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
+      {/* Ticket preview — the same boarding pass the Bookings tab shows, so
+          what you see here is what the PDF contains. */}
+      {showTicketModal && createdBooking && (
+        <div className="fixed inset-0 bg-black/80 z-55 flex items-center justify-center p-5 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className={`rounded-3xl relative w-full max-w-sm my-auto ${
+              darkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'
+            }`}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div className="min-w-0">
+                <h4 className="text-sm font-display font-black flex items-center gap-1.5 text-forest-600 dark:text-forest-400">
+                  <CheckCircle2 size={15} className="shrink-0" /> Your Trek Ticket
+                </h4>
+                <span className="text-[9px] opacity-45 font-mono tracking-wider">
+                  PERMIT {createdBooking.bookingId}
+                </span>
+              </div>
               <button
-                onClick={() => { toast.success('Shared to WhatsApp successfully!'); setShowShareModal(false); }}
-                className="py-2.5 rounded-lg bg-green-650 hover:bg-green-755 text-white"
+                onClick={() => setShowTicketModal(false)}
+                aria-label="Close ticket"
+                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition cursor-pointer"
               >
-                WhatsApp Invite
-              </button>
-              <button
-                onClick={() => { toast.success('Booking Link copied to Clipboard!'); setShowShareModal(false); }}
-                className="py-2.5 rounded-lg bg-forest-600 hover:bg-forest-700 text-white"
-              >
-                Copy Link
+                <X size={15} />
               </button>
             </div>
 
-            <button 
-              onClick={() => setShowShareModal(false)}
-              className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-400"
-            >
-              <X size={15} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showTicketModal && (
-        <div className="fixed inset-0 bg-black/80 z-55 flex items-center justify-center p-6">
-          <div className={`p-6 rounded-3xl max-w-sm text-center relative w-full ${
-            darkMode ? 'bg-zinc-900' : 'bg-white shadow-md'
-          }`}>
-            <h4 className="text-sm font-bold font-display flex items-center gap-1 text-forest-600 dark:text-forest-400 text-center justify-center mb-1">
-              <CheckCircle2 size={15} /> Official Mountain Pass
-            </h4>
-            <span className="text-[9px] opacity-40 font-mono">GOVERNMENT REGISTERED</span>
-            
-            <div className="space-y-4 text-left my-4 p-4 rounded-xl bg-zinc-950 shadow-inner font-mono border border-zinc-850">
-              <div className="flex justify-between text-[10px] pb-2 border-b border-zinc-850">
-                <span className="opacity-50">PERMIT NO</span>
-                <span className="text-orange-400 font-bold text-xs">{createdBooking?.bookingId}</span>
-              </div>
-              <div className="flex justify-between text-[10px] pb-2 border-b border-zinc-850">
-                <span className="opacity-50">TREK TITLE</span>
-                <span className="text-zinc-100 max-w-[120px] text-right truncate">{createdBooking?.tripName}</span>
-              </div>
-              <div className="flex justify-between text-[10px] pb-2 border-b border-zinc-850">
-                <span className="opacity-50">LEAD NOMID</span>
-                <span className="text-zinc-100">{createdBooking?.travelers[0]?.name}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="opacity-50">FEE SETTLEMENT</span>
-                <span className="text-emerald-400 font-bold">₹{createdBooking?.finalAmount}</span>
-              </div>
+            <div className="px-5">
+              <TravelTicket
+                booking={createdBooking}
+                darkMode={darkMode}
+                notchClass={darkMode ? 'bg-zinc-900' : 'bg-white'}
+              />
             </div>
 
-            <p className="text-[9px] leading-relaxed opacity-60 pb-4">
-              Please present this invoice voucher bar to forest gate rangers to verify inner line transit tags.
+            <p className="text-[9px] leading-relaxed opacity-55 px-5 pt-3 text-center">
+              Present this pass at the base camp gate. Seat and permit details are verified from the QR code.
             </p>
 
-            <button
-              onClick={() => { toast.success('Invoice file generated & saved to your device.'); setShowTicketModal(false); }}
-              className="w-full py-3 bg-forest-600 hover:bg-forest-700 text-white text-xs font-bold rounded-xl"
-            >
-              Save as PDF File
-            </button>
-
-            <button 
-              onClick={() => setShowTicketModal(false)}
-              className="absolute top-2 right-2 text-zinc-400"
-            >
-              <X size={15} />
-            </button>
-          </div>
+            <div className="p-5 pt-3">
+              <button
+                id="btn-save-ticket-pdf"
+                onClick={handleSaveTicketPdf}
+                disabled={savingPdf}
+                className={`w-full py-3.5 text-white text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition active:scale-98 ${
+                  savingPdf ? 'bg-forest-700/60 cursor-not-allowed' : 'bg-forest-600 hover:bg-forest-700 cursor-pointer'
+                }`}
+              >
+                <Download size={14} className={savingPdf ? 'animate-pulse' : ''} />
+                {savingPdf ? 'Preparing PDF…' : 'Save as PDF File'}
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
 

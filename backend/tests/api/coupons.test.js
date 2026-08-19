@@ -32,9 +32,13 @@ async function approvedOrganizerToken(email = 'org@example.com') {
 }
 let trekSeq = 0;
 async function makeTrip(orgToken) {
+  // The title must be unique per trek: an organizer may only post one trip per
+  // trek, and that check matches on trip name as well as trekId — so reusing
+  // one title made the second makeTrip() call 400 and return no trip.
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `coupon-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Coupon Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `coupon-trek-${Date.now()}-${seq}`,
+    title: `Coupon Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({

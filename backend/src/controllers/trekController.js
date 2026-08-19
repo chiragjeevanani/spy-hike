@@ -7,6 +7,14 @@ import { validateTrekFields } from '../utils/trekValidation.js';
 
 // ─── Public ──────────────────────────────────────────────────────────────────
 
+// Read only by the trek detail screen, so excluded from list responses. See
+// the matching note in tripController — an exclusion list means a newly added
+// field appears on cards by default rather than silently disappearing.
+const TREK_LIST_EXCLUDE = [
+  'itinerary', 'thingsToCarry', 'included', 'notIncluded',
+  'highlights', 'description', 'galleryImages',
+].map((f) => `-${f}`).join(' ');
+
 // GET /treks?trending=true — active treks only, for the organizer's "select a
 // trek" picker and the customer app's trek catalog. The optional flag lets
 // the customer app pull just the admin-curated trending subset without
@@ -14,8 +22,23 @@ import { validateTrekFields } from '../utils/trekValidation.js';
 export const listTreks = asyncHandler(async (req, res) => {
   const filter = { status: 'Active' };
   if (req.query.trending === 'true') filter.trending = true;
-  const treks = await Trek.find(filter).sort({ title: 1 });
-  res.json({ treks: treks.map((t) => t.toPublicJSON()) });
+  // `tripCount` — how many published trips exist under each trek. The customer
+  // app needs this for the "Trending destinations" counts and to know which
+  // treks are still awaiting their first organizer ("Coming soon"). It used to
+  // be derived by scanning the whole trip list in the browser, which is one of
+  // the reasons the client had to fetch the entire catalog.
+  const [treks, counts] = await Promise.all([
+    Trek.find(filter).select(TREK_LIST_EXCLUDE).sort({ title: 1 }),
+    Trip.aggregate([
+      { $match: { status: 'Published' } },
+      { $group: { _id: '$trekId', n: { $sum: 1 } } },
+    ]),
+  ]);
+  const countByTrek = new Map(counts.map((c) => [c._id, c.n]));
+
+  res.json({
+    treks: treks.map((t) => ({ ...t.toPublicJSON(), tripCount: countByTrek.get(t._id) || 0 })),
+  });
 });
 
 // GET /treks/:id — single trek (used to populate a trek's public detail page

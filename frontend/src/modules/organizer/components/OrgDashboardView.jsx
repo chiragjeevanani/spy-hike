@@ -3,7 +3,11 @@ import { motion } from 'motion/react';
 import { TrendingUp, Users, CalendarCheck, Star, Map, ArrowRight, Plus, Eye, ChevronRight, Bell, Megaphone, Gift, ScanBarcode, MessageCircle } from 'lucide-react';
 import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 
-export default function OrgDashboardView({ organizer, trips, bookings, notifications, chats = [], onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, onOpenScanner, onOpenChats, darkMode }) {
+// onApproveReschedule / onRejectReschedule are optional: the reschedule
+// controls below call them with `?.()`, but that only guards an undefined
+// *value* — an undeclared identifier still throws a ReferenceError, so they
+// have to be declared props even when no parent passes them.
+export default function OrgDashboardView({ organizer, trips, bookings, notifications, chats = [], onNavigate, onViewTrip, onOpenLoyalty, onOpenFinancials, onOpenScanner, onOpenChats, onApproveReschedule, onRejectReschedule, darkMode }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const showLoyaltyBanner = loyaltyConfig.organizer.enabled && loyaltyConfig.organizer.banner.enabled;

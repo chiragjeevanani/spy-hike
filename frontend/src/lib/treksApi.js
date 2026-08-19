@@ -20,7 +20,10 @@ export const treksApi = {
   // ─── Admin ───
   listAllTreks: () => api.get('/admin/treks').then((r) => r.treks),
   createTrek: (payload) => api.post('/admin/treks', payload).then((r) => r.trek),
-  updateTrek: (id, payload) => api.put(`/admin/treks/${encodeURIComponent(id)}`, payload).then((r) => r.trek),
+  // The server syncs a trek's identity fields (name/location/difficulty/…) into
+  // every trip posted under it, so cached trips go stale on this write too.
+  updateTrek: (id, payload) =>
+    api.put(`/admin/treks/${encodeURIComponent(id)}`, payload, { invalidates: ['/trips'] }).then((r) => r.trek),
   deleteTrek: (id) => api.del(`/admin/treks/${encodeURIComponent(id)}`),
 };
 

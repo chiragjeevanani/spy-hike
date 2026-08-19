@@ -9,6 +9,152 @@ import { provisionDepartures, getDepartures } from '../services/inventoryService
 
 // ─── Public catalog ────────────────────────────────────────────────────────
 
+// Fields only ever read by a detail screen, excluded from list responses. A
+// browse card needs none of them, and together they were most of what remained
+// in the payload once the base64 images were migrated out.
+//
+// Deliberately an exclusion list rather than an inclusion one: a field added to
+// the schema later should show up on cards by default and be removed here
+// consciously, rather than silently vanishing from the UI.
+const TRIP_LIST_EXCLUDE = [
+  'itinerary', 'faqs', 'reviews', 'galleryImages', 'description',
+  'highlights', 'included', 'notIncluded', 'safetyGuidelines', 'cancellationPolicy',
+].map((f) => `-${f}`).join(' ');
+
+// Case-insensitive regex from user input, with special characters neutralised
+// so a search for "C++" can't blow up the query.
+const safeRegex = (s) => new RegExp(String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+// The card fields the grouped browse endpoint returns for the representative
+// offer. Mirrors what an Explore card renders — nothing more.
+const GROUP_CARD_FIELDS = {
+  id: '$_id',
+  name: 1, trekId: 1, location: 1, state: 1, city: 1,
+  coverImage: 1, difficulty: 1, durationDays: 1, distanceKm: 1,
+  price: 1, availableSeats: 1, maxGroupSize: 1, category: 1,
+  rating: 1, reviewsCount: 1, featured: 1, popular: 1,
+  organizer: 1, pickup: 1, departureDates: 1, startPoint: 1,
+};
+
+// GET /trek-groups — one entry per trek, collapsing every organizer's offering
+// of it, with filtering/sorting/paging done in the database.
+//
+// Explore previously fetched the whole catalog and did all of this in the
+// browser, which is why the client asked for limit=100: you cannot page a list
+// you still have to group. Moving it here lets the client request a dozen
+// cards and means the phone never sees offers it won't display.
+export const listTrekGroups = asyncHandler(async (req, res) => {
+  const {
+    page = 1, limit = 12, search, category, difficulty, date, pickupCity,
+    city, state, maxPrice, maxDuration, minSeats, sort = 'Popular',
+  } = req.query;
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const lim = Math.min(50, Math.max(1, Number(limit) || 12));
+
+  // ── Filters on individual offers, applied before grouping ──
+  const offerMatch = { status: 'Published' };
+  if (category && category !== 'All') offerMatch.category = category;
+  if (difficulty && difficulty !== 'All') offerMatch.difficulty = difficulty;
+  if (date) offerMatch.departureDates = date;
+  // Anchored + case-insensitive: the stored value may be "manali" while the
+  // dropdown offers the canonicalised "Manali" (see listPickupCities).
+  if (pickupCity && pickupCity !== 'All') {
+    offerMatch['pickup.location'] = new RegExp(`^${String(pickupCity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  }
+  if (search) {
+    const rx = safeRegex(search);
+    offerMatch.$or = [
+      { name: rx }, { location: rx }, { state: rx }, { city: rx },
+      { category: rx }, { 'startPoint.label': rx }, { 'pickup.location': rx },
+    ];
+  }
+  // A city/state selection matches any of the place fields, mirroring the
+  // client's matchesLocation() which also accepted a pickup or start point.
+  if (city || state) {
+    const rx = safeRegex(city || state);
+    offerMatch.$and = [{
+      $or: [
+        { city: rx }, { state: rx }, { location: rx },
+        { 'startPoint.label': rx }, { 'pickup.location': rx },
+      ],
+    }];
+  }
+
+  // ── Filters that only make sense once offers are grouped ──
+  const groupMatch = {};
+  if (maxPrice) groupMatch.minPrice = { $lte: Number(maxPrice) };
+  if (maxDuration) groupMatch['representative.durationDays'] = { $lte: Number(maxDuration) };
+  if (minSeats) groupMatch['representative.availableSeats'] = { $gte: Number(minSeats) };
+
+  const SORTS = {
+    Popular: { 'representative.reviewsCount': -1 },
+    PriceLowToHigh: { minPrice: 1 },
+    PriceHighToLow: { minPrice: -1 },
+    HighestRated: { 'representative.rating': -1 },
+    Newest: { 'representative.id': -1 },
+  };
+
+  const pipeline = [
+    { $match: offerMatch },
+    // Highest-rated offer wins the card, so sort before $first picks it.
+    { $sort: { rating: -1, reviewsCount: -1, _id: 1 } },
+    {
+      $group: {
+        _id: '$trekId',
+        trekName: { $first: '$name' },
+        representative: { $first: '$$ROOT' },
+        organizerCount: { $sum: 1 },
+        minPrice: { $min: '$price' },
+        maxPrice: { $max: '$price' },
+      },
+    },
+    { $project: { _id: 0, trekName: 1, organizerCount: 1, minPrice: 1, maxPrice: 1, representative: GROUP_CARD_FIELDS } },
+    ...(Object.keys(groupMatch).length ? [{ $match: groupMatch }] : []),
+    { $sort: { ...(SORTS[sort] || SORTS.Popular), trekName: 1 } },
+    { $skip: (pageNum - 1) * lim },
+    // One extra row answers hasMore without a second counting pass.
+    { $limit: lim + 1 },
+  ];
+
+  const rows = await Trip.aggregate(pipeline);
+  const hasMore = rows.length > lim;
+
+  res.json({
+    groups: hasMore ? rows.slice(0, lim) : rows,
+    page: pageNum,
+    limit: lim,
+    hasMore,
+  });
+});
+
+// GET /pickup-cities — every boarding city any published trip departs from.
+// Explore's pickup filter used to derive this from the full catalog it held in
+// memory; now that it only holds one page, the list has to come from the
+// database or the dropdown would only ever show the current page's cities.
+export const listPickupCities = asyncHandler(async (req, res) => {
+  const raw = await Trip.distinct('pickup.location', { status: 'Published' });
+
+  // Organizers type this field freehand, so the same city arrives as "Manali",
+  // "manali" and worse. Fold case-insensitively and present one label per city,
+  // preferring an already-capitalised spelling — otherwise the dropdown lists
+  // the same place three times and the filter matches only one of them.
+  const byLower = new Map();
+  for (const city of raw.filter(Boolean).map((c) => c.trim()).filter(Boolean)) {
+    const key = city.toLowerCase();
+    const existing = byLower.get(key);
+    if (!existing || (/^[A-Z]/.test(city) && !/^[A-Z]/.test(existing))) {
+      byLower.set(key, city);
+    }
+  }
+
+  const cities = [...byLower.values()]
+    .map((c) => (/^[a-z]/.test(c) ? c[0].toUpperCase() + c.slice(1) : c))
+    .sort((a, b) => a.localeCompare(b));
+
+  res.json({ cities });
+});
+
 // GET /trips — published trips only, with optional category/search filters and
 // pagination. Returns { trips, total, page, limit }.
 export const listTrips = asyncHandler(async (req, res) => {
@@ -24,12 +170,27 @@ export const listTrips = asyncHandler(async (req, res) => {
 
   const pageNum = Math.max(1, Number(page) || 1);
   const lim = Math.min(100, Math.max(1, Number(limit) || 50));
-  const [docs, total] = await Promise.all([
-    Trip.find(filter).sort({ featured: -1, rating: -1 }).skip((pageNum - 1) * lim).limit(lim),
-    Trip.countDocuments(filter),
+  // Fetch one extra row to answer "is there another page?" without a second
+  // full countDocuments pass over the collection on every request.
+  const [rows, total] = await Promise.all([
+    Trip.find(filter)
+      .select(TRIP_LIST_EXCLUDE)
+      .sort({ featured: -1, rating: -1 })
+      .skip((pageNum - 1) * lim)
+      .limit(lim + 1),
+    req.query.withTotal === 'true' ? Trip.countDocuments(filter) : Promise.resolve(undefined),
   ]);
 
-  res.json({ trips: docs.map((t) => t.toPublicJSON()), total, page: pageNum, limit: lim });
+  const hasMore = rows.length > lim;
+  const docs = hasMore ? rows.slice(0, lim) : rows;
+
+  res.json({
+    trips: docs.map((t) => t.toPublicJSON()),
+    page: pageNum,
+    limit: lim,
+    hasMore,
+    ...(total !== undefined ? { total } : {}),
+  });
 });
 
 // GET /trips/:id — a single trip (used by the details page). Available

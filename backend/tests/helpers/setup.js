@@ -1,6 +1,7 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { beforeAll, afterAll, afterEach } from 'vitest';
+import { cacheInvalidate, closeCache } from '../../src/lib/cache.js';
 
 /**
  * Single-instance in-memory MongoDB manager.
@@ -22,7 +23,9 @@ beforeAll(async () => {
   }
 });
 
-// Wipe collections between tests to guarantee state isolation
+// Wipe collections between tests to guarantee state isolation. The response
+// cache has to go with them — otherwise a test that warmed an endpoint hands
+// the next test a body built from data that no longer exists.
 afterEach(async () => {
   if (mongoose.connection.readyState !== 0) {
     const { collections } = mongoose.connection;
@@ -30,9 +33,11 @@ afterEach(async () => {
       await collections[key].deleteMany({});
     }
   }
+  await cacheInvalidate('');
 });
 
 afterAll(async () => {
+  await closeCache();
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
   }

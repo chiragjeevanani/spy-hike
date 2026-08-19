@@ -20,7 +20,8 @@
     "express": "^4.21.2",
     "firebase-admin": "^12.7.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.9.5"
+    "mongoose": "^8.9.5",
+    "redis": "^4.7.1"
   },
   "devDependencies": {
     "mongodb-memory-server": "^10.1.3",

@@ -16,16 +16,16 @@ html, body {
 }
 
 /* Restrict text selection and copy, keeping input controls selectable */
-#trekigo-app-viewport {
+#findyourtrek-app-viewport {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
 }
 
-#trekigo-app-viewport input,
-#trekigo-app-viewport textarea,
-#trekigo-app-viewport select {
+#findyourtrek-app-viewport input,
+#findyourtrek-app-viewport textarea,
+#findyourtrek-app-viewport select {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;

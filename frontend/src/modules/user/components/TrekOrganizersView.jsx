@@ -159,6 +159,35 @@ export default function TrekOrganizersView({
 
   const activeFiltersCount = (verifiedOnly ? 1 : 0) + (sortOption !== 'PriceLowToHigh' ? 1 : 0) + (selectedFilterDate ? 1 : 0);
 
+  // No organizer has posted a batch for this trek yet (e.g. a "Coming soon"
+  // catalog trek) — `representative` below would be undefined, so bail out
+  // to a friendly empty state before touching any of its fields.
+  if (offers.length === 0) {
+    return (
+      <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
+        darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'
+      }`}>
+        <div className="absolute top-4 left-4 z-30">
+          <button
+            id="btn-back-to-trek-source"
+            onClick={onBack}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 shadow-md"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+          <span className="text-4xl block mb-3">🚧</span>
+          <h1 className="text-lg font-display font-black leading-snug">{trekName}</h1>
+          <h3 className="text-sm font-display font-bold mt-2">No Organizers Yet</h3>
+          <p className={`text-xs mt-1.5 leading-relaxed max-w-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+            This trek was just added to the catalog — no organizer has posted a batch for it yet. Check back soon!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'

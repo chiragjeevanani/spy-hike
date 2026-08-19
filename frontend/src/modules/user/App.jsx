@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map, AlertTriangle } from 'lucide-react';
 import PhoneFrame from './components/PhoneFrame';
@@ -44,7 +44,8 @@ import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
 import contentApi from '../../lib/contentApi';
-import { getToken } from '../../lib/apiClient';
+import { getToken, clearToken } from '../../lib/apiClient';
+import authApi from '../../lib/authApi';
 import { loadLandingContentLocal } from '../landing/landingContent';
 import { initPushNotifications } from '../../utils/pushNotifications';
 import { requestPushPermission, HikerAlerts } from '../../utils/pushNotificationService';
@@ -612,6 +613,58 @@ export default function App() {
     });
   }, []);
 
+  // TripDetailsView maps straight over these arrays, so they must always be
+  // arrays — a trip opened from a card has none of them until hydration lands
+  // (and never, if that request fails). Guarding here keeps one helper honest
+  // instead of ten call sites in the view.
+  const tripWithDetailDefaults = useMemo(() => {
+    if (!selectedTrip) return selectedTrip;
+    const filled = { ...selectedTrip };
+    for (const key of ['itinerary', 'faqs', 'reviews', 'included', 'notIncluded', 'highlights', 'safetyGuidelines', 'cancellationPolicy']) {
+      if (!Array.isArray(filled[key])) filled[key] = [];
+    }
+    // The cover always exists on a card, so the gallery has something to show
+    // rather than flashing an empty "1 / 0 Photos" carousel mid-hydration.
+    if (!Array.isArray(filled.galleryImages) || filled.galleryImages.length === 0) {
+      filled.galleryImages = filled.coverImage ? [filled.coverImage] : [];
+    }
+    return filled;
+  }, [selectedTrip]);
+
+  // Catalog list responses omit detail-only fields (itinerary, faqs, reviews,
+  // gallery, inclusions) so browsing stays light. A record opened from a card
+  // therefore arrives partial — fetch the full document once the detail screen
+  // is actually on screen. apiClient caches and de-duplicates these, so
+  // re-opening the same trip costs nothing.
+  useEffect(() => {
+    const id = selectedTrip?.id;
+    if (!id || selectedTrip.itinerary !== undefined) return undefined;
+    let cancelled = false;
+    tripsApi.getTrip(id)
+      .then((full) => {
+        if (cancelled || !full) return;
+        setSelectedTrip((prev) => (prev?.id === id ? { ...prev, ...full } : prev));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedTrip?.id, selectedTrip?.itinerary]);
+
+  // Same for the trek detail screen, which reads from the projected catalog.
+  const [hydratedTrek, setHydratedTrek] = useState(null);
+  useEffect(() => {
+    if (!selectedTrekName) { setHydratedTrek(null); return undefined; }
+    const match = catalogTreks.find(
+      ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName)
+    );
+    if (!match) { setHydratedTrek(null); return undefined; }
+    if (match.itinerary !== undefined) { setHydratedTrek(match); return undefined; }
+    let cancelled = false;
+    treksApi.getTrek(match.id)
+      .then((full) => { if (!cancelled && full) setHydratedTrek(full); })
+      .catch(() => { if (!cancelled) setHydratedTrek(match); });
+    return () => { cancelled = true; };
+  }, [selectedTrekName, catalogTreks]);
+
   useEffect(() => {
     const handleStatusChangeEvent = (e) => {
       const reason = e.detail?.reason || 'banned';
@@ -621,6 +674,21 @@ export default function App() {
     };
     window.addEventListener('hiker-status-changed', handleStatusChangeEvent);
     return () => window.removeEventListener('hiker-status-changed', handleStatusChangeEvent);
+  }, []);
+
+  // The stored JWT was rejected (expired, or signed with a different secret).
+  // apiClient has already dropped it; end the local session too so the user
+  // lands on login instead of a zombie "signed in" state where every authed
+  // call 401s.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      if (!loadUserState().isAuthenticated) return;
+      setBannedReason('expired');
+      handleLogoutResets();
+      setBannedAlert(true);
+    };
+    window.addEventListener('auth-session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth-session-expired', handleSessionExpired);
   }, []);
 
   useEffect(() => {
@@ -805,6 +873,9 @@ export default function App() {
 
   // Logout session resets
   const handleLogoutResets = () => {
+    // Drop the JWT too — leaving it behind means the next sign-in carries a
+    // stale token, and any authed call made before re-login 401s.
+    clearToken();
     const resetUser = {
       isAuthenticated: false,
       isOnboarded: true, // Keep onboarding done — logout should land on the login screen, not the onboarding carousel
@@ -838,7 +909,9 @@ export default function App() {
     // Optimistic local update (immediate UX + offline path).
     const updatedTrips = trips.map(item => {
       if (item.id === tripId) {
-        const updatedReviewsList = [newRatingReview, ...item.reviews];
+        // `reviews` is absent on catalog list records — it only ships on the
+        // single-trip detail response.
+        const updatedReviewsList = [newRatingReview, ...(item.reviews || [])];
         const totalRatingPoints = updatedReviewsList.reduce((acc, r) => acc + r.rating, 0);
         const newAveragedRating = Math.round((totalRatingPoints / updatedReviewsList.length) * 10) / 10;
         return { ...item, reviews: updatedReviewsList, reviewsCount: updatedReviewsList.length, rating: newAveragedRating };
@@ -851,8 +924,14 @@ export default function App() {
     // refresh the catalog so the averaged rating reflects the server.
     if (getToken() && bookingId) {
       socialApi.createReview(bookingId, { rating, comment })
-        .then(() => tripsApi.listTrips({ limit: 100 }))
-        .then((apiTrips) => { if (Array.isArray(apiTrips) && apiTrips.length) setTrips(apiTrips); })
+        .then(() => Promise.all([
+          tripsApi.listTrips({ limit: 100 }),
+          socialApi.listMyReviews().catch(() => null),
+        ]))
+        .then(([apiTrips, myReviews]) => {
+          if (Array.isArray(apiTrips) && apiTrips.length) setTrips(apiTrips);
+          if (Array.isArray(myReviews)) setUserReviews(myReviews);
+        })
         .catch(() => {});
     }
   };
@@ -991,24 +1070,21 @@ export default function App() {
     }
   }, []);
 
-  // Gather user drafted comments metadata
-  const getUserDraftedReviews = () => {
-    const list = [];
-    trips.forEach(t => {
-      t.reviews.forEach(r => {
-        if (r.userName === user.name) {
-          list.push({
-            tripId: t.id,
-            tripName: t.name,
-            rating: r.rating,
-            comment: r.comment,
-            date: r.date
-          });
-        }
-      });
-    });
-    return list;
-  };
+  // The customer's own reviews, fetched from the server.
+  //
+  // This used to scan every trip's embedded `reviews[]` for one whose
+  // userName matched the signed-in user. That broke once list responses
+  // stopped shipping `reviews` — and it was already wrong, since two
+  // customers sharing a display name saw each other's reviews.
+  const [userReviews, setUserReviews] = useState([]);
+  useEffect(() => {
+    if (!user.isAuthenticated || !getToken()) { setUserReviews([]); return undefined; }
+    let cancelled = false;
+    socialApi.listMyReviews()
+      .then((list) => { if (!cancelled) setUserReviews(Array.isArray(list) ? list : []); })
+      .catch(() => { if (!cancelled) setUserReviews([]); });
+    return () => { cancelled = true; };
+  }, [user.isAuthenticated, user.email]);
 
   // Global toggle theme function
   const handleToggleDarkMode = () => {
@@ -1103,7 +1179,7 @@ export default function App() {
             onLogout={handleLogoutResets}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
-            userReviews={getUserDraftedReviews()}
+            userReviews={userReviews}
             onTriggerOnboarding={handleTriggerOnboardingWalkthrough}
             bookings={bookings}
             onFullscreenChange={setNavHidden}
@@ -1176,7 +1252,8 @@ export default function App() {
               >
                 <TrekDetailsView
                   trek={
-                    catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
+                    hydratedTrek
+                    || catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
                     || trips.find(t => t.name === selectedTrekName)
                   }
                   offers={trips.filter(t => t.name === selectedTrekName)}
@@ -1228,7 +1305,7 @@ export default function App() {
                 className={`absolute inset-0 z-50 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TripDetailsView
-                  trip={selectedTrip}
+                  trip={tripWithDetailDefaults}
                   onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
@@ -1256,6 +1333,7 @@ export default function App() {
                    trip={activeBookingTrip}
                    onCancel={() => { if (window.history.state) { window.history.back(); } else { navigateTo(selectedTrip ? `/trip/${selectedTrip.id}` : '/explore'); } }}
                    onConfirmBooking={handleFinalizeBookingSetup}
+                   onGoHome={() => navigateTo('/')}
                    darkMode={darkMode}
                  />
                </motion.div>
@@ -1447,14 +1525,20 @@ export default function App() {
                   </div>
                   <div className="space-y-1">
                     <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
-                      {bannedReason === 'deleted' ? 'Account Deleted' : bannedReason === 'deactivated' ? 'Account Deactivated' : 'Account Suspended'}
+                      {bannedReason === 'expired'
+                        ? 'Session Expired'
+                        : bannedReason === 'deleted'
+                          ? 'Account Deleted'
+                          : bannedReason === 'deactivated' ? 'Account Deactivated' : 'Account Suspended'}
                     </h4>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
-                      {bannedReason === 'deleted'
-                        ? 'Your account has been deleted by the admin.'
-                        : bannedReason === 'deactivated'
-                          ? 'Your account is deactivated. Kindly contact customer support for more details.'
-                          : 'You are banned by the admin.'}
+                      {bannedReason === 'expired'
+                        ? 'Your sign-in session has expired. Please sign in again to continue.'
+                        : bannedReason === 'deleted'
+                          ? 'Your account has been deleted by the admin.'
+                          : bannedReason === 'deactivated'
+                            ? 'Your account is deactivated. Kindly contact customer support for more details.'
+                            : 'You are banned by the admin.'}
                     </p>
                   </div>
 

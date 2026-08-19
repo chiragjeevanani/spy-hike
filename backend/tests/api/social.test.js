@@ -82,6 +82,42 @@ describe('Reviews', () => {
     expect(tripAfter.body.trip.reviews[0].comment).toBe('Epic!');
   });
 
+  it('returns the caller their own reviews, with the trip name attached', async () => {
+    const org = await approvedOrganizerToken();
+    const { token } = await customerToken();
+    const trip = await makeTrip(org);
+    const booking = await makeBooking(token, trip.id);
+    await request(app).post(`/api/v1/bookings/${booking.bookingId}/review`)
+      .set('Authorization', `Bearer ${token}`).send({ rating: 5, comment: 'Epic!' });
+
+    const mine = await request(app).get('/api/v1/reviews/mine').set('Authorization', `Bearer ${token}`);
+    expect(mine.status).toBe(200);
+    expect(mine.body.reviews).toHaveLength(1);
+    expect(mine.body.reviews[0].comment).toBe('Epic!');
+    expect(mine.body.reviews[0].tripId).toBe(trip.id);
+    expect(mine.body.reviews[0].tripName).toBe(trip.name);
+  });
+
+  it("never returns another customer's reviews, even to a same-named user", async () => {
+    const org = await approvedOrganizerToken();
+    const a = await customerToken('a@example.com');
+    const b = await customerToken('b@example.com');
+    const trip = await makeTrip(org);
+    const booking = await makeBooking(a.token, trip.id);
+    await request(app).post(`/api/v1/bookings/${booking.bookingId}/review`)
+      .set('Authorization', `Bearer ${a.token}`).send({ rating: 5, comment: 'Mine alone' });
+
+    // The old client-side version matched on display name, so these two
+    // fixtures — which share a name — saw each other's reviews.
+    const mine = await request(app).get('/api/v1/reviews/mine').set('Authorization', `Bearer ${b.token}`);
+    expect(mine.body.reviews).toEqual([]);
+  });
+
+  it('requires authentication', async () => {
+    const res = await request(app).get('/api/v1/reviews/mine');
+    expect(res.status).toBe(401);
+  });
+
   it('rejects a second review of the same booking (409)', async () => {
     const org = await approvedOrganizerToken();
     const { token } = await customerToken();

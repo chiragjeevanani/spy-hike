@@ -54,13 +54,14 @@ const book = (custToken, body) =>
   request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${custToken}`).send(body);
 
 describe('Booking creation & pricing', () => {
-  it('computes tiered pricing + pickup add-on + tax + commission and snapshots them', async () => {
+  it('computes tiered pricing + commission and snapshots them', async () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org);
 
-    // 2 Solo: perPerson = 1000 + 100 pickup = 1100; base = 2200.
-    // tax = 5% of 2200 = 110; final = 2310; commission 10% = 231; payout 2079.
+    // 2 Solo @ 1000 = 2000. pickup.price is the per-person price *from* Manali,
+    // not a surcharge on top of the tier, so it is NOT added again. Prices are
+    // tax-inclusive, so final == base; commission 10% = 200; payout 1800.
     const res = await book(cust, {
       tripId: trip.id,
       selectedDate: '2026-08-01',
@@ -70,12 +71,12 @@ describe('Booking creation & pricing', () => {
     expect(res.status).toBe(201);
     const b = res.body.booking;
     expect(b.travelersCount).toBe(2);
-    expect(b.baseCost).toBe(2200);
-    expect(b.taxAmount).toBe(110);
-    expect(b.finalAmount).toBe(2310);
+    expect(b.baseCost).toBe(2000);
+    expect(b.taxAmount).toBe(0);
+    expect(b.finalAmount).toBe(2000);
     expect(b.commissionRate).toBe(10);
-    expect(b.commissionAmount).toBe(231);
-    expect(b.organizerPayout).toBe(2079);
+    expect(b.commissionAmount).toBe(200);
+    expect(b.organizerPayout).toBe(1800);
     expect(b.bookingId).toMatch(/^TG-\d{4}-[A-Z]$/);
   });
 
@@ -90,10 +91,10 @@ describe('Booking creation & pricing', () => {
       selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
       couponCode: 'SAVE10',
     });
-    // base = 1100; discount 10% = 110; taxable 990; tax 49.5; final 1039.5.
+    // base = 1000; discount 10% = 100; final = 900 (tax-inclusive).
     expect(res.body.booking.couponUsed).toBe('SAVE10');
-    expect(res.body.booking.couponDiscount).toBe(110);
-    expect(res.body.booking.finalAmount).toBe(1039.5);
+    expect(res.body.booking.couponDiscount).toBe(100);
+    expect(res.body.booking.finalAmount).toBe(900);
     const coupon = await Coupon.findById('cp-x');
     expect(coupon.usedCount).toBe(1);
   });

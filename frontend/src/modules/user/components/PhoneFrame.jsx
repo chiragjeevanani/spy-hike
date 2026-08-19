@@ -13,7 +13,7 @@ export default function PhoneFrame({ children, darkMode, onToggleDarkMode }) {
       )}
 
       <div 
-        id="trekigo-app-viewport"
+        id="findyourtrek-app-viewport"
         className={`relative w-full h-screen md:max-w-[400px] md:shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
           darkMode 
             ? 'bg-elegant-app text-white shadow-[#050807]/90' 

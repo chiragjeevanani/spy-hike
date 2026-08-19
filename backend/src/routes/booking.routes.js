@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createBooking, listMyBookings, getMyBooking, cancelBooking } from '../controllers/bookingController.js';
-import { createReview } from '../controllers/reviewController.js';
+import { createReview, listMyReviews } from '../controllers/reviewController.js';
 import { getWishlist, setWishlist } from '../controllers/wishlistController.js';
 import {
   listCustomerNotifications, markCustomerNotificationRead, markAllCustomerNotificationsRead,
@@ -23,6 +23,7 @@ router.get('/bookings', ...customerOnly, listMyBookings);
 router.get('/bookings/:id', ...customerOnly, getMyBooking);
 router.post('/bookings/:id/cancel', ...customerOnly, cancelBooking);
 router.post('/bookings/:bookingId/review', ...customerOnly, createReview);
+router.get('/reviews/mine', ...customerOnly, listMyReviews);
 
 router.get('/wishlist', ...customerOnly, getWishlist);
 router.put('/wishlist', ...customerOnly, setWishlist);

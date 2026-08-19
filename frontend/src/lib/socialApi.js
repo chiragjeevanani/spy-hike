@@ -16,6 +16,8 @@ export const socialApi = {
   createReview: (bookingId, payload) =>
     api.post(`/bookings/${encodeURIComponent(bookingId)}/review`, payload).then((r) => r.review),
   listTripReviews: (tripId) => api.get(`/trips/${encodeURIComponent(tripId)}/reviews`, { auth: false }).then((r) => r.reviews),
+  // The signed-in customer's own reviews, each with the trip name attached.
+  listMyReviews: () => api.get('/reviews/mine').then((r) => r.reviews),
 
   // ─── Notifications (customer) ───
   getNotifications: () => api.get('/notifications').then((r) => r.notifications),

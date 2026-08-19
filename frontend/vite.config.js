@@ -26,5 +26,13 @@ export default defineConfig(() => {
     build: {
       chunkSizeWarningLimit: 2000,
     },
+    // Unit tests live beside their source in src/. `e2e/` is Playwright's and
+    // must stay out of vitest's reach — those specs use Playwright's own
+    // `test.use()` API and fail to even collect under vitest.
+    test: {
+      include: ['src/**/*.{test,spec}.{js,jsx}'],
+      exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+      environment: 'node',
+    },
   };
 });
