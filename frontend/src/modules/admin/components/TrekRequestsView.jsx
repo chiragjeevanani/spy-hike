@@ -6,6 +6,7 @@ import trekRequestsApi from '../../../lib/trekRequestsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { durationRange, distanceRange } from '../../../utils/rangeFormat';
 
 import { compressImage } from '../../../utils/imageCompressor';
 import { AdminSkeletonCard } from './AdminSkeleton';
@@ -28,7 +29,7 @@ export default function TrekRequestsView({ darkMode }) {
   const [rejectNote, setRejectNote] = useState('');
   const toast = useToast();
   const fieldRefs = useRef({});
-  const FIELD_ORDER = ['title', 'location', 'durationDays', 'distanceKm', 'coverImage'];
+  const FIELD_ORDER = ['title', 'location', 'durationDays', 'durationDaysMax', 'distanceKm', 'distanceKmMax', 'coverImage'];
 
   const refresh = () => {
     setLoading(true);
@@ -45,7 +46,9 @@ export default function TrekRequestsView({ darkMode }) {
   const openEdit = (request) => {
     setForm({
       title: request.title, location: request.location, state: request.state || '', city: request.city || '',
-      difficulty: request.difficulty, durationDays: String(request.durationDays), distanceKm: String(request.distanceKm),
+      difficulty: request.difficulty,
+      durationDays: String(request.durationDays ?? ''), durationDaysMax: String(request.durationDaysMax ?? ''),
+      distanceKm: String(request.distanceKm ?? ''), distanceKmMax: String(request.distanceKmMax ?? ''),
       elevationMeters: request.elevationMeters ? String(request.elevationMeters) : '',
       coverImage: request.coverImage, category: request.category || '', description: request.description || '',
     });
@@ -83,8 +86,10 @@ export default function TrekRequestsView({ darkMode }) {
     const errors = {};
     if (!form.title.trim()) errors.title = 'Title is required.';
     if (!form.location.trim()) errors.location = 'Location is required.';
-    if (!form.durationDays || Number(form.durationDays) <= 0) errors.durationDays = 'Duration (days) must be greater than 0.';
-    if (!form.distanceKm || Number(form.distanceKm) < 0) errors.distanceKm = 'Distance (km) is required.';
+    if (!form.durationDays || Number(form.durationDays) <= 0) errors.durationDays = 'Min duration (days) must be greater than 0.';
+    else if (form.durationDaysMax && Number(form.durationDaysMax) < Number(form.durationDays)) errors.durationDaysMax = 'Max duration cannot be less than min duration.';
+    if (!form.distanceKm || Number(form.distanceKm) < 0) errors.distanceKm = 'Min distance (km) is required.';
+    else if (form.distanceKmMax && Number(form.distanceKmMax) < Number(form.distanceKm)) errors.distanceKmMax = 'Max distance cannot be less than min distance.';
     if (!form.coverImage) errors.coverImage = 'A cover image is required.';
 
     if (Object.keys(errors).length > 0) {
@@ -101,7 +106,9 @@ export default function TrekRequestsView({ darkMode }) {
     try {
       const updated = await trekRequestsApi.update(editingRequest.id, {
         title: form.title.trim(), location: form.location.trim(), state: form.state.trim(), city: form.city.trim(),
-        difficulty: form.difficulty, durationDays: Number(form.durationDays), distanceKm: Number(form.distanceKm),
+        difficulty: form.difficulty,
+        durationDays: Number(form.durationDays), durationDaysMax: form.durationDaysMax ? Number(form.durationDaysMax) : null,
+        distanceKm: Number(form.distanceKm), distanceKmMax: form.distanceKmMax ? Number(form.distanceKmMax) : null,
         elevationMeters: form.elevationMeters ? Number(form.elevationMeters) : 0,
         coverImage: form.coverImage, category: form.category.trim(), description: form.description.trim(),
       });
@@ -213,8 +220,8 @@ export default function TrekRequestsView({ darkMode }) {
                     <MapPin size={11} /> {r.location}
                   </span>
                   <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 mt-2">
-                    <span className="flex items-center gap-1"><Clock size={11} /> {r.durationDays}D</span>
-                    <span className="flex items-center gap-1"><Route size={11} /> {r.distanceKm}km</span>
+                    <span className="flex items-center gap-1"><Clock size={11} /> {durationRange(r)}D</span>
+                    <span className="flex items-center gap-1"><Route size={11} /> {distanceRange(r)}km</span>
                   </div>
                   <div className={`mt-3 pt-3 border-t text-[10px] font-semibold space-y-1 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                     <span className="flex items-center gap-1.5 text-slate-500"><User size={11} /> {r.requestedByName || 'Organizer'}</span>
@@ -325,27 +332,52 @@ export default function TrekRequestsView({ darkMode }) {
                   ))}
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <label className={labelCls}>Duration range (days) *</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={el => { fieldRefs.current.durationDays = { current: el }; }}
+                      type="number" min="1" placeholder="5" value={form.durationDays}
+                      onChange={(e) => { setForm(f => ({ ...f, durationDays: e.target.value })); setFieldErrors(er => ({ ...er, durationDays: '', durationDaysMax: '' })); }}
+                      className={`${inputCls} ${fieldErrors.durationDays ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    />
+                    <span className={`text-xs font-bold shrink-0 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>to</span>
+                    <input
+                      ref={el => { fieldRefs.current.durationDaysMax = { current: el }; }}
+                      type="number" min="1" placeholder="6" value={form.durationDaysMax}
+                      onChange={(e) => { setForm(f => ({ ...f, durationDaysMax: e.target.value })); setFieldErrors(er => ({ ...er, durationDaysMax: '' })); }}
+                      className={`${inputCls} ${fieldErrors.durationDaysMax ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    />
+                  </div>
+                  {(fieldErrors.durationDays || fieldErrors.durationDaysMax)
+                    ? <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.durationDays || fieldErrors.durationDaysMax}</p>
+                    : <p className={`text-[10px] mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Leave "to" blank for an exact duration.</p>}
+                </div>
+                <div className="min-w-0">
+                  <label className={labelCls}>Distance range (km) *</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={el => { fieldRefs.current.distanceKm = { current: el }; }}
+                      type="number" min="0" placeholder="20" value={form.distanceKm}
+                      onChange={(e) => { setForm(f => ({ ...f, distanceKm: e.target.value })); setFieldErrors(er => ({ ...er, distanceKm: '', distanceKmMax: '' })); }}
+                      className={`${inputCls} ${fieldErrors.distanceKm ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    />
+                    <span className={`text-xs font-bold shrink-0 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>to</span>
+                    <input
+                      ref={el => { fieldRefs.current.distanceKmMax = { current: el }; }}
+                      type="number" min="0" placeholder="23" value={form.distanceKmMax}
+                      onChange={(e) => { setForm(f => ({ ...f, distanceKmMax: e.target.value })); setFieldErrors(er => ({ ...er, distanceKmMax: '' })); }}
+                      className={`${inputCls} ${fieldErrors.distanceKmMax ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                    />
+                  </div>
+                  {(fieldErrors.distanceKm || fieldErrors.distanceKmMax)
+                    ? <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.distanceKm || fieldErrors.distanceKmMax}</p>
+                    : <p className={`text-[10px] mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Leave "to" blank for an exact distance.</p>}
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
-                <div className="min-w-0">
-                  <label className={labelCls}>Duration (days) *</label>
-                  <input
-                    ref={el => { fieldRefs.current.durationDays = { current: el }; }}
-                    type="number" min="1" value={form.durationDays}
-                    onChange={(e) => { setForm(f => ({ ...f, durationDays: e.target.value })); setFieldErrors(er => ({ ...er, durationDays: '' })); }}
-                    className={`${inputCls} ${fieldErrors.durationDays ? 'border-rose-500 focus:border-rose-500' : ''}`}
-                  />
-                  {fieldErrors.durationDays && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.durationDays}</p>}
-                </div>
-                <div className="min-w-0">
-                  <label className={labelCls}>Distance (km) *</label>
-                  <input
-                    ref={el => { fieldRefs.current.distanceKm = { current: el }; }}
-                    type="number" min="0" value={form.distanceKm}
-                    onChange={(e) => { setForm(f => ({ ...f, distanceKm: e.target.value })); setFieldErrors(er => ({ ...er, distanceKm: '' })); }}
-                    className={`${inputCls} ${fieldErrors.distanceKm ? 'border-rose-500 focus:border-rose-500' : ''}`}
-                  />
-                  {fieldErrors.distanceKm && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.distanceKm}</p>}
-                </div>
                 <div className="min-w-0">
                   <label className={labelCls}>Elevation (m)</label>
                   <input type="number" min="0" value={form.elevationMeters} onChange={(e) => setForm(f => ({ ...f, elevationMeters: e.target.value }))} className={inputCls} />

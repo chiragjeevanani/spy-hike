@@ -11,6 +11,7 @@ import AppLogo from '../../components/AppLogo';
 import { HIKING_TRIPS, CATEGORIES_LIST } from '../user/data/trips';
 import { mergeLandingContent, resolveIcon } from './landingContent';
 import tripsApi from '../../lib/tripsApi';
+import { durationRange } from '../../utils/rangeFormat';
 
 export default function LandingView({ content, darkMode, onToggleDarkMode, onLaunchApp, onLaunchOrganizer, onLaunchAdmin }) {
   // All copy/lists come from the admin-managed CMS content, deep-merged over
@@ -674,7 +675,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
                         <div className="px-2 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-bold text-white flex items-center gap-1">
                           <Clock className="w-2.5 h-2.5" />
-                          {trip.durationDays} Days
+                          {durationRange(trip)} Days
                         </div>
                         <div className="px-2 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-bold text-white flex items-center gap-1">
                           <Users className="w-2.5 h-2.5" />

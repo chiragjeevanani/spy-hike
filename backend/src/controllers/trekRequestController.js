@@ -3,7 +3,7 @@ import Trek from '../models/Trek.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify } from '../utils/slug.js';
-import { validateTrekFields } from '../utils/trekValidation.js';
+import { validateTrekFields, normalizeRangeMax } from '../utils/trekValidation.js';
 
 // ─── Organizer ───────────────────────────────────────────────────────────────
 
@@ -12,7 +12,10 @@ import { validateTrekFields } from '../utils/trekValidation.js';
 // nothing is added to the live /treks catalog until an admin approves it.
 export const createTrekRequest = asyncHandler(async (req, res) => {
   validateTrekFields(req.body);
-  const { title, location, state, city, difficulty, durationDays, distanceKm, elevationMeters, coverImage, category, description } = req.body;
+  const {
+    title, location, state, city, difficulty, durationDays, durationDaysMax,
+    distanceKm, distanceKmMax, elevationMeters, coverImage, category, description,
+  } = req.body;
 
   const request = await TrekRequest.create({
     _id: `treq-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
@@ -22,7 +25,9 @@ export const createTrekRequest = asyncHandler(async (req, res) => {
     city: (city || '').trim(),
     difficulty,
     durationDays: Number(durationDays),
+    durationDaysMax: normalizeRangeMax(durationDaysMax, durationDays),
     distanceKm: Number(distanceKm),
+    distanceKmMax: normalizeRangeMax(distanceKmMax, distanceKm),
     elevationMeters: Number(elevationMeters) || 0,
     coverImage,
     category: category || '',
@@ -65,7 +70,9 @@ export const adminUpdateTrekRequest = asyncHandler(async (req, res) => {
     location: f.location !== undefined ? f.location : request.location,
     difficulty: f.difficulty !== undefined ? f.difficulty : request.difficulty,
     durationDays: f.durationDays !== undefined ? f.durationDays : request.durationDays,
+    durationDaysMax: f.durationDaysMax !== undefined ? f.durationDaysMax : request.durationDaysMax,
     distanceKm: f.distanceKm !== undefined ? f.distanceKm : request.distanceKm,
+    distanceKmMax: f.distanceKmMax !== undefined ? f.distanceKmMax : request.distanceKmMax,
     coverImage: f.coverImage !== undefined ? f.coverImage : request.coverImage,
   };
   validateTrekFields(merged);
@@ -77,6 +84,16 @@ export const adminUpdateTrekRequest = asyncHandler(async (req, res) => {
   if (f.difficulty !== undefined) request.difficulty = f.difficulty;
   if (f.durationDays !== undefined) request.durationDays = Number(f.durationDays);
   if (f.distanceKm !== undefined) request.distanceKm = Number(f.distanceKm);
+  // Same collapse-to-null rule as updateTrek: a max that no longer exceeds the
+  // min means the request is back to a single exact number.
+  if (f.durationDaysMax !== undefined || f.durationDays !== undefined) {
+    const max = f.durationDaysMax !== undefined ? f.durationDaysMax : request.durationDaysMax;
+    request.durationDaysMax = normalizeRangeMax(max, request.durationDays);
+  }
+  if (f.distanceKmMax !== undefined || f.distanceKm !== undefined) {
+    const max = f.distanceKmMax !== undefined ? f.distanceKmMax : request.distanceKmMax;
+    request.distanceKmMax = normalizeRangeMax(max, request.distanceKm);
+  }
   if (f.elevationMeters !== undefined) request.elevationMeters = Number(f.elevationMeters) || 0;
   if (f.coverImage !== undefined) request.coverImage = f.coverImage;
   if (f.category !== undefined) request.category = f.category;
@@ -123,7 +140,9 @@ export const adminSetTrekRequestStatus = asyncHandler(async (req, res) => {
     city: request.city,
     difficulty: request.difficulty,
     durationDays: request.durationDays,
+    durationDaysMax: request.durationDaysMax,
     distanceKm: request.distanceKm,
+    distanceKmMax: request.distanceKmMax,
     elevationMeters: request.elevationMeters,
     coverImage: request.coverImage,
     category: request.category,

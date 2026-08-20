@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Star, ShieldCheck, MapPin, Award, Compass, Heart, Users, ChevronRight, BookOpen, Image as ImageIcon, Phone, Mail, Globe } from 'lucide-react';
 import authApi from '../../../lib/authApi';
+import { durationRange } from '../../../utils/rangeFormat';
 
 export default function OrganizerProfileView({
   organizer: initialOrganizer,
@@ -305,7 +306,7 @@ export default function OrganizerProfileView({
                           <div className="flex items-center gap-1.5 shrink-0 pl-2">
                             <div className="text-right">
                               <span className="text-[11.5px] font-extrabold text-[#F27D26] block">₹{trip.price}</span>
-                              <span className="text-[8px] opacity-50 block">{trip.durationDays} Days</span>
+                              <span className="text-[8px] opacity-50 block">{durationRange(trip)} Days</span>
                             </div>
                             <ChevronRight size={14} className="opacity-40" />
                           </div>

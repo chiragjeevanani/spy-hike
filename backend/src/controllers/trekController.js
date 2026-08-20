@@ -3,7 +3,7 @@ import Trip from '../models/Trip.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify } from '../utils/slug.js';
-import { validateTrekFields } from '../utils/trekValidation.js';
+import { validateTrekFields, normalizeRangeMax } from '../utils/trekValidation.js';
 
 // ─── Public ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,8 @@ export const createTrek = asyncHandler(async (req, res) => {
   validateTrekFields(req.body);
   const {
     title, location, startingPoint, state, city, difficulty, durationDays,
-    distanceKm, elevationMeters, coverImage, galleryImages, category, description,
+    durationDaysMax, distanceKm, distanceKmMax, elevationMeters, coverImage,
+    galleryImages, category, description,
     itinerary, thingsToCarry, included, notIncluded, highlights, trending
   } = req.body;
 
@@ -79,7 +80,9 @@ export const createTrek = asyncHandler(async (req, res) => {
     city: (city || '').trim(),
     difficulty,
     durationDays: Number(durationDays),
+    durationDaysMax: normalizeRangeMax(durationDaysMax, durationDays),
     distanceKm: Number(distanceKm),
+    distanceKmMax: normalizeRangeMax(distanceKmMax, distanceKm),
     elevationMeters: Number(elevationMeters) || 0,
     coverImage,
     galleryImages: Array.isArray(galleryImages) ? galleryImages : [],
@@ -106,7 +109,9 @@ export const updateTrek = asyncHandler(async (req, res) => {
     location: f.location !== undefined ? f.location : trek.location,
     difficulty: f.difficulty !== undefined ? f.difficulty : trek.difficulty,
     durationDays: f.durationDays !== undefined ? f.durationDays : trek.durationDays,
+    durationDaysMax: f.durationDaysMax !== undefined ? f.durationDaysMax : trek.durationDaysMax,
     distanceKm: f.distanceKm !== undefined ? f.distanceKm : trek.distanceKm,
+    distanceKmMax: f.distanceKmMax !== undefined ? f.distanceKmMax : trek.distanceKmMax,
     coverImage: f.coverImage !== undefined ? f.coverImage : trek.coverImage,
   };
   validateTrekFields(merged);
@@ -119,6 +124,16 @@ export const updateTrek = asyncHandler(async (req, res) => {
   if (f.difficulty !== undefined) trek.difficulty = f.difficulty;
   if (f.durationDays !== undefined) trek.durationDays = Number(f.durationDays);
   if (f.distanceKm !== undefined) trek.distanceKm = Number(f.distanceKm);
+  // Re-normalise against the *new* low end: a max that no longer exceeds the min
+  // collapses back to null, i.e. "this trek is a single exact number" again.
+  if (f.durationDaysMax !== undefined || f.durationDays !== undefined) {
+    const max = f.durationDaysMax !== undefined ? f.durationDaysMax : trek.durationDaysMax;
+    trek.durationDaysMax = normalizeRangeMax(max, trek.durationDays);
+  }
+  if (f.distanceKmMax !== undefined || f.distanceKm !== undefined) {
+    const max = f.distanceKmMax !== undefined ? f.distanceKmMax : trek.distanceKmMax;
+    trek.distanceKmMax = normalizeRangeMax(max, trek.distanceKm);
+  }
   if (f.elevationMeters !== undefined) trek.elevationMeters = Number(f.elevationMeters) || 0;
   if (f.coverImage !== undefined) trek.coverImage = f.coverImage;
   if (f.galleryImages !== undefined) trek.galleryImages = Array.isArray(f.galleryImages) ? f.galleryImages : [];
@@ -147,7 +162,9 @@ export const updateTrek = asyncHandler(async (req, res) => {
         city: trek.city,
         difficulty: trek.difficulty,
         durationDays: trek.durationDays,
+        durationDaysMax: trek.durationDaysMax,
         distanceKm: trek.distanceKm,
+        distanceKmMax: trek.distanceKmMax,
         elevationMeters: trek.elevationMeters,
         coverImage: trek.coverImage,
       },

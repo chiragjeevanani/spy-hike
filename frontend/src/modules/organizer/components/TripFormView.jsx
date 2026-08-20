@@ -8,6 +8,7 @@ import treksApi from '../../../lib/treksApi';
 import trekRequestsApi from '../../../lib/trekRequestsApi';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { durationRange, distanceRange } from '../../../utils/rangeFormat';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
@@ -189,9 +190,16 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const reqTitleRef = useRef(null);
   const reqLocationRef = useRef(null);
   const reqDurationRef = useRef(null);
+  const reqDurationMaxRef = useRef(null);
   const reqDistanceRef = useRef(null);
+  const reqDistanceMaxRef = useRef(null);
   const reqCoverImageRef = useRef(null);
-  const reqFieldRefs = { title: reqTitleRef, location: reqLocationRef, durationDays: reqDurationRef, distanceKm: reqDistanceRef, coverImage: reqCoverImageRef };
+  const reqFieldRefs = {
+    title: reqTitleRef, location: reqLocationRef,
+    durationDays: reqDurationRef, durationDaysMax: reqDurationMaxRef,
+    distanceKm: reqDistanceRef, distanceKmMax: reqDistanceMaxRef,
+    coverImage: reqCoverImageRef,
+  };
 
   // Scrolls the (shared, cross-section) scrollable body back to the top so a
   // validation error banner rendered at the top of a section is never left
@@ -218,7 +226,9 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   // an existing listing still shows something sensible.
   const selectedTrek = treks.find(t => t.id === form.trekId) || (trip && trip.trekId === form.trekId ? {
     id: trip.trekId, title: trip.name, location: trip.location, state: trip.state, city: trip.city,
-    difficulty: trip.difficulty, durationDays: trip.durationDays, distanceKm: trip.distanceKm,
+    difficulty: trip.difficulty,
+    durationDays: trip.durationDays, durationDaysMax: trip.durationDaysMax,
+    distanceKm: trip.distanceKm, distanceKmMax: trip.distanceKmMax,
     elevationMeters: trip.elevationMeters, coverImage: trip.coverImage,
   } : null);
 
@@ -228,7 +238,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const [requestingTrek, setRequestingTrek] = useState(false);
   const [requestForm, setRequestForm] = useState({
     title: '', location: '', state: '', city: '',
-    difficulty: 'Moderate', durationDays: '', distanceKm: '', elevationMeters: '',
+    difficulty: 'Moderate', durationDays: '', durationDaysMax: '', distanceKm: '', distanceKmMax: '', elevationMeters: '',
     coverImage: '', category: '', description: '',
   });
   const [requestImageTab, setRequestImageTab] = useState('upload');
@@ -259,12 +269,14 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     const errs = {};
     if (!requestForm.title.trim()) errs.title = 'Title is required.';
     if (!requestForm.location.trim()) errs.location = 'Location is required.';
-    if (!requestForm.durationDays || Number(requestForm.durationDays) <= 0) errs.durationDays = 'Duration (days) must be greater than 0.';
-    if (!requestForm.distanceKm || Number(requestForm.distanceKm) < 0) errs.distanceKm = 'Distance (km) is required.';
+    if (!requestForm.durationDays || Number(requestForm.durationDays) <= 0) errs.durationDays = 'Min duration (days) must be greater than 0.';
+    else if (requestForm.durationDaysMax && Number(requestForm.durationDaysMax) < Number(requestForm.durationDays)) errs.durationDaysMax = 'Max duration cannot be less than min duration.';
+    if (!requestForm.distanceKm || Number(requestForm.distanceKm) < 0) errs.distanceKm = 'Min distance (km) is required.';
+    else if (requestForm.distanceKmMax && Number(requestForm.distanceKmMax) < Number(requestForm.distanceKm)) errs.distanceKmMax = 'Max distance cannot be less than min distance.';
     if (!requestForm.coverImage) errs.coverImage = 'A cover image is required.';
 
     if (Object.keys(errs).length > 0) {
-      const order = ['title', 'location', 'durationDays', 'distanceKm', 'coverImage'];
+      const order = ['title', 'location', 'durationDays', 'durationDaysMax', 'distanceKm', 'distanceKmMax', 'coverImage'];
       const message = errs[order.find(f => errs[f])];
       setRequestFieldErrors(errs);
       setRequestError(message);
@@ -284,7 +296,9 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
         city: requestForm.city.trim(),
         difficulty: requestForm.difficulty,
         durationDays: Number(requestForm.durationDays),
+        durationDaysMax: requestForm.durationDaysMax ? Number(requestForm.durationDaysMax) : null,
         distanceKm: Number(requestForm.distanceKm),
+        distanceKmMax: requestForm.distanceKmMax ? Number(requestForm.distanceKmMax) : null,
         elevationMeters: requestForm.elevationMeters ? Number(requestForm.elevationMeters) : 0,
         coverImage: requestForm.coverImage,
         category: requestForm.category.trim(),
@@ -294,7 +308,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       setRequestSubmitted(true);
       setRequestForm({
         title: '', location: '', state: '', city: '',
-        difficulty: 'Moderate', durationDays: '', distanceKm: '', elevationMeters: '',
+        difficulty: 'Moderate', durationDays: '', durationDaysMax: '', distanceKm: '', distanceKmMax: '', elevationMeters: '',
         coverImage: '', category: '', description: '',
       });
     } catch (err) {
@@ -562,8 +576,8 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                   <span className={`px-2 py-1 rounded-lg ${
                     selectedTrek.difficulty === 'Difficult' ? 'bg-red-500/10 text-red-500' : selectedTrek.difficulty === 'Moderate' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'
                   }`}>{selectedTrek.difficulty}</span>
-                  <span className={`flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}><Clock size={11} /> {selectedTrek.durationDays}D</span>
-                  <span className={`flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}><Route size={11} /> {selectedTrek.distanceKm}km</span>
+                  <span className={`flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}><Clock size={11} /> {durationRange(selectedTrek)}D</span>
+                  <span className={`flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}><Route size={11} /> {distanceRange(selectedTrek)}km</span>
                 </div>
               </div>
             </div>
@@ -644,17 +658,32 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                       ))}
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0">
+                      <label className={labelCls}>Duration range (days) *</label>
+                      <div className="flex items-center gap-2">
+                        <input ref={reqDurationRef} type="number" min="1" className={`${inputCls} ${reqErrCls('durationDays')}`} placeholder="5" value={requestForm.durationDays} onChange={e => { setRequestForm(f => ({ ...f, durationDays: e.target.value })); clearReqError('durationDays'); clearReqError('durationDaysMax'); }} />
+                        <span className="text-xs font-bold shrink-0 text-zinc-400">to</span>
+                        <input ref={reqDurationMaxRef} type="number" min="1" className={`${inputCls} ${reqErrCls('durationDaysMax')}`} placeholder="6" value={requestForm.durationDaysMax} onChange={e => { setRequestForm(f => ({ ...f, durationDaysMax: e.target.value })); clearReqError('durationDaysMax'); }} />
+                      </div>
+                      {(requestFieldErrors.durationDays || requestFieldErrors.durationDaysMax)
+                        ? <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.durationDays || requestFieldErrors.durationDaysMax}</p>
+                        : <p className="text-[10px] mt-1 text-zinc-400">Leave "to" blank for an exact duration.</p>}
+                    </div>
+                    <div className="min-w-0">
+                      <label className={labelCls}>Distance range (km) *</label>
+                      <div className="flex items-center gap-2">
+                        <input ref={reqDistanceRef} type="number" min="0" className={`${inputCls} ${reqErrCls('distanceKm')}`} placeholder="20" value={requestForm.distanceKm} onChange={e => { setRequestForm(f => ({ ...f, distanceKm: e.target.value })); clearReqError('distanceKm'); clearReqError('distanceKmMax'); }} />
+                        <span className="text-xs font-bold shrink-0 text-zinc-400">to</span>
+                        <input ref={reqDistanceMaxRef} type="number" min="0" className={`${inputCls} ${reqErrCls('distanceKmMax')}`} placeholder="23" value={requestForm.distanceKmMax} onChange={e => { setRequestForm(f => ({ ...f, distanceKmMax: e.target.value })); clearReqError('distanceKmMax'); }} />
+                      </div>
+                      {(requestFieldErrors.distanceKm || requestFieldErrors.distanceKmMax)
+                        ? <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.distanceKm || requestFieldErrors.distanceKmMax}</p>
+                        : <p className="text-[10px] mt-1 text-zinc-400">Leave "to" blank for an exact distance.</p>}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="min-w-0">
-                      <label className={labelCls}>Duration (days) *</label>
-                      <input ref={reqDurationRef} type="number" min="1" className={`${inputCls} ${reqErrCls('durationDays')}`} placeholder="5" value={requestForm.durationDays} onChange={e => { setRequestForm(f => ({ ...f, durationDays: e.target.value })); clearReqError('durationDays'); }} />
-                      {requestFieldErrors.durationDays && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.durationDays}</p>}
-                    </div>
-                    <div className="min-w-0">
-                      <label className={labelCls}>Distance (km) *</label>
-                      <input ref={reqDistanceRef} type="number" min="0" className={`${inputCls} ${reqErrCls('distanceKm')}`} placeholder="20" value={requestForm.distanceKm} onChange={e => { setRequestForm(f => ({ ...f, distanceKm: e.target.value })); clearReqError('distanceKm'); }} />
-                      {requestFieldErrors.distanceKm && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.distanceKm}</p>}
-                    </div>
                     <div className="min-w-0">
                       <label className={labelCls}>Elevation (m)</label>
                       <input type="number" min="0" className={inputCls} placeholder="3800" value={requestForm.elevationMeters} onChange={e => setRequestForm(f => ({ ...f, elevationMeters: e.target.value }))} />
@@ -788,8 +817,8 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                           <p className={`text-xs truncate ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{trek.location}</p>
                           <div className="flex items-center gap-2 mt-1 text-[10px] font-bold text-zinc-400">
                             <span>{trek.difficulty}</span>
-                            <span>{trek.durationDays}D</span>
-                            <span>{trek.distanceKm}km</span>
+                            <span>{durationRange(trek)}D</span>
+                            <span>{distanceRange(trek)}km</span>
                           </div>
                         </div>
                         {form.trekId === trek.id ? (

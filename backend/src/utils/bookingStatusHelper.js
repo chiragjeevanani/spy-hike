@@ -5,7 +5,9 @@ import Trip from '../models/Trip.js';
  * Automatically updates booking statuses based on trip duration and check-in status.
  * Rules:
  * - If status is Cancelled, leave as Cancelled.
- * - End date = departure date (selectedDate) + durationDays (from Trip, default 1 day).
+ * - End date = departure date (selectedDate) + the trip's longest possible
+ *   duration (durationDaysMax, else durationDays; default 1 day), so a ranged
+ *   trek is never marked Completed/Missed while it could still be running.
  * - If current date >= end date:
  *     - If checkedInAt is present -> 'Completed'
  *     - If checkedInAt is NOT present -> 'Missed'
@@ -22,8 +24,8 @@ export async function autoResolveBookingStatuses() {
 
     // Cache trips duration to minimize DB lookups
     const tripIds = [...new Set(activeBookings.map((b) => b.tripId))];
-    const trips = await Trip.find({ _id: { $in: tripIds } }).select('_id durationDays');
-    const durationMap = new Map(trips.map((t) => [t._id.toString(), t.durationDays || 1]));
+    const trips = await Trip.find({ _id: { $in: tripIds } }).select('_id durationDays durationDaysMax');
+    const durationMap = new Map(trips.map((t) => [t._id.toString(), t.durationDaysMax || t.durationDays || 1]));
 
     const bulkOps = [];
 

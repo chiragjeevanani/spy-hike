@@ -4,6 +4,7 @@ import tripsApi from '../../../lib/tripsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
 import { AdminSkeletonCard } from './AdminSkeleton';
+import { durationRange, distanceRange } from '../../../utils/rangeFormat';
 
 export default function TripsView({ onOpenOrganizer, darkMode }) {
   const [trips, setTrips] = useState([]);
@@ -293,7 +294,7 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
                   <div className="flex items-center gap-3.5 text-[10px] font-bold text-slate-400">
                     <div className="flex items-center gap-1">
                       <Clock size={12} />
-                      <span>{trip.durationDays} Days</span>
+                      <span>{durationRange(trip)} Days</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Star size={11} className="text-amber-400 fill-amber-400" />
@@ -416,7 +417,7 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Distance</span>
-                    <span>{selectedTrip.distanceKm || 'N/A'} km</span>
+                    <span>{distanceRange(selectedTrip) || 'N/A'} km</span>
                   </div>
                 </div>
 

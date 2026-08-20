@@ -7,6 +7,7 @@ import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
 import treksApi from '../../../lib/treksApi';
 import tripsApi from '../../../lib/tripsApi';
+import { durationRange } from '../../../utils/rangeFormat';
 
 export default function ExploreView({
   trips,
@@ -147,6 +148,15 @@ export default function ExploreView({
     }
     return result;
   }, [allTreks, trips, userLocation, searchQuery]);
+
+  // Bookable results are what Explore is for, so the coming-soon strip starts
+  // collapsed to a short preview and expands on demand instead of adding an
+  // unbounded grid to the bottom of every scroll.
+  const EXPLORE_COMING_SOON_LIMIT = 4;
+  const [showAllComingSoon, setShowAllComingSoon] = useState(false);
+  const visibleComingSoon = showAllComingSoon
+    ? comingSoonTreks
+    : comingSoonTreks.slice(0, EXPLORE_COMING_SOON_LIMIT);
 
   const resetFilters = () => {
     setFilterDifficulty('All');
@@ -542,7 +552,7 @@ export default function ExploreView({
 
                         <div className={`flex items-center gap-x-4 gap-y-1.5 flex-wrap text-xs mt-2.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
                           <span className="flex items-center gap-1"><MapPin size={13} className="opacity-70" /> {trip.location}</span>
-                          <span className="flex items-center gap-1"><Clock size={13} className="opacity-70" /> {trip.durationDays} Days</span>
+                          <span className="flex items-center gap-1"><Clock size={13} className="opacity-70" /> {durationRange(trip)} Days</span>
                           <span className="flex items-center gap-1"><Users size={13} className="opacity-70" /> {trip.availableSeats} slots</span>
                           {group.organizerCount > 1 && (
                             <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
@@ -609,10 +619,10 @@ export default function ExploreView({
           <div className="pt-2">
             <h2 className="font-serif text-lg font-semibold tracking-tight mb-1">Coming soon</h2>
             <p className={`text-xs mb-3.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              New trek categories awaiting an organizer's first batch.
+              New treks awaiting an organizer's first batch.
             </p>
             <div className="grid grid-cols-2 gap-3">
-              {comingSoonTreks.map((trek, idx) => (
+              {visibleComingSoon.map((trek, idx) => (
                 <motion.div
                   key={trek.id}
                   onClick={() => onSelectTrek(trek.title)}
@@ -638,6 +648,21 @@ export default function ExploreView({
                 </motion.div>
               ))}
             </div>
+
+            {comingSoonTreks.length > EXPLORE_COMING_SOON_LIMIT && (
+              <button
+                onClick={() => setShowAllComingSoon(v => !v)}
+                className={`w-full mt-3 py-2.5 rounded-xl text-xs font-semibold border transition active:scale-[0.98] ${
+                  darkMode
+                    ? 'border-white/10 text-zinc-300 hover:bg-white/5'
+                    : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+                }`}
+              >
+                {showAllComingSoon
+                  ? 'Show less'
+                  : `View all ${comingSoonTreks.length} coming soon`}
+              </button>
+            )}
           </div>
         )}
       </div>

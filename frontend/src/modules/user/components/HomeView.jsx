@@ -12,6 +12,16 @@ import TrekDatePicker from './TrekDatePicker';
 import AppLogo from '../../../components/AppLogo';
 import SkeletonCard from '../../../components/SkeletonCard';
 import { matchesLocation } from '../utils/locationFilter';
+import { durationRange } from '../../../utils/rangeFormat';
+
+// Promo slides travel in the direction the user is moving: the incoming slide
+// enters from the side being swiped away from, the outgoing one leaves the
+// opposite way. `custom` carries the sign through AnimatePresence.
+const promoVariants = {
+  enter: (dir) => ({ x: dir > 0 ? '100%' : '-100%', opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir) => ({ x: dir > 0 ? '-100%' : '100%', opacity: 0 }),
+};
 
 // Persisted chosen location (city / GPS). Google Maps API will later power the
 // live search + reverse-geocoding inside LocationPicker.
@@ -46,6 +56,8 @@ export default function HomeView({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activePromoIdx, setActivePromoIdx] = useState(0);
+  const [promoDir, setPromoDir] = useState(1);   // +1 = advancing, -1 = going back
+  const [promoPaused, setPromoPaused] = useState(false); // held while a finger is down
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
@@ -94,13 +106,19 @@ export default function HomeView({
   const loyaltyProgress = useMemo(() => getCustomerProgress(bookings, loyaltyConfig), [bookings, loyaltyConfig]);
   const showLoyaltyBanner = loyaltyConfig.customer.enabled && loyaltyConfig.customer.banner.enabled;
 
-  // Auto-cycle banner slides every 5 seconds
+  // Promo carousel. A timeout keyed on the active slide (rather than one
+  // long-lived interval) means every manual swipe or dot tap restarts the
+  // 5s countdown, so the banner never jumps a beat after the user moves it.
+  const promoCount = PROMOTIONAL_BANNERS.length;
+  const goToPromo = (idx, dir) => {
+    setPromoDir(dir);
+    setActivePromoIdx(((idx % promoCount) + promoCount) % promoCount);
+  };
   useEffect(() => {
-    const timer = setInterval(() => {
-      setActivePromoIdx(prev => (prev + 1) % PROMOTIONAL_BANNERS.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
+    if (promoPaused || promoCount < 2) return undefined;
+    const timer = setTimeout(() => goToPromo(activePromoIdx + 1, 1), 5000);
+    return () => clearTimeout(timer);
+  }, [activePromoIdx, promoPaused, promoCount]);
 
   // Dynamic greeting based on current local hours
   const getGreeting = () => {
@@ -170,6 +188,12 @@ export default function HomeView({
     .filter(t => (t.tripCount || 0) === 0)
     .filter(t => matchesLocation(t, activeLocation)),
   [allTreks, activeLocation]);
+
+  // Home is a digest, not the catalog — bookable treks are the priority here,
+  // so "Coming soon" shows a short preview and hands the rest to Explore
+  // rather than pushing the real listings off the end of a long scroll.
+  const HOME_COMING_SOON_LIMIT = 4;
+  const comingSoonPreview = comingSoonTreks.slice(0, HOME_COMING_SOON_LIMIT);
 
   const difficultyPill = (difficulty) =>
     difficulty === 'Easy'
@@ -264,48 +288,58 @@ export default function HomeView({
         </button>
       </div>
 
-      {/* 4. Promotional carousel — sits where a stats bar would, as a rounded card */}
-      <div className="mt-6 relative select-none">
-        <div className="overflow-hidden relative aspect-[16/10] rounded-3xl shadow-lg">
-          <AnimatePresence mode="wait">
+      {/* 4. Promotional carousel. Both slides animate at once (no `mode="wait"`)
+          and travel in the direction of travel, so advancing reads as one
+          continuous swipe rather than a fade-out/fade-in blink. Kept short so
+          the trek cards below start above the fold. */}
+      <div className="mt-5 relative select-none">
+        <div className="overflow-hidden relative aspect-[7/3] rounded-2xl shadow-md">
+          <AnimatePresence initial={false} custom={promoDir}>
             <motion.div
               key={activePromoIdx}
+              custom={promoDir}
+              variants={promoVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: 'spring', stiffness: 320, damping: 34, mass: 0.8 },
+                opacity: { duration: 0.18 },
+              }}
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.2}
+              dragElastic={0.15}
+              dragMomentum={false}
+              onDragStart={() => setPromoPaused(true)}
               onDragEnd={(e, info) => {
-                const swipeThreshold = 50;
-                if (info.offset.x < -swipeThreshold) {
-                  setActivePromoIdx(prev => (prev + 1) % PROMOTIONAL_BANNERS.length);
-                } else if (info.offset.x > swipeThreshold) {
-                  setActivePromoIdx(prev => (prev - 1 + PROMOTIONAL_BANNERS.length) % PROMOTIONAL_BANNERS.length);
-                }
+                setPromoPaused(false);
+                // Offset *or* a quick flick counts, so a short fast swipe still
+                // turns the page the way it does in a native carousel.
+                const { offset, velocity } = info;
+                if (offset.x < -40 || velocity.x < -400) goToPromo(activePromoIdx + 1, 1);
+                else if (offset.x > 40 || velocity.x > 400) goToPromo(activePromoIdx - 1, -1);
               }}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -30 }}
-              transition={{ duration: 0.25 }}
               className="absolute inset-0 cursor-grab active:cursor-grabbing"
             >
               <img
                 src={PROMOTIONAL_BANNERS[activePromoIdx].img}
                 alt={PROMOTIONAL_BANNERS[activePromoIdx].title}
-                className="w-full h-full object-cover brightness-[0.72] pointer-events-none"
+                className="w-full h-full object-cover brightness-[0.7] pointer-events-none"
+                draggable={false}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-5 flex flex-col justify-between">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-3.5 flex flex-col justify-between">
                 <div>
-                  <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase">
+                  <span className="bg-spy-orange text-white text-[8px] font-bold tracking-widest px-2 py-0.5 rounded-full uppercase">
                     {PROMOTIONAL_BANNERS[activePromoIdx].tag}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-serif font-semibold text-white leading-tight">
+                  <h3 className="text-sm font-serif font-semibold text-white leading-tight line-clamp-1">
                     {PROMOTIONAL_BANNERS[activePromoIdx].title}
                   </h3>
-                  <p className="text-xs text-white/80 mt-0.5">{PROMOTIONAL_BANNERS[activePromoIdx].subtitle}</p>
-                  <div className="flex justify-between items-center mt-3">
-                    <span className="text-xs font-bold text-emerald-300 font-mono">
-                      Code: {PROMOTIONAL_BANNERS[activePromoIdx].code} ({PROMOTIONAL_BANNERS[activePromoIdx].discount})
+                  <div className="flex justify-between items-center gap-2 mt-1.5">
+                    <span className="text-[10px] font-bold text-emerald-300 font-mono truncate">
+                      {PROMOTIONAL_BANNERS[activePromoIdx].code} · {PROMOTIONAL_BANNERS[activePromoIdx].discount}
                     </span>
                     <button
                       onClick={(e) => {
@@ -313,9 +347,9 @@ export default function HomeView({
                         const correlatedTrip = trips.find(t => t.id === PROMOTIONAL_BANNERS[activePromoIdx].tripId);
                         if (correlatedTrip) onSelectTrek(correlatedTrip.name);
                       }}
-                      className="bg-white hover:bg-gray-100 text-forest-700 text-[11px] font-bold py-1.5 px-3.5 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto"
+                      className="bg-white hover:bg-gray-100 text-forest-700 text-[10px] font-bold py-1 px-3 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto shrink-0"
                     >
-                      Claim Now
+                      Claim
                     </button>
                   </div>
                 </div>
@@ -325,11 +359,12 @@ export default function HomeView({
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-1.5 mt-3">
+        <div className="flex justify-center gap-1.5 mt-2">
           {PROMOTIONAL_BANNERS.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => setActivePromoIdx(idx)}
+              onClick={() => goToPromo(idx, idx > activePromoIdx ? 1 : -1)}
+              aria-label={`Show promotion ${idx + 1}`}
               className={`h-1.5 rounded-full transition-all ${
                 idx === activePromoIdx ? 'w-5 bg-forest-500' : `w-1.5 ${darkMode ? 'bg-white/25' : 'bg-zinc-300'}`
               }`}
@@ -435,7 +470,7 @@ export default function HomeView({
                 {featured.representative.name}
               </h3>
               <p className="text-sm text-white/80 mt-1">
-                {featured.representative.location} · {featured.representative.durationDays} Days
+                {featured.representative.location} · {durationRange(featured.representative)} Days
               </p>
             </div>
             <div className="absolute bottom-5 right-5 w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-md">
@@ -560,13 +595,25 @@ export default function HomeView({
           a preview, not a bookable listing. */}
       {comingSoonTreks.length > 0 && (
         <div className="mt-8">
-          <h2 className="font-serif text-2xl font-medium tracking-tight mb-1">Coming soon</h2>
-          <p className={`text-xs mb-3.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-            New trek categories awaiting an organizer's first batch.
-          </p>
+          <div className="flex items-end justify-between mb-3.5">
+            <div className="min-w-0">
+              <h2 className="font-serif text-2xl font-medium tracking-tight mb-1">Coming soon</h2>
+              <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                New treks awaiting an organizer's first batch.
+              </p>
+            </div>
+            {comingSoonTreks.length > HOME_COMING_SOON_LIMIT && (
+              <button
+                onClick={() => onSwitchTab('Explore')}
+                className="text-xs font-semibold text-forest-600 flex items-center gap-0.5 shrink-0 active:scale-95 transition"
+              >
+                View all {comingSoonTreks.length} <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {comingSoonTreks.map((trek, idx) => (
+            {comingSoonPreview.map((trek, idx) => (
               <motion.div
                 key={trek.id}
                 onClick={() => handleDestinationClick(trek.title)}

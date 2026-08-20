@@ -30,7 +30,8 @@ const safeRegex = (s) => new RegExp(String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\
 const GROUP_CARD_FIELDS = {
   id: '$_id',
   name: 1, trekId: 1, location: 1, state: 1, city: 1,
-  coverImage: 1, difficulty: 1, durationDays: 1, distanceKm: 1,
+  coverImage: 1, difficulty: 1, durationDays: 1, durationDaysMax: 1,
+  distanceKm: 1, distanceKmMax: 1,
   price: 1, availableSeats: 1, maxGroupSize: 1, category: 1,
   rating: 1, reviewsCount: 1, featured: 1, popular: 1,
   organizer: 1, pickup: 1, departureDates: 1, startPoint: 1,
@@ -84,6 +85,8 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
   // ── Filters that only make sense once offers are grouped ──
   const groupMatch = {};
   if (maxPrice) groupMatch.minPrice = { $lte: Number(maxPrice) };
+  // A ranged trek qualifies when its *shortest* possible length fits the
+  // budget — "up to 5 days" should still surface a 5-6 day trek.
   if (maxDuration) groupMatch['representative.durationDays'] = { $lte: Number(maxDuration) };
   if (minSeats) groupMatch['representative.availableSeats'] = { $gte: Number(minSeats) };
 
@@ -269,7 +272,9 @@ async function buildTripFields(body, organizer) {
     city: trek.city,
     difficulty: trek.difficulty,
     durationDays: trek.durationDays,
+    durationDaysMax: trek.durationDaysMax,
     distanceKm: trek.distanceKm,
+    distanceKmMax: trek.distanceKmMax,
     elevationMeters: trek.elevationMeters,
     coverImage: trek.coverImage,
     pricingTiers,

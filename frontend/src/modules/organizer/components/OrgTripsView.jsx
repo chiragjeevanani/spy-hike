@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Map, Pencil, Eye, Pause, Play, Trash2, Search, Filter, ChevronRight, ChevronLeft } from 'lucide-react';
+import { durationRange } from '../../../utils/rangeFormat';
 
 export default function OrgTripsView({ trips, onNewTrip, onEditTrip, onToggleStatus, onDeleteTrip, darkMode }) {
   const [search, setSearch] = useState('');
@@ -147,7 +148,7 @@ export default function OrgTripsView({ trips, onNewTrip, onEditTrip, onToggleSta
                     <div className="flex items-center gap-3 text-xs">
                       <span className={`font-bold ${difficultyColor(trip.difficulty)}`}>{trip.difficulty}</span>
                       <span className={darkMode ? 'text-zinc-500' : 'text-zinc-400'}>·</span>
-                      <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>{trip.durationDays}D trek</span>
+                      <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>{durationRange(trip)}D trek</span>
                       <span className={darkMode ? 'text-zinc-500' : 'text-zinc-400'}>·</span>
                       <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>{trip.availableSeats}/{trip.maxGroupSize} seats</span>
                     </div>

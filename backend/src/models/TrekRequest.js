@@ -13,8 +13,11 @@ const trekRequestSchema = new mongoose.Schema(
     state: { type: String, default: '', trim: true },
     city: { type: String, default: '', trim: true },
     difficulty: { type: String, enum: ['Easy', 'Moderate', 'Difficult'], required: true },
+    // Ranges, matching Trek — see the note there.
     durationDays: { type: Number, required: true, min: 1 },
+    durationDaysMax: { type: Number, default: null, min: 1 },
     distanceKm: { type: Number, required: true, min: 0 },
+    distanceKmMax: { type: Number, default: null, min: 0 },
     elevationMeters: { type: Number, default: 0, min: 0 },
     coverImage: { type: String, required: true },
     category: { type: String, default: '' },

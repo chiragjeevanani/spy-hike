@@ -1281,6 +1281,13 @@ export default function App() {
               >
                 <TrekOrganizersView
                   trekName={selectedTrekName}
+                  // Same catalog lookup the detail screen uses — the organizer
+                  // list falls back to it to render a real preview of a trek
+                  // nobody has posted a batch for yet.
+                  trek={
+                    hydratedTrek
+                    || catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
+                  }
                   offers={trips.filter(t => t.name === selectedTrekName)}
                   onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo(`/trek/${slugifyTrekName(selectedTrekName)}`); } }}
                   onSelectOrganizerOffer={(t) => navigateTo(`/trip/${t.id}`)}

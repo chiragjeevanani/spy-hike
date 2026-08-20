@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useMemo, useRef, useState, useEffect } from 're
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Search, Layers, Navigation, Star, MapPin, Heart, SlidersHorizontal, Map } from 'lucide-react';
 import { groupTripsByTrekName } from '../utils/trekGroups';
+import { durationRange } from '../../../utils/rangeFormat';
 
 const L = window.L;
 
@@ -285,7 +286,7 @@ export default function MapView({ trips, wishlist, onToggleWishlist, onSelectTre
                     </span>
                   </div>
                   <p className={`text-xs flex items-center gap-1 mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    <MapPin size={12} className="text-spy-orange" /> {trip.location} · {trip.durationDays} Days
+                    <MapPin size={12} className="text-spy-orange" /> {trip.location} · {durationRange(trip)} Days
                   </p>
                 </div>
               </div>

@@ -5,6 +5,7 @@ import {
   XCircle, ChevronDown, ChevronUp, Star, ShieldCheck, Footprints, Flame,
   FileText, Backpack, Info, CalendarDays, Award
 } from 'lucide-react';
+import { durationRange, distanceRange } from '../../../utils/rangeFormat';
 
 export default function TrekDetailsView({
   trek,
@@ -24,8 +25,9 @@ export default function TrekDetailsView({
   const trekLocation = trek.location || trek.startingPoint;
   const stateCity = [trek.city, trek.state].filter(Boolean).join(', ');
   const startingPoint = trek.startingPoint || trek.location;
-  const duration = trek.durationDays || 2;
-  const distance = trek.distanceKm || 10;
+  // Ranges — "5" for an exact trek, "5-6" when the trek spans a range.
+  const duration = durationRange(trek) || '2';
+  const distance = distanceRange(trek) || '10';
   const elevation = trek.elevationMeters || 1000;
   const difficulty = trek.difficulty || 'Moderate';
   const description = trek.description || `${trekTitle} offers an extraordinary trekking experience with panoramic mountain vistas, wilderness trails, and high-altitude adventure.`;

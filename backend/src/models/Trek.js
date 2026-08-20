@@ -23,8 +23,13 @@ const trekSchema = new mongoose.Schema(
     state: { type: String, default: '', trim: true },
     city: { type: String, default: '', trim: true },
     difficulty: { type: String, enum: ['Easy', 'Moderate', 'Difficult'], required: true },
+    // Duration and distance are ranges: the plain field is the low end and
+    // the `*Max` field the high end, so a trek reads "5-6 days / 20-23 km".
+    // `*Max` is null for a trek that is a single exact value.
     durationDays: { type: Number, required: true, min: 1 },
+    durationDaysMax: { type: Number, default: null, min: 1 },
     distanceKm: { type: Number, required: true, min: 0 },
+    distanceKmMax: { type: Number, default: null, min: 0 },
     elevationMeters: { type: Number, default: 0, min: 0 },
     coverImage: { type: String, required: true },
     galleryImages: { type: [String], default: [] },

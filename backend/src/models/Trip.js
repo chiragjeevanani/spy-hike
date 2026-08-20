@@ -56,10 +56,14 @@ const tripSchema = new mongoose.Schema(
     departureDates: { type: [String], default: [] },
     price: Number, // headline "from" price (= pickup.price)
     difficulty: { type: String, enum: ['Easy', 'Moderate', 'Difficult'], default: 'Moderate' },
+    // Snapshotted from the Trek — low end of the range, with the high end in
+    // the matching `*Max` field (null when the trek is a single value).
     durationDays: Number,
+    durationDaysMax: { type: Number, default: null },
     maxGroupSize: Number,
     availableSeats: Number,
     distanceKm: Number,
+    distanceKmMax: { type: Number, default: null },
     elevationMeters: Number,
     category: String,
     featured: { type: Boolean, default: false },

@@ -31,7 +31,10 @@ export function getComputedBookingStatus(booking, currentDateStr = new Date(), d
   const departure = new Date(depDateStr);
   departure.setHours(0, 0, 0, 0);
 
-  const trekDuration = Number(booking.durationDays || durationDays) || 1;
+  // Duration is a range — measure to the longest possible end so a booking is
+  // never shown Completed/Missed while the trek could still be running. Mirrors
+  // autoResolveBookingStatuses() on the server.
+  const trekDuration = Number(booking.durationDaysMax || booking.durationDays || durationDays) || 1;
   const endDate = new Date(departure);
   endDate.setDate(endDate.getDate() + trekDuration);
 

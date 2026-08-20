@@ -7,8 +7,9 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Search, SlidersHorizontal, Star, MapPin, ShieldCheck, Users,
-  Clock, Milestone, Heart, Sparkles, X, Check, Bus, ChevronLeft, ChevronRight
+  Clock, Milestone, Heart, Sparkles, X, Check, Bus, ChevronLeft, ChevronRight, Mountain
 } from 'lucide-react';
+import { durationRange, distanceRange, nightsRange } from '../../../utils/rangeFormat';
 
 // Boarding cities this organizer picks travellers up from, each with its own
 // per-person price where the organizer has set one; older records without
@@ -26,6 +27,7 @@ const getPickupPoints = (offer) => {
 
 export default function TrekOrganizersView({
   trekName,
+  trek = null,
   offers,
   onBack,
   onSelectOrganizerOffer,
@@ -160,29 +162,151 @@ export default function TrekOrganizersView({
   const activeFiltersCount = (verifiedOnly ? 1 : 0) + (sortOption !== 'PriceLowToHigh' ? 1 : 0) + (selectedFilterDate ? 1 : 0);
 
   // No organizer has posted a batch for this trek yet (e.g. a "Coming soon"
-  // catalog trek) — `representative` below would be undefined, so bail out
-  // to a friendly empty state before touching any of its fields.
+  // catalog trek) — `representative` below would be undefined, so render the
+  // trek itself instead: the same cover, stats and description a live trek
+  // gets, plus where it currently sits on the way to opening for bookings.
   if (offers.length === 0) {
+    const cover = trek?.coverImage;
+    const place = [trek?.city, trek?.state].filter(Boolean).join(', ') || trek?.location;
+    const stats = [
+      trek?.difficulty && { icon: Sparkles, label: 'Grade', value: trek.difficulty },
+      durationRange(trek) && { icon: Clock, label: 'Duration', value: `${durationRange(trek)} Days` },
+      distanceRange(trek) && { icon: Milestone, label: 'Distance', value: `${distanceRange(trek)} km` },
+      trek?.elevationMeters ? { icon: Mountain, label: 'Altitude', value: `${trek.elevationMeters} m` } : null,
+    ].filter(Boolean);
+
+    // Where this trek is on the way to being bookable. Only the middle step is
+    // live — the catalog listing is already done, bookings are not.
+    const pipeline = [
+      { title: 'Added to the catalog', body: 'Route, stats and itinerary are verified and published.', done: true },
+      { title: 'Organizers preparing batches', body: 'Verified organizers are building departures and pricing.', active: true },
+      { title: 'Bookings open', body: "You'll be able to compare organizers and book right here.", done: false },
+    ];
+
     return (
-      <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
+      <div className={`flex-1 relative flex flex-col font-sans ${
         darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'
       }`}>
-        <div className="absolute top-4 left-4 z-30">
+        {/* Pinned to the screen, not to the hero, so it stays reachable once
+            the content below is scrolled. */}
+        <button
+          id="btn-back-to-trek-source"
+          onClick={onBack}
+          className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 shadow-md"
+        >
+          <ArrowLeft size={18} />
+        </button>
+
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+        {/* Hero — the trek's own cover, so the screen leads with the place
+            rather than with an apology for it being empty. */}
+        <div className="relative h-60 shrink-0 overflow-hidden">
+          {cover ? (
+            <img src={cover} alt={trekName} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-forest-700 via-forest-600 to-emerald-800" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/25" />
+
+          <div className="absolute inset-x-0 bottom-0 p-5">
+            <motion.span
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="inline-flex items-center gap-1.5 bg-spy-orange text-white text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+            >
+              <motion.span
+                className="w-1.5 h-1.5 rounded-full bg-white"
+                animate={{ opacity: [1, 0.25, 1] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              Opening soon
+            </motion.span>
+            <h1 className="text-2xl font-serif font-semibold text-white leading-tight mt-2">{trekName}</h1>
+            {place && (
+              <p className="text-xs text-white/75 flex items-center gap-1 mt-1">
+                <MapPin size={12} /> {place}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 pt-5 pb-8 -mt-4 relative z-10">
+          {/* Real stats, so the screen is worth the visit even before a
+              single organizer has posted. */}
+          {stats.length > 0 && (
+            <div className={`grid grid-cols-2 gap-2.5 p-3 rounded-2xl border shadow-sm ${
+              darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'
+            }`}>
+              {stats.map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    darkMode ? 'bg-forest-500/15 text-forest-300' : 'bg-forest-50 text-forest-600'
+                  }`}>
+                    <Icon size={14} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-[9px] font-bold uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{label}</p>
+                    <p className="text-xs font-semibold truncate">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {trek?.description && (
+            <p className={`text-xs leading-relaxed mt-4 ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+              {trek.description}
+            </p>
+          )}
+
+          {/* Progress toward bookings — explains *why* the list is empty and
+              what happens next, instead of just stating that it is. */}
+          <div className="mt-6">
+            <h3 className="text-sm font-serif font-semibold mb-3">What happens next</h3>
+            <div className="relative">
+              <div className={`absolute left-[11px] top-2 bottom-2 w-px ${darkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+              {pipeline.map((step, i) => (
+                <motion.div
+                  key={step.title}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.08 * i, duration: 0.25 }}
+                  className="relative flex gap-3 pb-4 last:pb-0"
+                >
+                  <div className="relative z-10 shrink-0">
+                    {step.done ? (
+                      <div className="w-6 h-6 rounded-full bg-forest-500 text-white flex items-center justify-center">
+                        <Check size={13} strokeWidth={3} />
+                      </div>
+                    ) : step.active ? (
+                      <div className="w-6 h-6 rounded-full bg-spy-orange text-white flex items-center justify-center relative">
+                        <motion.span
+                          className="absolute inset-0 rounded-full bg-spy-orange"
+                          animate={{ scale: [1, 1.7], opacity: [0.5, 0] }}
+                          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+                        />
+                        <Sparkles size={12} className="relative" />
+                      </div>
+                    ) : (
+                      <div className={`w-6 h-6 rounded-full border-2 ${darkMode ? 'border-white/15 bg-zinc-950' : 'border-zinc-200 bg-gray-55'}`} />
+                    )}
+                  </div>
+                  <div className={`min-w-0 ${step.done || step.active ? '' : 'opacity-55'}`}>
+                    <p className="text-xs font-semibold leading-tight">{step.title}</p>
+                    <p className={`text-[11px] leading-relaxed mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-500'}`}>{step.body}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
           <button
-            id="btn-back-to-trek-source"
             onClick={onBack}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 shadow-md"
+            className="w-full mt-6 py-3.5 rounded-2xl bg-forest-600 hover:bg-forest-700 text-white text-sm font-semibold active:scale-[0.98] transition shadow-sm"
           >
-            <ArrowLeft size={18} />
+            Browse treks you can book now
           </button>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-          <span className="text-4xl block mb-3">🚧</span>
-          <h1 className="text-lg font-display font-black leading-snug">{trekName}</h1>
-          <h3 className="text-sm font-display font-bold mt-2">No Organizers Yet</h3>
-          <p className={`text-xs mt-1.5 leading-relaxed max-w-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-            This trek was just added to the catalog — no organizer has posted a batch for it yet. Check back soon!
-          </p>
         </div>
       </div>
     );
@@ -233,8 +357,8 @@ export default function TrekOrganizersView({
           <div className={`grid grid-cols-3 gap-2 p-2 rounded-2xl shadow-sm ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
             {[
               { label: 'Difficulty', value: representative.difficulty },
-              { label: 'Duration', value: `${representative.durationDays}D` },
-              { label: 'Distance', value: `${representative.distanceKm}km` }
+              { label: 'Duration', value: `${durationRange(representative)}D` },
+              { label: 'Distance', value: `${distanceRange(representative)}km` }
             ].map((st, i) => (
               <div key={i} className="flex flex-col items-center text-center py-1">
                 <span className={`text-[11px] font-black font-display ${darkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{st.value}</span>
@@ -504,10 +628,10 @@ export default function TrekOrganizersView({
 
                     <div className={`flex items-center gap-3 mt-2.5 pt-2.5 border-t text-[9px] ${darkMode ? 'border-white/5 text-zinc-400' : 'border-zinc-100 text-zinc-500'}`}>
                       <span className="flex items-center gap-0.5">
-                        <Clock size={10} className="text-forest-400" /> {offer.durationDays}D / {offer.durationDays - 1}N
+                        <Clock size={10} className="text-forest-400" /> {durationRange(offer)}D / {nightsRange(offer)}N
                       </span>
                       <span className="flex items-center gap-0.5">
-                        <Milestone size={10} className="text-forest-400" /> {offer.distanceKm} Km
+                        <Milestone size={10} className="text-forest-400" /> {distanceRange(offer)} Km
                       </span>
                       <span className="flex items-center gap-0.5 ml-auto font-medium">
                         <span className={`w-1.5 h-1.5 rounded-full ${offer.availableSeats <= 5 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />

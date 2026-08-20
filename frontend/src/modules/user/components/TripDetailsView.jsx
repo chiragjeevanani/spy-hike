@@ -4,6 +4,7 @@ import {
   ArrowLeft, Heart, Star, MapPin, Milestone, TrendingUp, ShieldCheck, Users,
   CheckCircle, XCircle, ChevronDown, CalendarDays, Award, MessageSquare, AlertTriangle, ScrollText, Bus, Navigation, Sparkles, ArrowRight
 } from 'lucide-react';
+import { durationRange, distanceRange } from '../../../utils/rangeFormat';
 
 export default function TripDetailsView({
   trip,
@@ -35,8 +36,8 @@ export default function TripDetailsView({
 
   const stats = [
     { label: 'Difficulty', value: trip.difficulty, icon: <Award className="w-5 h-5 text-spy-orange" /> },
-    { label: 'Distance', value: `${trip.distanceKm} Km`, icon: <Milestone className="w-5 h-5 text-forest-500" /> },
-    { label: 'Duration', value: `${trip.durationDays} Days`, icon: <CalendarDays className="w-5 h-5 text-forest-500" /> },
+    { label: 'Distance', value: `${distanceRange(trip)} Km`, icon: <Milestone className="w-5 h-5 text-forest-500" /> },
+    { label: 'Duration', value: `${durationRange(trip)} Days`, icon: <CalendarDays className="w-5 h-5 text-forest-500" /> },
     { label: 'Elevation', value: `${trip.elevationMeters}m`, icon: <TrendingUp className="w-5 h-5 text-spy-orange" /> },
   ];
 

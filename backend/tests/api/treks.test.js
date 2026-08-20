@@ -73,3 +73,53 @@ describe('Trek catalog — trending flag', () => {
     expect(res.body.treks).toHaveLength(2);
   });
 });
+
+describe('Trek catalog — duration and distance ranges', () => {
+  it('stores both ends of a range', async () => {
+    const admin = await adminToken();
+    const res = await request(app).post(`${api}/admin/treks`).set(auth(admin))
+      .send(trekPayload({ durationDays: 5, durationDaysMax: 6, distanceKm: 20, distanceKmMax: 23 }));
+    expect(res.status).toBe(201);
+    expect(res.body.trek).toMatchObject({
+      durationDays: 5, durationDaysMax: 6, distanceKm: 20, distanceKmMax: 23,
+    });
+  });
+
+  it('collapses an omitted or non-exceeding max to null, i.e. an exact value', async () => {
+    const admin = await adminToken();
+    const omitted = await request(app).post(`${api}/admin/treks`).set(auth(admin))
+      .send(trekPayload({ title: 'Omitted Max Trek' }));
+    expect(omitted.body.trek.durationDaysMax).toBeNull();
+    expect(omitted.body.trek.distanceKmMax).toBeNull();
+
+    const equal = await request(app).post(`${api}/admin/treks`).set(auth(admin))
+      .send(trekPayload({ title: 'Equal Max Trek', durationDaysMax: 5, distanceKmMax: 20 }));
+    expect(equal.body.trek.durationDaysMax).toBeNull();
+    expect(equal.body.trek.distanceKmMax).toBeNull();
+  });
+
+  it('rejects a max below the min', async () => {
+    const admin = await adminToken();
+    const res = await request(app).post(`${api}/admin/treks`).set(auth(admin))
+      .send(trekPayload({ durationDays: 5, durationDaysMax: 3 }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.durationDaysMax).toMatch(/less than min/i);
+  });
+
+  it('updates both ends of a range, and collapses it when the min catches up', async () => {
+    const admin = await adminToken();
+    const created = await request(app).post(`${api}/admin/treks`).set(auth(admin)).send(trekPayload());
+    const id = created.body.trek.id;
+
+    const updated = await request(app).put(`${api}/admin/treks/${id}`).set(auth(admin))
+      .send({ durationDays: 4, durationDaysMax: 7, distanceKm: 18, distanceKmMax: 25 });
+    expect(updated.body.trek).toMatchObject({
+      durationDays: 4, durationDaysMax: 7, distanceKm: 18, distanceKmMax: 25,
+    });
+
+    // Raising the min to the max collapses the range back to a single value.
+    const collapsed = await request(app).put(`${api}/admin/treks/${id}`).set(auth(admin))
+      .send({ durationDays: 7 });
+    expect(collapsed.body.trek.durationDaysMax).toBeNull();
+  });
+});
