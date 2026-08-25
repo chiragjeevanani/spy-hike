@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import User from '../models/User.js';
 import Admin from '../models/Admin.js';
@@ -21,6 +22,28 @@ const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 const PASSWORD_HELP = 'Password must be at least 8 characters, with at least one letter and one number';
 
 // ── Auth response helpers ─────────────────────────────────────────────────────
+
+async function findUserByIdOrEmail(sub, email) {
+  if (sub && mongoose.Types.ObjectId.isValid(sub)) {
+    const user = await User.findById(sub);
+    if (user) return user;
+  }
+  if (email) {
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (user) return user;
+  }
+  return null;
+}
+
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}
 
 // Customer-role token + public JSON.
 function customerAuthResponse(user) {
@@ -204,7 +227,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Emergency contact phone number must be at least 10 digits');
   }
 
-  const user = await User.findById(sub);
+  const user = await findUserByIdOrEmail(sub, req.user?.email);
   if (!user) throw ApiError.notFound('User not found');
 
   if (hikingExperience   !== undefined) user.hikingExperience   = hikingExperience;
@@ -242,7 +265,7 @@ export const updateProfileVerify = asyncHandler(async (req, res) => {
     throw ApiError.forbidden('Only customers can update their profile');
   }
   const { name, emergencyContact, email, emailOtp, mobile, mobileOtp } = req.body;
-  const user = await User.findById(sub);
+  const user = await findUserByIdOrEmail(sub, req.user?.email);
   if (!user) throw ApiError.notFound('User not found');
 
   if (name !== undefined) {
@@ -355,8 +378,14 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
   if (!EMAIL_REGEX.test(email)) throw ApiError.badRequest('Please enter a valid email address');
   if (!PASSWORD_REGEX.test(password)) throw ApiError.badRequest(PASSWORD_HELP);
   if (mobile && !MOBILE_REGEX.test(mobile)) throw ApiError.badRequest('Mobile number must be a valid 10-digit number');
-  if (!socialMediaLink || !URL_REGEX.test(socialMediaLink.trim())) {
-    throw ApiError.badRequest('A valid social media link is required');
+
+  const formattedSocialLink = sanitizeUrl(socialMediaLink);
+  if (formattedSocialLink && !URL_REGEX.test(formattedSocialLink)) {
+    throw ApiError.badRequest('Social media link must be a valid URL (starting with http:// or https://)');
+  }
+  const formattedWebsite = sanitizeUrl(agencyWebsite);
+  if (formattedWebsite && !URL_REGEX.test(formattedWebsite)) {
+    throw ApiError.badRequest('Website must be a valid URL (starting with http:// or https://)');
   }
 
   const idError = validateGovtId(govtIdType, govtIdNumber);
@@ -385,8 +414,8 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
   user.isOrganizer = true;
   user.organizer = {
     agencyName: agencyName.trim(),
-    agencyWebsite: (agencyWebsite || '').trim(),
-    socialMediaLink: (socialMediaLink || '').trim(),
+    agencyWebsite: formattedWebsite,
+    socialMediaLink: formattedSocialLink,
     govtIdType: govtIdType || 'Aadhaar',
     govtIdNumber: (govtIdNumber || '').trim(),
     yearsExperience: parseInt(yearsExperience) || 1,
@@ -405,15 +434,21 @@ export const applyAsOrganizer = asyncHandler(async (req, res) => {
   const { sub } = req.user;
   const { agencyName, agencyWebsite, socialMediaLink, govtIdType, govtIdNumber, yearsExperience, bio } = req.body;
 
-  if (!agencyName) throw ApiError.badRequest('agencyName is required');
-  if (!socialMediaLink || !URL_REGEX.test(socialMediaLink.trim())) {
-    throw ApiError.badRequest('A valid social media link is required');
+  if (!agencyName || !agencyName.trim()) throw ApiError.badRequest('agencyName is required');
+
+  const formattedSocialLink = sanitizeUrl(socialMediaLink);
+  if (formattedSocialLink && !URL_REGEX.test(formattedSocialLink)) {
+    throw ApiError.badRequest('Social media link must be a valid URL (starting with http:// or https://)');
+  }
+  const formattedWebsite = sanitizeUrl(agencyWebsite);
+  if (formattedWebsite && !URL_REGEX.test(formattedWebsite)) {
+    throw ApiError.badRequest('Website must be a valid URL (starting with http:// or https://)');
   }
 
   const idError = validateGovtId(govtIdType, govtIdNumber);
   if (idError) throw ApiError.badRequest(idError);
 
-  const user = await User.findById(sub);
+  const user = await findUserByIdOrEmail(sub, req.user?.email);
   if (!user) throw ApiError.notFound('User not found');
 
   if (user.isOrganizer) {
@@ -424,8 +459,8 @@ export const applyAsOrganizer = asyncHandler(async (req, res) => {
   user.isOrganizer = true;
   user.organizer = {
     agencyName: agencyName.trim(),
-    agencyWebsite: (agencyWebsite || '').trim(),
-    socialMediaLink: (socialMediaLink || '').trim(),
+    agencyWebsite: formattedWebsite,
+    socialMediaLink: formattedSocialLink,
     govtIdType: govtIdType || 'Aadhaar',
     govtIdNumber: (govtIdNumber || '').trim(),
     yearsExperience: parseInt(yearsExperience) || 1,
@@ -468,7 +503,7 @@ export const loginOrganizer = asyncHandler(async (req, res) => {
 // pick up the role the organizer-only routes require.
 export const getLinkedOrganizerStatus = asyncHandler(async (req, res) => {
   const { sub } = req.user;
-  const user = await User.findById(sub);
+  const user = await findUserByIdOrEmail(sub, req.user?.email);
   if (!user || !user.isOrganizer) {
     return res.json({ isOrganizer: false });
   }
@@ -486,7 +521,7 @@ export const getLinkedOrganizerStatus = asyncHandler(async (req, res) => {
 // account. Used when an organizer switches back to the traveller app; every
 // unified account has a customer identity, so no extra checks are needed.
 export const getCustomerToken = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user.sub);
+  const user = await findUserByIdOrEmail(req.user.sub, req.user?.email);
   if (!user) throw ApiError.notFound('Account not found');
   res.json(customerAuthResponse(user));
 });
@@ -497,7 +532,7 @@ export const getCustomerToken = asyncHandler(async (req, res) => {
 // just because it predates a role switch.
 export const updateOrganizerProfile = asyncHandler(async (req, res) => {
   const { sub } = req.user;
-  const user = await User.findById(sub);
+  const user = await findUserByIdOrEmail(sub, req.user?.email);
   if (!user || !user.isOrganizer) throw ApiError.notFound('Organizer profile not found');
 
   const org = user.organizer || {};
@@ -522,16 +557,18 @@ export const updateOrganizerProfile = asyncHandler(async (req, res) => {
     org.agencyName = agencyName.trim();
   }
   if (agencyWebsite !== undefined) {
-    if (agencyWebsite.trim() && !URL_REGEX.test(agencyWebsite.trim())) {
+    const formattedWebsite = sanitizeUrl(agencyWebsite);
+    if (formattedWebsite && !URL_REGEX.test(formattedWebsite)) {
       throw ApiError.badRequest('Website must be a valid URL (starting with http:// or https://)');
     }
-    org.agencyWebsite = agencyWebsite.trim();
+    org.agencyWebsite = formattedWebsite;
   }
   if (socialMediaLink !== undefined) {
-    if (!socialMediaLink.trim() || !URL_REGEX.test(socialMediaLink.trim())) {
+    const formattedSocialLink = sanitizeUrl(socialMediaLink);
+    if (formattedSocialLink && !URL_REGEX.test(formattedSocialLink)) {
       throw ApiError.badRequest('Social media link must be a valid URL (starting with http:// or https://)');
     }
-    org.socialMediaLink = socialMediaLink.trim();
+    org.socialMediaLink = formattedSocialLink;
   }
   if (yearsExperience !== undefined) org.yearsExperience = Number(yearsExperience) || 1;
   if (bio              !== undefined) org.bio                 = bio;
@@ -589,12 +626,12 @@ export const loginAdmin = asyncHandler(async (req, res) => {
 export const me = asyncHandler(async (req, res) => {
   const { sub, role } = req.user;
   if (role === 'customer') {
-    const user = await User.findById(sub);
+    const user = await findUserByIdOrEmail(sub, req.user?.email);
     if (!user) throw ApiError.notFound('Account not found');
     return res.json({ role, account: user.toPublicJSON() });
   }
   if (role === 'organizer') {
-    const user = await User.findById(sub);
+    const user = await findUserByIdOrEmail(sub, req.user?.email);
     if (!user || !user.isOrganizer) throw ApiError.notFound('Account not found');
     return res.json({ role, account: user.toOrganizerJSON() });
   }
@@ -618,7 +655,7 @@ export const logout = asyncHandler(async (req, res) => {
 export const deactivateAccount = asyncHandler(async (req, res) => {
   const { sub, role } = req.user;
   if (role === 'admin') throw ApiError.forbidden('Admin accounts cannot be self-deactivated');
-  const user = await User.findById(sub);
+  const user = await findUserByIdOrEmail(sub, req.user?.email);
   if (!user) throw ApiError.notFound('Account not found');
   user.status = 'Deactivated';
   await user.save();
@@ -635,7 +672,7 @@ export const updatePassword = asyncHandler(async (req, res) => {
   if (role === 'admin') {
     account = await Admin.findById(sub);
   } else {
-    account = await User.findById(sub);
+    account = await findUserByIdOrEmail(sub, req.user?.email);
   }
 
   if (!account) throw ApiError.notFound('Account not found');

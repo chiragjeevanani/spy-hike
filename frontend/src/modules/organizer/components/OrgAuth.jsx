@@ -142,9 +142,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     if (!formData.agencyName.trim()) {
       errors.agencyName = 'Agency name is required.';
     }
-    if (!formData.socialMediaLink.trim()) {
-      errors.socialMediaLink = 'A social media link (e.g. Instagram) is required.';
-    } else if (!isValidUrl(formData.socialMediaLink)) {
+    if (formData.socialMediaLink.trim() && !isValidUrl(formData.socialMediaLink)) {
       errors.socialMediaLink = 'Please enter a valid social media URL (e.g. https://instagram.com/youragency).';
     }
     if (formData.agencyWebsite.trim() && !isValidUrl(formData.agencyWebsite)) {
@@ -239,6 +237,11 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     setError('');
     setFieldErrors({});
     setLoading(true);
+    let cleanSocial = formData.socialMediaLink.trim();
+    if (cleanSocial && !/^https?:\/\//i.test(cleanSocial)) cleanSocial = `https://${cleanSocial}`;
+    let cleanWebsite = formData.agencyWebsite.trim();
+    if (cleanWebsite && !/^https?:\/\//i.test(cleanWebsite)) cleanWebsite = `https://${cleanWebsite}`;
+
     try {
       const organizer = await authApi.registerOrganizer({
         name: formData.name,
@@ -247,8 +250,8 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         mobile: formData.mobile,
         phoneToken: phoneVerify.token,
         agencyName: formData.agencyName,
-        agencyWebsite: formData.agencyWebsite,
-        socialMediaLink: formData.socialMediaLink,
+        agencyWebsite: cleanWebsite,
+        socialMediaLink: cleanSocial,
         govtIdType: formData.govtIdType,
         govtIdNumber: formData.govtIdNumber,
         yearsExperience: parseInt(formData.yearsExperience) || 1,
@@ -387,10 +390,10 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
           </div>
         </div>
         <div>
-          <label className={labelCls}>Social Media Link (e.g. Instagram) *</label>
+          <label className={labelCls}>Social Media Link (e.g. Instagram) (Optional)</label>
           <div className="relative">
             <Instagram size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input ref={socialMediaLinkRef} type="url" required className={`${inputCls} pl-10 ${errCls('socialMediaLink')}`} placeholder="https://instagram.com/youragency" value={formData.socialMediaLink} onChange={e => handleChange('socialMediaLink', e.target.value)} />
+            <input ref={socialMediaLinkRef} type="url" className={`${inputCls} pl-10 ${errCls('socialMediaLink')}`} placeholder="https://instagram.com/youragency" value={formData.socialMediaLink} onChange={e => handleChange('socialMediaLink', e.target.value)} />
           </div>
           <FieldError field="socialMediaLink" />
         </div>

@@ -28,6 +28,20 @@ const ORGANIZER_TRANSITION_MS = 3000; // lets the climb→camp flip play before 
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 const PASSWORD_HELP = 'Password must be at least 8 characters, with at least one letter and one number.';
 
+const isValidUrl = (urlStr) => {
+  if (!urlStr || typeof urlStr !== 'string') return false;
+  let formatted = urlStr.trim();
+  if (!/^https?:\/\//i.test(formatted)) {
+    formatted = 'https://' + formatted;
+  }
+  try {
+    const parsed = new URL(formatted);
+    return parsed.hostname.includes('.') && parsed.hostname.length >= 3;
+  } catch {
+    return false;
+  }
+};
+
 const parseEmergencyContact = (str) => {
   if (!str) return { name: '', phone: '' };
   
@@ -559,12 +573,17 @@ export default function ProfileView({
     e.preventDefault();
     const errors = {};
     if (!orgForm.agencyName.trim()) errors.agencyName = 'Agency / company name is required.';
-    if (!orgForm.socialMediaLink.trim()) errors.socialMediaLink = 'A social media link (e.g. Instagram) is required.';
+    if (orgForm.socialMediaLink.trim() && !isValidUrl(orgForm.socialMediaLink.trim())) {
+      errors.socialMediaLink = 'Please enter a valid social media URL (e.g. https://instagram.com/youragency).';
+    }
+    if (orgForm.agencyWebsite.trim() && !isValidUrl(orgForm.agencyWebsite.trim())) {
+      errors.agencyWebsite = 'Please enter a valid website URL (e.g. https://yourwebsite.com).';
+    }
     const idError = validateGovtId(orgForm.govtIdType, orgForm.govtIdNumber);
     if (idError) errors.govtIdNumber = idError;
 
     if (Object.keys(errors).length > 0) {
-      const order = ['agencyName', 'socialMediaLink', 'govtIdNumber'];
+      const order = ['agencyName', 'socialMediaLink', 'agencyWebsite', 'govtIdNumber'];
       const message = errors[order.find(f => errors[f])];
       setOrgFieldErrors(errors);
       setOrgFormError(message);
@@ -577,10 +596,15 @@ export default function ProfileView({
 
     setOrgSwitching(true);
 
+    let cleanSocial = orgForm.socialMediaLink.trim();
+    if (cleanSocial && !/^https?:\/\//i.test(cleanSocial)) cleanSocial = `https://${cleanSocial}`;
+    let cleanWebsite = orgForm.agencyWebsite.trim();
+    if (cleanWebsite && !/^https?:\/\//i.test(cleanWebsite)) cleanWebsite = `https://${cleanWebsite}`;
+
     authApi.applyAsOrganizer({
       agencyName: orgForm.agencyName.trim(),
-      agencyWebsite: orgForm.agencyWebsite.trim(),
-      socialMediaLink: orgForm.socialMediaLink.trim(),
+      agencyWebsite: cleanWebsite,
+      socialMediaLink: cleanSocial,
       govtIdType: orgForm.govtIdType,
       govtIdNumber: orgForm.govtIdNumber.trim(),
       yearsExperience: parseInt(orgForm.yearsExperience) || 1,
@@ -1071,11 +1095,10 @@ export default function ProfileView({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Social Media Link (e.g. Instagram) *</label>
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Social Media Link (e.g. Instagram) (Optional)</label>
               <input
                 ref={orgSocialMediaLinkRef}
                 type="url"
-                required
                 placeholder="https://instagram.com/youragency"
                 value={orgForm.socialMediaLink}
                 onChange={e => { setOrgForm({ ...orgForm, socialMediaLink: e.target.value }); setOrgFormError(''); clearOrgError('socialMediaLink'); }}

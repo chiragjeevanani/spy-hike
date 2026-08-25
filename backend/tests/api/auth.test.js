@@ -80,8 +80,13 @@ describe('Customer auth', () => {
     expect(res.status).toBe(400);
   });
 
-  it.each([undefined, '', 'not-a-url'])('rejects organizer registration with an invalid social media link "%s" (400)', async (socialMediaLink) => {
-    const res = await registerOrganizer({ socialMediaLink });
+  it('allows organizer registration without a social media link (optional)', async () => {
+    const res = await registerOrganizer({ socialMediaLink: '' });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects organizer registration with an invalid social media link (400)', async () => {
+    const res = await registerOrganizer({ email: 'invalid-social@example.com', socialMediaLink: 'not-a-url' });
     expect(res.status).toBe(400);
   });
 

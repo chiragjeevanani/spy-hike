@@ -89,8 +89,7 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
     if (form.agencyWebsite.trim() && !URL_REGEX.test(form.agencyWebsite.trim())) {
       errors.agencyWebsite = 'Enter a valid website URL (starting with http:// or https://).';
     }
-    if (!form.socialMediaLink.trim()) errors.socialMediaLink = 'A social media link (e.g. Instagram) is required.';
-    else if (!URL_REGEX.test(form.socialMediaLink.trim())) {
+    if (form.socialMediaLink.trim() && !URL_REGEX.test(form.socialMediaLink.trim())) {
       errors.socialMediaLink = 'Enter a valid social media URL (starting with http:// or https://).';
     }
     return errors;
@@ -375,7 +374,7 @@ export default function OrgProfileView({ organizer, onLogout, onOpenLoyalty, onO
                   { label: 'Mobile / Support Phone', key: 'supportPhone', type: 'tel', placeholder: '9876543210', inputMode: 'numeric', maxLength: 10 },
                   { label: 'Support Email', key: 'supportEmail', type: 'email', placeholder: 'support@youragency.com' },
                   { label: 'Website', key: 'agencyWebsite', type: 'url', placeholder: 'https://...' },
-                  { label: 'Social Media Link (e.g. Instagram) *', key: 'socialMediaLink', type: 'url', placeholder: 'https://instagram.com/youragency', required: true },
+                  { label: 'Social Media Link (e.g. Instagram) (Optional)', key: 'socialMediaLink', type: 'url', placeholder: 'https://instagram.com/youragency', required: false },
                   { label: 'Years Experience', key: 'yearsExperience', type: 'number', placeholder: '5' },
                 ].map(field => (
                   <div key={field.key}>

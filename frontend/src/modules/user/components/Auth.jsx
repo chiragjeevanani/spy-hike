@@ -448,8 +448,19 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
         {/* Errors & Confirms */}
         {errorMsg && (
-          <div className="mb-4 text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/35 p-3 rounded-xl">
-            {errorMsg}
+          <div className="mb-4 text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/35 p-3 rounded-xl space-y-2">
+            <div>{errorMsg}</div>
+            {errorMsg.toLowerCase().includes('organizer profile') && (
+              <div className="pt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleToggleRole}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-red-500/20 hover:bg-red-500/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
+                >
+                  Switch to Traveller Sign-In →
+                </button>
+              </div>
+            )}
           </div>
         )}
         {successMsg && (
