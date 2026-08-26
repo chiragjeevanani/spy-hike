@@ -52,11 +52,22 @@ export const authApi = {
     api.post('/auth/organizer/apply', payload).then(accept),
   loginOrganizer: (identifier, password) =>
     api.post('/auth/organizer/login', { identifier, email: identifier, mobile: identifier, password }, { auth: false }).then(accept),
+  // Read-only status probe: does this account already have an organizer
+  // profile, and is it approved yet? Unlike getLinkedOrganizerStatus below it
+  // does NOT persist the organizer-scoped token the endpoint mints, so the
+  // traveller app can check "have I already applied?" without silently
+  // switching the session's role.
+  getOrganizerApplicationStatus: () => api.get('/auth/organizer-status', { cache: false }),
   // Also mints and stores an organizer-scoped token (via the customer's
   // existing token) so subsequent organizer-only calls carry the right role —
   // switching roles for a unified account needs no password re-entry.
+  //
+  // Never cached: this gates "apply vs. switch to organizer" and, while an
+  // application is pending, an approval state an admin can flip at any moment.
+  // A 60s-stale answer strands an approved organizer on the pending screen and
+  // hands an already-applied customer a blank form.
   getLinkedOrganizerStatus: () =>
-    api.get('/auth/organizer-status').then((res) => {
+    api.get('/auth/organizer-status', { cache: false }).then((res) => {
       if (res?.token) setToken(res.token);
       return res;
     }),
@@ -76,7 +87,9 @@ export const authApi = {
   async fetchMe() {
     if (!getToken()) return null;
     try {
-      const res = await api.get('/auth/me');
+      // Uncached — the organizer app polls this to notice admin approval, and
+      // the GET cache would otherwise serve a 60s-old "still pending".
+      const res = await api.get('/auth/me', { cache: false });
       return { ...res.account, role: res.role };
     } catch {
       clearToken();

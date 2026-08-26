@@ -20,6 +20,47 @@ import { autoResolveBookingStatuses } from '../utils/bookingStatusHelper.js';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
+// Resolves the organizing agency shown on a customer's ticket.
+//
+// A booking stores only `organizerEmail` (the FK) plus a name snapshot, which
+// left the ticket rendering a blank agency, the account's login email as the
+// support address, and a hardcoded placeholder phone number. Contact details
+// are also exactly the thing that must be CURRENT when a traveller needs to
+// reach their organizer mid-trip, so they're read live from the account rather
+// than frozen onto the booking at checkout.
+//
+// Batched: a bookings list spans several organizers, and this must not become
+// one query per row.
+async function withOrganizers(bookings) {
+  const list = Array.isArray(bookings) ? bookings : [bookings];
+  const emails = [...new Set(list.map((b) => b.organizerEmail).filter(Boolean))];
+
+  const users = emails.length
+    ? await User.find({ email: { $in: emails }, isOrganizer: true })
+      .select('name email mobile avatar organizer')
+      .lean()
+    : [];
+  const byEmail = new Map(users.map((u) => [u.email, u]));
+
+  const shaped = list.map((b) => {
+    const json = b.toPublicJSON();
+    const user = byEmail.get(b.organizerEmail);
+    const org = user?.organizer || {};
+    // No account behind the email (deleted, or a legacy booking) — fall back to
+    // the snapshot on the booking rather than inventing contact details.
+    json.organizer = {
+      name: org.agencyName || user?.name || json.organizerName || '',
+      email: org.supportEmail || user?.email || json.organizerEmail || '',
+      phone: org.supportPhone || user?.mobile || '',
+      avatar: user?.avatar || '',
+      verified: !!org.isApproved,
+    };
+    return json;
+  });
+
+  return Array.isArray(bookings) ? shaped : shaped[0];
+}
+
 // Match a booking by either its human bookingId ("TG-…") or its ObjectId.
 const idMatch = (id) => {
   const or = [{ bookingId: id }];
@@ -105,6 +146,9 @@ export const createBooking = asyncHandler(async (req, res) => {
       tripImage: trip.coverImage,
       tripLocation: trip.location,
       organizerEmail: trip.organizerEmail,
+      // Durable snapshot: the display name still resolves live from the
+      // account, but this survives that account being removed.
+      organizerName: trip.organizer?.name || '',
       userEmail: req.user.email,
       userName: req.user.name || 'Traveller',
       bookingDate: todayStr(),
@@ -152,7 +196,8 @@ export const createBooking = asyncHandler(async (req, res) => {
       }
     }
 
-    res.status(201).json({ booking: booking.toPublicJSON() });
+    // Same shape the ticket screen reads back from GET /bookings/:id.
+    res.status(201).json({ booking: await withOrganizers(booking) });
   } catch (err) {
     // Compensate: hand the seats back so a failed booking doesn't leak them.
     await releaseSeats(trip._id, selectedDate, pricing.travelersCount);
@@ -164,7 +209,7 @@ export const createBooking = asyncHandler(async (req, res) => {
 export const listMyBookings = asyncHandler(async (req, res) => {
   await autoResolveBookingStatuses();
   const bookings = await Booking.find({ userEmail: req.user.email }).sort({ createdAt: -1 });
-  res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
+  res.json({ bookings: await withOrganizers(bookings) });
 });
 
 // GET /bookings/:id — one of the customer's bookings (by bookingId or _id).
@@ -172,7 +217,7 @@ export const getMyBooking = asyncHandler(async (req, res) => {
   await autoResolveBookingStatuses();
   const booking = await Booking.findOne({ userEmail: req.user.email, ...idMatch(req.params.id) });
   if (!booking) throw ApiError.notFound('Booking not found');
-  res.json({ booking: booking.toPublicJSON() });
+  res.json({ booking: await withOrganizers(booking) });
 });
 
 // POST /bookings/:id/cancel — the customer cancels an upcoming booking. Applies
@@ -211,7 +256,7 @@ export const cancelBooking = asyncHandler(async (req, res) => {
     });
   }
 
-  res.json({ booking: booking.toPublicJSON() });
+  res.json({ booking: await withOrganizers(booking) });
 });
 
 // GET /organizer/bookings — bookings for the approved organizer's trips.

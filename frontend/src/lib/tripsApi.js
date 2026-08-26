@@ -25,6 +25,10 @@ export const tripsApi = {
     return api.get(`/trek-groups${qs ? `?${qs}` : ''}`, { auth: false });
   },
   listPickupCities: () => api.get('/pickup-cities', { auth: false }).then((r) => r.cities),
+  // Every city the catalog can actually show treks for, busiest first, each
+  // with its trek count and a representative coordinate. Powers the city
+  // picker — see the note on listTrekCities in the backend controller.
+  listTrekCities: () => api.get('/trek-cities', { auth: false }).then((r) => r.cities || []),
   getTrip: (id) => api.get(`/trips/${encodeURIComponent(id)}`, { auth: false }).then((r) => r.trip),
   getTripDepartures: (id) =>
     api.get(`/trips/${encodeURIComponent(id)}/departures`, { auth: false }).then((r) => r.departures),

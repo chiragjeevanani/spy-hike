@@ -28,6 +28,7 @@ export default function CouponsView({ darkMode }) {
   const [tab, setTab] = useState('platform'); // 'platform' | 'organizer'
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [editingCoupon, setEditingCoupon] = useState(null); // null = closed, {} = new, {...} = edit
@@ -42,9 +43,15 @@ export default function CouponsView({ darkMode }) {
 
   const refresh = () => {
     setLoading(true);
+    setLoadError('');
     return couponsApi.list()
-      .then(setCoupons)
-      .catch(() => setCoupons([]))
+      .then((list) => { setCoupons(list); })
+      // Swallowing this rendered a rejected request as "no coupons yet", which
+      // is how a broken session stayed invisible until a create failed.
+      .catch((err) => {
+        setCoupons([]);
+        setLoadError(err?.message || 'Could not load coupons.');
+      })
       .finally(() => setLoading(false));
   };
   useEffect(() => { refresh(); }, []);
@@ -286,6 +293,19 @@ export default function CouponsView({ darkMode }) {
                 Array.from({ length: 4 }).map((_, i) => (
                   <AdminSkeletonTableRow key={i} darkMode={darkMode} cols={7} />
                 ))
+              ) : loadError ? (
+                <tr>
+                  <td colSpan="7" className="text-center py-10">
+                    <p className="text-rose-500 font-bold">{loadError}</p>
+                    <button
+                      type="button"
+                      onClick={refresh}
+                      className="mt-2 text-[#F27D26] font-bold underline underline-offset-2"
+                    >
+                      Try again
+                    </button>
+                  </td>
+                </tr>
               ) : filteredCoupons.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center py-10 text-slate-400">

@@ -14,6 +14,8 @@ import { getComputedBookingStatus, getStatusBadgeStyle } from '../../../utils/bo
 export function RescheduleModal({ booking, availableDates = [], onClose, onSubmit, darkMode }) {
   const [selectedNewDate, setSelectedNewDate] = useState(availableDates[0] || '');
   const [reason, setReason] = useState('');
+  // Server-resolved name, falling back to the booking's own snapshot.
+  const organizerName = booking.organizer?.name || booking.organizerName || 'the organizer';
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-55 flex items-center justify-center p-4">
@@ -29,7 +31,7 @@ export function RescheduleModal({ booking, availableDates = [], onClose, onSubmi
           <h4 className="text-sm font-display font-black">Request Trip Reschedule</h4>
         </div>
         <p className="text-[11px] opacity-70 mb-4">
-          Select an available batch for <span className="font-bold">{booking.tripName}</span> offered by {booking.organizerName}.
+          Select an available batch for <span className="font-bold">{booking.tripName}</span> offered by {organizerName}.
         </p>
 
         {availableDates.length === 0 ? (
@@ -113,6 +115,15 @@ export default function BookingDetailsView({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const toast = useToast();
 
+  // The organizing agency shown on the ticket. The server resolves this live
+  // from the organizer's account (see withOrganizers in bookingController) —
+  // the flat `organizer*` fields are the older, partly-unpopulated shape kept
+  // as a fallback for bookings cached from before that, and for offline reads.
+  const organizer = booking.organizer || {};
+  const organizerName = organizer.name || booking.organizerName || '';
+  const organizerPhone = organizer.phone || booking.organizerPhone || '';
+  const organizerEmail = organizer.email || booking.organizerEmail || '';
+
   const computedStatus = getComputedBookingStatus(booking);
   const statusBadge = getStatusBadgeStyle(computedStatus);
 
@@ -190,7 +201,7 @@ export default function BookingDetailsView({
             <div>
               <span className="font-bold block">Reschedule Request Pending</span>
               <p className="text-[11px] opacity-80 mt-0.5">
-                Requested new date: <span className="font-bold">{booking.requestedDate}</span>. Waiting for {booking.organizerName} to review.
+                Requested new date: <span className="font-bold">{booking.requestedDate}</span>. Waiting for {organizerName || 'the organizer'} to review.
               </p>
             </div>
           </div>
@@ -249,7 +260,7 @@ export default function BookingDetailsView({
             </h4>
             <button
               type="button"
-              onClick={() => onViewOrganizerProfile(booking.organizerName)}
+              onClick={() => onViewOrganizerProfile(organizerName)}
               className="text-[10px] font-black uppercase tracking-wider text-forest-500 hover:underline cursor-pointer flex items-center gap-0.5 bg-transparent border-0 outline-hidden"
             >
               View Profile <ExternalLink size={10} />
@@ -257,38 +268,48 @@ export default function BookingDetailsView({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-black text-white ${
+            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-sm font-black ${
               darkMode ? 'bg-forest-950/40 border border-forest-500/25 text-forest-400' : 'bg-forest-50 border border-forest-500/20 text-forest-600'
             }`}>
-              {booking.organizerName ? booking.organizerName.substring(0, 2).toUpperCase() : 'TG'}
+              {organizer.avatar
+                ? <img src={organizer.avatar} alt={organizerName} className="w-full h-full object-cover" />
+                : (organizerName ? organizerName.substring(0, 2).toUpperCase() : 'FT')}
             </div>
             <div className="min-w-0 flex-1">
-              <h5 className="text-xs font-bold leading-tight truncate">{booking.organizerName}</h5>
-              <p className="text-[10px] text-emerald-500 flex items-center gap-0.5 mt-0.5 font-bold">
-                ★ Verified Partner
-              </p>
+              <h5 className="text-xs font-bold leading-tight truncate">{organizerName || 'Organizer'}</h5>
+              {organizer.verified && (
+                <p className="text-[10px] text-emerald-500 flex items-center gap-0.5 mt-0.5 font-bold">
+                  ★ Verified Partner
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Contact Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-dashed border-zinc-200 dark:border-white/10">
-            <div className="flex items-center gap-2">
-              <Phone size={12} className="text-forest-400 shrink-0" />
-              <div className="text-[11px]">
-                <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone</span>
-                <span className="font-bold font-sans">{booking.organizerPhone || '+91 98765 43210'}</span>
-              </div>
+          {/* Contact Details — only shown when the organizer actually published
+              them; a placeholder number here is worse than no number at all,
+              since a stranded traveller would call it. */}
+          {(organizerPhone || organizerEmail) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-dashed border-zinc-200 dark:border-white/10">
+              {organizerPhone && (
+                <a href={`tel:${organizerPhone.replace(/\s+/g, '')}`} className="flex items-center gap-2">
+                  <Phone size={12} className="text-forest-400 shrink-0" />
+                  <div className="text-[11px]">
+                    <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone</span>
+                    <span className="font-bold font-sans">{organizerPhone}</span>
+                  </div>
+                </a>
+              )}
+              {organizerEmail && (
+                <a href={`mailto:${organizerEmail}`} className="flex items-center gap-2">
+                  <Mail size={12} className="text-forest-400 shrink-0" />
+                  <div className="text-[11px]">
+                    <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email</span>
+                    <span className="font-bold truncate max-w-[150px] block">{organizerEmail}</span>
+                  </div>
+                </a>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Mail size={12} className="text-forest-400 shrink-0" />
-              <div className="text-[11px]">
-                <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email</span>
-                <span className="font-bold truncate max-w-[150px] block">
-                  {booking.organizerEmail || `support@${booking.organizerName.toLowerCase().replace(/\s+/g, '')}.com`}
-                </span>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Cancellation warning clause */}

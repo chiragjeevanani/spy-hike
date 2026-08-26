@@ -8,13 +8,35 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
 
-// JWT persistence. A single shared token key across all three module SPAs —
-// the role encoded in the token (customer/organizer/admin) scopes access.
+// JWT persistence. The customer and organizer apps deliberately SHARE one token
+// slot: they are the same unified account, and switching roles re-mints the JWT
+// in place (see authApi.getLinkedOrganizerStatus).
+//
+// The admin console does NOT belong in that slot. It's a separate account
+// entirely (the Admin collection, its own login), and each SPA tracks "am I
+// signed in" in its own localStorage flag rather than in the token — so sharing
+// one key meant whichever app authenticated last silently owned the JWT for all
+// three. Signing into the customer app anywhere in the same browser left the
+// admin panel rendering as usual while every admin call came back 403 "You do
+// not have access to this resource". Giving admin its own key removes the
+// collision in both directions.
 const TOKEN_KEY = 'trekigo_auth_token';
+const ADMIN_TOKEN_KEY = 'trekigo_admin_auth_token';
+
+// Read per call rather than once at import: cheap, and it can't go stale if the
+// module is ever loaded before the URL settles.
+const tokenKey = () => {
+  try {
+    const path = window.location.pathname;
+    return path === '/admin' || path.startsWith('/admin/') ? ADMIN_TOKEN_KEY : TOKEN_KEY;
+  } catch {
+    return TOKEN_KEY;
+  }
+};
 
 export const getToken = () => {
   try {
-    return localStorage.getItem(TOKEN_KEY) || null;
+    return localStorage.getItem(tokenKey()) || null;
   } catch {
     return null;
   }
@@ -22,8 +44,8 @@ export const getToken = () => {
 
 export const setToken = (token) => {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    if (token) localStorage.setItem(tokenKey(), token);
+    else localStorage.removeItem(tokenKey());
   } catch {
     /* ignore storage failures (private mode, etc.) */
   }

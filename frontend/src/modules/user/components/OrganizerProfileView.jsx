@@ -221,22 +221,29 @@ export default function OrganizerProfileView({
                     <div className={`p-3.5 rounded-2xl space-y-3 border ${
                       darkMode ? 'bg-zinc-900/35 border-forest-900/30' : 'bg-white border-zinc-200 shadow-xs'
                     }`}>
-                      <div className="flex items-center gap-3">
-                        <Phone size={14} className="text-forest-400 shrink-0" />
-                        <div className="text-xs">
-                          <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone Number</span>
-                          <span className="font-bold font-sans">{organizer.supportPhone || organizer.mobile || '+91 98765 43210'}</span>
+                      {/* Real contact details only. A placeholder number or a
+                          guessed support@ address reads as genuine and sends a
+                          traveller who needs help to nobody. */}
+                      {(organizer.supportPhone || organizer.mobile) && (
+                        <div className="flex items-center gap-3">
+                          <Phone size={14} className="text-forest-400 shrink-0" />
+                          <div className="text-xs">
+                            <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone Number</span>
+                            <span className="font-bold font-sans">{organizer.supportPhone || organizer.mobile}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3 pt-2.5 border-t border-zinc-850/5 dark:border-white/5">
-                        <Mail size={14} className="text-forest-400 shrink-0" />
-                        <div className="text-xs">
-                          <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email Address</span>
-                          <span className="font-bold truncate block">
-                            {organizer.supportEmail || organizer.email || `support@${organizer.name.toLowerCase().replace(/\s+/g, '')}.com`}
-                          </span>
+                      )}
+                      {(organizer.supportEmail || organizer.email) && (
+                        <div className="flex items-center gap-3 pt-2.5 border-t border-zinc-850/5 dark:border-white/5">
+                          <Mail size={14} className="text-forest-400 shrink-0" />
+                          <div className="text-xs">
+                            <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email Address</span>
+                            <span className="font-bold truncate block">
+                              {organizer.supportEmail || organizer.email}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                       <div className="flex items-center gap-3 pt-2.5 border-t border-zinc-850/5 dark:border-white/5">
                         <Globe size={14} className="text-forest-400 shrink-0" />
                         <div className="text-xs">

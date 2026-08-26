@@ -360,32 +360,54 @@ export default function OrgApp() {
     window.location.href = SHARED_LOGIN_PATH;
   };
 
-  // Auto-verify approval status from server on page load / refresh & poll if pending
+  // Auto-verify approval status from server on page load / refresh & poll if
+  // pending, so an admin approval lands the organizer on their dashboard on its
+  // own — no manual refresh.
+  //
+  // Reads /auth/organizer-status rather than /auth/me: it answers in organizer
+  // terms whichever role the stored token is scoped to (a customer-scoped token
+  // for the same unified account makes /auth/me return the *traveller* shape,
+  // whose missing isApproved would demote an approved organizer back to
+  // pending), and it re-mints an organizer token, healing exactly that case.
+  // The call also bypasses the GET cache (see lib/authApi.js) — otherwise every
+  // poll inside a 60s window replays the same stale "still pending" answer.
   useEffect(() => {
     if (!organizer?.isAuthenticated) return;
 
+    const wasApproved = Boolean(organizer.isApproved);
+    let cancelled = false;
+    let announced = false; // one promotion toast per pending→approved transition
+
     const checkStatus = async () => {
+      if (cancelled) return;
       try {
         if (!getToken()) return;
-        const fresh = await authApi.fetchMe();
-        if (fresh) {
-          const isNowApproved = Boolean(fresh.isApproved);
+        const status = await authApi.getLinkedOrganizerStatus();
+        // No organizer profile on this account (or an unreadable answer) —
+        // leave the local session alone rather than corrupting it.
+        if (cancelled || !status?.isOrganizer) return;
+
+        const isNowApproved = Boolean(status.isApproved);
+        const fresh = status.organizer || {};
+        // Functional update: this runs on an interval, so merging into the
+        // `organizer` captured at effect setup would undo anything edited since.
+        setOrganizer((prev) => {
           const updated = {
-            ...organizer,
+            ...prev,
             ...fresh,
             isApproved: isNowApproved,
             isPendingApproval: !isNowApproved,
           };
           saveOrgUser(updated);
-          setOrganizer(updated);
+          return updated;
+        });
 
-          if (isNowApproved) {
-            tripsApi.listOrganizerTrips().then(setTrips).catch(() => {});
-            setBookings(loadOrgBookings(updated.email));
-            if (activeTab === 'Pending' || window.location.pathname.includes('/pending')) {
-              navigateTo('Dashboard', true);
-            }
-          }
+        if (isNowApproved && !wasApproved && !announced) {
+          announced = true;
+          toast.success('🎉 Your application has been approved! Welcome to Find Your Trek.');
+          tripsApi.listOrganizerTrips().then((list) => { if (!cancelled) setTrips(list); }).catch(() => {});
+          setBookings(loadOrgBookings(fresh.email || organizer.email));
+          navigateTo('Dashboard', true);
         }
       } catch (err) {
         /* Ignore background network errors */
@@ -395,21 +417,37 @@ export default function OrgApp() {
     // Run immediately on page load / mount
     checkStatus();
 
-    // Poll every 8 seconds while waiting for admin approval
-    if (!organizer.isApproved) {
-      const timer = setInterval(checkStatus, 8000);
-      return () => clearInterval(timer);
-    }
-  }, [organizer?.isAuthenticated, organizer?.email, organizer?.isApproved]);
+    if (organizer.isApproved) return () => { cancelled = true; };
+
+    // Poll every 8 seconds while waiting for admin approval, and re-check the
+    // moment the app comes back to the foreground — reopening the app should
+    // reflect an approval that happened while it was closed, without waiting
+    // out a poll tick.
+    const timer = setInterval(checkStatus, 8000);
+    const onWake = () => { if (document.visibilityState === 'visible') checkStatus(); };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', checkStatus);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', checkStatus);
+    };
+  }, [organizer?.isAuthenticated, organizer?.email, organizer?.isApproved, navigateTo]);
 
   const handleToggleDarkMode = () => setDarkMode(p => !p);
 
   // Re-fetch the real approval status from the API on "Check Status" click.
   const handleCheckApproval = async () => {
     try {
-      const fresh = await authApi.fetchMe();
-      if (!fresh) return;
-      const isNowApproved = Boolean(fresh.isApproved);
+      const status = await authApi.getLinkedOrganizerStatus();
+      if (!status?.isOrganizer) {
+        toast.error('No organizer application found on this account.');
+        return;
+      }
+      const fresh = status.organizer || {};
+      const isNowApproved = Boolean(status.isApproved);
       const updated = {
         ...organizer,
         ...fresh,

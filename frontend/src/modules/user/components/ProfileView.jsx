@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
   ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon,
-  Building2, CreditCard, Upload, Gift, FileText, Phone, Mail, UserX, Clock
+  Building2, CreditCard, Upload, Gift, FileText, Phone, Mail, UserX, Clock, RefreshCw
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
@@ -12,6 +12,7 @@ import SwitchTransition from './SwitchTransition';
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import authApi from '../../../lib/authApi';
+import { getToken } from '../../../lib/apiClient';
 import contentApi from '../../../lib/contentApi';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
@@ -252,10 +253,12 @@ export default function ProfileView({
   const orgGovtIdNumberRef = useRef(null);
   const orgFieldRefs = { agencyName: orgAgencyNameRef, socialMediaLink: orgSocialMediaLinkRef, govtIdNumber: orgGovtIdNumberRef };
 
-  // Check if this traveller already has an organizer account (approved OR
-  // pending). `user.isOrganizer` comes straight from the backend and is the
-  // source of truth; the localStorage read is only a fallback for offline use.
-  const isExistingOrganizer = !!user?.isOrganizer || (() => {
+  // Whether this traveller already has an organizer profile (approved OR
+  // pending), read from the local session. The customer session snapshot is
+  // written at login and never learns that an application was filed later, so
+  // this is only the offline / first-paint answer — `orgStatus` below re-checks
+  // it against the server.
+  const locallyKnownOrganizer = !!user?.isOrganizer || (() => {
     try {
       const raw = localStorage.getItem(ORG_USER_STORAGE_KEY);
       if (!raw) return false;
@@ -264,6 +267,107 @@ export default function ProfileView({
       return !!(org?.isOnboarded && (org?.email === user?.email || org?.isAuthenticated));
     } catch { return false; }
   })();
+
+  // Server-verified organizer application status. `null` means "not checked
+  // yet"; the application form must not be offered until this resolves, or a
+  // customer who already applied (deep-linking straight to
+  // /app/profile/become-organizer, or landing there on a restored route) gets
+  // a blank form and files a duplicate application.
+  const [orgStatus, setOrgStatus] = useState(null);
+  const [orgStatusChecking, setOrgStatusChecking] = useState(false);
+
+  const refreshOrgStatus = useCallback(async () => {
+    // No JWT to present: an authed call would 401, and apiClient treats that as
+    // an expired session and signs the user out. Trust the local session
+    // instead — a probe isn't worth ending someone's session over.
+    if (!getToken()) {
+      const local = { isOrganizer: locallyKnownOrganizer, isApproved: false, organizer: null, offline: true };
+      setOrgStatus((prev) => prev ?? local);
+      return local;
+    }
+    setOrgStatusChecking(true);
+    try {
+      // Read-only probe: deliberately does not adopt the organizer-scoped
+      // token the endpoint mints — the traveller session stays a traveller
+      // session until the user actually switches modules.
+      const res = await authApi.getOrganizerApplicationStatus();
+      const next = {
+        isOrganizer: !!res?.isOrganizer,
+        isApproved: !!res?.isApproved,
+        organizer: res?.organizer || null,
+        offline: false,
+      };
+      setOrgStatus(next);
+      return next;
+    } catch {
+      // Offline / transient failure: fall back to whatever the local session
+      // knows rather than blocking the flow outright.
+      const next = { isOrganizer: locallyKnownOrganizer, isApproved: false, organizer: null, offline: true };
+      setOrgStatus((prev) => prev ?? next);
+      return next;
+    } finally {
+      setOrgStatusChecking(false);
+    }
+  }, [locallyKnownOrganizer]);
+
+  // Check on mount and whenever the application screen is opened (including
+  // via a direct URL, which bypasses the "Become an Organizer" button).
+  useEffect(() => {
+    if (!user?.isAuthenticated) return;
+    if (currentSub === 'MAIN' || currentSub === 'BECOME_ORGANIZER') refreshOrgStatus();
+  }, [currentSub, user?.isAuthenticated, refreshOrgStatus]);
+
+  const hasApplied = orgStatus ? orgStatus.isOrganizer : locallyKnownOrganizer;
+  const isApprovedOrganizer = !!orgStatus?.isOrganizer && !!orgStatus.isApproved;
+  const isPendingOrganizer = hasApplied && !isApprovedOrganizer;
+  // Until the first check resolves, the form is withheld rather than shown.
+  const orgStatusResolved = orgStatus !== null;
+
+  // While an applicant sits on the review screen, watch for the admin's
+  // decision and hand off to the organizer module the moment it lands, so
+  // approval never needs a manual refresh to take effect.
+  useEffect(() => {
+    if (currentSub !== 'BECOME_ORGANIZER' || !isPendingOrganizer) return;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled || document.visibilityState === 'hidden') return;
+      const next = await refreshOrgStatus();
+      if (cancelled || !next?.isOrganizer || !next.isApproved) return;
+      toast.success('🎉 Your organizer application has been approved!');
+      handleBecomeOrganizer();
+    };
+
+    const timer = setInterval(tick, 8000);
+    const onWake = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onWake);
+    };
+  }, [currentSub, isPendingOrganizer, refreshOrgStatus]);
+
+  // "Check status" on the review screen — an explicit re-check for applicants
+  // who don't want to wait out the poll.
+  const handleCheckOrgApplication = async () => {
+    const next = await refreshOrgStatus();
+    if (!next) return;
+    if (next.offline) {
+      toast.error('Could not reach the server. Check your connection and try again.');
+      return;
+    }
+    if (!next.isOrganizer) {
+      toast.info('No organizer application found for this account.');
+      return;
+    }
+    if (next.isApproved) {
+      toast.success('🎉 Your application has been approved! Taking you to your organizer panel.');
+      handleBecomeOrganizer();
+    } else {
+      toast.info('Still under review. We will notify you the moment an admin approves it.');
+    }
+  };
 
   // Support Chat
   const [supportChats, setSupportChats] = useState([
@@ -517,8 +621,12 @@ export default function ProfileView({
       ...existingOrg,
       isAuthenticated: true,
       isOnboarded: true,
-      isApproved: true,
-      isPendingApproval: false,
+      // Never fabricate approval: this is the offline fallback, and an
+      // applicant still awaiting review must land on the pending screen rather
+      // than a dashboard they aren't cleared for. The organizer module
+      // re-verifies against the server as soon as it can reach it.
+      isApproved: existingOrg?.isApproved ?? isApprovedOrganizer,
+      isPendingApproval: existingOrg?.isPendingApproval ?? !isApprovedOrganizer,
       name: user.name,
       email: user.email,
       mobile: user.mobile,
@@ -529,13 +637,21 @@ export default function ProfileView({
     window.location.href = '/organizer';
   };
 
-  // Plays the climb→camp flip, then either enters the organizer module
-  // (already-vetted accounts) or opens the partner application form.
+  // Plays the climb→camp flip, then hands off to the organizer module —
+  // whether that account is vetted or still awaiting review (the module's own
+  // pending screen watches for approval). Accounts that have never applied get
+  // the partner application form instead.
   const handleBecomeOrganizer = () => {
     setOrgSwitching(true);
 
     authApi.getLinkedOrganizerStatus()
       .then(async (statusRes) => {
+        setOrgStatus({
+          isOrganizer: !!statusRes.isOrganizer,
+          isApproved: !!statusRes.isApproved,
+          organizer: statusRes.organizer || null,
+          offline: false,
+        });
         if (statusRes.isOrganizer) {
           const orgUser = {
             ...statusRes.organizer,
@@ -558,7 +674,11 @@ export default function ProfileView({
         }
       })
       .catch(() => {
-        if (user.isOrganizer) {
+        // Status unreachable. If anything local says this account already has
+        // an organizer profile, hand off to the organizer module (which
+        // re-verifies); otherwise open the application screen — which withholds
+        // the form until it can confirm no application exists.
+        if (hasApplied) {
           setTimeout(() => {
             redirectToOrganizerPanel();
           }, 1400);
@@ -571,6 +691,15 @@ export default function ProfileView({
 
   const handleSubmitOrgApplication = (e) => {
     e.preventDefault();
+    // Belt-and-braces: the form isn't rendered once an application exists, but
+    // a stale mount (or a resolved-late status check) must never file a second
+    // one. The backend treats a repeat apply as idempotent; this keeps the UI
+    // honest about it.
+    if (hasApplied) {
+      toast.info('Your organizer application has already been submitted.');
+      refreshOrgStatus();
+      return;
+    }
     const errors = {};
     if (!orgForm.agencyName.trim()) errors.agencyName = 'Agency / company name is required.';
     if (orgForm.socialMediaLink.trim() && !isValidUrl(orgForm.socialMediaLink.trim())) {
@@ -618,6 +747,16 @@ export default function ProfileView({
         rememberMe: true
       };
       try { localStorage.setItem(ORG_USER_STORAGE_KEY, JSON.stringify(orgUser)); } catch (e) {}
+      // Record the application on both the live status and the persisted
+      // traveller session, so coming back to Profile (this run or a later app
+      // launch) shows the review screen instead of an empty form again.
+      setOrgStatus({
+        isOrganizer: true,
+        isApproved: !!createdOrg?.isApproved,
+        organizer: createdOrg,
+        offline: false,
+      });
+      onUpdateUser({ ...user, isOrganizer: true });
       setTimeout(() => { window.location.href = '/organizer'; }, ORGANIZER_TRANSITION_MS);
     })
     .catch((err) => {
@@ -792,9 +931,25 @@ export default function ProfileView({
                 >
                   <span className="flex items-center gap-3">
                     <Building2 size={19} className="text-spy-orange" />
-                    {isExistingOrganizer ? 'Switch to Organizer' : 'Become an Organizer'}
+                    {/* An application that's been filed but not yet cleared says
+                        so here — "Become an Organizer" invited applicants who
+                        had already applied to fill the form a second time. */}
+                    {!hasApplied
+                      ? 'Become an Organizer'
+                      : orgStatusResolved && isPendingOrganizer
+                        ? 'Organizer Application'
+                        : 'Switch to Organizer'}
                   </span>
-                  <ChevronRight size={17} className="opacity-40" />
+                  <span className="flex items-center gap-2">
+                    {orgStatusResolved && isPendingOrganizer && (
+                      <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+                        darkMode ? 'bg-spy-orange/15 text-amber-300' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        Under Review
+                      </span>
+                    )}
+                    <ChevronRight size={17} className="opacity-40" />
+                  </span>
                 </button>
               </div>
             </div>
@@ -1007,9 +1162,163 @@ export default function ProfileView({
           </motion.form>
         )}
 
-        {/* SUB: BECOME AN ORGANIZER — partner application for accounts that
-            aren't vetted organizers yet (mirrors the OrgAuth signup fields) */}
-        {currentSub === 'BECOME_ORGANIZER' && (
+        {/* SUB: ORGANIZER APPLICATION — status gate. The form below is only
+            reachable by accounts with no application on file; anyone who has
+            already applied lands on the review screen instead, no matter how
+            they got here (menu tap, deep link, or a restored route). */}
+        {currentSub === 'BECOME_ORGANIZER' && !orgStatusResolved && (
+          <motion.div
+            key="ORG_STATUS_LOADING"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 px-6 ${
+              darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
+            }`}
+          >
+            <RefreshCw size={22} className="text-spy-orange animate-spin" />
+            <p className="text-sm font-semibold opacity-60">Checking your application status…</p>
+          </motion.div>
+        )}
+
+        {currentSub === 'BECOME_ORGANIZER' && orgStatusResolved && hasApplied && (
+          <motion.div
+            key="ORG_APPLICATION_STATUS"
+            initial={{ opacity: 0, y: 28, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
+              darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
+            }`}
+          >
+            <div className="space-y-4 flex-1 max-w-lg w-full mx-auto">
+              <div className={subHeaderCls}>
+                <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
+                  <ArrowLeft size={17} />
+                </button>
+                <h3 className={`${subTitleCls} flex items-center gap-2 text-base sm:text-lg`}>
+                  <Building2 size={19} className="text-spy-orange" /> Organizer Application
+                </h3>
+              </div>
+
+              {/* Status hero */}
+              <div className={`rounded-2xl px-5 py-7 text-center ${subCardCls}`}>
+                {isApprovedOrganizer ? (
+                  <div className="w-16 h-16 rounded-full bg-forest-500/10 border-2 border-forest-500 flex items-center justify-center mx-auto mb-4">
+                    <Check size={28} className="text-forest-600 dark:text-forest-400" />
+                  </div>
+                ) : (
+                  <motion.div
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
+                    className="w-16 h-16 rounded-full border-4 border-spy-orange/25 border-t-spy-orange flex items-center justify-center mx-auto mb-4"
+                  >
+                    <Clock size={26} className="text-spy-orange" />
+                  </motion.div>
+                )}
+                <h4 className="font-serif text-xl font-semibold leading-tight">
+                  {isApprovedOrganizer ? "You're a verified organizer" : 'Your details are under review'}
+                </h4>
+                <p className={`text-sm mt-2 leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  {isApprovedOrganizer
+                    ? 'Your application has been approved. Head over to your organizer panel to start publishing treks.'
+                    : `Thanks, ${user.name} — your application has already been submitted. Our admin team reviews documents within 24–48 hours, and you'll be notified the moment it's approved.`}
+                </p>
+              </div>
+
+              {/* What was submitted */}
+              <div className={`rounded-2xl p-4 space-y-3 ${subCardCls}`}>
+                <span className={subLabelCls}>Submitted details</span>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="opacity-60">Agency</span>
+                  <span className="font-semibold truncate">{orgStatus?.organizer?.agencyName || orgForm.agencyName || user.name}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="opacity-60">Applicant</span>
+                  <span className="font-semibold truncate">{user.email}</span>
+                </div>
+                {orgStatus?.organizer?.govtIdType && (
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="opacity-60">ID on file</span>
+                    <span className="font-semibold truncate">{orgStatus.organizer.govtIdType}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Verification progress */}
+              {!isApprovedOrganizer && (
+                <div className={`rounded-2xl p-4 ${subCardCls}`}>
+                  <span className={`${subLabelCls} mb-3`}>Verification progress</span>
+                  {[
+                    { label: 'Application submitted', done: true },
+                    { label: 'Documents under review', current: true },
+                    { label: 'Approved — organizer panel unlocked', done: false },
+                  ].map((step, i, arr) => (
+                    <div key={step.label} className="flex gap-3 items-start relative">
+                      {i < arr.length - 1 && (
+                        <div className={`absolute left-[13px] top-7 w-0.5 h-7 ${step.done ? 'bg-spy-orange' : darkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+                      )}
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2 ${
+                        step.done
+                          ? 'border-spy-orange bg-spy-orange'
+                          : step.current
+                            ? 'border-spy-orange bg-spy-orange/10 animate-pulse'
+                            : darkMode ? 'border-white/10' : 'border-zinc-200'
+                      }`}>
+                        {step.done
+                          ? <Check size={14} className="text-white" />
+                          : step.current
+                            ? <Clock size={13} className="text-spy-orange" />
+                            : <div className="w-2 h-2 rounded-full bg-zinc-400/40" />}
+                      </div>
+                      <div className="pb-6">
+                        <p className={`text-sm font-semibold ${step.done || step.current ? '' : 'opacity-45'}`}>{step.label}</p>
+                        {step.current && <p className="text-xs text-spy-orange mt-0.5 font-medium">In progress · 24–48 hrs</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {orgStatus?.offline && (
+                <div className={`p-3.5 rounded-xl text-xs leading-relaxed flex gap-2 items-start ${
+                  darkMode ? 'bg-spy-orange/10 border border-spy-orange/20 text-amber-300' : 'bg-amber-50 border border-amber-200 text-amber-700'
+                }`}>
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>We couldn't reach the server, so this status may be out of date. Tap "Check Status" once you're back online.</span>
+                </div>
+              )}
+
+              {isApprovedOrganizer ? (
+                <button type="button" onClick={handleBecomeOrganizer} className={subPrimaryBtnCls}>
+                  Go to Organizer Panel
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCheckOrgApplication}
+                    disabled={orgStatusChecking}
+                    className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold border transition active:scale-[0.99] cursor-pointer disabled:opacity-60 ${
+                      darkMode ? 'border-white/10 text-white/70 hover:border-spy-orange/40 hover:text-spy-orange' : 'border-zinc-200 text-zinc-600 hover:border-spy-orange hover:text-spy-orange'
+                    }`}
+                  >
+                    <RefreshCw size={16} className={orgStatusChecking ? 'animate-spin' : ''} />
+                    {orgStatusChecking ? 'Checking…' : 'Check Status'}
+                  </button>
+                  <p className={`text-center text-[11px] ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    This screen updates on its own — you'll be taken to your organizer home as soon as an admin approves you.
+                  </p>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Partner application form — only for accounts with no application on
+            file (mirrors the OrgAuth signup fields) */}
+        {currentSub === 'BECOME_ORGANIZER' && orgStatusResolved && !hasApplied && (
           <motion.form
             key="BECOME_ORGANIZER"
             initial={{ opacity: 0, y: 28, scale: 0.98 }}
