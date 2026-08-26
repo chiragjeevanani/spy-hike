@@ -158,6 +158,101 @@ export const listPickupCities = asyncHandler(async (req, res) => {
   res.json({ cities });
 });
 
+// The place fields are freehand, and `city` is frequently left empty while
+// `location` carries "Kasol, Parvati Valley". Fall back to the location's
+// segments so a trek in an un-tagged city still surfaces one.
+const placeOf = (doc) => {
+  const segments = String(doc.location || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const city = String(doc.city || '').trim() || segments[0] || '';
+  const state = String(doc.state || '').trim() || (segments.length > 1 ? segments[segments.length - 1] : '');
+  return { city, state };
+};
+
+// Prefers an already-capitalised spelling of the same place, so a city typed as
+// "manali" by one organizer and "Manali" by another lists once, capitalised.
+const preferredSpelling = (a, b) => {
+  if (!a) return b;
+  if (!b) return a;
+  if (/^[A-Z]/.test(b) && !/^[A-Z]/.test(a)) return b;
+  return a;
+};
+
+// GET /trek-cities — every city the catalog can actually show something for,
+// with the number of distinct treks there.
+//
+// The customer app's city picker is built from this rather than a hardcoded
+// list: a city offered by the picker is derived from the very fields
+// listTrekGroups filters on, so picking one is guaranteed to return that city's
+// treks. A hardcoded list did the opposite — it offered ten cities that
+// mostly had nothing, and hid every city that did.
+export const listTrekCities = asyncHandler(async (req, res) => {
+  const [trips, treks] = await Promise.all([
+    Trip.find({ status: 'Published' })
+      .select('trekId city state location startPoint')
+      .lean(),
+    Trek.find({ status: 'Active' }).select('city state location').lean(),
+  ]);
+
+  // Keyed on the folded city name; `treks` is a Set so several organizers
+  // offering the same trek in the same city still count as one trek.
+  const byKey = new Map();
+  const upsert = ({ city, state }) => {
+    const key = city.toLowerCase();
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.city = preferredSpelling(existing.city, city);
+      existing.state = preferredSpelling(existing.state, state);
+      return existing;
+    }
+    const entry = { city, state, treks: new Set(), bookable: false, lat: null, lng: null };
+    byKey.set(key, entry);
+    return entry;
+  };
+
+  for (const trip of trips) {
+    const { city, state } = placeOf(trip);
+    if (!city) continue;
+    const entry = upsert({ city, state });
+    entry.treks.add(trip.trekId || String(trip._id));
+    entry.bookable = true;
+    // A representative coordinate lets the app snap a GPS fix to the nearest
+    // city it actually serves.
+    const { lat, lng } = trip.startPoint || {};
+    if (entry.lat == null && Number.isFinite(lat) && Number.isFinite(lng)) {
+      entry.lat = lat;
+      entry.lng = lng;
+    }
+  }
+
+  // Catalog treks with no published offer yet still show under "Coming soon",
+  // so their cities belong in the picker — flagged as not yet bookable.
+  for (const trek of treks) {
+    const { city, state } = placeOf(trek);
+    if (!city) continue;
+    upsert({ city, state }).treks.add(String(trek._id));
+  }
+
+  const cities = [...byKey.values()]
+    .map(({ city, state, treks: trekIds, bookable, lat, lng }) => ({
+      city,
+      state,
+      label: state && state.toLowerCase() !== city.toLowerCase() ? `${city}, ${state}` : city,
+      trekCount: trekIds.size,
+      bookable,
+      lat,
+      lng,
+    }))
+    // Busiest first: the app takes the head of this list as its "popular"
+    // shortcuts, and shows the rest A–Z.
+    .sort((a, b) => (
+      Number(b.bookable) - Number(a.bookable)
+      || b.trekCount - a.trekCount
+      || a.city.localeCompare(b.city)
+    ));
+
+  res.json({ cities });
+});
+
 // GET /trips — published trips only, with optional category/search filters and
 // pagination. Returns { trips, total, page, limit }.
 export const listTrips = asyncHandler(async (req, res) => {

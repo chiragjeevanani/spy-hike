@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { 
   loadAdminUser, saveAdminUser, 
   loadAdminDarkMode, saveAdminDarkMode 
 } from './utils/storage';
+import api, { clearToken } from '../../lib/apiClient';
+import { useToast } from '../../components/ToastProvider';
 
 import AdminLogin from './components/AdminLogin';
 import AdminSidebar from './components/AdminSidebar';
@@ -85,6 +87,11 @@ function tabToPath(tab, param) {
 }
 
 export default function AdminApp() {
+  const toast = useToast();
+  // One sign-out per dead session. The 401 handler and the check below can both
+  // reach the same conclusion (and React's dev double-mount runs each twice),
+  // which otherwise stacks up four identical toasts.
+  const sessionEndedRef = useRef(false);
   const [darkMode, setDarkMode] = useState(loadAdminDarkMode());
   const [admin, setAdmin] = useState(loadAdminUser());
   const [activeTab, setActiveTab] = useState(() => getAdminTab(window.location.pathname));
@@ -123,6 +130,7 @@ export default function AdminApp() {
   const openOrganizerProfile = useCallback((email) => navigateTo('OrganizerProfile', false, email), [navigateTo]);
 
   const handleLoginSuccess = (profile) => {
+    sessionEndedRef.current = false;
     const updated = { ...profile, isAuthenticated: true };
     saveAdminUser(updated);
     setAdmin(updated);
@@ -130,11 +138,64 @@ export default function AdminApp() {
   };
 
   const handleLogout = () => {
+    // Drop the JWT with the session — leaving it behind means the next sign-in
+    // carries a stale token.
+    clearToken();
     const reset = { ...admin, isAuthenticated: false };
     saveAdminUser(reset);
     setAdmin(reset);
     navigateTo('Login', true);
   };
+
+  // The panel's "signed in" flag lives in localStorage while the credentials
+  // live in a JWT — check the two still agree, against the server.
+  //
+  // Without this the console renders in full on a token that is missing,
+  // expired, or scoped to another role, and every API call is rejected. Reads
+  // hide it (views fall back to an empty list), so the first thing an admin
+  // notices is a write failing with "You do not have access to this resource".
+  useEffect(() => {
+    if (!admin.isAuthenticated) return;
+    let cancelled = false;
+
+    const endSession = () => {
+      if (cancelled || sessionEndedRef.current) return;
+      sessionEndedRef.current = true;
+      clearToken();
+      const reset = { ...admin, isAuthenticated: false };
+      saveAdminUser(reset);
+      setAdmin(reset);
+      navigateTo('Login', true);
+      toast.error('Your admin session has ended. Please sign in again.');
+    };
+
+    // Deliberately calls the endpoint directly instead of authApi.fetchMe():
+    // fetchMe reports every failure as "not signed in" AND drops the token on
+    // the way out, so a request merely aborted by the admin clicking through to
+    // the next page would sign them out. Only an outright rejection counts.
+    const verify = async () => {
+      try {
+        const res = await api.get('/auth/me', { cache: false });
+        if (!cancelled && res?.role !== 'admin') endSession();
+      } catch (err) {
+        if (!cancelled && (err?.status === 401 || err?.status === 403)) endSession();
+      }
+    };
+
+    verify();
+    // Re-check when the tab comes back to the front: a 7-day token can lapse
+    // while the console sits open.
+    const onWake = () => { if (document.visibilityState === 'visible') verify(); };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('auth-session-expired', endSession);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('auth-session-expired', endSession);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin.isAuthenticated, admin.email]);
 
   const handleToggleDarkMode = () => setDarkMode(p => !p);
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   listTrips, getTrip, getTripDepartures, getTrekOffers, listCategories,
-  listTrekGroups, listPickupCities,
+  listTrekGroups, listPickupCities, listTrekCities,
 } from '../controllers/tripController.js';
 import { listTreks, getTrek } from '../controllers/trekController.js';
 import { listActiveCoupons, validateCouponEndpoint } from '../controllers/couponController.js';
@@ -41,6 +41,7 @@ const groupsKey = (req) => {
 
 router.get('/trek-groups', cached(groupsKey, TTL.trips), listTrekGroups);
 router.get('/pickup-cities', cached(() => 'trips:pickup-cities', TTL.trips), listPickupCities);
+router.get('/trek-cities', cached(() => 'trips:trek-cities', TTL.trips), listTrekCities);
 router.get('/trips', cached(tripsKey, TTL.trips), listTrips);
 router.get('/trips/:id', cached((req) => `trips:one:${req.params.id}`, TTL.trips), getTrip);
 router.get('/trips/:id/departures', getTripDepartures);

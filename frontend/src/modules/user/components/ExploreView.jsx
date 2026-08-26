@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus, ChevronLeft, ChevronRight
+  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
@@ -195,8 +195,33 @@ export default function ExploreView({
 
       {/* Header */}
       <div className="px-5 pt-6">
-        <h1 className="font-serif text-4xl font-medium tracking-tight">Explore</h1>
-        <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Search treks across India</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-serif text-4xl font-medium tracking-tight">Explore</h1>
+            <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              {userLocation?.label && userLocation.label !== 'India'
+                ? `Treks around ${userLocation.label.split(',')[0]}`
+                : 'Search treks across India'}
+            </p>
+          </div>
+
+          {/* City selector — Explore is where you browse, so changing city
+              shouldn't require emptying the results first (which is where the
+              only other entry point lives). */}
+          <button
+            id="btn-location-explore"
+            onClick={onOpenLocationPicker}
+            className={`flex items-center gap-1 pl-2.5 pr-2 py-2 mt-1.5 rounded-full border shrink-0 active:scale-95 cursor-pointer shadow-sm ${
+              darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-gray-200'
+            }`}
+          >
+            <MapPin size={14} className="text-spy-orange shrink-0" />
+            <span className="text-xs font-semibold truncate max-w-[110px]">
+              {(userLocation?.label || 'India').split(',')[0]}
+            </span>
+            <ChevronDown size={12} className="opacity-50 shrink-0" />
+          </button>
+        </div>
 
         {/* Search + filter */}
         <div className="flex gap-2.5 mt-5">
