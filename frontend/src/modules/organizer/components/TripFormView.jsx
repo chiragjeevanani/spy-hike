@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, DollarSign, Users, Calendar, Mountain, AlignLeft, List, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation, Search, Clock, Route } from 'lucide-react';
 import OrgBatchDatePicker from './OrgBatchDatePicker';
@@ -9,6 +9,7 @@ import trekRequestsApi from '../../../lib/trekRequestsApi';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
 import { durationRange, distanceRange } from '../../../utils/rangeFormat';
+import { INDIA_STATES, getCitiesForState, formatLocation } from '../../../data/indiaLocations';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
@@ -241,6 +242,8 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     difficulty: 'Moderate', durationDays: '', durationDaysMax: '', distanceKm: '', distanceKmMax: '', elevationMeters: '',
     coverImage: '', category: '', description: '',
   });
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const availableCities = useMemo(() => getCitiesForState(requestForm.state), [requestForm.state]);
   const [requestImageTab, setRequestImageTab] = useState('upload');
   const [requestImageError, setRequestImageError] = useState(false);
   const [requestError, setRequestError] = useState('');
@@ -268,7 +271,10 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const handleSubmitTrekRequest = async () => {
     const errs = {};
     if (!requestForm.title.trim()) errs.title = 'Title is required.';
-    if (!requestForm.location.trim()) errs.location = 'Location is required.';
+    if (!requestForm.state.trim()) errs.state = 'Select a state.';
+    if (!requestForm.city.trim()) errs.city = 'Select or enter a city.';
+    const finalLocation = formatLocation(requestForm.city, requestForm.state) || requestForm.location.trim();
+    if (!finalLocation) errs.location = 'Location is required.';
     if (!requestForm.durationDays || Number(requestForm.durationDays) <= 0) errs.durationDays = 'Min duration (days) must be greater than 0.';
     else if (requestForm.durationDaysMax && Number(requestForm.durationDaysMax) < Number(requestForm.durationDays)) errs.durationDaysMax = 'Max duration cannot be less than min duration.';
     if (!requestForm.distanceKm || Number(requestForm.distanceKm) < 0) errs.distanceKm = 'Min distance (km) is required.';
@@ -276,7 +282,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     if (!requestForm.coverImage) errs.coverImage = 'A cover image is required.';
 
     if (Object.keys(errs).length > 0) {
-      const order = ['title', 'location', 'durationDays', 'durationDaysMax', 'distanceKm', 'distanceKmMax', 'coverImage'];
+      const order = ['title', 'state', 'city', 'location', 'durationDays', 'durationDaysMax', 'distanceKm', 'distanceKmMax', 'coverImage'];
       const message = errs[order.find(f => errs[f])];
       setRequestFieldErrors(errs);
       setRequestError(message);
@@ -291,7 +297,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     try {
       const created = await trekRequestsApi.create({
         title: requestForm.title.trim(),
-        location: requestForm.location.trim(),
+        location: finalLocation,
         state: requestForm.state.trim(),
         city: requestForm.city.trim(),
         difficulty: requestForm.difficulty,
@@ -537,7 +543,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   // element, and whichever Tailwind happens to generate last wins.
   const inputClsFixedWidth = inputCls.replace('w-full ', '');
   const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
-  const cardCls = `rounded-2xl p-4 space-y-4 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`;
+  const cardCls = `rounded-3xl p-5 sm:p-6 space-y-5 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`;
   const reqErrCls = (field) => (requestFieldErrors[field] ? 'border-red-500 focus:border-red-500' : '');
   const clearReqError = (field) => setRequestFieldErrors(er => ({ ...er, [field]: '' }));
 
@@ -622,19 +628,86 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                     <input ref={reqTitleRef} type="text" className={`${inputCls} ${reqErrCls('title')}`} placeholder="e.g. Roopkund Trek" value={requestForm.title} onChange={e => { setRequestForm(f => ({ ...f, title: e.target.value })); clearReqError('title'); }} />
                     {requestFieldErrors.title && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.title}</p>}
                   </div>
-                  <div>
-                    <label className={labelCls}>Location *</label>
-                    <input ref={reqLocationRef} type="text" className={`${inputCls} ${reqErrCls('location')}`} placeholder="e.g. Chamoli, Uttarakhand" value={requestForm.location} onChange={e => { setRequestForm(f => ({ ...f, location: e.target.value })); clearReqError('location'); }} />
-                    {requestFieldErrors.location && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.location}</p>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* State and City Dropdowns */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="min-w-0">
-                      <label className={labelCls}>State</label>
-                      <input type="text" className={inputCls} value={requestForm.state} onChange={e => setRequestForm(f => ({ ...f, state: e.target.value }))} />
+                      <label className={labelCls}>State *</label>
+                      <select
+                        ref={reqLocationRef}
+                        className={`${inputCls} ${reqErrCls('state')}`}
+                        value={requestForm.state}
+                        onChange={(e) => {
+                          const newState = e.target.value;
+                          const newLoc = formatLocation(requestForm.city, newState);
+                          setRequestForm((f) => ({ ...f, state: newState, location: newLoc }));
+                          clearReqError('state');
+                          clearReqError('location');
+                        }}
+                      >
+                        <option value="">Select State / UT</option>
+                        {INDIA_STATES.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                      {requestFieldErrors.state && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.state}</p>}
                     </div>
+
                     <div className="min-w-0">
-                      <label className={labelCls}>City</label>
-                      <input type="text" className={inputCls} value={requestForm.city} onChange={e => setRequestForm(f => ({ ...f, city: e.target.value }))} />
+                      <label className={labelCls}>City / Adventure Hub *</label>
+                      <select
+                        className={`${inputCls} ${reqErrCls('city')}`}
+                        value={isCustomCity ? '__custom__' : requestForm.city}
+                        disabled={!requestForm.state}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            setIsCustomCity(true);
+                            setRequestForm((f) => ({ ...f, city: '', location: formatLocation('', f.state) }));
+                          } else {
+                            setIsCustomCity(false);
+                            const newLoc = formatLocation(val, requestForm.state);
+                            setRequestForm((f) => ({ ...f, city: val, location: newLoc }));
+                          }
+                          clearReqError('city');
+                          clearReqError('location');
+                        }}
+                      >
+                        <option value="">{requestForm.state ? 'Select City / Hub' : 'Select State first'}</option>
+                        {availableCities.map((ct) => (
+                          <option key={ct} value={ct}>{ct}</option>
+                        ))}
+                        <option value="__custom__">+ Other / Enter Custom City...</option>
+                      </select>
+                      {requestFieldErrors.city && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.city}</p>}
+                    </div>
+                  </div>
+
+                  {isCustomCity && (
+                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
+                      <label className={labelCls}>Custom City / Basecamp Name *</label>
+                      <input
+                        type="text"
+                        className={`${inputCls} ${reqErrCls('city')}`}
+                        placeholder="e.g. Sankri, Tosh, or Lohajung"
+                        value={requestForm.city}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newLoc = formatLocation(val, requestForm.state);
+                          setRequestForm((f) => ({ ...f, city: val, location: newLoc }));
+                          clearReqError('city');
+                          clearReqError('location');
+                        }}
+                      />
+                    </motion.div>
+                  )}
+
+                  <div>
+                    <label className={labelCls}>Formatted Location</label>
+                    <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold ${
+                      darkMode ? 'bg-zinc-800/60 border-white/10 text-zinc-300' : 'bg-zinc-100/90 border-zinc-200 text-zinc-700'
+                    }`}>
+                      <MapPin size={13} className="text-spy-orange shrink-0" />
+                      <span>{formatLocation(requestForm.city, requestForm.state) || 'Select State and City above'}</span>
                     </div>
                   </div>
                   <div>
@@ -1023,10 +1096,52 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
         <div className="flex gap-2">
           <div className="relative flex-1 min-w-0">
             <Bus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="text" className={`${inputCls} pl-9`} placeholder="e.g. Manali" value={form.pickup.location} onChange={e => setPickupField('location', e.target.value)} />
+            <input
+              type="text"
+              className={`${inputCls} pl-9`}
+              placeholder="e.g. Manali"
+              value={form.pickup.location}
+              onChange={e => setPickupField('location', e.target.value)}
+              list="pickup-city-suggestions"
+            />
+            <datalist id="pickup-city-suggestions">
+              {selectedTrek?.city && <option value={selectedTrek.city} />}
+              {selectedTrek?.state && getCitiesForState(selectedTrek.state).map(c => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
           <input type="number" min="0" className={`${inputClsFixedWidth} w-28`} placeholder="₹ Price" value={form.pickup.price} onChange={e => setPickupField('price', e.target.value)} />
         </div>
+        {selectedTrek?.city && (
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <span className={`text-[10px] ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Quick pick:</span>
+            <button
+              type="button"
+              onClick={() => setPickupField('location', selectedTrek.city)}
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                form.pickup.location === selectedTrek.city
+                  ? 'bg-spy-orange/15 border-spy-orange text-spy-orange'
+                  : darkMode ? 'bg-zinc-800 border-white/5 text-zinc-300 hover:border-white/20' : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:border-zinc-300'
+              }`}
+            >
+              {selectedTrek.city}
+            </button>
+            {selectedTrek.state && selectedTrek.state !== selectedTrek.city && (
+              <button
+                type="button"
+                onClick={() => setPickupField('location', formatLocation(selectedTrek.city, selectedTrek.state))}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                  form.pickup.location === formatLocation(selectedTrek.city, selectedTrek.state)
+                    ? 'bg-spy-orange/15 border-spy-orange text-spy-orange'
+                    : darkMode ? 'bg-zinc-800 border-white/5 text-zinc-300 hover:border-white/20' : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:border-zinc-300'
+                }`}
+              >
+                {formatLocation(selectedTrek.city, selectedTrek.state)}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Trek/travel start point — exact map location the organizer picks */}
@@ -1240,84 +1355,101 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   };
 
   return (
-    <div className={`h-full flex flex-col font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
+    <div className={`h-full flex flex-col font-sans bg-transparent ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
       
       {/* Header */}
-      <div className={`shrink-0 px-5 pt-5 pb-4 ${darkMode ? 'bg-zinc-900/80 border-b border-white/5' : 'bg-white border-b border-zinc-100 shadow-sm'}`}>
-        <div className="flex items-center gap-3 mb-4">
-          <button type="button" onClick={onBack} className={`p-2 rounded-xl ${darkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'} transition`}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 className="text-lg font-display font-black tracking-tight">{isEdit ? 'Edit Trip' : 'Post New Trip'}</h1>
-            <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{isEdit ? `Editing: ${trip.name}` : 'Fill in trip details below'}</p>
-          </div>
-        </div>
-
-        {/* Section tabs */}
-        <div className="flex gap-1 overflow-x-auto no-scrollbar">
-          {sections.map(s => (
+      <div className={`shrink-0 border-b ${darkMode ? 'bg-zinc-900/80 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/70 shadow-xs'}`}>
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-5 pb-4">
+          <div className="flex items-center gap-3.5 mb-4">
             <button
-              key={s.id}
               type="button"
-              onClick={() => setSection(s.id)}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                section === s.id ? 'bg-spy-orange text-white' : darkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+              onClick={onBack}
+              className={`w-10 h-10 rounded-2xl flex items-center justify-center transition active:scale-90 cursor-pointer border ${
+                darkMode ? 'bg-zinc-800 border-white/10 text-zinc-200 hover:bg-zinc-700' : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:bg-zinc-200 shadow-xs'
               }`}
             >
-              {s.label}
+              <ArrowLeft size={18} />
             </button>
-          ))}
+            <div>
+              <h1 className="text-xl font-display font-black tracking-tight">{isEdit ? 'Edit Trip' : 'Post New Trip'}</h1>
+              <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{isEdit ? `Editing: ${trip.name}` : 'Fill in trip details below'}</p>
+            </div>
+          </div>
+
+          {/* Section tabs */}
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+            {sections.map((s, idx) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSection(s.id)}
+                className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  section === s.id
+                    ? 'bg-spy-orange text-white shadow-sm shadow-spy-orange/30'
+                    : darkMode
+                    ? 'bg-zinc-800/80 text-zinc-400 hover:bg-zinc-800'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200/80'
+                }`}
+              >
+                <span className="opacity-70 font-mono text-[10px]">{idx + 1}.</span>
+                <span>{s.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Scrollable form body */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-5 py-5">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={section}
-            initial={{ opacity: 0, y: 12, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.99 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {(sectionContent[section] || (() => null))()}
-          </motion.div>
-        </AnimatePresence>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={section}
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.99 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {(sectionContent[section] || (() => null))()}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Action buttons */}
-      <div className={`shrink-0 px-5 py-4 flex gap-3 ${darkMode ? 'bg-zinc-900/80 border-t border-white/5' : 'bg-white border-t border-zinc-100 shadow-sm'}`}>
-        <button
-          type="button"
-          onClick={() => handleSave('Draft')}
-          disabled={saving}
-          className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-all ${
-            darkMode ? 'border-white/10 text-zinc-300 hover:border-white/20' : 'border-zinc-200 text-zinc-600 hover:border-zinc-300'
-          }`}
-        >
-          Save Draft
-        </button>
-        {isLastStep ? (
+      <div className={`shrink-0 border-t ${darkMode ? 'bg-zinc-900/80 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/70 shadow-xs'}`}>
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex gap-3">
           <button
             type="button"
-            onClick={() => handleSave('Published')}
+            onClick={() => handleSave('Draft')}
             disabled={saving}
-            className="flex-1 py-3 rounded-xl text-sm font-bold bg-spy-orange hover:bg-[#d96d1a] text-white shadow-lg shadow-spy-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className={`flex-1 py-3.5 rounded-2xl text-sm font-bold border transition-all cursor-pointer ${
+              darkMode ? 'border-white/10 text-zinc-300 hover:border-white/20' : 'border-zinc-200 text-zinc-600 hover:border-zinc-300'
+            }`}
           >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (isEdit ? 'Update & Publish' : 'Publish Trip')}
+            Save Draft
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleNextStep}
-            className="flex-1 py-3 rounded-xl text-sm font-bold bg-spy-orange hover:bg-[#d96d1a] text-white shadow-lg shadow-spy-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-          >
-            Next
-          </button>
-        )}
+          {isLastStep ? (
+            <button
+              type="button"
+              onClick={() => handleSave('Published')}
+              disabled={saving}
+              className="flex-1 py-3.5 rounded-2xl text-sm font-bold bg-spy-orange hover:bg-[#d96d1a] text-white shadow-lg shadow-spy-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (isEdit ? 'Update & Publish' : 'Publish Trip')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleNextStep}
+              className="flex-1 py-3.5 rounded-2xl text-sm font-bold bg-spy-orange hover:bg-[#d96d1a] text-white shadow-lg shadow-spy-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              Next Step
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Interactive Publishing Loader Modal */}

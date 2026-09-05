@@ -460,7 +460,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center p-0 sm:p-4 font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
+    <div className={`min-h-screen flex flex-col items-center justify-center p-0 sm:p-4 font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-800'}`}>
       <div className={`w-full max-w-md flex flex-col min-h-screen sm:min-h-0 sm:rounded-3xl sm:shadow-xl sm:border overflow-hidden ${
         darkMode ? 'bg-zinc-900 sm:border-white/10' : 'bg-white sm:border-zinc-200'
       }`}>

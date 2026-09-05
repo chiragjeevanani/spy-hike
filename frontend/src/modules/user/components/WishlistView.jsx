@@ -15,8 +15,8 @@ export default function WishlistView({
   const savedTrips = trips.filter(t => wishlist.includes(t.id));
 
   return (
-    <div className={`flex-1 overflow-y-auto no-scrollbar font-sans px-5 pb-8 ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
+    <div className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+      darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
       {/* Header */}
@@ -43,7 +43,7 @@ export default function WishlistView({
               </p>
             </motion.div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {savedTrips.map(trip => (
                 <motion.div
                   key={trip.id}

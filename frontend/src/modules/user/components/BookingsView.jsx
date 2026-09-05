@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, attachFollow } from 'motion/react';
 import {
-  Download, MessageSquare, Star, ArrowLeft, Send, Sparkles, CalendarDays, Receipt, X
+  Download, MessageSquare, Star, ArrowLeft, Send, Sparkles, CalendarDays, Receipt, X, MapPin, ShieldCheck
 } from 'lucide-react';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
@@ -36,6 +36,13 @@ export default function BookingsView({
   const [reviewError, setReviewError] = useState('');
   const toast = useToast();
   const reviewCommentRef = useRef(null);
+  const chatBottomRef = useRef(null);
+
+  useEffect(() => {
+    if (activeChatSession) {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeChatSession?.messages]);
 
   const filteredBookings = bookings.filter(b => {
     const computed = getComputedBookingStatus(b);
@@ -169,8 +176,8 @@ export default function BookingsView({
       : (darkMode ? 'bg-rose-950/40 text-rose-400' : 'bg-rose-100 text-rose-700');
 
   return (
-    <div className={`flex-1 overflow-y-auto no-scrollbar font-sans px-5 pb-8 ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
+    <div className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+      darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
       {/* Header */}
@@ -179,7 +186,7 @@ export default function BookingsView({
         <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Your treks, past and upcoming</p>
 
         {/* Segmented tabs */}
-        <div className={`flex rounded-full p-1 mt-5 relative ${darkMode ? 'bg-elegant-card' : 'bg-gray-100'}`}>
+        <div className={`flex rounded-full p-1 mt-5 relative max-w-md ${darkMode ? 'bg-elegant-card' : 'bg-gray-100'}`}>
           {['Upcoming', 'Completed', 'Cancelled'].map(tab => (
             <button
               key={tab}
@@ -204,7 +211,7 @@ export default function BookingsView({
       </div>
 
       {/* List */}
-      <div className="mt-6 space-y-4">
+      <div className="mt-8">
         {filteredBookings.length === 0 ? (
           <div className="text-center py-20">
             <CalendarDays size={44} className={`mx-auto ${darkMode ? 'text-zinc-700' : 'text-zinc-300'}`} />
@@ -214,7 +221,8 @@ export default function BookingsView({
             </p>
           </div>
         ) : (
-          filteredBookings.map((b, idx) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredBookings.map((b, idx) => (
             <motion.div
               key={b.id}
               id={`booking-card-${b.bookingId.toLowerCase()}`}
@@ -223,140 +231,259 @@ export default function BookingsView({
               transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
               whileHover={{ y: -3 }}
               onClick={() => onSelectBooking(b)}
-              className={`rounded-3xl overflow-hidden p-3 flex gap-2.5 sm:gap-3.5 shadow-md cursor-pointer ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+              className={`rounded-3xl overflow-hidden p-3.5 sm:p-4.5 flex gap-3.5 sm:gap-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
             >
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0">
+              <div className="w-22 h-22 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-2xl overflow-hidden shrink-0 relative">
                 <img src={b.tripImage} alt={b.tripName} className="w-full h-full object-cover" />
               </div>
 
               <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                 <div>
-                  <div className="flex flex-col xs:flex-row xs:items-start justify-between gap-1 sm:gap-2">
-                    <h3 className="font-serif text-sm sm:text-base font-semibold leading-snug break-words line-clamp-2 pr-1">{b.tripName}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-mono opacity-50 uppercase tracking-wider block">#{b.bookingId.slice(-8).toUpperCase()}</span>
+                      <h3 className="font-serif text-sm sm:text-base lg:text-lg font-semibold leading-snug break-words line-clamp-2 pr-1 mt-0.5">{b.tripName}</h3>
+                    </div>
                     {(() => {
                       const comp = getComputedBookingStatus(b);
                       const badge = getStatusBadgeStyle(comp);
                       return (
-                        <span className={`text-[9px] sm:text-[10px] font-bold tracking-wider px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0 border whitespace-nowrap self-start ${badge.cls}`}>
+                        <span className={`text-[9px] sm:text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full shrink-0 border whitespace-nowrap self-start ${badge.cls}`}>
                           {badge.label.toUpperCase()}
                         </span>
                       );
                     })()}
                   </div>
-                  <p className={`text-[11px] sm:text-xs truncate mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.tripLocation}</p>
+                  <p className={`text-xs truncate mt-1 flex items-center gap-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    <MapPin size={12} className="text-spy-orange shrink-0" />
+                    {b.tripLocation}
+                  </p>
                 </div>
 
-                <div className={`flex items-center justify-between mt-2 pt-2 border-t gap-2 flex-wrap sm:flex-nowrap ${darkMode ? 'border-white/5' : 'border-gray-100'}`}>
-                  <span className={`text-[11px] sm:text-xs whitespace-nowrap ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.selectedDate}</span>
-                  <div className="flex items-center gap-2 shrink-0 ml-auto">
+                <div className={`flex items-center justify-between mt-3 pt-2.5 border-t gap-2 flex-wrap sm:flex-nowrap ${darkMode ? 'border-white/5' : 'border-gray-100'}`}>
+                  <span className={`text-xs font-medium flex items-center gap-1 whitespace-nowrap ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    <CalendarDays size={13} className="text-forest-500 shrink-0" />
+                    {b.selectedDate}
+                  </span>
+                  <div className="flex items-center gap-2.5 shrink-0 ml-auto">
                     <button
                       type="button"
                       id={`btn-message-organizer-${b.bookingId.toLowerCase()}`}
                       onClick={(e) => { e.stopPropagation(); handleContactOrganizer(b); }}
                       title="Message organizer"
-                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition ${
+                      className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition ${
                         darkMode ? 'bg-white/5 text-forest-400 hover:bg-white/10' : 'bg-forest-50 text-forest-600 hover:bg-forest-100'
                       }`}
                     >
-                      <MessageSquare size={13} />
+                      <MessageSquare size={14} />
                     </button>
-                    <span className={`font-serif text-base sm:text-lg font-semibold whitespace-nowrap ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
+                    <span className={`font-serif text-base sm:text-lg font-bold whitespace-nowrap ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{b.finalAmount}</span>
                   </div>
                 </div>
               </div>
             </motion.div>
-          ))
+          ))}
+          </div>
         )}
       </div>
 
       {/* ============================================== */}
-      {/* 3. SIMULATED ORGANIZER LIVE CHAT DRAWER */}
+      {/* 3. SIMULATED ORGANIZER LIVE CHAT DRAWER / DESKTOP PANEL */}
       {/* ============================================== */}
       <AnimatePresence>
-        {activeChatSession && (
-          <div className="fixed inset-0 bg-black/70 z-55 flex justify-end">
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-              className={`w-[85%] max-w-sm h-full flex flex-col justify-between p-4 shadow-2xl relative ${
-                darkMode ? 'bg-elegant-app text-elegant-text border-l border-white/5' : 'bg-white text-zinc-800'
-              }`}
+        {activeChatSession && (() => {
+          const matchedBooking = bookings.find(b => b.tripId === activeChatSession.tripId);
+          const tripName = activeChatSession.tripName || matchedBooking?.tripName;
+          const departureDate = matchedBooking?.selectedDate;
+          const avatarUrl = activeChatSession.organizerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+
+          const quickReplies = [
+            "What essentials should I pack for this trek?",
+            "What is the exact base camp meeting time?",
+            "Could you share the weather forecast?",
+            "Are meals provided along the trail?"
+          ];
+
+          return (
+            <div
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-55 flex justify-end items-stretch md:p-4 lg:p-6 transition-all"
+              onClick={() => setActiveChatSession(null)}
             >
-              {/* Header chat and back controls */}
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800/10 dark:border-zinc-850">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    onClick={() => setActiveChatSession(null)}
-                    className="text-zinc-500 cursor-pointer"
-                  >
-                    <ArrowLeft size={16} />
-                  </button>
-                  <div>
-                    <h4 className="text-xs font-black font-display">{activeChatSession.organizerName}</h4>
-                    <p className="text-[8px] text-emerald-400 font-bold block flex items-center gap-0.5">
-                      <Sparkles size={8} /> ONLINE GUIDE COUNSELOR
-                    </p>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setActiveChatSession(null)}
-                  className="w-7 h-7 rounded-full bg-zinc-800/10 dark:bg-zinc-855 flex items-center justify-center text-zinc-400 cursor-pointer"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-
-              {/* Chats stream lists */}
-              <div className="flex-1 overflow-y-auto no-scrollbar py-4 space-y-3 px-1">
-                {activeChatSession.messages.map((m) => {
-                  const isUser = m.sender === 'user';
-                  return (
-                    <div
-                      key={m.id}
-                      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`p-3 max-w-[80%] rounded-2xl text-[11px] leading-relaxed relative ${
-                        isUser
-                          ? 'bg-forest-600 text-white rounded-tr-none'
-                          : (darkMode ? 'bg-zinc-900 border border-zinc-850 text-zinc-350 rounded-tl-none' : 'bg-gray-150 text-zinc-800 rounded-tl-none')
-                      }`}>
-                        <p>{m.text}</p>
-                        <span className="text-[7.5px] opacity-40 font-mono self-end block mt-1">
-                          {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+              <motion.div
+                initial={{ x: '100%', opacity: 0.5 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: '100%', opacity: 0 }}
+                transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+                onClick={(e) => e.stopPropagation()}
+                className={`w-full sm:w-[440px] md:w-[480px] lg:w-[500px] h-full md:h-[calc(100vh-3rem)] md:my-auto md:rounded-3xl flex flex-col justify-between shadow-2xl relative border overflow-hidden ${
+                  darkMode ? 'bg-zinc-950 text-zinc-100 border-white/10' : 'bg-white text-zinc-900 border-zinc-200 shadow-xl'
+                }`}
+              >
+                {/* Header chat and controls */}
+                <div className={`p-4 sm:px-5 border-b flex flex-col gap-2 shrink-0 ${
+                  darkMode ? 'bg-zinc-900/60 border-white/10' : 'bg-gray-50/80 border-zinc-200/80'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <img
+                          src={avatarUrl}
+                          alt={activeChatSession.organizerName}
+                          className="w-10 h-10 rounded-full object-cover border border-forest-500/40"
+                        />
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-zinc-950" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-sm font-bold font-display truncate">
+                            {activeChatSession.organizerName}
+                          </h4>
+                          <ShieldCheck size={13} className="text-emerald-400 shrink-0" />
+                        </div>
+                        <p className="text-[10px] text-emerald-500 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                          <Sparkles size={9} /> Online Guide Counselor · Ready to help
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Inputs bar footer */}
-              <div className="pt-3 border-t border-zinc-800/10 dark:border-zinc-850 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type your message..."
-                  value={chatInputText}
-                  onChange={e => setChatInputText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSendChatMessage(); }}
-                  className={`flex-1 text-xs px-3.5 py-3 border rounded-xl outline-hidden focus:border-forest-500 ${
-                    darkMode ? 'bg-zinc-900 border-zinc-850 text-white' : 'bg-white border-gray-255 text-zinc-800'
-                  }`}
-                />
-                <button
-                  type="button"
-                  id="btn-send-chat-submit"
-                  onClick={handleSendChatMessage}
-                  className="bg-forest-600 hover:bg-forest-700 text-white w-11 rounded-xl flex items-center justify-center cursor-pointer active:scale-90"
-                >
-                  <Send size={14} className="rotate-0 text-white" />
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+                    <button 
+                      onClick={() => setActiveChatSession(null)}
+                      title="Close Chat"
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                        darkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 text-zinc-350' : 'bg-gray-200/70 hover:bg-gray-300 text-zinc-600'
+                      }`}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Trip Reference context pill */}
+                  {tripName && (
+                    <div className={`px-2.5 py-1 rounded-xl text-[10px] font-medium flex items-center justify-between border ${
+                      darkMode ? 'bg-zinc-950/70 border-white/5 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-600 shadow-2xs'
+                    }`}>
+                      <span className="truncate flex items-center gap-1">
+                        <MapPin size={10} className="text-spy-orange shrink-0" />
+                        <span className="font-bold text-forest-600 dark:text-forest-400">{tripName}</span>
+                      </span>
+                      {departureDate && (
+                        <span className="text-[9px] opacity-70 font-mono shrink-0 ml-2">
+                          Departure: {departureDate}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Chats stream list */}
+                <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 space-y-3.5">
+                  <div className="flex justify-center">
+                    <span className={`text-[9px] font-mono font-semibold px-2.5 py-0.5 rounded-full border ${
+                      darkMode ? 'bg-zinc-900 border-white/5 text-zinc-500' : 'bg-gray-100 border-zinc-200 text-zinc-400'
+                    }`}>
+                      Official Trek Chat Channel
+                    </span>
+                  </div>
+
+                  {activeChatSession.messages.map((m) => {
+                    const isUser = m.sender === 'user';
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {!isUser && (
+                          <img
+                            src={avatarUrl}
+                            alt=""
+                            className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0 mt-0.5"
+                          />
+                        )}
+                        <div className={`p-3.5 max-w-[82%] rounded-2xl text-xs leading-relaxed relative shadow-xs ${
+                          isUser
+                            ? 'bg-forest-600 text-white rounded-tr-xs'
+                            : darkMode
+                            ? 'bg-zinc-900 border border-white/10 text-zinc-200 rounded-tl-xs'
+                            : 'bg-gray-100 border border-gray-200/80 text-zinc-800 rounded-tl-xs'
+                        }`}>
+                          <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                          <span className={`text-[8px] font-mono self-end block mt-1.5 text-right ${
+                            isUser ? 'text-white/70' : 'opacity-40'
+                          }`}>
+                            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                {/* Quick suggestions pills */}
+                {activeChatSession.messages.length <= 4 && (
+                  <div className="px-4 pb-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-50 block mb-1.5">
+                      Suggested questions
+                    </span>
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                      {quickReplies.map((q, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setChatInputText(q);
+                          }}
+                          className={`text-[10px] font-medium px-2.5 py-1 rounded-lg border whitespace-nowrap transition cursor-pointer active:scale-95 ${
+                            darkMode
+                              ? 'bg-zinc-900 border-white/10 text-zinc-300 hover:bg-zinc-850 hover:border-forest-500/50'
+                              : 'bg-gray-50 border-gray-200 text-zinc-700 hover:bg-gray-100 hover:border-forest-500/50'
+                          }`}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Inputs bar footer */}
+                <div className={`p-3.5 sm:p-4 border-t shrink-0 ${
+                  darkMode ? 'bg-zinc-900/40 border-white/10' : 'bg-gray-50/80 border-zinc-200/80'
+                }`}>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="Type your message..."
+                      value={chatInputText}
+                      onChange={e => setChatInputText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSendChatMessage(); }}
+                      className={`flex-1 text-xs px-4 py-3 border rounded-xl outline-hidden focus:border-forest-500 transition ${
+                        darkMode ? 'bg-zinc-900 border-zinc-800 text-white placeholder-zinc-500' : 'bg-white border-gray-250 text-zinc-800 placeholder-zinc-400'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      id="btn-send-chat-submit"
+                      disabled={!chatInputText.trim()}
+                      onClick={handleSendChatMessage}
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center transition active:scale-90 shrink-0 ${
+                        chatInputText.trim()
+                          ? 'bg-forest-600 hover:bg-forest-700 text-white cursor-pointer shadow-md'
+                          : 'bg-zinc-800/40 text-zinc-500 cursor-not-allowed border border-white/5'
+                      }`}
+                    >
+                      <Send size={15} />
+                    </button>
+                  </div>
+                  <div className="flex justify-between items-center mt-1.5 px-1 text-[9px] opacity-40">
+                    <span>Replies within ~5 mins</span>
+                    <span className="hidden sm:inline font-mono">Press Enter ↵ to send</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* ============================================== */}

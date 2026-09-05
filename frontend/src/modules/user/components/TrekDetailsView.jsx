@@ -92,31 +92,34 @@ export default function TrekDetailsView({
     <div className={`relative flex flex-col h-full overflow-hidden ${darkMode ? 'bg-zinc-950 text-white' : 'bg-slate-50 text-zinc-900'}`}>
       
       {/* 1. TOP NAV BAR */}
-      <div className={`sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b backdrop-blur-md transition-colors ${
+      <div className={`sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b backdrop-blur-md transition-colors ${
         darkMode ? 'bg-zinc-950/80 border-zinc-800' : 'bg-white/80 border-zinc-200'
       }`}>
-        <button
-          onClick={onBack}
-          className={`p-2 rounded-full border transition active:scale-95 ${
-            darkMode ? 'border-zinc-800 bg-zinc-900 text-white hover:bg-zinc-800' : 'border-zinc-200 bg-zinc-100 text-zinc-800 hover:bg-zinc-200'
-          }`}
-          aria-label="Back"
-        >
-          <ArrowLeft size={18} />
-        </button>
+        <div className="max-w-5xl mx-auto w-full flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className={`p-2 rounded-full border transition active:scale-95 cursor-pointer ${
+              darkMode ? 'border-zinc-800 bg-zinc-900 text-white hover:bg-zinc-800' : 'border-zinc-200 bg-zinc-100 text-zinc-800 hover:bg-zinc-200'
+            }`}
+            aria-label="Back"
+          >
+            <ArrowLeft size={18} />
+          </button>
 
-        <span className="font-display font-bold text-sm tracking-tight truncate max-w-[200px]">
-          {trekTitle}
-        </span>
+          <span className="font-display font-bold text-sm sm:text-base tracking-tight truncate max-w-md">
+            {trekTitle}
+          </span>
 
-        <div className="w-9" /> {/* Spacer */}
+          <div className="w-9" /> {/* Spacer */}
+        </div>
       </div>
 
       {/* 2. SCROLLABLE BODY CONTENT */}
       <div className="flex-1 overflow-y-auto pb-28">
+        <div className="max-w-5xl mx-auto w-full px-0 sm:px-4">
         
         {/* Cover Hero Banner */}
-        <div className="relative h-64 sm:h-80 w-full overflow-hidden">
+        <div className="relative h-64 sm:h-96 w-full overflow-hidden sm:rounded-3xl sm:mt-4">
           <img
             src={coverImage}
             alt={trekTitle}
@@ -387,13 +390,14 @@ export default function TrekDetailsView({
           )}
 
         </div>
+        </div>
       </div>
 
       {/* 3. BOTTOM FLOATING ACTION BAR FOR "VIEW ORGANISERS" */}
       <div className={`fixed bottom-0 left-0 right-0 z-40 p-4 border-t backdrop-blur-lg shadow-2xl ${
         darkMode ? 'bg-zinc-950/95 border-zinc-800' : 'bg-white/95 border-zinc-200'
       }`}>
-        <div className="max-w-md mx-auto flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 px-2 sm:px-4">
           <div>
             <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-400 block whitespace-nowrap">
               Starting From

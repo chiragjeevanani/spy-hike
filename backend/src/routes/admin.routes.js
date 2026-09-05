@@ -15,6 +15,7 @@ import { listAllBookings, adminSetBookingStatus } from '../controllers/bookingCo
 import { getAdminConfig, updateAdminConfig, resetPlatformDatabase } from '../controllers/configController.js';
 import { getAdminLandingContent, updateAdminLandingContent } from '../controllers/landingController.js';
 import { getAdminSiteContent, updateAdminSiteContent } from '../controllers/contentController.js';
+import { getAdminOnboardingContent, updateAdminOnboardingContent } from '../controllers/onboardingController.js';
 import { getAdminLoyaltyConfig, updateAdminLoyaltyConfig } from '../controllers/loyaltyController.js';
 import { createBroadcast, listBroadcasts } from '../controllers/broadcastController.js';
 import { listAllPayouts, settlePayout } from '../controllers/financialsController.js';
@@ -81,6 +82,9 @@ router.patch('/admin/landing-content', updateAdminLandingContent);
 
 router.get('/admin/site-content', getAdminSiteContent);
 router.patch('/admin/site-content', updateAdminSiteContent);
+
+router.get('/admin/onboarding-content', getAdminOnboardingContent);
+router.patch('/admin/onboarding-content', updateAdminOnboardingContent);
 
 router.get('/admin/loyalty/config', getAdminLoyaltyConfig);
 router.patch('/admin/loyalty/config', updateAdminLoyaltyConfig);

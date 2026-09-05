@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, Download, MessageSquare, Star, Receipt, ShieldAlert,
-  Phone, Mail, Globe, User, ExternalLink, X, Calendar, Clock, CheckCircle2, AlertCircle, RefreshCw
+  Phone, Mail, Globe, User, ExternalLink, X, Calendar, Clock, CheckCircle2, AlertCircle, RefreshCw, MapPin
 } from 'lucide-react';
 import TravelTicket from './TravelTicket';
 import { downloadTicketPDF } from '../utils/ticketPdf';
@@ -154,181 +154,296 @@ export default function BookingDetailsView({
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
     }`}>
       
-      {/* 1. Header Sticky Nav Bar */}
-      <div className={`p-4 border-b flex items-center gap-3 shrink-0 ${
+      {/* 1. Header Nav Bar */}
+      <div className={`p-4 border-b shrink-0 ${
         darkMode ? 'bg-zinc-950 border-white/5' : 'bg-white border-zinc-200/60'
       }`}>
-        <button
-          onClick={onBack}
-          className={`w-9 h-9 rounded-full flex items-center justify-center border transition active:scale-90 cursor-pointer ${
-            darkMode ? 'bg-zinc-900 border-white/10 hover:bg-zinc-800' : 'bg-zinc-100 border-zinc-200 hover:bg-zinc-200'
-          }`}
-          title="Go Back"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div>
-          <h2 className="text-xs uppercase font-mono font-black tracking-widest text-[#F27D26]">
-            Booking Details
-          </h2>
-          <p className="text-[10px] text-zinc-500 font-mono">
-            Permit ID: {booking.bookingId}
-          </p>
+        <div className="max-w-5xl mx-auto w-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className={`w-9 h-9 rounded-full flex items-center justify-center border transition active:scale-90 cursor-pointer ${
+                darkMode ? 'bg-zinc-900 border-white/10 hover:bg-zinc-800 text-zinc-300' : 'bg-zinc-100 border-zinc-200 hover:bg-zinc-200 text-zinc-700'
+              }`}
+              title="Go Back"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <div>
+              <h2 className="text-xs uppercase font-mono font-black tracking-widest text-[#F27D26]">
+                Booking Details
+              </h2>
+              <p className="text-[10px] text-zinc-500 font-mono">
+                Permit ID: {booking.bookingId}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick desktop status badge + download button */}
+          <div className="hidden sm:flex items-center gap-2.5">
+            <span className={`text-[10px] font-sans font-black tracking-wider px-3 py-1 rounded-full border ${statusBadge.cls}`}>
+              {statusBadge.label.toUpperCase()}
+            </span>
+            <button
+              onClick={() => downloadTicketPDF(booking)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                darkMode ? 'bg-zinc-900 border-white/10 hover:bg-zinc-800 text-zinc-300' : 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-700'
+              }`}
+            >
+              <Download size={13} /> Download PDF
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 2. Scrollable Body Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-5 pb-28">
-        
-        {/* Cover visual row */}
-        <div className="rounded-2xl overflow-hidden h-40 relative bg-zinc-900 shrink-0">
-          <img src={booking.tripImage} alt={booking.tripName} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-          <div className="absolute bottom-4 inset-x-4 flex justify-between items-end">
-            <div>
-              <span className={`text-[10px] font-sans font-black tracking-wider px-2.5 py-0.5 rounded-full border ${statusBadge.cls}`}>
-                {statusBadge.label.toUpperCase()}
-              </span>
-              <h3 className="text-base font-display font-black text-white mt-1 leading-tight">{booking.tripName}</h3>
-            </div>
-          </div>
-        </div>
-
-        {/* Rescheduling Banner Status */}
-        {booking.rescheduleStatus === 'Pending' && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-start gap-3">
-            <Clock size={18} className="shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block">Reschedule Request Pending</span>
-              <p className="text-[11px] opacity-80 mt-0.5">
-                Requested new date: <span className="font-bold">{booking.requestedDate}</span>. Waiting for {organizerName || 'the organizer'} to review.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {booking.rescheduleStatus === 'Rejected' && (
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-3">
-            <AlertCircle size={18} className="shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block">Reschedule Request Declined</span>
-              <p className="text-[11px] opacity-80 mt-0.5">
-                Reason: "{booking.rejectionReason || 'No availability on requested batch'}"
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Boarding-pass style trek ticket */}
-        <TravelTicket
-          booking={{ ...booking, status: computedStatus }}
-          darkMode={darkMode}
-          onDownload={() => downloadTicketPDF(booking)}
-        />
-
-        {/* Settled Cost Receipt Sheet */}
-        <div className={`p-4 rounded-2xl border space-y-3.5 ${
-          darkMode ? 'bg-zinc-900/40 border-white/5' : 'bg-white border-zinc-200/60 shadow-xs'
-        }`}>
-          <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85 flex items-center gap-1">
-            <Receipt size={14} className="text-emerald-400" /> Settled Bill Summary
-          </h4>
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 lg:p-8">
+        <div className="max-w-5xl mx-auto w-full pb-20 lg:pb-8">
           
-          <div className="space-y-2 text-xs pt-1">
-            <div className="flex justify-between">
-              <span className="opacity-60">Base Booking Fee</span>
-              <span className="font-sans">₹{booking.finalAmount}</span>
+          {/* 2-Column Split on Desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Left Column (lg:col-span-7) */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Cover visual row - panoramic card */}
+              <div className="rounded-2xl sm:rounded-3xl overflow-hidden h-52 sm:h-64 relative bg-zinc-900 shrink-0 shadow-lg border border-white/10">
+                <img src={booking.tripImage} alt={booking.tripName} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
+                <div className="absolute bottom-5 inset-x-5 flex justify-between items-end">
+                  <div>
+                    <span className={`text-[10px] font-sans font-black tracking-wider px-2.5 py-0.5 rounded-full border ${statusBadge.cls}`}>
+                      {statusBadge.label.toUpperCase()}
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-display font-black text-white mt-1.5 leading-tight">{booking.tripName}</h3>
+                    {booking.tripLocation && (
+                      <p className="text-xs text-white/80 flex items-center gap-1 mt-1">
+                        <MapPin size={12} className="text-spy-orange" /> {booking.tripLocation}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rescheduling Banner Status */}
+              {booking.rescheduleStatus === 'Pending' && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-start gap-3">
+                  <Clock size={18} className="shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Reschedule Request Pending</span>
+                    <p className="text-[11px] opacity-80 mt-0.5">
+                      Requested new date: <span className="font-bold">{booking.requestedDate}</span>. Waiting for {organizerName || 'the organizer'} to review.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {booking.rescheduleStatus === 'Rejected' && (
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-3">
+                  <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Reschedule Request Declined</span>
+                    <p className="text-[11px] opacity-80 mt-0.5">
+                      Reason: "{booking.rejectionReason || 'No availability on requested batch'}"
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Boarding-pass style trek ticket */}
+              <div className="max-w-xl mx-auto lg:max-w-none w-full">
+                <TravelTicket
+                  booking={{ ...booking, status: computedStatus }}
+                  darkMode={darkMode}
+                  onDownload={() => downloadTicketPDF(booking)}
+                />
+              </div>
+
+              {/* Travelers Roster Card if travelers exist */}
+              {booking.travelers && booking.travelers.length > 0 && (
+                <div className={`p-5 rounded-2xl border space-y-3 ${
+                  darkMode ? 'bg-zinc-900/40 border-white/5' : 'bg-white border-zinc-200/60 shadow-xs'
+                }`}>
+                  <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-80 flex items-center gap-1.5">
+                    <User size={14} className="text-forest-400" /> Travelers on this Booking ({booking.travelers.length})
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    {booking.travelers.map((tr, idx) => (
+                      <div key={idx} className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                        darkMode ? 'bg-zinc-950/60 border-white/5' : 'bg-gray-50 border-gray-150'
+                      }`}>
+                        <div className="min-w-0">
+                          <span className="font-bold block truncate">{tr.name || `Traveler #${idx + 1}`}</span>
+                          <span className="text-[10px] opacity-60">
+                            {tr.age ? `${tr.age} yrs` : ''} {tr.gender ? `· ${tr.gender}` : ''}
+                          </span>
+                        </div>
+                        {tr.emergencyContact && (
+                          <span className="text-[10px] font-mono opacity-50">{tr.emergencyContact}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span className="opacity-60">Permit Royalties & Tax</span>
-              <span className="text-emerald-500 font-mono">Included</span>
-            </div>
-            <div className="border-t border-dashed border-zinc-200 dark:border-white/10 my-2 pt-2 flex justify-between font-black text-sm">
-              <span>Total Value Cleared</span>
-              <span className={`font-sans ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{booking.finalAmount}</span>
+
+            {/* Right Column (lg:col-span-5 space-y-6) */}
+            <div className="lg:col-span-5 space-y-6">
+              
+              {/* Desktop Action Center Card */}
+              <div className={`hidden lg:flex flex-col p-5 rounded-2xl border space-y-3 shadow-sm ${
+                darkMode ? 'bg-zinc-900/70 border-white/10' : 'bg-white border-zinc-200'
+              }`}>
+                <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85">
+                  Booking Actions
+                </h4>
+                <button
+                  onClick={() => downloadTicketPDF(booking)}
+                  className="w-full py-3 rounded-xl bg-forest-600 hover:bg-forest-700 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98 transition"
+                >
+                  <Download size={14} /> Download Ticket PDF
+                </button>
+
+                <button
+                  onClick={() => onContactOrganizer(booking)}
+                  className={`w-full py-2.5 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition ${
+                    darkMode ? 'bg-zinc-800/80 border-white/10 hover:bg-zinc-800 text-white' : 'bg-gray-100 border-zinc-200 hover:bg-gray-200 text-zinc-800'
+                  }`}
+                >
+                  <MessageSquare size={14} className="text-forest-500" /> Message Organizer
+                </button>
+
+                {(computedStatus === 'Upcoming' || computedStatus === 'Missed') && (
+                  <button
+                    onClick={() => setShowRescheduleModal(true)}
+                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition"
+                  >
+                    <RefreshCw size={14} /> Reschedule Departure
+                  </button>
+                )}
+
+                {computedStatus === 'Completed' && (
+                  <button
+                    onClick={() => setShowReviewModal(true)}
+                    className="w-full py-2.5 rounded-xl bg-spy-orange hover:bg-orange-600 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition"
+                  >
+                    <Star size={14} className="fill-white" /> Rate Expedition
+                  </button>
+                )}
+
+                {computedStatus === 'Upcoming' && (
+                  <button
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="w-full py-2 text-[11px] text-rose-500 hover:text-rose-400 font-semibold cursor-pointer hover:underline text-center pt-1"
+                  >
+                    Cancel Booking Reservation
+                  </button>
+                )}
+              </div>
+
+              {/* Settled Cost Receipt Sheet */}
+              <div className={`p-5 rounded-2xl border space-y-3.5 ${
+                darkMode ? 'bg-zinc-900/40 border-white/5' : 'bg-white border-zinc-200/60 shadow-xs'
+              }`}>
+                <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85 flex items-center gap-1">
+                  <Receipt size={14} className="text-emerald-400" /> Settled Bill Summary
+                </h4>
+                
+                <div className="space-y-2 text-xs pt-1">
+                  <div className="flex justify-between">
+                    <span className="opacity-60">Base Booking Fee</span>
+                    <span className="font-sans font-semibold">₹{booking.finalAmount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="opacity-60">Permit Royalties & Tax</span>
+                    <span className="text-emerald-500 font-mono font-bold">Included</span>
+                  </div>
+                  <div className="border-t border-dashed border-zinc-200 dark:border-white/10 my-2 pt-2 flex justify-between font-black text-sm">
+                    <span>Total Value Cleared</span>
+                    <span className={`font-sans text-base ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{booking.finalAmount}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Organizing Agency & Support Info */}
+              <div className={`p-5 rounded-2xl border space-y-4 ${
+                darkMode ? 'bg-zinc-900/40 border-white/5 shadow-lg shadow-forest-900/5' : 'bg-white border-zinc-200/60 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85 flex items-center gap-1.5">
+                    <User size={14} className="text-forest-400" /> Organizing Agency
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => onViewOrganizerProfile(organizerName)}
+                    className="text-[10px] font-black uppercase tracking-wider text-forest-500 hover:underline cursor-pointer flex items-center gap-0.5 bg-transparent border-0 outline-hidden"
+                  >
+                    View Profile <ExternalLink size={10} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-sm font-black ${
+                    darkMode ? 'bg-forest-950/40 border border-forest-500/25 text-forest-400' : 'bg-forest-50 border border-forest-500/20 text-forest-600'
+                  }`}>
+                    {organizer.avatar
+                      ? <img src={organizer.avatar} alt={organizerName} className="w-full h-full object-cover" />
+                      : (organizerName ? organizerName.substring(0, 2).toUpperCase() : 'FT')}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h5 className="text-xs font-bold leading-tight truncate">{organizerName || 'Organizer'}</h5>
+                    {organizer.verified && (
+                      <p className="text-[10px] text-emerald-500 flex items-center gap-0.5 mt-0.5 font-bold">
+                        ★ Verified Partner
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {(organizerPhone || organizerEmail) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-dashed border-zinc-200 dark:border-white/10">
+                    {organizerPhone && (
+                      <a href={`tel:${organizerPhone.replace(/\s+/g, '')}`} className="flex items-center gap-2 hover:opacity-80 transition">
+                        <Phone size={13} className="text-forest-400 shrink-0" />
+                        <div className="text-[11px] min-w-0">
+                          <span className="opacity-50 block text-[8px] uppercase tracking-wider font-bold">Phone</span>
+                          <span className="font-bold font-sans truncate block">{organizerPhone}</span>
+                        </div>
+                      </a>
+                    )}
+                    {organizerEmail && (
+                      <a href={`mailto:${organizerEmail}`} className="flex items-center gap-2 hover:opacity-80 transition">
+                        <Mail size={13} className="text-forest-400 shrink-0" />
+                        <div className="text-[11px] min-w-0">
+                          <span className="opacity-50 block text-[8px] uppercase tracking-wider font-bold">Email</span>
+                          <span className="font-bold truncate max-w-[160px] block">{organizerEmail}</span>
+                        </div>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Cancellation warning clause */}
+              {booking.status === 'Upcoming' && (
+                <div className={`p-4 rounded-2xl flex items-start gap-3 border ${
+                  darkMode ? 'bg-rose-500/5 border-rose-500/10' : 'bg-rose-50/50 border-rose-100'
+                }`}>
+                  <ShieldAlert size={16} className="text-rose-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                    <span className="font-bold text-rose-500 block mb-0.5">Flexible Cancellation Policy</span>
+                    Hassle-free 100% refund is available up to 48 hours prior to Departure Date. Refunds will route back to your banking ledger instantly.
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
-
-        {/* Organizing Agency & Support Info */}
-        <div className={`p-4 rounded-2xl border space-y-4 ${
-          darkMode ? 'bg-zinc-900/40 border-white/5 shadow-lg shadow-forest-900/5' : 'bg-white border-zinc-200/60 shadow-xs'
-        }`}>
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-display font-bold uppercase tracking-wider opacity-85 flex items-center gap-1.5">
-              <User size={14} className="text-forest-400" /> Organizing Agency
-            </h4>
-            <button
-              type="button"
-              onClick={() => onViewOrganizerProfile(organizerName)}
-              className="text-[10px] font-black uppercase tracking-wider text-forest-500 hover:underline cursor-pointer flex items-center gap-0.5 bg-transparent border-0 outline-hidden"
-            >
-              View Profile <ExternalLink size={10} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-sm font-black ${
-              darkMode ? 'bg-forest-950/40 border border-forest-500/25 text-forest-400' : 'bg-forest-50 border border-forest-500/20 text-forest-600'
-            }`}>
-              {organizer.avatar
-                ? <img src={organizer.avatar} alt={organizerName} className="w-full h-full object-cover" />
-                : (organizerName ? organizerName.substring(0, 2).toUpperCase() : 'FT')}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h5 className="text-xs font-bold leading-tight truncate">{organizerName || 'Organizer'}</h5>
-              {organizer.verified && (
-                <p className="text-[10px] text-emerald-500 flex items-center gap-0.5 mt-0.5 font-bold">
-                  ★ Verified Partner
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Contact Details — only shown when the organizer actually published
-              them; a placeholder number here is worse than no number at all,
-              since a stranded traveller would call it. */}
-          {(organizerPhone || organizerEmail) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-dashed border-zinc-200 dark:border-white/10">
-              {organizerPhone && (
-                <a href={`tel:${organizerPhone.replace(/\s+/g, '')}`} className="flex items-center gap-2">
-                  <Phone size={12} className="text-forest-400 shrink-0" />
-                  <div className="text-[11px]">
-                    <span className="opacity-50 block text-[8px] uppercase tracking-wider">Phone</span>
-                    <span className="font-bold font-sans">{organizerPhone}</span>
-                  </div>
-                </a>
-              )}
-              {organizerEmail && (
-                <a href={`mailto:${organizerEmail}`} className="flex items-center gap-2">
-                  <Mail size={12} className="text-forest-400 shrink-0" />
-                  <div className="text-[11px]">
-                    <span className="opacity-50 block text-[8px] uppercase tracking-wider">Email</span>
-                    <span className="font-bold truncate max-w-[150px] block">{organizerEmail}</span>
-                  </div>
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Cancellation warning clause */}
-        {booking.status === 'Upcoming' && (
-          <div className={`p-4 rounded-2xl flex items-start gap-3 border ${
-            darkMode ? 'bg-rose-500/5 border-rose-500/10' : 'bg-rose-50/50 border-rose-100'
-          }`}>
-            <ShieldAlert size={16} className="text-rose-500 shrink-0 mt-0.5" />
-            <div className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-              <span className="font-bold text-rose-500 block mb-0.5">Flexible Cancellation Policy</span>
-              Hassle-free 100% refund is available up to 48 hours prior to Departure Date. Refunds will route back to your banking ledger instantly.
-            </div>
-          </div>
-        )}
-
       </div>
 
-      {/* 3. Sticky Action Buttons Row Footer */}
-      <div className={`absolute bottom-0 inset-x-0 p-3 border-t flex gap-2 z-10 backdrop-blur-md ${
+      {/* 3. Sticky Action Buttons Row Footer (Mobile Only) */}
+      <div className={`lg:hidden absolute bottom-0 inset-x-0 p-3 border-t flex gap-2 z-10 backdrop-blur-md ${
         darkMode ? 'bg-zinc-950/95 border-white/5' : 'bg-white/95 border-zinc-200/60'
       }`}>
         <button

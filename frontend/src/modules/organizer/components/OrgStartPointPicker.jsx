@@ -140,10 +140,10 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.98 }}
           transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-          className={`absolute inset-0 z-60 flex flex-col ${darkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-800'}`}
+          className={`absolute inset-0 z-60 flex flex-col ${darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-800'}`}
         >
           {/* Header */}
-          <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b relative z-10 ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100 shadow-sm'}`}>
+          <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b relative z-10 ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/80 shadow-xs'}`}>
             <button
               type="button"
               id="btn-back-start-point-picker"
@@ -159,7 +159,7 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
           </div>
 
           {/* Search bar */}
-          <div className={`px-4 py-3 shrink-0 relative z-10 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'}`}>
+          <div className={`px-4 py-3 shrink-0 relative z-10 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/80'}`}>
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1 min-w-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />

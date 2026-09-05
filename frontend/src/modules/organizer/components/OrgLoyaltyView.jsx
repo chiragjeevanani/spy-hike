@@ -18,7 +18,7 @@ export default function OrgLoyaltyView({ organizer, onBack, onGoBookings, darkMo
     <div className={`h-full flex flex-col overflow-hidden font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
 
       {/* Header */}
-      <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100 shadow-sm'}`}>
+      <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/80 shadow-xs'}`}>
         <button
           onClick={onBack}
           className={`w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'}`}
@@ -116,7 +116,7 @@ export default function OrgLoyaltyView({ organizer, onBack, onGoBookings, darkMo
         )}
 
         {/* Reward explainer */}
-        <div className={`p-4 rounded-2xl space-y-1.5 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white shadow-sm'}`}>
+        <div className={`p-4 rounded-2xl space-y-1.5 ${darkMode ? 'bg-zinc-900/80 border border-white/10' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`}>
           <h4 className="text-xs font-black uppercase tracking-wider opacity-85 flex items-center gap-1.5">
             <Gift size={14} className="text-spy-orange" /> {orgConfig.rewardTitle}
           </h4>
@@ -129,7 +129,7 @@ export default function OrgLoyaltyView({ organizer, onBack, onGoBookings, darkMo
         {vouchers.length > 0 && (
           <div className="space-y-2">
             <span className="text-[10px] uppercase font-bold tracking-widest opacity-45 pl-1 block">Reward History</span>
-            <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white shadow-sm'}`}>
+            <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-zinc-900/80 border border-white/10' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`}>
               {vouchers.slice().reverse().map((v, i, arr) => (
                 <div
                   key={v.id}

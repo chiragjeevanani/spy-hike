@@ -131,84 +131,208 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-hidden font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
+    <div className={`h-full flex-1 overflow-y-auto font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
+      <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6">
 
-      {/* Header */}
-      <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100 shadow-sm'}`}>
-        <button
-          id="btn-back-org-financials"
-          onClick={onBack}
-          className={`w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'}`}
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-display font-black tracking-tight">Financials</h2>
-          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">Payouts & Bank Info</p>
-        </div>
-        <button
-          type="button"
-          id="btn-download-financial-report"
-          onClick={handleDownloadReport}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-spy-orange text-white active:scale-95 transition shadow-sm shadow-spy-orange/20"
-        >
-          <Download size={13} /> Report
-        </button>
-      </div>
-
-      {/* Section tabs */}
-      <div className={`px-5 pt-3 pb-2 shrink-0 flex gap-2 border-b ${darkMode ? 'border-white/5' : 'border-zinc-100'}`}>
-        {SECTIONS.map(s => (
-          <button
-            key={s}
-            id={`btn-financials-tab-${s.toLowerCase()}`}
-            type="button"
-            onClick={() => setSection(s)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-              section === s ? 'bg-spy-orange text-white shadow-sm shadow-spy-orange/30' : darkMode ? 'bg-zinc-900 text-zinc-400 border border-white/10' : 'bg-white text-zinc-500 border border-zinc-200'
-            }`}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex-1 overflow-y-auto no-scrollbar p-5 space-y-4 pb-10">
-
-        {/* ─── Overview ─── */}
-        {section === 'Overview' && (
-          <>
-            {/* Balance hero */}
-            <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-spy-orange to-orange-700 text-white p-5 shadow-lg shadow-orange-900/20">
-              <div className="flex items-center gap-2 text-white/80">
-                <Wallet size={15} />
-                <span className="text-[11px] font-bold uppercase tracking-widest">Available Balance</span>
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+          <div className="flex items-center gap-3.5">
+            <button
+              id="btn-back-org-financials"
+              onClick={onBack}
+              className={`w-10 h-10 rounded-2xl flex items-center justify-center transition active:scale-90 cursor-pointer border ${
+                darkMode ? 'bg-zinc-900 border-white/10 text-zinc-200 hover:bg-zinc-800' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50 shadow-xs'
+              }`}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight">Financials & Settlements</h1>
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                  Live Bank Feed
+                </span>
               </div>
-              <div className="text-3xl font-display font-black tracking-tight mt-2">{inr(availableBalance)}</div>
-              <p className="text-[11px] text-white/75 mt-1.5 leading-relaxed">
-                {pendingNet > 0 ? `${inr(pendingNet)} pending settlement from upcoming trips.` : 'No pending settlements right now.'}
+              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                Track booking revenues, platform commission deductions, and request direct bank disbursements.
               </p>
-              <button
-                type="button"
-                id="btn-request-payout"
-                onClick={handleRequestPayout}
-                disabled={!canRequestPayout}
-                className={`mt-4 w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-                  canRequestPayout ? 'bg-white text-orange-700 shadow-sm' : 'bg-white/20 text-white/60 cursor-not-allowed'
-                }`}
-              >
-                {requesting ? <RefreshCw size={15} className="animate-spin" /> : <ArrowUpRight size={15} />}
-                {requesting ? 'Requesting…' : 'Request Payout'}
-              </button>
-              {!hasPayoutMethod && (
-                <p className="text-[10px] text-white/80 mt-2 flex items-center gap-1">
-                  <AlertCircle size={11} /> Add a payout method below to withdraw.
-                </p>
-              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              id="btn-download-financial-report"
+              onClick={handleDownloadReport}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold bg-spy-orange hover:bg-[#d96d1a] text-white active:scale-95 transition shadow-lg shadow-spy-orange/20 cursor-pointer"
+            >
+              <Download size={14} /> Download Statement (PDF)
+            </button>
+          </div>
+        </div>
+
+        {/* Section tabs */}
+        <div className="flex gap-2">
+          {SECTIONS.map(s => (
+            <button
+              key={s}
+              id={`btn-financials-tab-${s.toLowerCase()}`}
+              type="button"
+              onClick={() => setSection(s)}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                section === s
+                  ? 'bg-spy-orange text-white shadow-md shadow-spy-orange/20'
+                  : darkMode
+                    ? 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 border border-white/10'
+                    : 'bg-white hover:bg-zinc-50 text-zinc-600 border border-zinc-200 shadow-xs'
+              }`}
+            >
+              {s === 'Payouts' ? 'Payout History' : s}
+            </button>
+          ))}
+        </div>
+
+        {/* ─── Overview Section ─── */}
+        {section === 'Overview' && (
+          <div className="space-y-6">
+            {/* Top Row: Balance Hero + Payout Method */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              
+              {/* Available Balance Card */}
+              <div className="lg:col-span-7 relative rounded-3xl overflow-hidden bg-gradient-to-br from-orange-600 via-spy-orange to-amber-600 text-white p-6 sm:p-7 shadow-xl shadow-orange-950/20 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-white/90">
+                      <Wallet size={16} />
+                      <span className="text-xs font-bold uppercase tracking-widest">Available for Withdrawal</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full bg-white/20 text-white backdrop-blur-xs">
+                      Instant Payout
+                    </span>
+                  </div>
+
+                  <div className="text-3xl sm:text-4xl font-display font-black tracking-tight mt-3">
+                    {inr(availableBalance)}
+                  </div>
+
+                  <p className="text-xs text-white/85 mt-2 leading-relaxed max-w-lg">
+                    {pendingNet > 0
+                      ? `${inr(pendingNet)} pending settlement from upcoming & ongoing expeditions.`
+                      : 'All completed bookings have been cleared for withdrawal.'}
+                  </p>
+                </div>
+
+                <div className="pt-6 mt-4 border-t border-white/15">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <button
+                      type="button"
+                      id="btn-request-payout"
+                      onClick={handleRequestPayout}
+                      disabled={!canRequestPayout}
+                      className={`flex-1 py-3.5 px-6 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer ${
+                        canRequestPayout
+                          ? 'bg-white text-orange-800 hover:bg-orange-50 shadow-md shadow-black/10'
+                          : 'bg-white/20 text-white/60 cursor-not-allowed'
+                      }`}
+                    >
+                      {requesting ? <RefreshCw size={16} className="animate-spin" /> : <ArrowUpRight size={16} />}
+                      {requesting ? 'Processing Payout Request…' : 'Request Bank Payout'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSection('Statement')}
+                      className="py-3.5 px-5 rounded-2xl text-xs font-bold bg-black/20 hover:bg-black/30 text-white transition active:scale-95 cursor-pointer text-center"
+                    >
+                      View Breakdown
+                    </button>
+                  </div>
+
+                  {!hasPayoutMethod && (
+                    <p className="text-[11px] text-white/90 mt-2.5 flex items-center gap-1.5">
+                      <AlertCircle size={13} /> Add a bank account or UPI ID to enable payout requests.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Payout Method Card */}
+              <div className={`lg:col-span-5 rounded-3xl p-6 flex flex-col justify-between ${cardCls}`}>
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                    <div className="flex items-center gap-2">
+                      <Landmark size={17} className="text-spy-orange" />
+                      <span className="text-sm font-bold">Registered Payout Method</span>
+                    </div>
+                    <button
+                      type="button"
+                      id="btn-edit-bank-details"
+                      onClick={() => { setBankFormError(''); setEditingBank(true); }}
+                      className="text-spy-orange hover:underline text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 size={13} /> {hasPayoutMethod ? 'Edit Details' : 'Add Method'}
+                    </button>
+                  </div>
+
+                  {hasPayoutMethod ? (
+                    <div className="pt-4 space-y-3.5">
+                      {bank.upiId?.trim() && (
+                        <div className={`p-3.5 rounded-2xl flex items-center gap-3.5 ${darkMode ? 'bg-zinc-950/60 border border-white/5' : 'bg-zinc-50 border border-zinc-200/60'}`}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500/15 text-indigo-400 shrink-0">
+                            <Smartphone size={18} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-[10px] font-bold uppercase tracking-wider ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>UPI Virtual Address</p>
+                            <p className="text-sm font-bold truncate">{bank.upiId}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {bank.accountNumber?.trim() && bank.ifsc?.trim() && (
+                        <div className={`p-3.5 rounded-2xl flex items-center gap-3.5 ${darkMode ? 'bg-zinc-950/60 border border-white/5' : 'bg-zinc-50 border border-zinc-200/60'}`}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/15 text-blue-400 shrink-0">
+                            <Landmark size={18} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-[10px] font-bold uppercase tracking-wider ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                              {bank.bankName || 'Direct Bank Transfer'}
+                            </p>
+                            <p className="text-sm font-bold">{maskAccount(bank.accountNumber)}</p>
+                            <p className={`text-[11px] font-mono ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>IFSC: {bank.ifsc}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 text-xs font-medium text-emerald-500 pt-1">
+                        <ShieldCheck size={14} className="shrink-0" />
+                        <span className="truncate">Verified recipient: {bank.accountHolderName}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <CreditCard size={28} className="mx-auto mb-2 text-spy-orange/60" />
+                      <p className="text-sm font-bold">No bank account linked</p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        Link your company or individual bank account to receive automatic settlements.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Commission Notice */}
+                <div className={`mt-4 p-3.5 rounded-2xl flex gap-2.5 text-xs leading-relaxed ${
+                  darkMode ? 'bg-zinc-950/60 text-zinc-400 border border-white/5' : 'bg-zinc-50 text-zinc-600 border border-zinc-200/60'
+                }`}>
+                  <FileText size={15} className="text-spy-orange shrink-0 mt-0.5" />
+                  <span>
+                    Platform commission is {(COMMISSION_RATE * 100).toFixed(0)}%. Funds unlock for withdrawal 3 business days following trek completion.
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* Stats grid */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 4 Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               {[
                 { label: 'Total Net Earnings', value: inr(totalNet), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
                 { label: 'Pending Settlement', value: inr(pendingNet), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-400/10' },
@@ -221,202 +345,241 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
                     key={s.label}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    className={`${cardCls} p-4`}
+                    transition={{ delay: i * 0.05 }}
+                    className={`${cardCls} p-5`}
                   >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${s.bg}`}>
-                      <Icon size={16} className={s.color} />
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-3 ${s.bg}`}>
+                      <Icon size={18} className={s.color} />
                     </div>
-                    <div className="text-lg font-display font-black tracking-tight">{s.value}</div>
-                    <div className={`text-[10px] font-medium mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{s.label}</div>
+                    <div className="text-xl sm:text-2xl font-display font-black tracking-tight">{s.value}</div>
+                    <div className={`text-xs font-semibold mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{s.label}</div>
                   </motion.div>
                 );
               })}
             </div>
 
-            {/* Payout method card */}
-            <div className={cardCls}>
-              <div className="flex items-center justify-between px-4 py-3.5">
-                <span className="text-xs font-black uppercase tracking-wider opacity-60">Payout Method</span>
+            {/* Recent Settlements Preview */}
+            <div className={`rounded-3xl p-6 ${cardCls}`}>
+              <div className="flex items-center justify-between pb-4 border-b border-white/5">
+                <div>
+                  <h3 className="text-base font-display font-black tracking-tight">Recent Settlement Activity</h3>
+                  <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Latest bookings processed and credited</p>
+                </div>
                 <button
                   type="button"
-                  id="btn-edit-bank-details"
-                  onClick={() => { setBankFormError(''); setEditingBank(true); }}
-                  className="text-spy-orange text-xs font-bold flex items-center gap-1"
+                  onClick={() => setSection('Statement')}
+                  className="text-xs font-bold text-spy-orange hover:underline cursor-pointer"
                 >
-                  <Edit3 size={12} /> {hasPayoutMethod ? 'Edit' : 'Add'}
+                  View Full Statement →
                 </button>
               </div>
-              {hasPayoutMethod ? (
-                <div className={`px-4 py-3.5 border-t space-y-3 ${darkMode ? 'border-white/5' : 'border-zinc-100'}`}>
-                  {bank.upiId?.trim() && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 shrink-0">
-                        <Smartphone size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>UPI ID</p>
-                        <p className="text-sm font-semibold truncate">{bank.upiId}</p>
-                      </div>
-                    </div>
-                  )}
-                  {bank.accountNumber?.trim() && bank.ifsc?.trim() && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-500/10 text-blue-400 shrink-0">
-                        <Landmark size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{bank.bankName || 'Bank Account'}</p>
-                        <p className="text-sm font-semibold">{maskAccount(bank.accountNumber)} · {bank.ifsc}</p>
-                      </div>
-                    </div>
-                  )}
-                  <p className={`text-[10px] flex items-center gap-1 ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                    <ShieldCheck size={11} /> {bank.accountHolderName}{bank.panNumber ? ` · PAN ${bank.panNumber}` : ''}
-                  </p>
+
+              {activeBookings.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>No settlement transactions yet.</p>
                 </div>
               ) : (
-                <div className={`px-4 py-4 border-t text-center ${darkMode ? 'border-white/5' : 'border-zinc-100'}`}>
-                  <CreditCard size={22} className="mx-auto mb-2 text-spy-orange/60" />
-                  <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>No payout method on file yet.</p>
+                <div className="divide-y divide-white/5 pt-2">
+                  {activeBookings.slice(-4).reverse().map((b) => (
+                    <div key={b.id || b.bookingId} className="py-3.5 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold truncate">{b.tripName}</p>
+                        <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          {b.bookingId} · {b.selectedDate || 'Upcoming'}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-black text-emerald-400">+{inr(netOf(b))}</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          b.status === 'Completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
+                        }`}>
+                          {b.status === 'Completed' ? 'Settled' : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+          </div>
+        )}
 
-            {/* Commission info */}
-            <div className={`p-4 rounded-2xl flex gap-2.5 text-xs leading-relaxed ${darkMode ? 'bg-zinc-900/60 text-zinc-400' : 'bg-white text-zinc-500 shadow-sm'}`}>
-              <FileText size={14} className="text-spy-orange shrink-0 mt-0.5" />
-              <span>
-                Find Your Trek charges a {(COMMISSION_RATE * 100).toFixed(0)}% platform commission per booking. Funds move from
-                "Pending Settlement" to your "Available Balance" once a trip is marked Completed. Zero-commission
-                loyalty credits skip this deduction entirely.
+        {/* ─── Statement Section ─── */}
+        {section === 'Statement' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                Itemized Settlement Statement ({activeBookings.length} bookings)
               </span>
             </div>
-          </>
-        )}
 
-        {/* ─── Statement ─── */}
-        {section === 'Statement' && (
-          activeBookings.length === 0 ? (
-            <div className="text-center py-16">
-              <FileText size={36} className="mx-auto mb-3 text-zinc-300" />
-              <p className="font-bold text-sm mb-1">No transactions yet</p>
-              <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Booking earnings will show up here.</p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {activeBookings.slice().reverse().map((b, i) => (
-                <motion.div
-                  key={b.id || b.bookingId}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  className={`${cardCls} p-3.5`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold truncate">{b.tripName}</p>
-                      <p className={`text-[10px] font-mono mt-0.5 ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>{b.bookingId} · {b.selectedDate}</p>
-                    </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                      b.status === 'Completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
-                    }`}>
-                      {b.status === 'Completed' ? 'Settled' : 'Pending'}
-                    </span>
-                  </div>
-                  <div className={`grid grid-cols-3 gap-2 pt-2.5 border-t text-center ${darkMode ? 'border-white/5' : 'border-zinc-100'}`}>
-                    <div>
-                      <p className={`text-[9px] uppercase font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Gross</p>
-                      <p className="text-xs font-bold mt-0.5">{inr(b.finalAmount)}</p>
-                    </div>
-                    <div>
-                      <p className={`text-[9px] uppercase font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Commission</p>
-                      <p className="text-xs font-bold mt-0.5 text-rose-400">
-                        {b.loyaltyRewardApplied ? '₹0' : `-${inr(commissionOf(b))}`}
-                      </p>
-                    </div>
-                    <div>
-                      <p className={`text-[9px] uppercase font-semibold ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Net</p>
-                      <p className="text-xs font-black mt-0.5 text-emerald-400">{inr(netOf(b))}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )
-        )}
+            {activeBookings.length === 0 ? (
+              <div className="text-center py-16">
+                <FileText size={36} className="mx-auto mb-3 text-zinc-300" />
+                <p className="font-bold text-sm mb-1">No transactions yet</p>
+                <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Booking earnings will show up here.</p>
+              </div>
+            ) : (
+              <div className={`rounded-3xl overflow-hidden ${cardCls}`}>
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className={`border-b text-xs font-bold uppercase tracking-wider ${
+                        darkMode ? 'border-white/10 text-zinc-400 bg-zinc-950/40' : 'border-zinc-200 text-zinc-500 bg-zinc-50'
+                      }`}>
+                        <th className="py-3.5 px-5">Booking ID</th>
+                        <th className="py-3.5 px-5">Expedition</th>
+                        <th className="py-3.5 px-5">Departure</th>
+                        <th className="py-3.5 px-5 text-right">Gross Fare</th>
+                        <th className="py-3.5 px-5 text-right">Fee</th>
+                        <th className="py-3.5 px-5 text-right">Net Payout</th>
+                        <th className="py-3.5 px-5 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {activeBookings.slice().reverse().map((b) => (
+                        <tr key={b.id || b.bookingId} className="hover:bg-black/5 dark:hover:bg-white/5 transition">
+                          <td className="py-3.5 px-5 font-mono text-xs font-bold">{b.bookingId || b.id}</td>
+                          <td className="py-3.5 px-5 font-bold truncate max-w-[200px]">{b.tripName}</td>
+                          <td className={`py-3.5 px-5 text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{b.selectedDate || '—'}</td>
+                          <td className="py-3.5 px-5 text-right font-semibold">{inr(b.finalAmount)}</td>
+                          <td className="py-3.5 px-5 text-right text-rose-400 font-semibold">
+                            {b.loyaltyRewardApplied ? '₹0 (0% Promo)' : `-${inr(commissionOf(b))}`}
+                          </td>
+                          <td className="py-3.5 px-5 text-right font-black text-emerald-400">{inr(netOf(b))}</td>
+                          <td className="py-3.5 px-5 text-center">
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                              b.status === 'Completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
+                            }`}>
+                              {b.status === 'Completed' ? 'Settled' : 'Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-        {/* ─── Payouts ─── */}
-        {section === 'Payouts' && (
-          payouts.length === 0 ? (
-            <div className="text-center py-16">
-              <Banknote size={36} className="mx-auto mb-3 text-zinc-300" />
-              <p className="font-bold text-sm mb-1">No payouts yet</p>
-              <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Request a payout from the Overview tab once you have an available balance.</p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {payouts.slice().reverse().map((p, i) => {
-                const meta = payoutStatusMeta(p.status);
-                const Icon = meta.icon;
-                return (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    className={`${cardCls} p-4`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${meta.cls}`}>
-                          <Icon size={15} />
-                        </div>
+                {/* Mobile Card List */}
+                <div className="md:hidden divide-y divide-white/5 p-3">
+                  {activeBookings.slice().reverse().map((b) => (
+                    <div key={b.id || b.bookingId} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold">{inr(p.amount)}</p>
-                          <p className={`text-[10px] ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{p.method}</p>
+                          <p className="text-sm font-bold truncate">{b.tripName}</p>
+                          <p className={`text-[10px] font-mono ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                            {b.bookingId} · {b.selectedDate}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          b.status === 'Completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
+                        }`}>
+                          {b.status === 'Completed' ? 'Settled' : 'Pending'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>Gross: {inr(b.finalAmount)}</span>
+                        <span className="text-rose-400">Fee: -{inr(commissionOf(b))}</span>
+                        <span className="font-bold text-emerald-400">Net: {inr(netOf(b))}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── Payout History Section ─── */}
+        {section === 'Payouts' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                Disbursement History ({payouts.length} transfers)
+              </span>
+            </div>
+
+            {payouts.length === 0 ? (
+              <div className="text-center py-16">
+                <Banknote size={36} className="mx-auto mb-3 text-zinc-300" />
+                <p className="font-bold text-sm mb-1">No bank transfers yet</p>
+                <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Processed payouts will be logged here.</p>
+              </div>
+            ) : (
+              <div className={`rounded-3xl overflow-hidden divide-y divide-white/5 ${cardCls}`}>
+                {payouts.map((p) => {
+                  const meta = payoutStatusMeta(p.status);
+                  const StatusIcon = meta.icon;
+                  return (
+                    <div key={p.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${meta.cls}`}>
+                          <StatusIcon size={20} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold font-mono">{inr(p.amount)}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.cls}`}>
+                              {p.status}
+                            </span>
+                          </div>
+                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            {p.method} · {p.date}
+                          </p>
                         </div>
                       </div>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${meta.cls}`}>{p.status}</span>
-                    </div>
-                    <div className={`mt-3 pt-2.5 border-t flex items-center justify-between ${darkMode ? 'border-white/5' : 'border-zinc-100'}`}>
-                      <span className={`text-[10px] font-mono ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                        {p.status === 'Paid' ? `UTR ${p.utr}` : `Requested ${new Date(p.requestedAt).toLocaleDateString()}`}
-                      </span>
-                      {p.status === 'Paid' && p.utr && (
+
+                      <div className="flex items-center gap-2 text-xs font-mono">
+                        <span className={darkMode ? 'text-zinc-500' : 'text-zinc-400'}>Ref: {p.referenceId}</span>
                         <button
                           type="button"
-                          onClick={() => handleCopy(p.utr, p.id)}
-                          className="text-spy-orange text-[10px] font-bold flex items-center gap-1"
+                          onClick={() => handleCopy(p.referenceId, p.id)}
+                          className={`p-1.5 rounded-lg transition ${darkMode ? 'hover:bg-white/10' : 'hover:bg-zinc-100'}`}
                         >
-                          <Copy size={10} /> {copiedId === p.id ? 'Copied' : 'Copy'}
+                          {copiedId === p.id ? <CheckCircle2 size={13} className="text-emerald-400" /> : <Copy size={13} />}
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
+
       </div>
 
-      {/* Edit bank details overlay */}
+      {/* Edit bank details modal */}
       <AnimatePresence>
         {editingBank && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex flex-col"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+            onClick={() => setEditingBank(false)}
           >
-            <div className={`flex-1 flex flex-col overflow-y-auto ${darkMode ? 'bg-zinc-950' : 'bg-gray-50'}`}>
-              <div className={`px-5 pt-5 pb-4 shrink-0 flex items-center gap-3 ${darkMode ? 'bg-zinc-900/80 border-b border-white/5' : 'bg-white border-b border-zinc-100 shadow-sm'}`}>
-                <button type="button" onClick={() => setEditingBank(false)} className={`p-2 rounded-xl ${darkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}><X size={17} /></button>
+            <div
+              className={`w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl border ${
+                darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-[#FAF8F2] border-zinc-200/80 text-zinc-900'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`px-5 pt-5 pb-4 shrink-0 flex items-center justify-between border-b ${
+                darkMode ? 'bg-zinc-900/80 border-white/10' : 'bg-white/80 backdrop-blur-md border-zinc-200/70'
+              }`}>
                 <h2 className="text-lg font-display font-black">Payout Details</h2>
+                <button
+                  type="button"
+                  onClick={() => setEditingBank(false)}
+                  className={`p-2 rounded-xl cursor-pointer transition ${darkMode ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
+                >
+                  <X size={17} />
+                </button>
               </div>
-              <div className="flex-1 px-5 py-5 space-y-4">
-                <div className={`rounded-2xl p-4 space-y-4 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}>
+              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+                <div className={`rounded-2xl p-4 space-y-4 ${darkMode ? 'bg-zinc-900/80 border border-white/10 shadow-xs' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`}>
                   <div>
                     <label className={labelCls}>Account Holder Name *</label>
                     <input
@@ -501,12 +664,12 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
                   )}
                 </div>
               </div>
-              <div className="px-5 py-4 shrink-0">
+              <div className="px-5 py-4 shrink-0 border-t border-zinc-200/60 dark:border-white/5">
                 <button
                   type="button"
                   id="btn-save-bank-details"
                   onClick={handleBankSave}
-                  className="w-full py-3.5 rounded-2xl bg-spy-orange text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all"
+                  className="w-full py-3.5 rounded-2xl bg-spy-orange text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer hover:bg-[#d96d1a]"
                 >
                   <Save size={16} /> Save Payout Details
                 </button>

@@ -11,6 +11,7 @@ import { durationRange, distanceRange } from '../../../utils/rangeFormat';
 
 import { compressImage } from '../../../utils/imageCompressor';
 import { POPULAR_TREK_STATES, resolveTrekState, groupTreksByState, extractStateFromLocation } from '../utils/stateUtils';
+import { INDIA_STATES, getCitiesForState, formatLocation } from '../../../data/indiaLocations';
 import { AdminSkeletonStateGroup, AdminSkeletonCard } from './AdminSkeleton';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
@@ -641,41 +642,45 @@ export default function TreksView({ darkMode }) {
                 {fieldErrors.title && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.title}</p>}
               </div>
 
-              <div>
-                <label className={labelCls}>Location *</label>
-                <input
-                  ref={el => { fieldRefs.current.location = { current: el }; }}
-                  type="text"
-                  placeholder="e.g. Sankri, Uttarakhand"
-                  value={form.location}
-                  onChange={(e) => handleLocationChange(e.target.value)}
-                  className={`${inputCls} ${fieldErrors.location ? 'border-rose-500 focus:border-rose-500' : ''}`}
-                />
-                {fieldErrors.location && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.location}</p>}
-              </div>
-
-              {/* State & City with quick state pills */}
+              {/* State & City Dropdowns */}
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>State</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Uttarakhand"
+                    <label className={labelCls}>State *</label>
+                    <select
                       value={form.state}
-                      onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+                      onChange={(e) => {
+                        const st = e.target.value;
+                        const newLoc = formatLocation(form.city, st);
+                        setForm((f) => ({ ...f, state: st, location: newLoc }));
+                        setFieldErrors((er) => ({ ...er, location: '' }));
+                      }}
                       className={inputCls}
-                    />
+                    >
+                      <option value="">Select State / UT</option>
+                      {INDIA_STATES.map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
-                    <label className={labelCls}>City / Region</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Sankri"
+                    <label className={labelCls}>City / Adventure Hub</label>
+                    <select
                       value={form.city}
-                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                      disabled={!form.state}
+                      onChange={(e) => {
+                        const ct = e.target.value;
+                        const newLoc = formatLocation(ct, form.state);
+                        setForm((f) => ({ ...f, city: ct, location: newLoc }));
+                        setFieldErrors((er) => ({ ...er, location: '' }));
+                      }}
                       className={inputCls}
-                    />
+                    >
+                      <option value="">{form.state ? 'Select City / Hub' : 'Select State first'}</option>
+                      {getCitiesForState(form.state).map((ct) => (
+                        <option key={ct} value={ct}>{ct}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -687,7 +692,11 @@ export default function TreksView({ darkMode }) {
                       <button
                         key={st}
                         type="button"
-                        onClick={() => setForm((f) => ({ ...f, state: st }))}
+                        onClick={() => {
+                          const newLoc = formatLocation(form.city, st);
+                          setForm((f) => ({ ...f, state: st, location: newLoc }));
+                          setFieldErrors((er) => ({ ...er, location: '' }));
+                        }}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
                           form.state === st
                             ? 'bg-[#F27D26] border-[#F27D26] text-white shadow-xs'
@@ -700,6 +709,19 @@ export default function TreksView({ darkMode }) {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Location *</label>
+                  <input
+                    ref={el => { fieldRefs.current.location = { current: el }; }}
+                    type="text"
+                    placeholder="e.g. Sankri, Uttarakhand"
+                    value={form.location}
+                    onChange={(e) => handleLocationChange(e.target.value)}
+                    className={`${inputCls} ${fieldErrors.location ? 'border-rose-500 focus:border-rose-500' : ''}`}
+                  />
+                  {fieldErrors.location && <p className="text-[10px] font-bold text-rose-500 mt-1">{fieldErrors.location}</p>}
                 </div>
               </div>
 

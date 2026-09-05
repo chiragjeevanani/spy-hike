@@ -23,8 +23,8 @@ export function matchesLocation(trip, userLocation) {
 
   // Split label into components e.g. "Manali, Himachal Pradesh" -> city="manali", state="himachal pradesh"
   const parts = label.split(',').map(s => normalizeLocationText(s)).filter(Boolean);
-  const selectedCity = parts[0];
-  const selectedState = parts.length > 1 ? parts[1] : null;
+  const selectedCity = normalizeLocationText(userLocation.city || parts[0]);
+  const selectedState = normalizeLocationText(userLocation.state || (parts.length > 1 ? parts[1] : null));
 
   const tripCity = normalizeLocationText(trip.city);
   const tripState = normalizeLocationText(trip.state);
@@ -37,19 +37,19 @@ export function matchesLocation(trip, userLocation) {
     ...(trip.pickupPoints || [])
   ].filter(Boolean).map(p => normalizeLocationText(p));
 
-  // 1. Primary city match (e.g. "manali", "rishikesh", "sankri", "leh")
-  if (selectedCity) {
+  // 1. Primary city match (e.g. "manali", "rishikesh", "sankri", "leh", "pune")
+  if (selectedCity && selectedCity !== 'india' && selectedCity !== 'all') {
     const cityMatch =
       (tripCity && (tripCity.includes(selectedCity) || selectedCity.includes(tripCity))) ||
       (tripLocation && tripLocation.includes(selectedCity)) ||
       (tripStart && tripStart.includes(selectedCity)) ||
-      pickupLocations.some(p => p.includes(selectedCity));
+      pickupLocations.some(p => p.includes(selectedCity) || selectedCity.includes(p));
 
     if (cityMatch) return true;
   }
 
-  // 2. State-wide filter (e.g. user selected "Uttarakhand" or "Himachal Pradesh" directly)
-  if (selectedCity && !selectedState) {
+  // 2. State-wide match (e.g. user selected "Uttarakhand" or "Himachal Pradesh" directly)
+  if (selectedCity && (!selectedState || selectedCity === selectedState)) {
     if (
       (tripState && (tripState.includes(selectedCity) || selectedCity.includes(tripState))) ||
       (tripLocation && tripLocation.includes(selectedCity))

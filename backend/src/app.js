@@ -17,7 +17,7 @@ const INVALIDATION_MAP = [
   // Booking or cancelling moves seat counts, which ride along on trip records.
   [/\/bookings/, ['trips']],
   [/\/categories/, ['categories', 'trips']],
-  [/\/(landing|site)-content/, ['content']],
+  [/\/(landing|site|onboarding)-content/, ['content']],
 ];
 
 const prefixesFor = (path) =>

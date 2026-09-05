@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform
 import {
   ArrowLeft, ArrowRight, Calendar, Users, FileText, Ticket, CreditCard, CheckCircle2,
   Sparkles, Percent, ShieldCheck, Download, Info, Landmark, X, ChevronRight, ChevronLeft, Gift, Bus,
-  RotateCw, Home
+  RotateCw, Home, Star, MapPin, Clock
 } from 'lucide-react';
 import { getAvailableCustomerVoucher, markCustomerVoucherUsed, loadLoyaltyConfig } from '../../../utils/loyalty';
 import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
@@ -949,6 +949,16 @@ export default function BookingFlow({
     }
   };
 
+  const formattedSelectedDate = useMemo(() => {
+    if (!selectedDate) return null;
+    try {
+      const d = new Date(selectedDate + 'T00:00:00');
+      return isNaN(d.getTime()) ? selectedDate : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return selectedDate;
+    }
+  }, [selectedDate]);
+
   const handleFinishAndReturn = () => {
     if (createdBooking) {
       onConfirmBooking(createdBooking);
@@ -956,48 +966,87 @@ export default function BookingFlow({
   };
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-6 py-4 relative ${
+    <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans relative ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'
     }`}>
       
       {/* Confetti Popper layer */}
       {showConfetti && <ConfettiPopper />}
 
-      {/* Dynamic wizard indicators header */}
-      {step < 4 && (
-        <div className="shrink-0 flex items-center justify-between pb-4 border-b border-zinc-800/10 dark:border-zinc-850">
-          <button onClick={onCancel} className="text-zinc-500 hover:text-zinc-300">
-            <ArrowLeft size={18} />
-          </button>
-          
-          <div className="text-center">
-            <span className="text-[9px] uppercase tracking-wider opacity-60 font-mono block">BOOKING ENGINE</span>
-            <h3 className="text-sm font-display font-black text-forest-650 dark:text-forest-400">Step {step} of 3</h3>
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col flex-1">
+        {/* Dynamic wizard indicators header */}
+        {step < 4 && (
+          <div className="shrink-0 pb-4 mb-4 border-b border-zinc-800/10 dark:border-zinc-850">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={onCancel}
+                className="p-2 -ml-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+              >
+                <ArrowLeft size={16} />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+              
+              {/* Desktop Step Pills */}
+              <div className="hidden sm:flex items-center gap-2">
+                {[
+                  { s: 1, label: 'Expedition Details' },
+                  { s: 2, label: 'Traveler Coordinates' },
+                  { s: 3, label: 'Settlement & Payment' }
+                ].map((it, idx) => (
+                  <React.Fragment key={it.s}>
+                    {idx > 0 && (
+                      <div className={`w-6 h-0.5 ${step >= it.s ? 'bg-forest-500' : (darkMode ? 'bg-zinc-800' : 'bg-zinc-300')}`} />
+                    )}
+                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                      step === it.s
+                        ? (darkMode ? 'bg-forest-500/20 text-forest-400 border border-forest-500/40' : 'bg-forest-50 text-forest-700 border border-forest-200')
+                        : step > it.s
+                        ? 'text-forest-500 opacity-90'
+                        : (darkMode ? 'text-zinc-500' : 'text-zinc-400')
+                    }`}>
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-mono font-bold ${
+                        step >= it.s ? 'bg-forest-500 text-white' : (darkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-600')
+                      }`}>
+                        {step > it.s ? '✓' : it.s}
+                      </span>
+                      <span>{it.label}</span>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+
+              {/* Mobile simplified indicator */}
+              <div className="sm:hidden text-center">
+                <span className="text-[9px] uppercase tracking-wider opacity-60 font-mono block">BOOKING ENGINE</span>
+                <h3 className="text-xs font-display font-black text-forest-650 dark:text-forest-400">Step {step} of 3</h3>
+              </div>
+
+              <div className="w-8 sm:w-16" />
+            </div>
+
+            {/* Progress visual horizontal track bar */}
+            <div className={`w-full h-1 rounded-full mt-3 overflow-hidden select-none ${darkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
+              <div 
+                className="h-full bg-forest-500 transition-all duration-300"
+                style={{ width: `${(step / 3) * 100}%` }}
+              />
+            </div>
           </div>
+        )}
 
-          <div className="w-5" /> {/* Empty aligner */}
-        </div>
-      )}
-
-      {/* Progress visual horizontal track bar */}
-      {step < 4 && (
-        <div className="w-full h-1 bg-zinc-800 rounded-full mt-3 overflow-hidden select-none mb-6">
-          <div 
-            className="h-full bg-forest-500 transition-all duration-300"
-            style={{ width: `${(step / 3) * 100}%` }}
-          />
-        </div>
-      )}
-
-      {/* Forms switcher viewport */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={paymentFailed ? 'declined' : step}
-          initial={{ opacity: 0, y: 12, scale: 0.99 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -8, scale: 0.99 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        >
+        {step < 4 ? (
+          <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-start flex-1 mt-2">
+            {/* Main Forms Column */}
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col space-y-6">
+              {/* Forms switcher viewport */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={paymentFailed ? 'declined' : step}
+                  initial={{ opacity: 0, y: 12, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.99 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                >
         
         {/* Step 1: Select Date & Travelers Count */}
         {step === 1 && (
@@ -1283,23 +1332,23 @@ export default function BookingFlow({
                     TRAVELER #{idx + 1}{travelerTierLabels[idx] ? ` · ${travelerTierLabels[idx]}` : ''}
                   </span>
 
-                  {/* Name field */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Full Name *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      placeholder="e.g. Aman Verma"
-                      value={tr.name}
-                      onChange={e => handleTravelerFieldChange(idx, 'name', e.target.value)}
-                      className={fieldCls('name')}
-                    />
-                    {err.name && <p className="text-[10px] font-semibold text-red-500">{err.name}</p>}
-                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* Name field */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Full Name *</label>
+                      <input
+                        type="text"
+                        name="name"
+                        required
+                        placeholder="e.g. Aman Verma"
+                        value={tr.name}
+                        onChange={e => handleTravelerFieldChange(idx, 'name', e.target.value)}
+                        className={fieldCls('name')}
+                      />
+                      {err.name && <p className="text-[10px] font-semibold text-red-500">{err.name}</p>}
+                    </div>
 
-                  {/* Age & Gender Row */}
-                  <div className="grid grid-cols-2 gap-3">
+                    {/* Age */}
                     <div className="space-y-1 min-w-0">
                       <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Age *</label>
                       <input
@@ -1315,6 +1364,7 @@ export default function BookingFlow({
                       {err.age && <p className="text-[10px] font-semibold text-red-500">{err.age}</p>}
                     </div>
 
+                    {/* Gender */}
                     <div className="space-y-1 min-w-0">
                       <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Gender *</label>
                       <select
@@ -1329,29 +1379,29 @@ export default function BookingFlow({
                       </select>
                       {err.gender && <p className="text-[10px] font-semibold text-red-500">{err.gender}</p>}
                     </div>
-                  </div>
 
-                  {/* Emergency Contact */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Emergency Phone *</label>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel-national"
-                      name="emergencyContact"
-                      placeholder="e.g. 9876543210"
-                      maxLength={10}
-                      value={tr.emergencyContact}
-                      onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', toTenDigits(e.target.value))}
-                      className={fieldCls('emergencyContact')}
-                    />
-                    {err.emergencyContact
-                      ? <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>
-                      : tr.emergencyContact.length > 0 && tr.emergencyContact.length < 10 && (
-                        <p className="text-[10px] font-semibold opacity-50">
-                          {10 - tr.emergencyContact.length} more digit{10 - tr.emergencyContact.length === 1 ? '' : 's'}
-                        </p>
-                      )}
+                    {/* Emergency Contact */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">Emergency Phone *</label>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
+                        name="emergencyContact"
+                        placeholder="e.g. 9876543210"
+                        maxLength={10}
+                        value={tr.emergencyContact}
+                        onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', toTenDigits(e.target.value))}
+                        className={fieldCls('emergencyContact')}
+                      />
+                      {err.emergencyContact
+                        ? <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>
+                        : tr.emergencyContact.length > 0 && tr.emergencyContact.length < 10 && (
+                          <p className="text-[10px] font-semibold opacity-50">
+                            {10 - tr.emergencyContact.length} more digit{10 - tr.emergencyContact.length === 1 ? '' : 's'}
+                          </p>
+                        )}
+                    </div>
                   </div>
                 </div>
                 );
@@ -1529,137 +1579,262 @@ export default function BookingFlow({
           </div>
         )}
 
-        {/* Step 4: Booking Success — receipt prints out as the confirmation */}
-        {step === 4 && createdBooking && (
-          <div className="py-2">
-            <ReceiptPrintout
-              booking={createdBooking}
-              items={tierBreakdown.filter(t => t.count > 0)}
-              subtotal={baseCostTotal}
-              discount={appliedDiscountValue}
-              loyaltyDiscount={loyaltyDiscountValue}
-              pickupLabel={pickup?.location}
-            />
+                </motion.div>
+              </AnimatePresence>
 
-            {/* Actions land once the paper has finished feeding */}
+              {/* Primary Action step flow controls */}
+              {step < 3 && (
+                <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 flex justify-end shrink-0 gap-3">
+                  {step > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setStep(prev => prev - 1)}
+                      className={`w-24 py-3.5 text-xs font-bold rounded-2xl border text-center transition-all duration-300 active:scale-95 cursor-pointer ${
+                        darkMode 
+                          ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50' 
+                          : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50 hover:border-zinc-300'
+                      }`}
+                    >
+                      Back
+                    </button>
+                  )}
+                  
+                  <button
+                    type="button"
+                    id={`btn-booking-step-${step}-continue`}
+                    disabled={step === 1 && !canProceedFromStep1}
+                    onClick={handleContinue}
+                    className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 ${
+                      step === 1 && !canProceedFromStep1
+                        ? 'opacity-40 cursor-not-allowed border-zinc-700 text-zinc-500'
+                        : darkMode
+                        ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10 cursor-pointer'
+                        : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5 cursor-pointer'
+                    }`}
+                  >
+                    Continue
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
+
+              {step === 3 && !paymentFailed && (
+                <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 flex gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className={`w-24 py-4 text-xs font-bold rounded-2xl border text-center transition-all duration-300 active:scale-95 cursor-pointer ${
+                      darkMode 
+                        ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50' 
+                        : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'
+                    }`}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-pay-and-confirm"
+                    disabled={isProcessingPayment}
+                    onClick={handleProcessPayment}
+                    className={`flex-1 py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
+                      isProcessingPayment 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
+                    } ${
+                      useLoyaltyReward
+                        ? darkMode
+                          ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/60 hover:border-emerald-400 shadow-lg shadow-emerald-900/10'
+                          : 'bg-emerald-50/60 border-emerald-500/30 text-emerald-700 hover:bg-emerald-100/90 hover:border-emerald-500 shadow-md shadow-emerald-950/5'
+                        : darkMode
+                        ? 'bg-spy-orange/20 border-spy-orange/50 text-spy-orange hover:bg-spy-orange/30 shadow-lg cursor-pointer'
+                        : 'bg-spy-orange border-spy-orange text-white hover:bg-orange-600 shadow-md cursor-pointer'
+                    }`}
+                  >
+                    {finalPayAmount === 0
+                      ? <>Confirm Free Booking <Gift size={14} /></>
+                      : <>Pay on Arrival (₹{finalPayAmount}) <ShieldCheck size={14} /></>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Sticky Expedition Summary Card on Desktop */}
+            <div className="hidden lg:block lg:col-span-5 xl:col-span-4 sticky top-6">
+              <div className={`rounded-2xl border p-5 space-y-4 shadow-sm ${
+                darkMode ? 'bg-zinc-900/70 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'
+              }`}>
+                {/* Trip thumbnail and title */}
+                <div className="flex gap-3 items-center">
+                  <img
+                    src={trip.coverImage || 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80'}
+                    alt={trip.name}
+                    className="w-16 h-16 rounded-xl object-cover border border-white/10 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-forest-500/15 text-forest-400 mb-1">
+                      {trip.difficulty || 'Moderate'} · {trip.duration || 3}D/{trip.nights || 2}N
+                    </span>
+                    <h3 className="text-sm font-display font-black leading-tight truncate">{trip.name}</h3>
+                    <p className="text-[11px] text-zinc-400 truncate flex items-center gap-1 mt-0.5">
+                      <MapPin size={10} className="text-spy-orange shrink-0" />
+                      {trip.location || 'Himalayas'}, {trip.state || 'India'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Organizer mini row */}
+                {trip.organizer && (
+                  <div className={`flex items-center gap-2.5 p-2.5 rounded-xl text-xs ${
+                    darkMode ? 'bg-zinc-950/60 border border-white/5' : 'bg-gray-50 border border-gray-150'
+                  }`}>
+                    <img
+                      src={trip.organizer.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'}
+                      alt={trip.organizer.name}
+                      className="w-8 h-8 rounded-full object-cover border border-forest-500/40 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 text-[11px] font-bold truncate">
+                        {trip.organizer.name}
+                        {trip.organizer.verified && <ShieldCheck size={11} className="text-emerald-400 fill-emerald-400/20 shrink-0" />}
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-amber-500">
+                        <Star size={10} className="fill-amber-400 shrink-0" />
+                        <span>{trip.organizer.rating || 4.8}</span>
+                        <span className="opacity-50 text-zinc-400">({trip.reviewsCount || 42} reviews)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <hr className={`border-dashed ${darkMode ? 'border-zinc-800' : 'border-zinc-200'}`} />
+
+                {/* Selected details */}
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] opacity-60 flex items-center gap-1.5">
+                      <Calendar size={12} className="text-forest-400" /> Departure Date
+                    </span>
+                    <span className="font-semibold text-[11px]">
+                      {formattedSelectedDate || <span className="text-amber-500 italic font-normal">Select date</span>}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] opacity-60 flex items-center gap-1.5">
+                      <Bus size={12} className="text-forest-400" /> Pickup Location
+                    </span>
+                    <span className="font-semibold text-[11px]">
+                      Ex-{pickup?.location || 'Base Camp'} {pickup?.price ? `(+₹${pickup.price}/p)` : ''}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] opacity-60 flex items-center gap-1.5">
+                      <Users size={12} className="text-forest-400" /> Travelers
+                    </span>
+                    <span className="font-semibold text-[11px]">
+                      {travelersCount} Person{travelersCount === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                </div>
+
+                <hr className={`border-dashed ${darkMode ? 'border-zinc-800' : 'border-zinc-200'}`} />
+
+                {/* Price summary breakdown */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between opacity-75 text-[11px]">
+                    <span>Expedition Base ({travelersCount}x)</span>
+                    <span>₹{baseCostTotal}</span>
+                  </div>
+                  {appliedDiscountValue > 0 && !useLoyaltyReward && (
+                    <div className="flex justify-between text-rose-500 text-[11px] font-bold">
+                      <span>Coupon Discount</span>
+                      <span>-₹{appliedDiscountValue}</span>
+                    </div>
+                  )}
+                  {useLoyaltyReward && loyaltyDiscountValue > 0 && (
+                    <div className="flex justify-between text-emerald-500 text-[11px] font-bold">
+                      <span>Loyalty Reward</span>
+                      <span>-₹{loyaltyDiscountValue}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold pt-1.5 text-sm">
+                    <span className="text-forest-600 dark:text-forest-400">Total Payable</span>
+                    <span className={`font-black ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{finalPayAmount}</span>
+                  </div>
+                </div>
+
+                {/* Trust & Guarantee badges */}
+                <div className={`p-3 rounded-xl space-y-2 text-[10px] leading-tight ${
+                  darkMode ? 'bg-zinc-950/50 border border-white/5 text-zinc-400' : 'bg-gray-50 border border-zinc-150 text-zinc-500'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={13} className="text-forest-500 shrink-0" />
+                    <span>Weather rescheduling at zero penalty</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock size={13} className="text-forest-500 shrink-0" />
+                    <span>Instant digital permit & boarding pass</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-md mx-auto w-full py-4 flex flex-col flex-1">
+            {createdBooking && (
+              <div className="py-2">
+                <ReceiptPrintout
+                  booking={createdBooking}
+                  items={tierBreakdown.filter(t => t.count > 0)}
+                  subtotal={baseCostTotal}
+                  discount={appliedDiscountValue}
+                  loyaltyDiscount={loyaltyDiscountValue}
+                  pickupLabel={pickup?.location}
+                />
+
+                {/* Actions land once the paper has finished feeding */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 2.55, duration: 0.35 }}
+                  className="flex justify-center pt-7"
+                >
+                  <button
+                    id="btn-download-ticket"
+                    onClick={() => setShowTicketModal(true)}
+                    className={`px-5 py-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      darkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-350 hover:bg-zinc-850' : 'bg-white border-gray-255 text-zinc-700'
+                    }`}
+                  >
+                    <Download size={14} /> Download Ticket
+                  </button>
+                </motion.div>
+              </div>
+            )}
+
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 2.55, duration: 0.35 }}
-              className="flex justify-center pt-7"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 2.7, duration: 0.35 }}
+              className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 shrink-0"
             >
               <button
-                id="btn-download-ticket"
-                onClick={() => setShowTicketModal(true)}
-                className={`px-5 py-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                  darkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-350 hover:bg-zinc-850' : 'bg-white border-gray-255 text-zinc-700'
+                type="button"
+                id="btn-booking-done-finish"
+                onClick={handleFinishAndReturn}
+                className={`w-full py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
+                  darkMode
+                    ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
+                    : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
                 }`}
               >
-                <Download size={14} /> Download Ticket
+                Access Bookings Dashboard
               </button>
             </motion.div>
           </div>
         )}
-
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Primary Action step flow controls */}
-      {step < 3 && (
-        <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 flex justify-end shrink-0 gap-3">
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={() => setStep(prev => prev - 1)}
-              className={`w-24 py-3.5 text-xs font-bold rounded-2xl border text-center transition-all duration-300 active:scale-95 cursor-pointer ${
-                darkMode 
-                  ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50' 
-                  : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50 hover:border-zinc-300'
-              }`}
-            >
-              Back
-            </button>
-          )}
-          
-          <button
-            type="button"
-            id={`btn-booking-step-${step}-continue`}
-            disabled={step === 1 && !canProceedFromStep1}
-            onClick={handleContinue}
-            className={`flex-1 py-3.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 ${
-              step === 1 && !canProceedFromStep1
-                ? 'opacity-40 cursor-not-allowed border-zinc-700 text-zinc-500'
-                : darkMode
-                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10 cursor-pointer'
-                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5 cursor-pointer'
-            }`}
-          >
-            Continue
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      )}
-
-      {step === 3 && !paymentFailed && (
-        <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 flex gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            className={`w-24 py-4 text-xs font-bold rounded-2xl border text-center transition-all duration-300 active:scale-95 cursor-pointer ${
-              darkMode 
-                ? 'bg-zinc-900/30 border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800/50' 
-                : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'
-            }`}
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            id="btn-pay-and-confirm"
-            disabled={isProcessingPayment}
-            onClick={handleProcessPayment}
-            className={`flex-1 py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
-              isProcessingPayment 
-                ? 'opacity-50 cursor-not-allowed' 
-                : ''
-            } ${
-              useLoyaltyReward
-                ? darkMode
-                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/60 hover:border-emerald-400 shadow-lg shadow-emerald-900/10'
-                  : 'bg-emerald-50/60 border-emerald-500/30 text-emerald-700 hover:bg-emerald-100/90 hover:border-emerald-500 shadow-md shadow-emerald-950/5'
-                : darkMode
-                ? 'bg-spy-orange/20 border-spy-orange/50 text-spy-orange hover:bg-spy-orange/30 shadow-lg cursor-pointer'
-                : 'bg-spy-orange border-spy-orange text-white hover:bg-orange-600 shadow-md cursor-pointer'
-            }`}
-          >
-            {finalPayAmount === 0
-              ? <>Confirm Free Booking <Gift size={14} /></>
-              : <>Pay on Arrival (₹{finalPayAmount}) <ShieldCheck size={14} /></>}
-          </button>
-        </div>
-      )}
-
-      {step === 4 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2.7, duration: 0.35 }}
-          className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 shrink-0"
-        >
-          <button
-            type="button"
-            id="btn-booking-done-finish"
-            onClick={handleFinishAndReturn}
-            className={`w-full py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border backdrop-blur-md transition-all duration-300 ease-out hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer ${
-              darkMode
-                ? 'bg-zinc-900/45 border-forest-300/35 text-forest-300 hover:bg-zinc-900/70 hover:border-forest-300/70 shadow-lg shadow-forest-900/10'
-                : 'bg-white/60 border-forest-500/30 text-forest-700 hover:bg-white/90 hover:border-forest-500/60 shadow-md shadow-forest-950/5'
-            }`}
-          >
-            Access Bookings Dashboard
-          </button>
-        </motion.div>
-      )}
+      </div>
 
       {/* ======================= */}
       {/* Dynamic Popups/Modals  */}

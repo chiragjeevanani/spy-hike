@@ -11,10 +11,10 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
   ];
 
   return (
-    <div className={`h-full flex flex-col overflow-y-auto font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
+    <div className={`h-full flex flex-col overflow-y-auto font-sans bg-transparent ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
       
       {/* Top illustration block */}
-      <div className={`px-6 pt-6 pb-8 text-center relative overflow-hidden ${darkMode ? 'bg-gradient-to-b from-zinc-900 to-zinc-950' : 'bg-gradient-to-b from-amber-50 to-gray-50'}`}>
+      <div className={`px-6 pt-6 pb-8 text-center relative overflow-hidden ${darkMode ? 'bg-gradient-to-b from-zinc-900 to-zinc-950' : 'bg-gradient-to-b from-amber-50/80 via-orange-50/40 to-transparent'}`}>
         {/* Animated ambient blob */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <motion.div
@@ -72,7 +72,7 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
 
       {/* Info cards */}
       <div className="px-6 space-y-3 pb-4">
-        <div className={`rounded-2xl p-4 space-y-3 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`}>
+        <div className={`rounded-2xl p-4 space-y-3 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`}>
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-xl ${darkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'}`}>
               <Shield size={16} className="text-emerald-400" />

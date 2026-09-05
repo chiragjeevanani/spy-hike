@@ -788,279 +788,587 @@ export default function ProfileView({
   const clearOrgError = (field) => setOrgFieldErrors(er => ({ ...er, [field]: '' }));
 
   return (
-    <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
+    <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-16 ${
+      darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
       {/* Module-switch flip overlay (reused from the Auth role switch) */}
       {orgSwitching && <SwitchTransition darkMode={darkMode} label="Switching to Organizer Panel" showScene />}
-      
-      {/* Dynamic Screen View State switcher rendering */}
-      <AnimatePresence mode="wait">
-        {currentSub === 'MAIN' && (
-          <motion.div
-            key="MAIN"
-            initial={{ opacity: 0, y: -8, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            className="flex-1 overflow-y-auto no-scrollbar pb-8"
-          >
-          
-          {/* Quick profile header decoration */}
-          <div className="px-5 pt-8 pb-2 text-center flex flex-col items-center gap-2">
-            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-forest-500 shadow-lg relative select-none">
-              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-            </div>
 
-            <div>
-              <h1 className="font-serif text-2xl font-semibold leading-tight flex items-center justify-center gap-1.5">
-                {user.name} <Award size={16} className="text-spy-orange fill-spy-orange/10" />
-              </h1>
-              <p className={`text-sm mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{user.email}</p>
-              <span className="text-xs tracking-wider font-bold text-forest-600 dark:text-forest-400 uppercase mt-2 bg-forest-500/10 px-3 py-1.5 rounded-full inline-block">
-                ⭐ {user.hikingExperience} Outdoorsman
-              </span>
-            </div>
-          </div>
+      {/* Desktop Header Banner (Visible on lg+ screens) */}
+      <div className="hidden lg:block mb-8">
+        <div className={`rounded-3xl p-6 sm:p-8 border relative overflow-hidden shadow-sm transition-colors ${
+          darkMode ? 'bg-gradient-to-r from-zinc-900/90 via-elegant-card to-zinc-900/90 border-white/10' : 'bg-gradient-to-r from-white via-forest-50/30 to-white border-zinc-200/80'
+        }`}>
+          {/* Subtle ambient gradient glows */}
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-forest-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-spy-orange/10 rounded-full blur-3xl pointer-events-none" />
 
-          {/* Quick profile stats */}
-          <div className="px-5 pt-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
-                darkMode ? 'bg-elegant-card' : 'bg-white'
-              }`}>
-                <span className="text-xs uppercase font-bold opacity-50 tracking-wider mb-1.5">Booked</span>
-                <span className="font-serif text-xl font-semibold text-forest-600 dark:text-forest-400">
-                  {bookings.length} {bookings.length === 1 ? 'Hike' : 'Hikes'}
-                </span>
+          <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            {/* User Identity Info */}
+            <div className="flex items-center gap-5">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-forest-500/80 shadow-md relative shrink-0">
+                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
               </div>
-              <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
-                darkMode ? 'bg-elegant-card' : 'bg-white'
-              }`}>
-                <span className="text-xs uppercase font-bold opacity-50 tracking-wider mb-1.5">Distance</span>
-                <span className="font-serif text-xl font-semibold text-spy-orange">
-                  {bookings.length * 16} Km
-                </span>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="font-serif text-3xl font-bold tracking-tight">
+                    {user.name}
+                  </h1>
+                  <Award size={20} className="text-spy-orange fill-spy-orange/20" />
+                </div>
+                <p className={`text-sm mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{user.email}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs tracking-wider font-bold text-forest-600 dark:text-forest-400 uppercase bg-forest-500/10 px-3 py-1 rounded-full inline-flex items-center gap-1 border border-forest-500/20">
+                    ⭐ {user.hikingExperience || 'Intermediate'} Outdoorsman
+                  </span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${darkMode ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-600'}`}>
+                    Active Explorer
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Loyalty Rewards highlight card */}
-          {loyaltyConfig.customer.enabled && (
-            <div className="px-5 pt-4">
+            {/* Key Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+              <div className={`px-4 py-3 rounded-2xl flex flex-col items-center justify-center text-center border shadow-xs min-w-[110px] ${
+                darkMode ? 'bg-white/5 border-white/5' : 'bg-white border-zinc-200/80'
+              }`}>
+                <span className="text-[11px] uppercase font-bold opacity-50 tracking-wider">Booked</span>
+                <span className="font-serif text-2xl font-bold text-forest-600 dark:text-forest-400 mt-0.5">
+                  {bookings.length}
+                </span>
+                <span className="text-[10px] opacity-60">Expeditions</span>
+              </div>
+
+              <div className={`px-4 py-3 rounded-2xl flex flex-col items-center justify-center text-center border shadow-xs min-w-[110px] ${
+                darkMode ? 'bg-white/5 border-white/5' : 'bg-white border-zinc-200/80'
+              }`}>
+                <span className="text-[11px] uppercase font-bold opacity-50 tracking-wider">Traversed</span>
+                <span className="font-serif text-2xl font-bold text-spy-orange mt-0.5">
+                  {bookings.length * 16}
+                </span>
+                <span className="text-[10px] opacity-60">Kilometers</span>
+              </div>
+
+              <div className={`px-4 py-3 rounded-2xl flex flex-col items-center justify-center text-center border shadow-xs min-w-[110px] ${
+                darkMode ? 'bg-white/5 border-white/5' : 'bg-white border-zinc-200/80'
+              }`}>
+                <span className="text-[11px] uppercase font-bold opacity-50 tracking-wider">Reviews</span>
+                <span className="font-serif text-2xl font-bold text-amber-500 mt-0.5">
+                  {userReviews.length}
+                </span>
+                <span className="text-[10px] opacity-60">Validated</span>
+              </div>
+
               <button
-                id="btn-open-loyalty-rewards"
+                type="button"
                 onClick={onOpenLoyalty}
-                className={`w-full p-4 rounded-2xl text-left flex items-center gap-3.5 transition active:scale-[0.99] ${
-                  darkMode ? 'bg-gradient-to-br from-forest-900 to-elegant-card' : 'bg-gradient-to-br from-forest-50 to-white shadow-sm'
+                className={`px-4 py-3 rounded-2xl flex flex-col items-center justify-center text-center border shadow-xs min-w-[110px] cursor-pointer active:scale-95 transition ${
+                  darkMode ? 'bg-white/5 border-white/5 hover:border-forest-500/40' : 'bg-white border-zinc-200/80 hover:border-forest-500/40'
                 }`}
               >
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
-                  darkMode ? 'bg-forest-500/20 text-forest-400' : 'bg-forest-500/15 text-forest-600'
-                }`}>
-                  <Gift size={20} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-bold block">Loyalty Rewards</span>
-                  <span className={`text-xs block mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {loyaltyProgress.remaining > 0
-                      ? `${loyaltyProgress.remaining} more traveler${loyaltyProgress.remaining !== 1 ? 's' : ''} to a free booking`
-                      : 'Free booking unlocked — tap to view!'}
-                  </span>
-                  <div className="w-full h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden mt-2">
-                    <div className="h-full bg-forest-500 rounded-full transition-all duration-700" style={{ width: `${loyaltyProgress.percent}%` }} />
-                  </div>
-                </div>
-                <ChevronRight size={17} className="opacity-40 shrink-0" />
+                <span className="text-[11px] uppercase font-bold opacity-50 tracking-wider">Loyalty</span>
+                <span className="font-serif text-2xl font-bold text-emerald-500 mt-0.5">
+                  {loyaltyProgress.percent}%
+                </span>
+                <span className="text-[10px] text-forest-500 font-bold">Summit Club</span>
               </button>
             </div>
-          )}
+          </div>
+        </div>
+      </div>
 
-          {/* Configuration Sections Menu list */}
-          <div className="px-5 pt-5 space-y-6">
+      {/* 2-Column Responsive Dashboard Area */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+        {/* Left Column: Navigation Sidebar (Desktop only) */}
+        <aside className="hidden lg:block lg:col-span-4 space-y-4 sticky top-24">
+          <div className={`rounded-3xl p-3 border shadow-sm ${darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80'}`}>
+            <div className="space-y-1">
+              <button
+                onClick={() => goSub('MAIN')}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  currentSub === 'MAIN'
+                    ? (darkMode ? 'bg-forest-500/20 text-emerald-400 font-bold border border-forest-500/30' : 'bg-forest-50 text-forest-700 font-bold border border-forest-200')
+                    : (darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700')
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <Compass size={18} className="text-forest-500" /> Dashboard Overview
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
 
-            {/* Group A: Personal stats */}
-            <div className="space-y-2.5">
-              <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Account & Bio</span>
-
-              <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
-                
-                <button
-                  onClick={() => goSub('EDIT_PERSONAL')}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <User size={19} className="text-forest-500" /> Personal Details
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
-
-                <button
-                  onClick={() => goSub('EDIT_STATS')}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Flame size={19} className="text-spy-orange" /> Athletics & Experience
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
-
-                <button
-                  onClick={() => goSub('MY_REVIEWS')}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <MessageSquare size={19} className="text-forest-500" /> Verified Reviews ({userReviews.length})
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
-
-                <button
-                  id="btn-become-organizer"
-                  onClick={handleBecomeOrganizer}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Building2 size={19} className="text-spy-orange" />
-                    {/* An application that's been filed but not yet cleared says
-                        so here — "Become an Organizer" invited applicants who
-                        had already applied to fill the form a second time. */}
-                    {!hasApplied
-                      ? 'Become an Organizer'
-                      : orgStatusResolved && isPendingOrganizer
-                        ? 'Organizer Application'
-                        : 'Switch to Organizer'}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    {orgStatusResolved && isPendingOrganizer && (
-                      <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
-                        darkMode ? 'bg-spy-orange/15 text-amber-300' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        Under Review
-                      </span>
-                    )}
-                    <ChevronRight size={17} className="opacity-40" />
-                  </span>
-                </button>
+              <div className="pt-3 pb-1 px-3">
+                <span className="text-[11px] uppercase font-bold tracking-widest opacity-45">Account & Bio</span>
               </div>
-            </div>
 
-            {/* Group B: App preferences */}
-            <div className="space-y-2.5">
-              <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Help Center & Prefs</span>
+              <button
+                onClick={() => goSub('EDIT_PERSONAL')}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  currentSub === 'EDIT_PERSONAL'
+                    ? (darkMode ? 'bg-forest-500/20 text-emerald-400 font-bold border border-forest-500/30' : 'bg-forest-50 text-forest-700 font-bold border border-forest-200')
+                    : (darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700')
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <User size={18} className="text-forest-500" /> Personal Details
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
 
-              <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
+              <button
+                onClick={() => goSub('EDIT_STATS')}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  currentSub === 'EDIT_STATS'
+                    ? (darkMode ? 'bg-forest-500/20 text-emerald-400 font-bold border border-forest-500/30' : 'bg-forest-50 text-forest-700 font-bold border border-forest-200')
+                    : (darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700')
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <Flame size={18} className="text-spy-orange" /> Athletics & Experience
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
 
+              <button
+                onClick={() => goSub('MY_REVIEWS')}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  currentSub === 'MY_REVIEWS'
+                    ? (darkMode ? 'bg-forest-500/20 text-emerald-400 font-bold border border-forest-500/30' : 'bg-forest-50 text-forest-700 font-bold border border-forest-200')
+                    : (darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700')
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <MessageSquare size={18} className="text-forest-500" /> Verified Reviews ({userReviews.length})
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
 
-
-                <button
-                  onClick={() => goSub('SETTINGS')}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Shield size={19} className="text-forest-500" /> Preferences & Settings
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
-
-                <button
-                  onClick={() => goSub('SUPPORT')}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <HelpCircle size={19} className="text-forest-500" /> Support Desk & Tickets
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
-
-                <button
-                  onClick={() => onOpenPrivacyPolicy?.()}
-                  className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
-                    darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <FileText size={19} className="text-forest-500" /> Privacy Policy
-                  </span>
-                  <ChevronRight size={17} className="opacity-40" />
-                </button>
+              <div className="pt-3 pb-1 px-3">
+                <span className="text-[11px] uppercase font-bold tracking-widest opacity-45">Preferences & Help</span>
               </div>
+
+              <button
+                onClick={() => goSub('SETTINGS')}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  currentSub === 'SETTINGS'
+                    ? (darkMode ? 'bg-forest-500/20 text-emerald-400 font-bold border border-forest-500/30' : 'bg-forest-50 text-forest-700 font-bold border border-forest-200')
+                    : (darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700')
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <Shield size={18} className="text-forest-500" /> Preferences & Settings
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
+
+              <button
+                onClick={() => goSub('SUPPORT')}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  currentSub === 'SUPPORT'
+                    ? (darkMode ? 'bg-forest-500/20 text-emerald-400 font-bold border border-forest-500/30' : 'bg-forest-50 text-forest-700 font-bold border border-forest-200')
+                    : (darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700')
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <HelpCircle size={18} className="text-forest-500" /> Support Desk & Tickets
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
+
+              <button
+                onClick={() => onOpenPrivacyPolicy?.()}
+                className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-semibold transition cursor-pointer ${
+                  darkMode ? 'hover:bg-white/5 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700'
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <FileText size={18} className="text-forest-500" /> Privacy Policy
+                </span>
+                <ChevronRight size={15} className="opacity-40" />
+              </button>
             </div>
+          </div>
 
-            {/* Group C: Next Departure or Explore Treks */}
-            {(() => {
-              const upcomingBooking = bookings.find(b => b.status === 'Upcoming');
-              if (upcomingBooking) {
-                return (
-                  <div className="space-y-2.5">
-                    <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Next Departure Ticket</span>
-                    <TravelTicket
-                      booking={upcomingBooking}
-                      darkMode={darkMode}
-                      notchClass={darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'}
-                      onDownload={() => downloadTicketPDF(upcomingBooking)}
-                    />
-                  </div>
-                );
-              } else {
-                return (
-                  <div className="space-y-2.5">
-                    <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Ready For Next Hike?</span>
-                    <div className={`rounded-xl p-4 border relative overflow-hidden flex flex-col justify-between ${
-                      darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-zinc-100 shadow-sm'
-                    }`}>
-                      {/* Premium visual gradients */}
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-spy-orange/5 rounded-full blur-2xl pointer-events-none" />
-                      
-                      <div className="relative z-10">
-                        <h4 className="text-base font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
-                          <Compass size={19} className="text-spy-orange" /> Find Your Next Summit
-                        </h4>
-                        <p className="text-sm opacity-75 mt-1.5 leading-relaxed">
-                          Explore premium certified trails, real-time weather alerts, and coordinate with expert organizers.
-                        </p>
-                      </div>
-
-                      <div className="mt-3.5 flex justify-end">
-                        <button
-                          onClick={() => {
-                            window.history.pushState({ path: '/app/explore' }, '', '/app/explore');
-                            window.dispatchEvent(new PopStateEvent('popstate'));
-                          }}
-                          className="px-4 py-2.5 bg-forest-600 hover:bg-forest-700 text-white rounded-full text-xs font-bold uppercase transition flex items-center gap-1 cursor-pointer"
-                        >
-                          Explore Trips <ChevronRight size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-            })()}
-
-            {/* Logout actions */}
+          {/* Organizer Card */}
+          <div className={`p-4 rounded-3xl border transition shadow-sm ${
+            darkMode ? 'bg-gradient-to-br from-zinc-900 via-elegant-card to-amber-950/20 border-amber-500/30' : 'bg-gradient-to-br from-amber-50/40 via-white to-amber-50/20 border-amber-200'
+          }`}>
+            <h4 className="text-sm font-bold flex items-center gap-2">
+              <Building2 size={16} className="text-spy-orange" />
+              {isApprovedOrganizer ? 'Organizer Panel' : 'Lead Mountain Treks'}
+            </h4>
+            <p className={`text-xs mt-1 leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              {isApprovedOrganizer
+                ? 'Manage your expeditions, bookings, and slots.'
+                : 'List your certified expeditions and reach thousands of trekkers.'}
+            </p>
             <button
-              onClick={() => setShowLogoutConfirm(true)}
-              className="w-full mt-3 py-4 rounded-2xl text-center font-bold bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 transition text-sm uppercase tracking-wide shadow-xs cursor-pointer"
+              onClick={handleBecomeOrganizer}
+              className="mt-3 w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-spy-orange hover:bg-spy-orange/90 text-white transition shadow-sm active:scale-95 cursor-pointer"
             >
-              Log Out Session
+              {isApprovedOrganizer ? 'Switch to Organizer' : isPendingOrganizer ? 'Review Application' : 'Apply as Organizer'}
             </button>
           </div>
-          </motion.div>
-        )}
+
+          {/* Logout Button on Desktop */}
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-full py-3 px-4 rounded-2xl text-center font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition text-xs uppercase tracking-wider cursor-pointer border border-rose-500/20"
+          >
+            Log Out Session
+          </button>
+        </aside>
+
+        {/* Right Column (Desktop) / Main Stack (Mobile) */}
+        <main className="lg:col-span-8 w-full min-w-0">
+          <AnimatePresence mode="wait">
+            {currentSub === 'MAIN' && (
+              <motion.div
+                key="MAIN"
+                initial={{ opacity: 0, y: -8, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.99 }}
+                transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                className="w-full"
+              >
+              
+              {/* Quick profile header decoration (Mobile only) */}
+              <div className="lg:hidden px-5 pt-8 pb-2 text-center flex flex-col items-center gap-2">
+                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-forest-500 shadow-lg relative select-none">
+                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                </div>
+
+                <div>
+                  <h1 className="font-serif text-2xl font-semibold leading-tight flex items-center justify-center gap-1.5">
+                    {user.name} <Award size={16} className="text-spy-orange fill-spy-orange/10" />
+                  </h1>
+                  <p className={`text-sm mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{user.email}</p>
+                  <span className="text-xs tracking-wider font-bold text-forest-600 dark:text-forest-400 uppercase mt-2 bg-forest-500/10 px-3 py-1.5 rounded-full inline-block">
+                    ⭐ {user.hikingExperience} Outdoorsman
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick profile stats (Mobile only) */}
+              <div className="lg:hidden px-5 pt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
+                    darkMode ? 'bg-elegant-card' : 'bg-white'
+                  }`}>
+                    <span className="text-xs uppercase font-bold opacity-50 tracking-wider mb-1.5">Booked</span>
+                    <span className="font-serif text-xl font-semibold text-forest-600 dark:text-forest-400">
+                      {bookings.length} {bookings.length === 1 ? 'Hike' : 'Hikes'}
+                    </span>
+                  </div>
+                  <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
+                    darkMode ? 'bg-elegant-card' : 'bg-white'
+                  }`}>
+                    <span className="text-xs uppercase font-bold opacity-50 tracking-wider mb-1.5">Distance</span>
+                    <span className="font-serif text-xl font-semibold text-spy-orange">
+                      {bookings.length * 16} Km
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loyalty Rewards highlight card (Mobile only) */}
+              {loyaltyConfig.customer.enabled && (
+                <div className="lg:hidden px-5 pt-4">
+                  <button
+                    id="btn-open-loyalty-rewards"
+                    onClick={onOpenLoyalty}
+                    className={`w-full p-4 rounded-2xl text-left flex items-center gap-3.5 transition active:scale-[0.99] ${
+                      darkMode ? 'bg-gradient-to-br from-forest-900 to-elegant-card' : 'bg-gradient-to-br from-forest-50 to-white shadow-sm'
+                    }`}
+                  >
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                      darkMode ? 'bg-forest-500/20 text-forest-400' : 'bg-forest-500/15 text-forest-600'
+                    }`}>
+                      <Gift size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm font-bold block">Loyalty Rewards</span>
+                      <span className={`text-xs block mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        {loyaltyProgress.remaining > 0
+                          ? `${loyaltyProgress.remaining} more traveler${loyaltyProgress.remaining !== 1 ? 's' : ''} to a free booking`
+                          : 'Free booking unlocked — tap to view!'}
+                      </span>
+                      <div className="w-full h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden mt-2">
+                        <div className="h-full bg-forest-500 rounded-full transition-all duration-700" style={{ width: `${loyaltyProgress.percent}%` }} />
+                      </div>
+                    </div>
+                    <ChevronRight size={17} className="opacity-40 shrink-0" />
+                  </button>
+                </div>
+              )}
+
+              {/* Configuration Sections Menu list (Mobile only) */}
+              <div className="lg:hidden px-5 pt-5 space-y-6">
+
+                {/* Group A: Personal stats */}
+                <div className="space-y-2.5">
+                  <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Account & Bio</span>
+
+                  <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
+                    
+                    <button
+                      onClick={() => goSub('EDIT_PERSONAL')}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <User size={19} className="text-forest-500" /> Personal Details
+                      </span>
+                      <ChevronRight size={17} className="opacity-40" />
+                    </button>
+
+                    <button
+                      onClick={() => goSub('EDIT_STATS')}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Flame size={19} className="text-spy-orange" /> Athletics & Experience
+                      </span>
+                      <ChevronRight size={17} className="opacity-40" />
+                    </button>
+
+                    <button
+                      onClick={() => goSub('MY_REVIEWS')}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <MessageSquare size={19} className="text-forest-500" /> Verified Reviews ({userReviews.length})
+                      </span>
+                      <ChevronRight size={17} className="opacity-40" />
+                    </button>
+
+                    <button
+                      id="btn-become-organizer"
+                      onClick={handleBecomeOrganizer}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Building2 size={19} className="text-spy-orange" />
+                        {!hasApplied
+                          ? 'Become an Organizer'
+                          : orgStatusResolved && isPendingOrganizer
+                            ? 'Organizer Application'
+                            : 'Switch to Organizer'}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {orgStatusResolved && isPendingOrganizer && (
+                          <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+                            darkMode ? 'bg-spy-orange/15 text-amber-300' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            Under Review
+                          </span>
+                        )}
+                        <ChevronRight size={17} className="opacity-40" />
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Group B: App preferences */}
+                <div className="space-y-2.5">
+                  <span className="text-[13px] uppercase font-bold tracking-widest opacity-50 pl-1 block">Help Center & Prefs</span>
+
+                  <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}>
+
+                    <button
+                      onClick={() => goSub('SETTINGS')}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Shield size={19} className="text-forest-500" /> Preferences & Settings
+                      </span>
+                      <ChevronRight size={17} className="opacity-40" />
+                    </button>
+
+                    <button
+                      onClick={() => goSub('SUPPORT')}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <HelpCircle size={19} className="text-forest-500" /> Support Desk & Tickets
+                      </span>
+                      <ChevronRight size={17} className="opacity-40" />
+                    </button>
+
+                    <button
+                      onClick={() => onOpenPrivacyPolicy?.()}
+                      className={`w-full px-4 py-4 flex justify-between items-center text-base font-semibold text-left border-b last:border-b-0 ${
+                        darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-55'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <FileText size={19} className="text-forest-500" /> Privacy Policy
+                      </span>
+                      <ChevronRight size={17} className="opacity-40" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Group C: Next Departure or Explore Treks (Both Mobile & Desktop) */}
+              <div className="px-5 lg:px-0 pt-5 lg:pt-0">
+                {(() => {
+                  const upcomingBooking = bookings.find(b => b.status === 'Upcoming');
+                  if (upcomingBooking) {
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs uppercase font-bold tracking-widest opacity-50 block">Next Departure Pass</span>
+                          <span className="hidden lg:inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                            Upcoming Trip Confirmed
+                          </span>
+                        </div>
+                        <TravelTicket
+                          booking={upcomingBooking}
+                          darkMode={darkMode}
+                          notchClass={darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'}
+                          onDownload={() => downloadTicketPDF(upcomingBooking)}
+                        />
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="space-y-3">
+                        <span className="text-xs uppercase font-bold tracking-widest opacity-50 block">Expedition Status</span>
+                        <div className={`rounded-3xl p-6 sm:p-8 border relative overflow-hidden flex flex-col justify-between ${
+                          darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80 shadow-sm'
+                        }`}>
+                          <div className="absolute top-0 right-0 w-48 h-48 bg-spy-orange/10 rounded-full blur-3xl pointer-events-none" />
+                          
+                          <div className="relative z-10">
+                            <h4 className="text-lg sm:text-xl font-bold flex items-center gap-2.5">
+                              <Compass size={22} className="text-spy-orange" /> Find Your Next Summit
+                            </h4>
+                            <p className={`text-sm mt-2 leading-relaxed max-w-xl ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                              You have no upcoming departure passes. Explore certified high-altitude routes, connect with licensed mountain organizers, and unlock new trail milestones.
+                            </p>
+                          </div>
+
+                          <div className="mt-5 flex items-center gap-3">
+                            <button
+                              onClick={() => {
+                                window.history.pushState({ path: '/app/explore' }, '', '/app/explore');
+                                window.dispatchEvent(new PopStateEvent('popstate'));
+                              }}
+                              className="px-5 py-3 bg-forest-600 hover:bg-forest-700 text-white rounded-full text-xs font-bold uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-sm"
+                            >
+                              Explore Trips <ChevronRight size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                window.history.pushState({ path: '/app/bookings' }, '', '/app/bookings');
+                                window.dispatchEvent(new PopStateEvent('popstate'));
+                              }}
+                              className={`px-5 py-3 rounded-full text-xs font-bold uppercase tracking-wider transition cursor-pointer border ${
+                                darkMode ? 'border-white/10 hover:bg-white/5 text-zinc-300' : 'border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+                              }`}
+                            >
+                              View History
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+
+              {/* Desktop Overview Cards (Desktop only) */}
+              <div className="hidden lg:grid grid-cols-2 gap-4 mt-6">
+                {/* Outdoor Profile Summary */}
+                <div className={`p-5 rounded-3xl border shadow-xs ${darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-bold flex items-center gap-2">
+                      <Flame size={17} className="text-spy-orange" /> Athletics & Fitness
+                    </h4>
+                    <button
+                      onClick={() => goSub('EDIT_STATS')}
+                      className="text-xs font-semibold text-forest-600 dark:text-forest-400 hover:underline cursor-pointer"
+                    >
+                      Edit Details
+                    </button>
+                  </div>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center py-1.5 border-b dark:border-white/5 border-gray-100">
+                      <span className="opacity-60">Outdoors Experience</span>
+                      <span className="font-bold text-forest-600 dark:text-forest-400">{user.hikingExperience || 'Intermediate'}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b dark:border-white/5 border-gray-100">
+                      <span className="opacity-60">Cardio Fitness Level</span>
+                      <span className="font-bold text-spy-orange">{user.fitnessLevel || 'Moderate'}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5">
+                      <span className="opacity-60">Emergency Contact</span>
+                      <span className="font-bold">{user.emergencyContact ? 'Verified on File' : 'Not Provided'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Expedition Actions */}
+                <div className={`p-5 rounded-3xl border shadow-xs flex flex-col justify-between ${darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80'}`}>
+                  <div>
+                    <h4 className="text-sm font-bold flex items-center gap-2 mb-1.5">
+                      <Compass size={17} className="text-forest-500" /> Expedition Portal
+                    </h4>
+                    <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Plan upcoming trails, review verified trip guides, and connect with fellow mountain explorers.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2.5 mt-4">
+                    <button
+                      onClick={() => {
+                        window.history.pushState({ path: '/app/explore' }, '', '/app/explore');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                      }}
+                      className="flex-1 py-2.5 px-3 bg-forest-600 hover:bg-forest-700 text-white rounded-xl text-xs font-bold transition text-center cursor-pointer shadow-xs"
+                    >
+                      Explore Treks
+                    </button>
+                    <button
+                      onClick={() => {
+                        window.history.pushState({ path: '/app/bookings' }, '', '/app/bookings');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                      }}
+                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition text-center cursor-pointer border shadow-xs ${
+                        darkMode ? 'bg-white/5 border-white/10 hover:bg-white/10 text-white' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100 text-zinc-800'
+                      }`}
+                    >
+                      My Bookings ({bookings.length})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logout actions (Mobile only - desktop has it in the sidebar) */}
+              <div className="lg:hidden px-5 mt-4">
+                <button
+                  onClick={() => setShowLogoutConfirm(true)}
+                  className="w-full py-4 rounded-2xl text-center font-bold bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 transition text-sm uppercase tracking-wide shadow-xs cursor-pointer"
+                >
+                  Log Out Session
+                </button>
+              </div>
+
+              </motion.div>
+            )}
 
         {/* SUB 1: EDIT PERSONAL DETAILS */}
         {currentSub === 'EDIT_PERSONAL' && (
@@ -1072,62 +1380,68 @@ export default function ProfileView({
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             onSubmit={handleSavePersonalInfo}
             noValidate
-            className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
+            className="flex-1 flex flex-col justify-between px-5 pt-4 pb-28 md:pb-16"
           >
-          <div className="space-y-5">
+          <div className="space-y-6">
             <div className={subHeaderCls}>
               <button type="button" onClick={handleCancelEditPersonal} className={subBackBtnCls}>
                 <ArrowLeft size={17} />
               </button>
-              <h3 className={subTitleCls}>Personal Info</h3>
+              <div>
+                <h3 className={subTitleCls}>Personal Details</h3>
+                <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Update your contact details and verified emergency contact.
+                </p>
+              </div>
             </div>
 
-            {/* Name input */}
-            <div className="space-y-1.5">
-              <label className={subLabelCls}>Full Name</label>
-              <input
-                ref={profileNameRef}
-                type="text"
-                required
-                value={profileName}
-                onChange={e => { setProfileName(e.target.value); clearProfileError('name'); }}
-                className={`${subInputCls} ${subErrCls('name')}`}
-              />
-              {profileFieldErrors.name && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.name}</p>}
-            </div>
+            {/* Responsive 2-column Form Grid on desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              {/* Name input */}
+              <div className="space-y-1.5">
+                <label className={subLabelCls}>Full Name</label>
+                <input
+                  ref={profileNameRef}
+                  type="text"
+                  required
+                  value={profileName}
+                  onChange={e => { setProfileName(e.target.value); clearProfileError('name'); }}
+                  className={`${subInputCls} ${subErrCls('name')}`}
+                />
+                {profileFieldErrors.name && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.name}</p>}
+              </div>
 
-            {/* Email input */}
-            <div className="space-y-1.5">
-              <label className={subLabelCls}>Email Address</label>
-              <input
-                ref={profileEmailRef}
-                type="email"
-                required
-                value={profileEmail}
-                onChange={e => { setProfileEmail(e.target.value); clearProfileError('email'); }}
-                className={`${subInputCls} ${subErrCls('email')}`}
-              />
-              {profileFieldErrors.email && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.email}</p>}
-            </div>
+              {/* Email input */}
+              <div className="space-y-1.5">
+                <label className={subLabelCls}>Email Address</label>
+                <input
+                  ref={profileEmailRef}
+                  type="email"
+                  required
+                  value={profileEmail}
+                  onChange={e => { setProfileEmail(e.target.value); clearProfileError('email'); }}
+                  className={`${subInputCls} ${subErrCls('email')}`}
+                />
+                {profileFieldErrors.email && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.email}</p>}
+              </div>
 
-            {/* Phone input */}
-            <div className="space-y-1.5">
-              <label className={subLabelCls}>Mobile Number</label>
-              <input
-                ref={profileMobileRef}
-                type="tel"
-                maxLength={10}
-                required
-                value={profileMobile}
-                onChange={e => { setProfileMobile(e.target.value.replace(/\D/g, '')); clearProfileError('mobile'); }}
-                className={`${subInputCls} ${subErrCls('mobile')}`}
-              />
-              {profileFieldErrors.mobile && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.mobile}</p>}
-            </div>
+              {/* Phone input */}
+              <div className="space-y-1.5">
+                <label className={subLabelCls}>Mobile Number</label>
+                <input
+                  ref={profileMobileRef}
+                  type="tel"
+                  maxLength={10}
+                  required
+                  value={profileMobile}
+                  onChange={e => { setProfileMobile(e.target.value.replace(/\D/g, '')); clearProfileError('mobile'); }}
+                  className={`${subInputCls} ${subErrCls('mobile')}`}
+                />
+                {profileFieldErrors.mobile && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.mobile}</p>}
+              </div>
 
-            {/* Emergency Info */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 min-w-0">
+              {/* Emergency Contact Name */}
+              <div className="space-y-1.5">
                 <label className={subLabelCls}>Emergency Contact Name</label>
                 <input
                   ref={profileEmergencyNameRef}
@@ -1140,7 +1454,9 @@ export default function ProfileView({
                 />
                 {profileFieldErrors.emergencyName && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.emergencyName}</p>}
               </div>
-              <div className="space-y-1.5 min-w-0">
+
+              {/* Emergency Contact Phone */}
+              <div className="md:col-span-2 space-y-1.5">
                 <label className={subLabelCls}>Emergency Contact Phone</label>
                 <input
                   ref={profileEmergencyPhoneRef}
@@ -1156,9 +1472,20 @@ export default function ProfileView({
             </div>
           </div>
 
-          <button type="submit" className={subPrimaryBtnCls}>
-            Save Account Details
-          </button>
+          <div className="flex items-center gap-3 mt-8">
+            <button
+              type="button"
+              onClick={handleCancelEditPersonal}
+              className={`hidden lg:block py-3.5 px-6 rounded-2xl text-xs font-bold uppercase tracking-wider transition cursor-pointer border ${
+                darkMode ? 'border-white/10 hover:bg-white/5 text-zinc-300' : 'border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+              }`}
+            >
+              Cancel
+            </button>
+            <button type="submit" className={subPrimaryBtnCls}>
+              Save Account Details
+            </button>
+          </div>
           </motion.form>
         )}
 
@@ -1172,7 +1499,7 @@ export default function ProfileView({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 px-6 ${
+            className={`fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 px-6 ${
               darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
             }`}
           >
@@ -1188,7 +1515,7 @@ export default function ProfileView({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
+            className={`fixed inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
               darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
             }`}
           >
@@ -1329,7 +1656,7 @@ export default function ProfileView({
             noValidate
             // Full-screen overlay (covers the bottom nav) — applying to become
             // a partner is a focused flow, not a tab-level screen.
-            className={`absolute inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
+            className={`fixed inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
               darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
             }`}
           >
@@ -1533,66 +1860,97 @@ export default function ProfileView({
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             onSubmit={handleSaveStatsInfo}
-            className="flex-1 flex flex-col justify-between px-5 pt-4 pb-6"
+            className="flex-1 flex flex-col px-4 sm:px-5 pt-4 pb-28 md:pb-16 max-w-2xl mx-auto lg:mx-0"
           >
-          <div className="space-y-5">
-            <div className={subHeaderCls}>
-              <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
-                <ArrowLeft size={17} />
-              </button>
-              <h3 className={subTitleCls}>Athletics & Experience</h3>
-            </div>
+            <div className={`rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-colors ${
+              darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80 shadow-xs'
+            }`}>
+              <div className="flex items-center gap-3.5 pb-4 border-b border-white/5">
+                <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
+                  <ArrowLeft size={17} />
+                </button>
+                <div>
+                  <h3 className={subTitleCls}>Athletics & Experience</h3>
+                  <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    AI-Recommendation matrix parameters for trail difficulty matching.
+                  </p>
+                </div>
+              </div>
 
-            <p className={`text-sm leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              These details construct the background parameters in our smart AI-Recommendation matrix systems:
-            </p>
+              {/* Hiking Experience toggles */}
+              <div className="space-y-3">
+                <label className={subLabelCls}>Outdoors Hiking Experience</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'Beginner', title: 'Beginner', desc: '0-2 day hikes' },
+                    { id: 'Intermediate', title: 'Intermediate', desc: '3-8 moderate trails' },
+                    { id: 'Advanced', title: 'Advanced', desc: 'Alpine & summit treks' }
+                  ].map(lev => (
+                    <button
+                      key={lev.id}
+                      type="button"
+                      onClick={() => setHikeExperience(lev.id)}
+                      className={`p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                        hikeExperience === lev.id
+                          ? 'border-forest-500 bg-forest-500/15 text-forest-600 dark:text-forest-400 shadow-xs'
+                          : (darkMode ? 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:border-white/20' : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 shadow-xs')
+                      }`}
+                    >
+                      <span className="text-sm font-bold block">{lev.title}</span>
+                      <span className={`text-[11px] mt-1 opacity-75 block ${hikeExperience === lev.id ? 'font-medium' : ''}`}>
+                        {lev.desc}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {/* Hiking Experience toggles */}
-            <div className="space-y-2">
-              <label className={subLabelCls}>Outdoors Hiking Experience</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['Beginner', 'Intermediate', 'Advanced'].map(lev => (
-                  <button
-                    key={lev}
-                    type="button"
-                    onClick={() => setHikeExperience(lev)}
-                    className={`py-3.5 rounded-xl text-sm font-semibold border transition cursor-pointer ${
-                      hikeExperience === lev
-                        ? 'border-forest-500 bg-forest-500/10 text-forest-600 dark:text-forest-400'
-                        : (darkMode ? 'border-white/10 bg-elegant-card text-zinc-400 hover:text-zinc-200' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-700 shadow-sm')
-                    }`}
-                  >
-                    {lev}
-                  </button>
-                ))}
+              {/* Fitness Level toggles */}
+              <div className="space-y-3">
+                <label className={subLabelCls}>Current Cardio Fitness Level</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'Low', title: 'Low', desc: 'Light walking' },
+                    { id: 'Moderate', title: 'Moderate', desc: 'Regular workouts' },
+                    { id: 'High', title: 'High', desc: 'Endurance athlete' }
+                  ].map(fit => (
+                    <button
+                      key={fit.id}
+                      type="button"
+                      onClick={() => setFitLevel(fit.id)}
+                      className={`p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                        fitLevel === fit.id
+                          ? 'border-forest-500 bg-forest-500/15 text-forest-600 dark:text-forest-400 shadow-xs'
+                          : (darkMode ? 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:border-white/20' : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 shadow-xs')
+                      }`}
+                    >
+                      <span className="text-sm font-bold block">{fit.title}</span>
+                      <span className={`text-[11px] mt-1 opacity-75 block ${fitLevel === fit.id ? 'font-medium' : ''}`}>
+                        {fit.desc}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => goSub('MAIN')}
+                  className={`hidden sm:block px-5 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider border cursor-pointer transition ${
+                    darkMode ? 'border-white/10 hover:bg-white/5 text-zinc-400' : 'border-zinc-200 hover:bg-zinc-100 text-zinc-600'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-7 py-3.5 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-2xl text-xs sm:text-sm uppercase tracking-wider transition cursor-pointer active:scale-95 shadow-md shadow-forest-900/20"
+                >
+                  Update Physical Stats
+                </button>
               </div>
             </div>
-
-            {/* Fitness Level toggles */}
-            <div className="space-y-2">
-              <label className={subLabelCls}>Current Cardio Fitness Level</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['Low', 'Moderate', 'High'].map(fit => (
-                  <button
-                    key={fit}
-                    type="button"
-                    onClick={() => setFitLevel(fit)}
-                    className={`py-3.5 rounded-xl text-sm font-semibold border transition cursor-pointer ${
-                      fitLevel === fit
-                        ? 'border-forest-500 bg-forest-500/10 text-forest-600 dark:text-forest-400'
-                        : (darkMode ? 'border-white/10 bg-elegant-card text-zinc-400 hover:text-zinc-200' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-700 shadow-sm')
-                    }`}
-                  >
-                    {fit}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" className={subPrimaryBtnCls}>
-            Update Physical Stats
-          </button>
           </motion.form>
         )}
 
@@ -1604,7 +1962,7 @@ export default function ProfileView({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
+            className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -1613,7 +1971,7 @@ export default function ProfileView({
             <h3 className={subTitleCls}>My Verified Comments</h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-4">
+          <div className="flex-1 py-5 space-y-4">
             {userReviews.length === 0 ? (
               <div className="text-center py-16">
                 <span className="text-5xl block">✍️</span>
@@ -1656,7 +2014,7 @@ export default function ProfileView({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            className="flex-1 flex flex-col px-5 pt-4 overflow-y-auto no-scrollbar pb-8 space-y-5"
+            className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16 space-y-5"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -1775,7 +2133,7 @@ export default function ProfileView({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            className="flex-1 flex flex-col px-5 pt-4 overflow-hidden"
+            className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -1784,7 +2142,7 @@ export default function ProfileView({
             <h3 className={subTitleCls}>Support Tickets Center</h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto no-scrollbar py-5 space-y-6">
+          <div className="flex-1 py-5 space-y-6">
             {/* Contact Support — email/phone/hours are admin-editable via the CMS */}
             {siteContent?.support && (
               <div className={`p-4 rounded-2xl space-y-2.5 ${subCardCls}`}>
@@ -1981,10 +2339,12 @@ export default function ProfileView({
           </motion.div>
         )}
       </AnimatePresence>
+      </main>
+      </div>
 
       {/* OTP verification Modal */}
       {showOtpModal && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-5 z-[100] animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-5 z-[100] animate-fade-in">
           <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 ${
             darkMode ? 'bg-zinc-900 border border-zinc-800 text-white' : 'bg-white text-zinc-800'
           }`}>

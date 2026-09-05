@@ -111,31 +111,34 @@ export default function TripDetailsView({
     }`}>
       
       {/* Sticky top headers */}
-      <div className="absolute top-4 inset-x-4 flex justify-between items-center z-30 pointer-events-none">
-        <button
-          id="btn-back-to-explore"
-          onClick={onBack}
-          className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 pointer-events-auto shadow-md"
-        >
-          <ArrowLeft size={18} />
-        </button>
+      <div className="absolute top-4 inset-x-4 z-30 pointer-events-none">
+        <div className="max-w-5xl mx-auto flex justify-between items-center w-full px-2 sm:px-4">
+          <button
+            id="btn-back-to-explore"
+            onClick={onBack}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 pointer-events-auto shadow-md cursor-pointer"
+          >
+            <ArrowLeft size={18} />
+          </button>
 
-        <button
-          id="btn-toggle-wishlist-details"
-          onClick={() => onToggleWishlist(trip.id)}
-          className={`w-10 h-10 rounded-full backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition pointer-events-auto shadow-md ${
-            isSaved ? 'bg-rose-500 text-white border-rose-405' : 'bg-black/40 text-white'
-          }`}
-        >
-          <Heart size={18} fill={isSaved ? 'white' : 'none'} />
-        </button>
+          <button
+            id="btn-toggle-wishlist-details"
+            onClick={() => onToggleWishlist(trip.id)}
+            className={`w-10 h-10 rounded-full backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition pointer-events-auto shadow-md cursor-pointer ${
+              isSaved ? 'bg-rose-500 text-white border-rose-405' : 'bg-black/40 text-white'
+            }`}
+          >
+            <Heart size={18} fill={isSaved ? 'white' : 'none'} />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable primary details container */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-28">
+        <div className="max-w-5xl mx-auto w-full">
         
         {/* 1. HERO BAR & IMAGE SLIDER */}
-        <div className="h-72 relative shrink-0 overflow-hidden bg-zinc-950">
+        <div className="h-72 sm:h-96 relative shrink-0 overflow-hidden bg-zinc-950 sm:rounded-3xl sm:mt-4">
           <div
             ref={galleryRef}
             onScroll={handleGalleryScroll}
@@ -591,14 +594,16 @@ export default function TripDetailsView({
           </div>
         </div>
 
+        </div>
       </div>
 
       {/* 7. STICKY BOOK NOW BOTTOM BAR */}
-      <div className={`absolute bottom-0 inset-x-0 p-4 border-t flex justify-between items-center z-30 backdrop-blur-md ${
+      <div className={`fixed bottom-0 inset-x-0 p-4 border-t z-30 backdrop-blur-md ${
         darkMode 
           ? 'bg-zinc-950/95 border-white/5' 
           : 'bg-white/95 border-zinc-200/60'
       }`}>
+        <div className="max-w-5xl mx-auto flex justify-between items-center px-2 sm:px-4">
         <div className="flex flex-col">
           <span className="text-[9px] uppercase tracking-wider opacity-60 font-bold block">
             STARTING FROM
@@ -623,6 +628,7 @@ export default function TripDetailsView({
         >
           Book Expedition Now <ArrowRight size={13} />
         </button>
+        </div>
       </div>
 
     </div>

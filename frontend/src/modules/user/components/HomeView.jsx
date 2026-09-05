@@ -203,12 +203,12 @@ export default function HomeView({
       : 'bg-rose-500 text-white';
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto no-scrollbar font-sans px-5 pb-8 ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
+    <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+      darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
       
-      {/* 1. Brand header */}
-      <div className="flex items-center justify-between pt-5 pb-1 gap-2">
+      {/* 1. Brand header (Mobile only — Desktop uses DesktopNav) */}
+      <div className="flex items-center justify-between pt-5 pb-1 gap-2 md:hidden">
         <button onClick={() => onSwitchTab('Profile')} className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition min-w-0">
           <AppLogo size={36} className="shrink-0" />
           <span className="text-lg font-serif font-semibold tracking-tight truncate">Find Your Trek</span>
@@ -247,53 +247,70 @@ export default function HomeView({
       </div>
 
       {/* 2. Serif hero */}
-      <div className="mt-5">
-        <h1 className="font-serif text-[2.6rem] leading-[1.02] font-medium tracking-tight">
-          Find your next<br />
+      <div className="mt-4 md:mt-8">
+        <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl leading-[1.05] font-medium tracking-tight">
+          Find your next<br className="sm:hidden" />{' '}
           <span className={darkMode ? 'text-elegant-orange' : 'text-forest-500'}>raw adventure</span>
         </h1>
-        <p className={`mt-3.5 text-sm leading-relaxed max-w-[88%] ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+        <p className={`mt-3 text-sm sm:text-base leading-relaxed max-w-2xl ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
           Handpicked Himalayan treks and wild trails across the country.
         </p>
       </div>
 
-      {/* 3. Search + departure-date calendar */}
-      <div className="mt-6 flex items-stretch gap-2.5">
-        <form onSubmit={handleSearchSubmit} className="relative flex-1">
-          <Search className={`absolute left-5 top-1/2 -translate-y-1/2 ${darkMode ? 'text-white/40' : 'text-zinc-400'}`} size={18} />
-          <input
-            type="text"
-            id="search-input-box"
-            placeholder="Search treks, peaks, valleys…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className={`w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border transition-all shadow-sm ${
-              darkMode
-                ? 'bg-elegant-card border-white/5 focus:border-elegant-green text-white placeholder-white/35'
-                : 'bg-white border-gray-200/80 focus:border-forest-500 text-zinc-800 placeholder-zinc-400'
-            }`}
-          />
-        </form>
+      {/* 3. Search + departure-date calendar + desktop difficulty pills */}
+      <div className="mt-6 flex flex-col md:flex-row md:items-center gap-3 max-w-3xl">
+        <div className="flex items-stretch gap-3 flex-1">
+          <form onSubmit={handleSearchSubmit} className="relative flex-1">
+            <Search className={`absolute left-5 top-1/2 -translate-y-1/2 ${darkMode ? 'text-white/40' : 'text-zinc-400'}`} size={18} />
+            <input
+              type="text"
+              id="search-input-box"
+              placeholder="Search treks, peaks, valleys…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className={`w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border transition-all shadow-sm ${
+                darkMode
+                  ? 'bg-elegant-card border-white/5 focus:border-elegant-green text-white placeholder-white/35'
+                  : 'bg-white border-gray-200/80 focus:border-forest-500 text-zinc-800 placeholder-zinc-400'
+              }`}
+            />
+          </form>
 
-        {/* Filter treks by departure date */}
-        <button
-          id="btn-open-date-filter"
-          onClick={() => setShowDatePicker(true)}
-          aria-label="Filter treks by date"
-          className={`w-[52px] shrink-0 rounded-full border shadow-sm flex items-center justify-center active:scale-95 transition cursor-pointer ${
-            darkMode ? 'bg-elegant-card border-white/5 text-elegant-orange' : 'bg-white border-gray-200/80 text-forest-600'
-          }`}
-        >
-          <CalendarDays size={20} />
-        </button>
+          {/* Filter treks by departure date */}
+          <button
+            id="btn-open-date-filter"
+            onClick={() => setShowDatePicker(true)}
+            aria-label="Filter treks by date"
+            title="Filter by Departure Date"
+            className={`w-[52px] shrink-0 rounded-full border shadow-sm flex items-center justify-center active:scale-95 transition cursor-pointer ${
+              darkMode ? 'bg-elegant-card border-white/5 text-elegant-orange' : 'bg-white border-gray-200/80 text-forest-600'
+            }`}
+          >
+            <CalendarDays size={20} />
+          </button>
+        </div>
+
+        {/* Quick difficulty pills on tablet & desktop */}
+        <div className="hidden md:flex items-center gap-1.5 shrink-0">
+          {['All', 'Easy', 'Moderate', 'Difficult'].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => onApplyCategory(cat)}
+              className={`px-3.5 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer border ${
+                darkMode
+                  ? 'border-white/10 hover:border-white/20 bg-white/5 text-zinc-300 hover:text-white'
+                  : 'border-zinc-200 hover:border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* 4. Promotional carousel. Both slides animate at once (no `mode="wait"`)
-          and travel in the direction of travel, so advancing reads as one
-          continuous swipe rather than a fade-out/fade-in blink. Kept short so
-          the trek cards below start above the fold. */}
-      <div className="mt-5 relative select-none">
-        <div className="overflow-hidden relative aspect-[7/3] rounded-2xl shadow-md">
+      {/* 4. Promotional carousel */}
+      <div className="mt-6 md:mt-8 relative select-none">
+        <div className="overflow-hidden relative aspect-[7/3] sm:aspect-[16/6] md:aspect-[21/6] lg:h-52 rounded-3xl shadow-md">
           <AnimatePresence initial={false} custom={promoDir}>
             <motion.div
               key={activePromoIdx}
@@ -327,14 +344,14 @@ export default function HomeView({
                 className="w-full h-full object-cover brightness-[0.7] pointer-events-none"
                 draggable={false}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-3.5 flex flex-col justify-between">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 sm:p-6 flex flex-col justify-between">
                 <div>
-                  <span className="bg-spy-orange text-white text-[8px] font-bold tracking-widest px-2 py-0.5 rounded-full uppercase">
+                  <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase">
                     {PROMOTIONAL_BANNERS[activePromoIdx].tag}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-sm font-serif font-semibold text-white leading-tight line-clamp-1">
+                  <h3 className="text-sm sm:text-lg md:text-2xl font-serif font-semibold text-white leading-tight line-clamp-1">
                     {PROMOTIONAL_BANNERS[activePromoIdx].title}
                   </h3>
                   <div className="flex justify-between items-center gap-2 mt-1.5">
@@ -452,13 +469,13 @@ export default function HomeView({
 
       {/* 5. Featured trek */}
       {featured && (
-        <div className="mt-8">
-          <h2 className="font-serif text-2xl font-medium tracking-tight mb-3.5">Featured trek</h2>
+        <div className="mt-10">
+          <h2 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight mb-4">Featured trek</h2>
           <motion.div
             whileHover={{ y: -3 }}
             whileTap={{ scale: 0.99 }}
             onClick={() => onSelectTrek(featured.trekName)}
-            className="relative rounded-3xl overflow-hidden cursor-pointer shadow-lg aspect-[5/4]"
+            className="relative rounded-3xl overflow-hidden cursor-pointer shadow-lg aspect-[5/4] sm:aspect-[16/7] md:aspect-[21/8]"
           >
             <img src={featured.representative.coverImage} alt={featured.representative.name} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
@@ -484,15 +501,15 @@ export default function HomeView({
           admin section's Popular toggle); hidden entirely — no placeholder
           card — until an admin actually marks something popular. */}
       {(tripsLoading || popularGroups.length > 0) && (
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-3.5">
-          <h2 className="font-serif text-2xl font-medium tracking-tight">Popular Treks</h2>
-          <button onClick={() => onSwitchTab('Explore')} className="text-sm text-spy-orange font-semibold flex items-center gap-0.5 hover:underline">
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight">Popular Treks</h2>
+          <button onClick={() => onSwitchTab('Explore')} className="text-sm text-spy-orange font-semibold flex items-center gap-0.5 hover:underline cursor-pointer">
             View all <ChevronRight size={15} />
           </button>
         </div>
 
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {tripsLoading ? (
             <>
               <SkeletonCard darkMode={darkMode} />
@@ -511,10 +528,10 @@ export default function HomeView({
                   transition={{ delay: idx * 0.05, duration: 0.3 }}
                   whileHover={{ y: -3 }}
                   onClick={() => onSelectTrek(group.trekName)}
-                  className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+                  className={`rounded-3xl overflow-hidden cursor-pointer shadow-md flex flex-col h-full ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
                 >
                   {/* Cover */}
-                  <div className="relative h-44 overflow-hidden">
+                  <div className="relative h-48 sm:h-52 overflow-hidden">
                     <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
                     <span className={`absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${difficultyPill(trip.difficulty)}`}>
                       {trip.difficulty}
@@ -567,7 +584,7 @@ export default function HomeView({
         <div className="mt-8">
           <h2 className="font-serif text-2xl font-medium tracking-tight mb-3.5">Trending destinations</h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {trendingDestinations.map((dest, idx) => (
               <motion.div
                 key={dest.id}
@@ -612,7 +629,7 @@ export default function HomeView({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {comingSoonPreview.map((trek, idx) => (
               <motion.div
                 key={trek.id}
@@ -622,7 +639,7 @@ export default function HomeView({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.04, duration: 0.25 }}
-                className="h-28 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
+                className="h-32 sm:h-36 rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm"
               >
                 <img
                   src={trek.coverImage}
