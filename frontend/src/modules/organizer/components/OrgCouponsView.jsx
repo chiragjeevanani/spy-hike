@@ -174,7 +174,7 @@ export default function OrgCouponsView({ onBack, darkMode }) {
     { label: 'Expired', value: coupons.filter((c) => c.status === 'Expired').length, color: 'text-rose-500' },
   ];
 
-  const cardCls = `rounded-2xl border ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100 shadow-sm'}`;
+  const cardCls = `rounded-2xl border ${darkMode ? 'bg-zinc-900/80 border-white/10 shadow-xs' : 'bg-white/90 border-zinc-200/80 shadow-xs'}`;
   const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`;
   const inputCls = `w-full min-w-0 px-3.5 py-2.5 rounded-xl text-sm border outline-none transition ${
     darkMode ? 'bg-zinc-950 border-white/10 text-white placeholder-white/30 focus:border-spy-orange/50' : 'bg-white border-zinc-200 text-zinc-800 focus:border-spy-orange/50'
@@ -187,63 +187,84 @@ export default function OrgCouponsView({ onBack, darkMode }) {
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-hidden font-sans ${darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'}`}>
+    <div className={`h-full flex-1 overflow-y-auto font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
+      <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6">
 
-      {/* Header */}
-      <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100 shadow-sm'}`}>
-        <button
-          onClick={onBack}
-          className={`w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'}`}
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-display font-black tracking-tight flex items-center gap-1.5">
-            <TicketPercent size={15} className="text-spy-orange" /> My Coupons
-          </h2>
-          <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">MARKET YOUR OWN TRIPS</p>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+          <div className="flex items-center gap-3.5">
+            <button
+              onClick={onBack}
+              className={`w-10 h-10 rounded-2xl flex items-center justify-center transition active:scale-90 cursor-pointer border ${
+                darkMode ? 'bg-zinc-900 border-white/10 text-zinc-200 hover:bg-zinc-800' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50 shadow-xs'
+              }`}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight">Discounts & Promo Coupons</h1>
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20">
+                  Marketing Studio
+                </span>
+              </div>
+              <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                Create promo codes to boost bookings and offer seasonal discounts on your expeditions.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold bg-spy-orange hover:bg-[#d96d1a] text-white active:scale-95 transition shadow-lg shadow-spy-orange/20 cursor-pointer"
+          >
+            <Plus size={15} /> Create Promo Coupon
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-spy-orange text-white active:scale-95 transition shadow-sm shadow-spy-orange/20"
-        >
-          <Plus size={13} /> Create
-        </button>
-      </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar p-5 space-y-4 pb-10">
-
-        {/* Stats row */}
-        <div className="grid grid-cols-4 gap-2.5">
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {stats.map((stat) => (
-            <div key={stat.label} className={`${cardCls} p-3`}>
-              <div className={`text-lg font-black font-display ${stat.color}`}>{stat.value}</div>
-              <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-wide mt-0.5 leading-tight">{stat.label}</div>
+            <div key={stat.label} className={`${cardCls} p-4 sm:p-5 flex items-center justify-between`}>
+              <div>
+                <div className={`text-2xl font-display font-black ${stat.color}`}>{stat.value}</div>
+                <div className={`text-xs font-bold uppercase tracking-wider mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  {stat.label}
+                </div>
+              </div>
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center bg-zinc-500/10 ${stat.color}`}>
+                <TicketPercent size={18} />
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Filters */}
-        <div className={`${cardCls} p-3 flex flex-col gap-2.5`}>
-          <div className="relative">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+        {/* Filters Toolbar */}
+        <div className={`p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardCls}`}>
+          <div className="relative w-full sm:w-80">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
-              placeholder="Search by coupon code..."
+              placeholder="Search coupon code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className={`${inputCls} pl-8 py-2 text-xs`}
+              className={`${inputCls} pl-10 py-2.5 text-xs sm:text-sm`}
             />
           </div>
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar w-full sm:w-auto">
             {['All', 'Active', 'Inactive', 'Expired'].map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
-                  statusFilter === s ? 'bg-spy-orange text-white shadow-sm shadow-spy-orange/30' : darkMode ? 'bg-zinc-950 text-zinc-400 border border-white/10' : 'bg-white text-zinc-500 border border-zinc-200'
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  statusFilter === s
+                    ? 'bg-spy-orange text-white shadow-sm shadow-spy-orange/30'
+                    : darkMode
+                      ? 'bg-zinc-950 text-zinc-400 border border-white/10 hover:bg-zinc-800'
+                      : 'bg-zinc-50 text-zinc-600 border border-zinc-200 hover:bg-zinc-100'
                 }`}
               >
                 {s}
@@ -252,80 +273,114 @@ export default function OrgCouponsView({ onBack, darkMode }) {
           </div>
         </div>
 
-        {/* Coupons list */}
+        {/* Coupons Responsive Grid */}
         {filteredCoupons.length === 0 ? (
-          <div className={`${cardCls} p-8 text-center text-xs font-semibold text-zinc-400`}>
-            No coupons yet — create one to start marketing your trips.
+          <div className={`p-12 text-center rounded-3xl ${cardCls}`}>
+            <TicketPercent size={40} className="mx-auto mb-3 text-spy-orange/60" />
+            <p className="text-base font-bold mb-1">No coupons found</p>
+            <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              Create a custom voucher code to start driving bookings for your treks.
+            </p>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredCoupons.map((c) => (
-              <div key={c.id} className={`${cardCls} p-4 space-y-2.5`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="font-mono font-black tracking-wider text-spy-orange text-sm">{c.code}</span>
-                    <div className="flex items-center gap-1.5 text-xs font-semibold mt-1 text-zinc-500">
-                      {c.type === 'flat' ? <IndianRupee size={11} /> : <Percent size={11} />}
-                      <span>{formatDiscount(c)}</span>
+              <div
+                key={c.id}
+                className={`rounded-3xl p-5 space-y-4 flex flex-col justify-between relative overflow-hidden transition-all hover:shadow-lg ${cardCls}`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black tracking-wider text-spy-orange text-base px-3 py-1 rounded-xl bg-spy-orange/10 border border-spy-orange/20">
+                        {c.code}
+                      </span>
                     </div>
+
+                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase shrink-0 ${
+                      c.status === 'Active' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' :
+                      c.status === 'Expired' ? 'bg-rose-500/15 text-rose-400 border border-rose-500/20' : 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                    }`}>
+                      {c.status}
+                    </span>
                   </div>
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0 ${
-                    c.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' :
-                    c.status === 'Expired' ? 'bg-rose-500/10 text-rose-600' : 'bg-amber-500/10 text-amber-600'
-                  }`}>
-                    {c.status}
-                  </span>
+
+                  <div className="mt-3">
+                    <div className="text-xl font-display font-black tracking-tight">
+                      {formatDiscount(c)}
+                    </div>
+                    <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Applies to: <strong className={darkMode ? 'text-zinc-200' : 'text-zinc-700'}>{c.appliesTo === 'selected' ? `${c.tripIds.length} select treks` : 'All My Treks'}</strong>
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-zinc-400">
-                  <span>Applies to: {c.appliesTo === 'selected' ? `${c.tripIds.length} trip${c.tripIds.length === 1 ? '' : 's'}` : 'All My Trips'}</span>
-                  <span>Expiry: {c.expiresAt || 'Never'}</span>
-                  <span>Redeemed: {c.usedCount || 0}{c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}</span>
-                </div>
+                <div className="space-y-3 pt-3 border-t border-white/5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>
+                      Expiry: {c.expiresAt || 'Ongoing'}
+                    </span>
+                    <span className="font-bold text-spy-orange font-mono">
+                      {c.usedCount || 0}{c.maxRedemptions ? ` / ${c.maxRedemptions} used` : ' redeemed'}
+                    </span>
+                  </div>
 
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(c)}
-                    className={`flex-1 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition ${
-                      darkMode ? 'border-white/10 text-zinc-300' : 'border-zinc-200 text-zinc-600'
-                    }`}
-                  >
-                    <Pencil size={12} /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStatus(c)}
-                    disabled={c.status === 'Expired'}
-                    className={`flex-1 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition ${
-                      c.status === 'Expired'
-                        ? 'border-zinc-100 dark:border-white/5 text-zinc-300 dark:text-zinc-700'
-                        : c.status === 'Active'
-                        ? 'border-amber-200 dark:border-amber-500/20 text-amber-500'
-                        : 'border-emerald-200 dark:border-emerald-500/20 text-emerald-600'
-                    }`}
-                  >
-                    {c.status === 'Active' ? <><Pause size={12} /> Pause</> : <><Play size={12} /> Activate</>}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(c)}
-                    className="py-2 px-3 rounded-xl text-[11px] font-bold border border-rose-200 dark:border-rose-500/20 text-rose-500 transition"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {c.maxRedemptions && (
+                    <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                      <div
+                        className="h-full bg-spy-orange rounded-full"
+                        style={{ width: `${Math.min(100, ((c.usedCount || 0) / Number(c.maxRedemptions)) * 100)}%` }}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(c)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition active:scale-95 cursor-pointer ${
+                        darkMode ? 'border-white/10 hover:bg-white/5 text-zinc-200' : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
+                      }`}
+                    >
+                      <Pencil size={13} /> Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(c)}
+                      disabled={c.status === 'Expired'}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition active:scale-95 cursor-pointer ${
+                        c.status === 'Expired'
+                          ? 'border-zinc-200 dark:border-white/5 text-zinc-400 cursor-not-allowed'
+                          : c.status === 'Active'
+                          ? 'border-amber-500/20 hover:bg-amber-500/10 text-amber-500'
+                          : 'border-emerald-500/20 hover:bg-emerald-500/10 text-emerald-500'
+                      }`}
+                    >
+                      {c.status === 'Active' ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Activate</>}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(c)}
+                      className="p-2.5 rounded-xl text-xs font-bold border border-rose-500/20 hover:bg-rose-500/10 text-rose-500 transition active:scale-95 cursor-pointer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
+
       </div>
 
       {/* Create / Edit modal */}
       {editingCoupon && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
           <div className={`w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl border p-5 shadow-2xl relative max-h-[90vh] overflow-y-auto no-scrollbar ${
-            darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-100 text-zinc-800'
+            darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-[#FAF8F2] border-zinc-200 text-zinc-900'
           }`}>
             <button
               onClick={closeModal}

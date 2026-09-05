@@ -272,11 +272,25 @@ export const listOrganizerBookings = asyncHandler(async (req, res) => {
 // double-scan is harmless. Only the trip's own organizer can check a ticket
 // in, and a cancelled booking can't be boarded.
 export const checkinBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({ bookingId: req.params.bookingId });
+  const rawId = (req.params.bookingId || '').trim();
+  const booking = await Booking.findOne({
+    $or: [
+      { bookingId: rawId },
+      { bookingId: rawId.toUpperCase() },
+      ...(mongoose.isValidObjectId(rawId) ? [{ _id: rawId }] : []),
+    ],
+  });
   if (!booking) throw ApiError.notFound('No booking found for this ticket');
-  if (booking.organizerEmail !== req.organizer.email) {
-    throw ApiError.forbidden('This ticket belongs to another organizer');
+
+  const trip = await Trip.findById(booking.tripId);
+  const bookingOrgEmail = (booking.organizerEmail || trip?.organizerEmail || '').toLowerCase().trim();
+  const currentOrgEmail = (req.organizer?.email || '').toLowerCase().trim();
+
+  if (!currentOrgEmail || bookingOrgEmail !== currentOrgEmail) {
+    const otherOrg = booking.organizerName || trip?.organizer?.name || 'another organization';
+    throw ApiError.forbidden(`This ticket belongs to another organization (${otherOrg}). You can only scan and verify tickets for your own treks.`);
   }
+
   if (booking.status === 'Cancelled') {
     throw ApiError.badRequest('This booking was cancelled and cannot be checked in');
   }

@@ -28,6 +28,7 @@ import OrgAuth from './components/OrgAuth';
 import PendingApprovalView from './components/PendingApprovalView';
 import NotFoundPage from '../../components/NotFoundPage';
 import OrgBottomNav from './components/OrgBottomNav';
+import OrgDesktopNav from './components/OrgDesktopNav';
 import OrgDashboardView from './components/OrgDashboardView';
 import OrgTripsView from './components/OrgTripsView';
 import TripFormView from './components/TripFormView';
@@ -304,6 +305,10 @@ export default function OrgApp() {
   };
 
   const navigateTo = useCallback((tab, replace = false, tripId = null) => {
+    setShowOrgFinancials(false);
+    setShowOrgCoupons(false);
+    setShowOrgNotifications(false);
+    setShowScanner(false);
     const path = tabToPath(tab, tripId);
     if (replace) {
       window.history.replaceState({ tab }, '', path);
@@ -738,6 +743,46 @@ export default function OrgApp() {
 
     // 4. Authenticated + approved — main app
     const mainContent = () => {
+      if (showOrgFinancials) {
+        return (
+          <OrgFinancialsView
+            organizer={organizer}
+            bookings={bookings}
+            payouts={payouts}
+            onSaveBankDetails={handleSaveBankDetails}
+            onRequestPayout={handleRequestPayout}
+            onBack={() => closeCurrentOverlay(setShowOrgFinancials)}
+            darkMode={darkMode}
+          />
+        );
+      }
+
+      if (showOrgCoupons) {
+        return (
+          <OrgCouponsView
+            onBack={() => closeCurrentOverlay(setShowOrgCoupons)}
+            darkMode={darkMode}
+          />
+        );
+      }
+
+      if (showOrgNotifications) {
+        return (
+          <OrgNotificationsView
+            notifications={notifications}
+            onMarkRead={handleMarkNotificationRead}
+            onMarkAllRead={handleMarkAllNotificationsRead}
+            onClear={handleClearNotifications}
+            onBack={() => closeCurrentOverlay(setShowOrgNotifications)}
+            onNavigateTab={(tab) => {
+              closeCurrentOverlay(setShowOrgNotifications);
+              navigateTo(tab);
+            }}
+            darkMode={darkMode}
+          />
+        );
+      }
+
       if (activeTab === 'NewTrip') {
         return (
           <TripFormView
@@ -844,14 +889,37 @@ export default function OrgApp() {
     };
 
     const showBottomNav = BOTTOM_NAV_TABS.includes(activeTab) && !navHidden;
+    const unreadNotifs = notifications.filter(n => !n.read).length;
+    const unreadChats = chats.reduce((s, c) => s + (c.messages || []).filter(m => m.sender === 'user' && !m.read).length, 0);
+
+    const handleSwitchToTraveller = () => {
+      localStorage.setItem('trekigo_active_role', 'hiker');
+      window.location.href = '/app';
+    };
 
     return (
       <>
-        <div className="flex-1 relative overflow-hidden">
+        {organizer.isAuthenticated && !organizer.isPendingApproval && !navHidden && (
+          <OrgDesktopNav
+            activeTab={activeTab === 'NewTrip' || activeTab === 'EditTrip' ? 'Trips' : activeTab}
+            onChangeTab={handleBottomNavChange}
+            darkMode={darkMode}
+            onToggleDarkMode={handleToggleDarkMode}
+            unreadChats={unreadChats}
+            onOpenChats={openChats}
+            unreadNotifs={unreadNotifs}
+            onOpenNotifications={openNotifications}
+            onOpenScanner={openScanner}
+            organizer={organizer}
+            onSwitchToTraveller={handleSwitchToTraveller}
+          />
+        )}
+
+        <div className="flex-1 relative overflow-y-auto flex flex-col">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              className="absolute inset-0 flex flex-col"
+              className="flex-1 flex flex-col"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -862,12 +930,15 @@ export default function OrgApp() {
             </motion.div>
           </AnimatePresence>
         </div>
+
         {showBottomNav && (
-          <OrgBottomNav
-            activeTab={activeTab}
-            onChangeTab={handleBottomNavChange}
-            darkMode={darkMode}
-          />
+          <div className="md:hidden shrink-0">
+            <OrgBottomNav
+              activeTab={activeTab}
+              onChangeTab={handleBottomNavChange}
+              darkMode={darkMode}
+            />
+          </div>
         )}
 
         {/* Loyalty Rewards full-screen overlay */}
@@ -880,107 +951,47 @@ export default function OrgApp() {
               exit={{ opacity: 0, y: 12 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
               style={{ willChange: 'opacity, transform' }}
-              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+              className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-[#FAF8F2]'}`}
             >
-              <OrgLoyaltyView
-                organizer={organizer}
-                onBack={() => closeCurrentOverlay(setShowOrgLoyalty)}
-                onGoBookings={() => { closeCurrentOverlay(setShowOrgLoyalty); navigateTo('Bookings'); }}
-                darkMode={darkMode}
-              />
+              <div className="max-w-5xl mx-auto w-full h-full flex flex-col">
+                <OrgLoyaltyView
+                  organizer={organizer}
+                  onBack={() => closeCurrentOverlay(setShowOrgLoyalty)}
+                  onGoBookings={() => { closeCurrentOverlay(setShowOrgLoyalty); navigateTo('Bookings'); }}
+                  darkMode={darkMode}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Notifications full-screen overlay */}
-        <AnimatePresence>
-          {showOrgNotifications && (
-            <motion.div
-              key="overlay-org-notifications"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-            >
-              <OrgNotificationsView
-                notifications={notifications}
-                onMarkRead={handleMarkNotificationRead}
-                onMarkAllRead={handleMarkAllNotificationsRead}
-                onClear={handleClearNotifications}
-                onBack={() => closeCurrentOverlay(setShowOrgNotifications)}
-                onNavigateTab={(tab) => {
-                  closeCurrentOverlay(setShowOrgNotifications);
-                  navigateTo(tab);
-                }}
-                darkMode={darkMode}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Financials full-screen overlay */}
-        <AnimatePresence>
-          {showOrgFinancials && (
-            <motion.div
-              key="overlay-org-financials"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-            >
-              <OrgFinancialsView
-                organizer={organizer}
-                bookings={bookings}
-                payouts={payouts}
-                onSaveBankDetails={handleSaveBankDetails}
-                onRequestPayout={handleRequestPayout}
-                onBack={() => closeCurrentOverlay(setShowOrgFinancials)}
-                darkMode={darkMode}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Coupons full-screen overlay */}
-        <AnimatePresence>
-          {showOrgCoupons && (
-            <motion.div
-              key="overlay-org-coupons"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-            >
-              <OrgCouponsView
-                onBack={() => closeCurrentOverlay(setShowOrgCoupons)}
-                darkMode={darkMode}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Scanner full-screen overlay */}
+        {/* Scanner floating modal dialog */}
         <AnimatePresence>
           {showScanner && (
             <motion.div
               key="overlay-org-scanner"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-              className="absolute inset-0 z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs overflow-hidden"
+              onClick={() => closeCurrentOverlay(setShowScanner)}
             >
-              <OrgScannerView
-                onBack={() => closeCurrentOverlay(setShowScanner)}
-                darkMode={darkMode}
-              />
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0, y: 14 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.94, opacity: 0, y: 14 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full max-w-lg max-h-[90vh] flex flex-col my-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <OrgScannerView
+                  organizer={organizer}
+                  trips={trips}
+                  onBack={() => closeCurrentOverlay(setShowScanner)}
+                  darkMode={darkMode}
+                />
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -995,9 +1006,9 @@ export default function OrgApp() {
               exit={{ opacity: 0, y: 12 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
               style={{ willChange: 'opacity, transform' }}
-              className={`absolute inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+              className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-[#FAF8F2]'}`}
             >
-              <div className="flex-1 min-h-0">
+              <div className="max-w-5xl mx-auto w-full h-full flex flex-col min-h-0">
                 <OrgChatsView
                   chats={chats}
                   onSendMessage={handleSendOrgMessage}
@@ -1014,22 +1025,28 @@ export default function OrgApp() {
   };
 
   return (
-    <div className={`min-h-screen w-full flex flex-col items-center justify-center transition-colors duration-300 relative overflow-hidden ${darkMode ? 'bg-elegant-bg text-elegant-text' : 'bg-gray-100/60 text-zinc-800'}`}>
-      {/* Ambient blobs */}
+    <div
+      id="findyourtrek-org-root"
+      className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative overflow-x-hidden ${
+        darkMode ? 'bg-elegant-bg text-elegant-text' : 'bg-[#FAF8F2] text-zinc-900'
+      }`}
+    >
+      {/* Ambient background glows for rich aesthetic */}
       {darkMode && (
         <>
-          <div className="absolute top-[-100px] left-[-100px] w-[400px] h-[400px] bg-[#F27D26] rounded-full blur-[150px] opacity-8 pointer-events-none" />
-          <div className="absolute bottom-[-50px] right-[-50px] w-[300px] h-[300px] bg-[#163321] rounded-full blur-[120px] opacity-30 pointer-events-none" />
+          <div className="fixed top-[-150px] right-[-100px] w-[600px] h-[600px] bg-[#163321] rounded-full blur-[160px] opacity-35 pointer-events-none z-0" />
+          <div className="fixed bottom-[-100px] left-[-100px] w-[500px] h-[500px] bg-[#F27D26] rounded-full blur-[180px] opacity-15 pointer-events-none z-0" />
         </>
       )}
 
+      {/* Main Responsive App Viewport Container */}
       <div
         id="findyourtrek-org-viewport"
-        className={`relative w-full h-screen md:max-w-[400px] md:shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
-          darkMode ? 'bg-elegant-app text-white shadow-[#050807]/90' : 'bg-[#FAF8F2] text-zinc-800 shadow-zinc-200/40'
+        className={`relative w-full flex-1 flex flex-col transition-all duration-300 z-10 ${
+          darkMode ? 'bg-elegant-app text-white' : 'bg-transparent text-zinc-900'
         }`}
       >
-        <div className="flex-1 flex flex-col relative overflow-hidden bg-transparent">
+        <div className="flex-1 flex flex-col relative w-full">
           {renderContent()}
         </div>
       </div>

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Map, AlertTriangle } from 'lucide-react';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
+import DesktopNav from './components/DesktopNav';
+import NotificationDrawer from './components/NotificationDrawer';
 import Onboarding from './components/Onboarding';
 import Auth from './components/Auth';
 import ProfileSetup from './components/ProfileSetup';
@@ -266,6 +268,7 @@ export default function App() {
   const [supportContact, setSupportContact] = useState({ email: 'support@findyourtrek.com', phone: '+91 99999 88888' });
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
   const [showMap, setShowMap] = useState(false);
+  const [showGlobalNotificationDrawer, setShowGlobalNotificationDrawer] = useState(false);
   // Hides the bottom nav while a tab renders a fullscreen flow (e.g. the
   // "Become an Organizer" application form inside Profile).
   const [navHidden, setNavHidden] = useState(false);
@@ -1119,6 +1122,7 @@ export default function App() {
             userLocation={userLocation}
             onSelectLocation={handleSelectUserLocation}
             onOpenLocationPicker={() => setShowAppLocationPicker(true)}
+            onOpenNotifications={() => setShowGlobalNotificationDrawer(true)}
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
           />
@@ -1236,7 +1240,42 @@ export default function App() {
           darkMode={darkMode} 
         />
       ) : (
-        <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-screen relative w-full overflow-x-hidden">
+          {/* Top navigation header on tablet and desktop screens */}
+          <DesktopNav
+            activeTab={activeTab}
+            onChangeTab={(tab) => {
+              navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`);
+              if (tab !== 'Explore') {
+                setExploreSearchQuery('');
+                setExploreCategory('All');
+                setExploreDate('');
+              }
+            }}
+            darkMode={darkMode}
+            onToggleDarkMode={handleToggleDarkMode}
+            wishlistCount={wishlist.length}
+            userLocation={userLocation}
+            onOpenLocationPicker={() => setShowAppLocationPicker(true)}
+            unreadCount={notifications.filter(n => !n.read).length}
+            onOpenNotifications={() => setShowGlobalNotificationDrawer(true)}
+            user={user}
+            onLaunchOrganizer={() => { window.location.href = '/organizer'; }}
+          />
+
+          {/* Global Notification Center Drawer */}
+          <NotificationDrawer
+            isOpen={showGlobalNotificationDrawer}
+            onClose={() => setShowGlobalNotificationDrawer(false)}
+            notifications={notifications}
+            onMarkRead={handleMarkNotificationRead}
+            onClearAll={handleClearNotifications}
+            onNavigate={(tab) => {
+              setShowGlobalNotificationDrawer(false);
+              navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`);
+            }}
+            darkMode={darkMode}
+          />
           
           {/* Dynamic master trek details page overlay */}
           <AnimatePresence mode="wait">
@@ -1248,7 +1287,7 @@ export default function App() {
                 exit={{ opacity: 0, y: 12 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
                 style={{ willChange: 'opacity, transform' }}
-                className={`absolute inset-0 z-47 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                className={`fixed inset-0 z-47 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TrekDetailsView
                   trek={
@@ -1277,7 +1316,7 @@ export default function App() {
                 exit={{ opacity: 0, y: 12 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
                 style={{ willChange: 'opacity, transform' }}
-                className={`absolute inset-0 z-48 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                className={`fixed inset-0 z-48 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TrekOrganizersView
                   trekName={selectedTrekName}
@@ -1309,7 +1348,7 @@ export default function App() {
                 exit={{ opacity: 0, y: 12 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
                 style={{ willChange: 'opacity, transform' }}
-                className={`absolute inset-0 z-50 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TripDetailsView
                   trip={tripWithDetailDefaults}
@@ -1334,7 +1373,7 @@ export default function App() {
                  exit={{ opacity: 0, y: 16 }}
                  transition={{ duration: 0.18, ease: 'easeOut' }}
                  style={{ willChange: 'opacity, transform' }}
-                 className={`absolute inset-0 z-45 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                 className={`fixed inset-0 z-45 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <BookingFlow
                    trip={activeBookingTrip}
@@ -1357,7 +1396,7 @@ export default function App() {
                  exit={{ opacity: 0, y: 12 }}
                  transition={{ duration: 0.18, ease: 'easeOut' }}
                  style={{ willChange: 'opacity, transform' }}
-                 className={`absolute inset-0 z-50 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                 className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <BookingDetailsView
                    booking={selectedBooking}
@@ -1404,7 +1443,7 @@ export default function App() {
                  exit={{ opacity: 0, y: 12 }}
                  transition={{ duration: 0.18, ease: 'easeOut' }}
                  style={{ willChange: 'opacity, transform' }}
-                 className={`absolute inset-0 z-55 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                 className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <OrganizerProfileView
                    organizer={selectedOrganizer}
@@ -1430,7 +1469,7 @@ export default function App() {
                  exit={{ opacity: 0, y: 12 }}
                  transition={{ duration: 0.18, ease: 'easeOut' }}
                  style={{ willChange: 'opacity, transform' }}
-                 className={`absolute inset-0 z-55 flex flex-col h-full ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
+                 className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <LoyaltyRewardsView
                    bookings={bookings}
@@ -1443,7 +1482,7 @@ export default function App() {
            </AnimatePresence>
  
           {/* Main Tabs view renderer */}
-          <div className="flex-1 flex flex-col overflow-hidden relative">
+          <div className="flex-1 flex flex-col relative w-full">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -1452,7 +1491,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 style={{ willChange: 'opacity, transform' }}
-                className="flex-1 flex flex-col overflow-hidden"
+                className="flex-1 flex flex-col w-full"
               >
                 {renderTabContent()}
               </motion.div>
@@ -1480,7 +1519,7 @@ export default function App() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.8, y: 8 }}
                 whileTap={{ scale: 0.9 }}
-                className="absolute left-0 right-0 mx-auto w-12 h-12 bottom-[96px] z-40 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 active:scale-95"
+                className="fixed right-5 bottom-20 md:bottom-8 z-40 w-12 h-12 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 hover:bg-forest-700 active:scale-95 transition cursor-pointer"
               >
                 <Map size={20} />
               </motion.button>

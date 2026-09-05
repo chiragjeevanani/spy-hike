@@ -67,8 +67,8 @@ export default function OrgBatchDatePicker({ open, selectedDates, onToggleDate, 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className={`relative w-full rounded-t-3xl p-5 pb-7 shadow-2xl ${
-              darkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'
+            className={`relative w-full rounded-t-3xl p-5 pb-7 shadow-2xl border-t ${
+              darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-[#FAF8F2] border-zinc-200/80 text-zinc-900'
             }`}
           >
             <div className={`w-10 h-1 rounded-full mx-auto mb-4 ${darkMode ? 'bg-white/15' : 'bg-zinc-200'}`} />
@@ -77,7 +77,7 @@ export default function OrgBatchDatePicker({ open, selectedDates, onToggleDate, 
               <h2 className="text-lg font-display font-black flex items-center gap-2">
                 <CalendarDays size={18} className="text-spy-orange" /> Select Batch Dates
               </h2>
-              <button onClick={onClose} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-white/5 text-zinc-300' : 'bg-gray-100 text-zinc-500'}`}>
+              <button onClick={onClose} className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition ${darkMode ? 'bg-white/5 text-zinc-300 hover:bg-white/10' : 'bg-zinc-200/60 text-zinc-600 hover:bg-zinc-200'}`}>
                 <X size={16} />
               </button>
             </div>

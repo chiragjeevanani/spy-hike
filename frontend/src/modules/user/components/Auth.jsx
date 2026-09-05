@@ -36,21 +36,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     });
   }, []);
 
-  useEffect(() => {
-    setMode(initialMode);
-    setRegisterStep(1);
-    setForgotPhone('');
-    setForgotStep(1);
-    setForgotOtp('');
-    setForgotNewPass('');
-    setForgotConfirmPass('');
-  }, [initialMode]);
-
+  // Fields for forms
   // Which portal the person is signing in to: 'TRAVELLER' or 'ORGANIZER'.
   // Both share the same account/credentials — the Organizer tab just gates on isOrganizer.
   const [role, setRole] = useState('TRAVELLER');
 
-  // Fields for forms
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
@@ -60,6 +50,20 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const [forgotOtp, setForgotOtp] = useState('');
   const [forgotNewPass, setForgotNewPass] = useState('');
   const [forgotConfirmPass, setForgotConfirmPass] = useState('');
+
+  const resetForgotState = () => {
+    setForgotPhone('');
+    setForgotStep(1);
+    setForgotOtp('');
+    setForgotNewPass('');
+    setForgotConfirmPass('');
+  };
+
+  useEffect(() => {
+    setMode(initialMode);
+    setRegisterStep(1);
+    resetForgotState();
+  }, [initialMode]);
   
   // Fields for Register
   const [regName, setRegName] = useState('');
@@ -411,7 +415,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
         newPassword: forgotNewPass
       });
       toast.success('Password reset successfully! Please sign in.');
-      setTimeout(() => setMode('LOGIN_EMAIL'), 2000);
+      resetForgotState();
+      setMode('LOGIN_EMAIL');
     } catch (err) {
       toast.error(err?.message || 'Could not reset password.');
     } finally {
@@ -422,14 +427,14 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
   const isRegister = mode === 'REGISTER';
 
   return (
-    <div className={`relative h-full flex flex-col overflow-y-auto font-sans px-5 ${
+    <div className={`relative min-h-screen flex flex-col items-center justify-center overflow-y-auto font-sans px-4 py-8 w-full ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-800'
     }`}>
       {showOrgTransition && <SwitchTransition darkMode={darkMode} label="Switching to Organizer Panel" showScene />}
       {roleSwitchLabel && <SwitchTransition darkMode={darkMode} label={roleSwitchLabel} showScene />}
 
       {/* Brand logo — compact when in REGISTER mode */}
-      <div className={`flex flex-col items-center shrink-0 ${isRegister ? 'pt-4 pb-3' : 'pt-8 pb-6'}`}>
+      <div className={`flex flex-col items-center shrink-0 w-full max-w-md ${isRegister ? 'pt-2 pb-3' : 'pt-2 pb-6'}`}>
         <AppLogo size={isRegister ? 40 : 56} className="text-forest-600 dark:text-forest-400" />
         <h1 className={`font-display font-black tracking-tight text-forest-600 dark:text-forest-400 ${isRegister ? 'text-2xl mt-1' : 'text-3xl mt-2'}`}>
           Find Your Trek
@@ -442,9 +447,9 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
       </div>
 
       {/* Main Container body */}
-      <div className={`w-full rounded-3xl shadow-xl mx-0 ${
-        darkMode ? 'bg-zinc-900' : 'bg-white'
-      } ${isRegister ? 'p-5' : 'p-6'}`}>
+      <div className={`w-full max-w-md rounded-3xl shadow-2xl border ${
+        darkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200/80'
+      } ${isRegister ? 'p-5 sm:p-6' : 'p-6 sm:p-8'}`}>
 
         {/* Errors & Confirms */}
         {errorMsg && (
@@ -500,7 +505,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <label className="text-[11px] font-semibold tracking-wider uppercase opacity-80">Password</label>
                 <button
                   type="button"
-                  onClick={() => setMode('FORGOT_PASSWORD')}
+                  onClick={() => {
+                    resetForgotState();
+                    setMode('FORGOT_PASSWORD');
+                  }}
                   className="text-[11px] text-spy-orange hover:underline font-semibold"
                 >
                   Forgot Password?
@@ -707,7 +715,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <div className="flex justify-between items-center text-xs">
                   <button
                     type="button"
-                    onClick={() => setMode('LOGIN_EMAIL')}
+                    onClick={() => {
+                      resetForgotState();
+                      setMode('LOGIN_EMAIL');
+                    }}
                     className="text-forest-500 dark:text-forest-400 font-semibold hover:underline"
                   >
                     Back to Sign In
@@ -783,7 +794,12 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 <div className="flex justify-between items-center text-xs">
                   <button
                     type="button"
-                    onClick={() => setForgotStep(1)}
+                    onClick={() => {
+                      setForgotStep(1);
+                      setForgotOtp('');
+                      setForgotNewPass('');
+                      setForgotConfirmPass('');
+                    }}
                     className="text-forest-500 dark:text-forest-400 font-semibold hover:underline"
                   >
                     Back to Mobile Input
@@ -1024,7 +1040,11 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                 Don't have an adventure account?{' '}
                 <button
                   type="button"
-                  onClick={() => { setRole('TRAVELLER'); onSwitchToRegister ? onSwitchToRegister() : setMode('REGISTER'); }}
+                  onClick={() => {
+                    resetForgotState();
+                    setRole('TRAVELLER');
+                    onSwitchToRegister ? onSwitchToRegister() : setMode('REGISTER');
+                  }}
                   className="text-spy-orange font-bold hover:underline"
                 >
                   Sign Up Now
@@ -1036,7 +1056,10 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               Already verified on Find Your Trek?{' '}
               <button
                 type="button"
-                onClick={() => onSwitchToLogin ? onSwitchToLogin() : setMode('LOGIN_EMAIL')}
+                onClick={() => {
+                  resetForgotState();
+                  onSwitchToLogin ? onSwitchToLogin() : setMode('LOGIN_EMAIL');
+                }}
                 className="text-spy-orange font-bold hover:underline"
               >
                 Sign In

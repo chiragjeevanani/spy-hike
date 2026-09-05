@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft, Search, SlidersHorizontal, Star, MapPin, ShieldCheck, Users,
+  ArrowLeft, ArrowRight, Search, SlidersHorizontal, Star, MapPin, ShieldCheck, Users,
   Clock, Milestone, Heart, Sparkles, X, Check, Bus, ChevronLeft, ChevronRight, Mountain
 } from 'lucide-react';
 import { durationRange, distanceRange, nightsRange } from '../../../utils/rangeFormat';
@@ -187,126 +187,137 @@ export default function TrekOrganizersView({
       <div className={`flex-1 relative flex flex-col font-sans ${
         darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'
       }`}>
-        {/* Pinned to the screen, not to the hero, so it stays reachable once
-            the content below is scrolled. */}
-        <button
-          id="btn-back-to-trek-source"
-          onClick={onBack}
-          className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 shadow-md"
-        >
-          <ArrowLeft size={18} />
-        </button>
-
         <div className="flex-1 overflow-y-auto no-scrollbar">
-        {/* Hero — the trek's own cover, so the screen leads with the place
-            rather than with an apology for it being empty. */}
-        <div className="relative h-60 shrink-0 overflow-hidden">
-          {cover ? (
-            <img src={cover} alt={trekName} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-forest-700 via-forest-600 to-emerald-800" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/25" />
+          <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
+            {/* Hero — the trek's own cover, rounded panoramic card on desktop */}
+            <div className="relative h-64 sm:h-80 md:h-96 shrink-0 overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl border border-white/10">
+              {cover ? (
+                <img src={cover} alt={trekName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-forest-700 via-forest-600 to-emerald-800" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/20" />
 
-          <div className="absolute inset-x-0 bottom-0 p-5">
-            <motion.span
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-1.5 bg-spy-orange text-white text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
-            >
-              <motion.span
-                className="w-1.5 h-1.5 rounded-full bg-white"
-                animate={{ opacity: [1, 0.25, 1] }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-              />
-              Opening soon
-            </motion.span>
-            <h1 className="text-2xl font-serif font-semibold text-white leading-tight mt-2">{trekName}</h1>
-            {place && (
-              <p className="text-xs text-white/75 flex items-center gap-1 mt-1">
-                <MapPin size={12} /> {place}
-              </p>
-            )}
-          </div>
-        </div>
+              {/* Pinned back button inside hero */}
+              <button
+                id="btn-back-to-trek-source"
+                onClick={onBack}
+                className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/15 flex items-center justify-center hover:bg-black/70 active:scale-90 shadow-md transition cursor-pointer"
+              >
+                <ArrowLeft size={18} />
+              </button>
 
-        <div className="px-5 pt-5 pb-8 -mt-4 relative z-10">
-          {/* Real stats, so the screen is worth the visit even before a
-              single organizer has posted. */}
-          {stats.length > 0 && (
-            <div className={`grid grid-cols-2 gap-2.5 p-3 rounded-2xl border shadow-sm ${
-              darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'
-            }`}>
-              {stats.map(({ icon: Icon, label, value }) => (
-                <div key={label} className="flex items-center gap-2.5 min-w-0">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                    darkMode ? 'bg-forest-500/15 text-forest-300' : 'bg-forest-50 text-forest-600'
+              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+                <motion.span
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="inline-flex items-center gap-1.5 bg-spy-orange text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-sm"
+                >
+                  <motion.span
+                    className="w-1.5 h-1.5 rounded-full bg-white"
+                    animate={{ opacity: [1, 0.25, 1] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  Opening soon
+                </motion.span>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold text-white leading-tight mt-2.5">{trekName}</h1>
+                {place && (
+                  <p className="text-xs sm:text-sm text-white/80 flex items-center gap-1.5 mt-1.5">
+                    <MapPin size={14} className="text-spy-orange" /> {place}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop 2-column layout: Left = Stats & Description, Right = What happens next & Action */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mt-6">
+              <div className="md:col-span-7 space-y-6">
+                {/* Real stats */}
+                {stats.length > 0 && (
+                  <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl border shadow-xs ${
+                    darkMode ? 'bg-zinc-900/70 border-white/5' : 'bg-white border-zinc-200/70'
                   }`}>
-                    <Icon size={14} />
+                    {stats.map(({ icon: Icon, label, value }) => (
+                      <div key={label} className="flex items-center gap-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          darkMode ? 'bg-forest-500/15 text-forest-300' : 'bg-forest-50 text-forest-600'
+                        }`}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[9px] font-bold uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{label}</p>
+                          <p className="text-xs sm:text-sm font-semibold truncate">{value}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="min-w-0">
-                    <p className={`text-[9px] font-bold uppercase tracking-wider ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{label}</p>
-                    <p className="text-xs font-semibold truncate">{value}</p>
+                )}
+
+                {trek?.description && (
+                  <div className={`p-5 rounded-2xl border shadow-xs ${
+                    darkMode ? 'bg-zinc-900/50 border-white/5' : 'bg-white border-zinc-200/70'
+                  }`}>
+                    <h2 className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2 font-mono">About This Trek</h2>
+                    <p className={`text-xs sm:text-sm leading-relaxed ${darkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                      {trek.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="md:col-span-5 space-y-5">
+                {/* Progress toward bookings */}
+                <div className={`p-5 rounded-2xl border shadow-xs ${
+                  darkMode ? 'bg-zinc-900/50 border-white/5' : 'bg-white border-zinc-200/70'
+                }`}>
+                  <h3 className="text-sm font-serif font-bold mb-4">What happens next</h3>
+                  <div className="relative">
+                    <div className={`absolute left-[11px] top-2 bottom-2 w-px ${darkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+                    {pipeline.map((step, i) => (
+                      <motion.div
+                        key={step.title}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.08 * i, duration: 0.25 }}
+                        className="relative flex gap-3 pb-4 last:pb-0"
+                      >
+                        <div className="relative z-10 shrink-0">
+                          {step.done ? (
+                            <div className="w-6 h-6 rounded-full bg-forest-500 text-white flex items-center justify-center">
+                              <Check size={13} strokeWidth={3} />
+                            </div>
+                          ) : step.active ? (
+                            <div className="w-6 h-6 rounded-full bg-spy-orange text-white flex items-center justify-center relative">
+                              <motion.span
+                                className="absolute inset-0 rounded-full bg-spy-orange"
+                                animate={{ scale: [1, 1.7], opacity: [0.5, 0] }}
+                                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+                              />
+                              <Sparkles size={12} className="relative" />
+                            </div>
+                          ) : (
+                            <div className={`w-6 h-6 rounded-full border-2 ${darkMode ? 'border-white/15 bg-zinc-950' : 'border-zinc-200 bg-gray-55'}`} />
+                          )}
+                        </div>
+                        <div className={`min-w-0 ${step.done || step.active ? '' : 'opacity-55'}`}>
+                          <p className="text-xs font-semibold leading-tight">{step.title}</p>
+                          <p className={`text-[11px] leading-relaxed mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{step.body}</p>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
 
-          {trek?.description && (
-            <p className={`text-xs leading-relaxed mt-4 ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-              {trek.description}
-            </p>
-          )}
-
-          {/* Progress toward bookings — explains *why* the list is empty and
-              what happens next, instead of just stating that it is. */}
-          <div className="mt-6">
-            <h3 className="text-sm font-serif font-semibold mb-3">What happens next</h3>
-            <div className="relative">
-              <div className={`absolute left-[11px] top-2 bottom-2 w-px ${darkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
-              {pipeline.map((step, i) => (
-                <motion.div
-                  key={step.title}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.08 * i, duration: 0.25 }}
-                  className="relative flex gap-3 pb-4 last:pb-0"
+                <button
+                  onClick={onBack}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-forest-600 hover:bg-forest-700 text-white text-sm font-semibold active:scale-[0.98] transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <div className="relative z-10 shrink-0">
-                    {step.done ? (
-                      <div className="w-6 h-6 rounded-full bg-forest-500 text-white flex items-center justify-center">
-                        <Check size={13} strokeWidth={3} />
-                      </div>
-                    ) : step.active ? (
-                      <div className="w-6 h-6 rounded-full bg-spy-orange text-white flex items-center justify-center relative">
-                        <motion.span
-                          className="absolute inset-0 rounded-full bg-spy-orange"
-                          animate={{ scale: [1, 1.7], opacity: [0.5, 0] }}
-                          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
-                        />
-                        <Sparkles size={12} className="relative" />
-                      </div>
-                    ) : (
-                      <div className={`w-6 h-6 rounded-full border-2 ${darkMode ? 'border-white/15 bg-zinc-950' : 'border-zinc-200 bg-gray-55'}`} />
-                    )}
-                  </div>
-                  <div className={`min-w-0 ${step.done || step.active ? '' : 'opacity-55'}`}>
-                    <p className="text-xs font-semibold leading-tight">{step.title}</p>
-                    <p className={`text-[11px] leading-relaxed mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-500'}`}>{step.body}</p>
-                  </div>
-                </motion.div>
-              ))}
+                  <span>Browse treks you can book now</span>
+                  <ArrowRight size={16} />
+                </button>
+              </div>
             </div>
           </div>
-
-          <button
-            onClick={onBack}
-            className="w-full mt-6 py-3.5 rounded-2xl bg-forest-600 hover:bg-forest-700 text-white text-sm font-semibold active:scale-[0.98] transition shadow-sm"
-          >
-            Browse treks you can book now
-          </button>
-        </div>
         </div>
       </div>
     );
@@ -316,60 +327,63 @@ export default function TrekOrganizersView({
     <div className={`flex-1 flex flex-col overflow-hidden font-sans ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'
     }`}>
-
-      {/* Sticky back button over hero */}
-      <div className="absolute top-4 left-4 z-30">
-        <button
-          id="btn-back-to-trek-source"
-          onClick={onBack}
-          className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/10 flex items-center justify-center active:scale-90 shadow-md"
-        >
-          <ArrowLeft size={18} />
-        </button>
-      </div>
-
       <div className="flex-1 overflow-y-auto no-scrollbar">
+        <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
 
-        {/* 1. Hero banner using the top-rated organizer's cover image */}
-        <div className="h-44 relative shrink-0 overflow-hidden bg-zinc-950">
-          <img
-            src={representative.coverImage}
-            alt={trekName}
-            className="absolute inset-0 w-full h-full object-cover brightness-[0.6]"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/20 to-transparent" />
-          <div className="absolute bottom-7 left-4 right-4">
-            <span className={`text-[9px] font-mono font-bold uppercase tracking-widest block mb-0.5 ${
-              darkMode ? 'text-elegant-orange' : 'text-forest-200'
-            }`}>
-              {offers.length} Organizer{offers.length > 1 ? 's' : ''} Offering This Trek
-            </span>
-            <h1 className="text-lg font-display font-black text-white leading-snug">{trekName}</h1>
-            <p className="text-xs text-zinc-200/90 flex items-center gap-1 mt-0.5">
-              <MapPin size={12} className="text-spy-orange" />
-              {representative.location}, {representative.state}
-            </p>
-          </div>
-        </div>
+          {/* 1. Hero banner using the top-rated organizer's cover image */}
+          <div className="relative h-56 sm:h-72 md:h-80 rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border border-white/10 shrink-0 mb-6 bg-zinc-950">
+            <img
+              src={representative.coverImage}
+              alt={trekName}
+              className="absolute inset-0 w-full h-full object-cover brightness-[0.55]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/95 via-zinc-950/35 to-black/20" />
 
-        {/* 2. Shared trek stats row (same route across all organizers) */}
-        <div className="px-4 -mt-3 relative z-10">
-          <div className={`grid grid-cols-3 gap-2 p-2 rounded-2xl shadow-sm ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
-            {[
-              { label: 'Difficulty', value: representative.difficulty },
-              { label: 'Duration', value: `${durationRange(representative)}D` },
-              { label: 'Distance', value: `${distanceRange(representative)}km` }
-            ].map((st, i) => (
-              <div key={i} className="flex flex-col items-center text-center py-1">
-                <span className={`text-[11px] font-black font-display ${darkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{st.value}</span>
-                <span className="text-[8px] opacity-45 uppercase mt-0.5">{st.label}</span>
+            {/* Back button */}
+            <div className="absolute top-4 left-4 z-30">
+              <button
+                id="btn-back-to-trek-source"
+                onClick={onBack}
+                className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/15 flex items-center justify-center hover:bg-black/70 active:scale-90 shadow-md transition cursor-pointer"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            </div>
+
+            <div className="absolute bottom-5 sm:bottom-6 left-5 sm:left-7 right-5 sm:right-7 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div className="min-w-0">
+                <span className={`text-[10px] font-mono font-bold uppercase tracking-widest block mb-1 ${
+                  darkMode ? 'text-elegant-orange' : 'text-forest-200'
+                }`}>
+                  {offers.length} Organizer{offers.length > 1 ? 's' : ''} Offering This Trek
+                </span>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-black text-white leading-tight truncate">{trekName}</h1>
+                <p className="text-xs sm:text-sm text-zinc-200/90 flex items-center gap-1.5 mt-1.5">
+                  <MapPin size={13} className="text-spy-orange shrink-0" />
+                  {representative.location}, {representative.state}
+                </p>
               </div>
-            ))}
+
+              {/* Shared trek stats */}
+              <div className={`shrink-0 flex items-center gap-3 p-2.5 px-4 rounded-2xl backdrop-blur-md border ${
+                darkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/90 border-white/20 text-zinc-900'
+              }`}>
+                {[
+                  { label: 'Difficulty', value: representative.difficulty },
+                  { label: 'Duration', value: `${durationRange(representative)}D` },
+                  { label: 'Distance', value: `${distanceRange(representative)}km` }
+                ].map((st, i) => (
+                  <div key={i} className="flex flex-col items-center text-center px-1">
+                    <span className="text-xs sm:text-sm font-black font-display">{st.value}</span>
+                    <span className="text-[8.5px] opacity-60 uppercase font-semibold mt-0.5">{st.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
         {/* 3. Search + filter row */}
-        <div className="p-4 space-y-3">
+        <div className="space-y-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <input
@@ -574,7 +588,7 @@ export default function TrekOrganizersView({
               </button>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredOffers.map((offer, idx) => {
                 const isSaved = wishlist.includes(offer.id);
                 const pObj = offer.pickup || (offer.pickupOptions?.[0]) || (offer.pickupPoints?.length ? { location: offer.pickupPoints[0], price: null } : null);
@@ -702,6 +716,7 @@ export default function TrekOrganizersView({
               })}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

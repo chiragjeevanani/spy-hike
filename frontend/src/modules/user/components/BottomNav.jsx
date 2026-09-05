@@ -12,14 +12,13 @@ export default function BottomNav({ activeTab, onChangeTab, darkMode, wishlistCo
   ];
 
   return (
-    // Floating glassmorphic pill — the transparent wrapper reserves height so
-    // scrolling content stops above the bar.
-    <div className="px-4 pb-3 pt-1 z-40 shrink-0">
+    // Floating glassmorphic pill on mobile screens (hidden on desktop/tablet where DesktopNav is active)
+    <div className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto w-full px-4 pb-3 pt-1 z-40 shrink-0 pointer-events-none">
       <div
-        className={`flex justify-around items-center rounded-3xl px-2 py-2.5 shadow-lg border backdrop-blur-xl ${
+        className={`pointer-events-auto flex justify-around items-center rounded-3xl px-2 py-2.5 shadow-xl border backdrop-blur-xl ${
           darkMode
-            ? 'bg-elegant-card/70 border-white/10 shadow-black/40'
-            : 'bg-white/65 border-white/60 shadow-zinc-300/40'
+            ? 'bg-elegant-card/85 border-white/10 shadow-black/60'
+            : 'bg-white/85 border-white/60 shadow-zinc-400/30'
         }`}
       >
         {tabs.map(tab => {

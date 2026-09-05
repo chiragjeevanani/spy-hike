@@ -60,7 +60,7 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
     return (
       <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
         {/* Chat header with safe-area status bar padding */}
-        <div className={`shrink-0 px-4 pt-12 pb-3.5 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? 'bg-zinc-900/95 border-b border-white/5' : 'bg-white border-b border-zinc-100 shadow-sm'}`}>
+        <div className={`shrink-0 px-4 pt-12 pb-3.5 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? 'bg-zinc-900/95 border-b border-white/5' : 'bg-white/85 backdrop-blur-md border-b border-zinc-200/80 shadow-xs'}`}>
           <button type="button" onClick={() => setSelectedChat(null)} className={`p-2 rounded-xl active:scale-95 transition ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`} aria-label="Back to conversations">
             <ArrowLeft size={18} />
           </button>
@@ -96,7 +96,7 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
         </div>
 
         {/* Input bar */}
-        <div className={`shrink-0 px-4 py-3 flex items-center gap-2 ${darkMode ? 'bg-zinc-900 border-t border-white/5' : 'bg-white border-t border-zinc-100'}`}>
+        <div className={`shrink-0 px-4 py-3 flex items-center gap-2 ${darkMode ? 'bg-zinc-900 border-t border-white/5' : 'bg-white/90 backdrop-blur-md border-t border-zinc-200/80 shadow-xs'}`}>
           <input
             type="text"
             value={inputText}
@@ -162,7 +162,7 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
                 transition={{ delay: i * 0.06 }}
                 onClick={() => handleSelectChat(chat)}
                 className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-all ${
-                  darkMode ? 'bg-zinc-900 border border-white/5 hover:border-white/10' : 'bg-white border border-zinc-100 shadow-sm hover:shadow'
+                  darkMode ? 'bg-zinc-900/80 border border-white/10 hover:border-white/20' : 'bg-white/90 border border-zinc-200/80 shadow-xs hover:shadow'
                 }`}
               >
                 <div className="relative">

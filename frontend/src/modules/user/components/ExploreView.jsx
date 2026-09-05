@@ -189,12 +189,12 @@ export default function ExploreView({
     : '';
 
   return (
-    <div className={`flex-1 overflow-y-auto no-scrollbar font-sans ${
-      darkMode ? 'bg-elegant-app text-elegant-text' : 'bg-transparent text-zinc-900'
+    <div className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+      darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
       {/* Header */}
-      <div className="px-5 pt-6">
+      <div className="pt-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-serif text-4xl font-medium tracking-tight">Explore</h1>
@@ -205,13 +205,11 @@ export default function ExploreView({
             </p>
           </div>
 
-          {/* City selector — Explore is where you browse, so changing city
-              shouldn't require emptying the results first (which is where the
-              only other entry point lives). */}
+          {/* City selector (Mobile only — DesktopNav handles desktop) */}
           <button
             id="btn-location-explore"
             onClick={onOpenLocationPicker}
-            className={`flex items-center gap-1 pl-2.5 pr-2 py-2 mt-1.5 rounded-full border shrink-0 active:scale-95 cursor-pointer shadow-sm ${
+            className={`md:hidden flex items-center gap-1 pl-2.5 pr-2 py-2 mt-1.5 rounded-full border shrink-0 active:scale-95 cursor-pointer shadow-sm ${
               darkMode ? 'bg-elegant-card border-white/5' : 'bg-white border-gray-200'
             }`}
           >
@@ -224,7 +222,7 @@ export default function ExploreView({
         </div>
 
         {/* Search + filter */}
-        <div className="flex gap-2.5 mt-5">
+        <div className="flex gap-3 mt-5 max-w-4xl">
           <div className="relative flex-1">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${darkMode ? 'text-white/40' : 'text-zinc-400'}`} size={17} />
             <input
@@ -468,7 +466,7 @@ export default function ExploreView({
       </AnimatePresence>
 
       {/* Results */}
-      <div className="px-5 pt-5 pb-8 space-y-5">
+      <div className="pt-6 pb-12 space-y-6">
 
         {/* Results meta */}
         <div className="flex justify-between items-center text-xs">
@@ -485,7 +483,8 @@ export default function ExploreView({
 
         {/* Empty state */}
         {loadingGroups ? (
-          <div className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <SkeletonCard darkMode={darkMode} />
             <SkeletonCard darkMode={darkMode} />
             <SkeletonCard darkMode={darkMode} />
             <SkeletonCard darkMode={darkMode} />
@@ -539,6 +538,7 @@ export default function ExploreView({
             const paginated = filteredTreks;
             return (
               <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {paginated.map((group, idx) => {
                   const trip = group.representative;
                   const isSaved = wishlist.includes(trip.id);
@@ -552,10 +552,10 @@ export default function ExploreView({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: Math.min(idx * 0.04, 0.25), duration: 0.25 }}
                       whileHover={{ y: -3 }}
-                      className={`rounded-3xl overflow-hidden cursor-pointer shadow-md ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
+                      className={`rounded-3xl overflow-hidden cursor-pointer shadow-md flex flex-col h-full ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
                     >
                       {/* Cover */}
-                      <div className="relative h-52 overflow-hidden">
+                      <div className="relative h-48 sm:h-52 overflow-hidden">
                         <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
                         <span className={`absolute top-3.5 left-3.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
                           {trip.difficulty}
@@ -595,6 +595,7 @@ export default function ExploreView({
                     </motion.div>
                   );
                 })}
+                </div>
 
                 {/* Pagination. There is no page count — the server reports
                     whether another page exists rather than paying for a full
@@ -646,7 +647,7 @@ export default function ExploreView({
             <p className={`text-xs mb-3.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
               New treks awaiting an organizer's first batch.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {visibleComingSoon.map((trek, idx) => (
                 <motion.div
                   key={trek.id}
