@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, DollarSign, Users, Calendar, Mountain, AlignLeft, List, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation, Search, Clock, Route } from 'lucide-react';
 import OrgBatchDatePicker from './OrgBatchDatePicker';
@@ -9,6 +9,7 @@ import trekRequestsApi from '../../../lib/trekRequestsApi';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
 import { durationRange, distanceRange } from '../../../utils/rangeFormat';
+import { INDIA_STATES, getCitiesForState, formatLocation } from '../../../data/indiaLocations';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
@@ -241,6 +242,8 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     difficulty: 'Moderate', durationDays: '', durationDaysMax: '', distanceKm: '', distanceKmMax: '', elevationMeters: '',
     coverImage: '', category: '', description: '',
   });
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const availableCities = useMemo(() => getCitiesForState(requestForm.state), [requestForm.state]);
   const [requestImageTab, setRequestImageTab] = useState('upload');
   const [requestImageError, setRequestImageError] = useState(false);
   const [requestError, setRequestError] = useState('');
@@ -268,7 +271,10 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const handleSubmitTrekRequest = async () => {
     const errs = {};
     if (!requestForm.title.trim()) errs.title = 'Title is required.';
-    if (!requestForm.location.trim()) errs.location = 'Location is required.';
+    if (!requestForm.state.trim()) errs.state = 'Select a state.';
+    if (!requestForm.city.trim()) errs.city = 'Select or enter a city.';
+    const finalLocation = formatLocation(requestForm.city, requestForm.state) || requestForm.location.trim();
+    if (!finalLocation) errs.location = 'Location is required.';
     if (!requestForm.durationDays || Number(requestForm.durationDays) <= 0) errs.durationDays = 'Min duration (days) must be greater than 0.';
     else if (requestForm.durationDaysMax && Number(requestForm.durationDaysMax) < Number(requestForm.durationDays)) errs.durationDaysMax = 'Max duration cannot be less than min duration.';
     if (!requestForm.distanceKm || Number(requestForm.distanceKm) < 0) errs.distanceKm = 'Min distance (km) is required.';
@@ -276,7 +282,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     if (!requestForm.coverImage) errs.coverImage = 'A cover image is required.';
 
     if (Object.keys(errs).length > 0) {
-      const order = ['title', 'location', 'durationDays', 'durationDaysMax', 'distanceKm', 'distanceKmMax', 'coverImage'];
+      const order = ['title', 'state', 'city', 'location', 'durationDays', 'durationDaysMax', 'distanceKm', 'distanceKmMax', 'coverImage'];
       const message = errs[order.find(f => errs[f])];
       setRequestFieldErrors(errs);
       setRequestError(message);
@@ -291,7 +297,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     try {
       const created = await trekRequestsApi.create({
         title: requestForm.title.trim(),
-        location: requestForm.location.trim(),
+        location: finalLocation,
         state: requestForm.state.trim(),
         city: requestForm.city.trim(),
         difficulty: requestForm.difficulty,
@@ -622,19 +628,86 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                     <input ref={reqTitleRef} type="text" className={`${inputCls} ${reqErrCls('title')}`} placeholder="e.g. Roopkund Trek" value={requestForm.title} onChange={e => { setRequestForm(f => ({ ...f, title: e.target.value })); clearReqError('title'); }} />
                     {requestFieldErrors.title && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.title}</p>}
                   </div>
-                  <div>
-                    <label className={labelCls}>Location *</label>
-                    <input ref={reqLocationRef} type="text" className={`${inputCls} ${reqErrCls('location')}`} placeholder="e.g. Chamoli, Uttarakhand" value={requestForm.location} onChange={e => { setRequestForm(f => ({ ...f, location: e.target.value })); clearReqError('location'); }} />
-                    {requestFieldErrors.location && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.location}</p>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* State and City Dropdowns */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="min-w-0">
-                      <label className={labelCls}>State</label>
-                      <input type="text" className={inputCls} value={requestForm.state} onChange={e => setRequestForm(f => ({ ...f, state: e.target.value }))} />
+                      <label className={labelCls}>State *</label>
+                      <select
+                        ref={reqLocationRef}
+                        className={`${inputCls} ${reqErrCls('state')}`}
+                        value={requestForm.state}
+                        onChange={(e) => {
+                          const newState = e.target.value;
+                          const newLoc = formatLocation(requestForm.city, newState);
+                          setRequestForm((f) => ({ ...f, state: newState, location: newLoc }));
+                          clearReqError('state');
+                          clearReqError('location');
+                        }}
+                      >
+                        <option value="">Select State / UT</option>
+                        {INDIA_STATES.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                      {requestFieldErrors.state && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.state}</p>}
                     </div>
+
                     <div className="min-w-0">
-                      <label className={labelCls}>City</label>
-                      <input type="text" className={inputCls} value={requestForm.city} onChange={e => setRequestForm(f => ({ ...f, city: e.target.value }))} />
+                      <label className={labelCls}>City / Adventure Hub *</label>
+                      <select
+                        className={`${inputCls} ${reqErrCls('city')}`}
+                        value={isCustomCity ? '__custom__' : requestForm.city}
+                        disabled={!requestForm.state}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            setIsCustomCity(true);
+                            setRequestForm((f) => ({ ...f, city: '', location: formatLocation('', f.state) }));
+                          } else {
+                            setIsCustomCity(false);
+                            const newLoc = formatLocation(val, requestForm.state);
+                            setRequestForm((f) => ({ ...f, city: val, location: newLoc }));
+                          }
+                          clearReqError('city');
+                          clearReqError('location');
+                        }}
+                      >
+                        <option value="">{requestForm.state ? 'Select City / Hub' : 'Select State first'}</option>
+                        {availableCities.map((ct) => (
+                          <option key={ct} value={ct}>{ct}</option>
+                        ))}
+                        <option value="__custom__">+ Other / Enter Custom City...</option>
+                      </select>
+                      {requestFieldErrors.city && <p className="text-[10px] font-semibold mt-1 text-red-500">{requestFieldErrors.city}</p>}
+                    </div>
+                  </div>
+
+                  {isCustomCity && (
+                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
+                      <label className={labelCls}>Custom City / Basecamp Name *</label>
+                      <input
+                        type="text"
+                        className={`${inputCls} ${reqErrCls('city')}`}
+                        placeholder="e.g. Sankri, Tosh, or Lohajung"
+                        value={requestForm.city}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newLoc = formatLocation(val, requestForm.state);
+                          setRequestForm((f) => ({ ...f, city: val, location: newLoc }));
+                          clearReqError('city');
+                          clearReqError('location');
+                        }}
+                      />
+                    </motion.div>
+                  )}
+
+                  <div>
+                    <label className={labelCls}>Formatted Location</label>
+                    <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold ${
+                      darkMode ? 'bg-zinc-800/60 border-white/10 text-zinc-300' : 'bg-zinc-100/90 border-zinc-200 text-zinc-700'
+                    }`}>
+                      <MapPin size={13} className="text-spy-orange shrink-0" />
+                      <span>{formatLocation(requestForm.city, requestForm.state) || 'Select State and City above'}</span>
                     </div>
                   </div>
                   <div>
@@ -1023,10 +1096,52 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
         <div className="flex gap-2">
           <div className="relative flex-1 min-w-0">
             <Bus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input type="text" className={`${inputCls} pl-9`} placeholder="e.g. Manali" value={form.pickup.location} onChange={e => setPickupField('location', e.target.value)} />
+            <input
+              type="text"
+              className={`${inputCls} pl-9`}
+              placeholder="e.g. Manali"
+              value={form.pickup.location}
+              onChange={e => setPickupField('location', e.target.value)}
+              list="pickup-city-suggestions"
+            />
+            <datalist id="pickup-city-suggestions">
+              {selectedTrek?.city && <option value={selectedTrek.city} />}
+              {selectedTrek?.state && getCitiesForState(selectedTrek.state).map(c => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
           <input type="number" min="0" className={`${inputClsFixedWidth} w-28`} placeholder="₹ Price" value={form.pickup.price} onChange={e => setPickupField('price', e.target.value)} />
         </div>
+        {selectedTrek?.city && (
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <span className={`text-[10px] ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Quick pick:</span>
+            <button
+              type="button"
+              onClick={() => setPickupField('location', selectedTrek.city)}
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                form.pickup.location === selectedTrek.city
+                  ? 'bg-spy-orange/15 border-spy-orange text-spy-orange'
+                  : darkMode ? 'bg-zinc-800 border-white/5 text-zinc-300 hover:border-white/20' : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:border-zinc-300'
+              }`}
+            >
+              {selectedTrek.city}
+            </button>
+            {selectedTrek.state && selectedTrek.state !== selectedTrek.city && (
+              <button
+                type="button"
+                onClick={() => setPickupField('location', formatLocation(selectedTrek.city, selectedTrek.state))}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                  form.pickup.location === formatLocation(selectedTrek.city, selectedTrek.state)
+                    ? 'bg-spy-orange/15 border-spy-orange text-spy-orange'
+                    : darkMode ? 'bg-zinc-800 border-white/5 text-zinc-300 hover:border-white/20' : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:border-zinc-300'
+                }`}
+              >
+                {formatLocation(selectedTrek.city, selectedTrek.state)}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Trek/travel start point — exact map location the organizer picks */}

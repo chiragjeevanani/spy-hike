@@ -6,6 +6,7 @@ import {
 import { listTreks, getTrek } from '../controllers/trekController.js';
 import { listActiveCoupons, validateCouponEndpoint } from '../controllers/couponController.js';
 import { listTripReviews } from '../controllers/reviewController.js';
+import { reverseGeocodeLocation } from '../controllers/locationController.js';
 import { cached, TTL } from '../lib/cache.js';
 
 // Public, unauthenticated catalog endpoints consumed by the customer app.
@@ -42,6 +43,7 @@ const groupsKey = (req) => {
 router.get('/trek-groups', cached(groupsKey, TTL.trips), listTrekGroups);
 router.get('/pickup-cities', cached(() => 'trips:pickup-cities', TTL.trips), listPickupCities);
 router.get('/trek-cities', cached(() => 'trips:trek-cities', TTL.trips), listTrekCities);
+router.get('/reverse-geocode', reverseGeocodeLocation);
 router.get('/trips', cached(tripsKey, TTL.trips), listTrips);
 router.get('/trips/:id', cached((req) => `trips:one:${req.params.id}`, TTL.trips), getTrip);
 router.get('/trips/:id/departures', getTripDepartures);
