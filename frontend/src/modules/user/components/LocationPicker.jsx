@@ -7,6 +7,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, X, Search, LocateFixed, Loader2, Mountain, Globe2, Check, AlertCircle } from 'lucide-react';
 import tripsApi from '../../../lib/tripsApi';
+import { reverseGeocode } from '../../../lib/geocoding';
 import { normalizeLocationText } from '../utils/locationFilter';
 
 // The whole-country option — both HomeView and ExploreView read the label
@@ -15,22 +16,51 @@ const ALL_INDIA = { label: 'India', city: 'India', state: '' };
 
 const POPULAR_COUNT = 8;
 
-// Reverse-geocodes a GPS fix into a place. Returns null rather than guessing a
-// city: a wrong guess silently filters the whole catalog to somewhere the
-// customer has never been, which is worse than asking them to pick.
-//
-// TODO(google-maps): swap Nominatim for the Google Geocoding API once a key is
-// wired up — https://maps.googleapis.com/maps/api/geocode/json?latlng=…
-async function reverseGeocode(lat, lng) {
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-    const data = await res.json();
-    const a = data?.address || {};
-    const city = a.city || a.town || a.village || a.state_district || a.county || '';
-    return { city: city.trim(), state: (a.state || '').trim() };
-  } catch {
-    return null;
+const KNOWN_COORDINATES = {
+  manali: { lat: 32.2432, lng: 77.1892 },
+  kullu: { lat: 31.9579, lng: 77.1095 },
+  kasol: { lat: 32.0100, lng: 77.3150 },
+  dharamshala: { lat: 32.2190, lng: 76.3234 },
+  shimla: { lat: 31.1048, lng: 77.1734 },
+  spiti: { lat: 32.2461, lng: 78.0349 },
+  rishikesh: { lat: 30.0869, lng: 78.2676 },
+  dehradun: { lat: 30.3165, lng: 78.0322 },
+  chamoli: { lat: 30.4230, lng: 79.3242 },
+  joshimath: { lat: 30.5564, lng: 79.5663 },
+  chopta: { lat: 30.4859, lng: 79.1764 },
+  sankari: { lat: 31.0772, lng: 78.1812 },
+  sankri: { lat: 31.0772, lng: 78.1812 },
+  uttarkashi: { lat: 30.7268, lng: 78.4354 },
+  pune: { lat: 18.5204, lng: 73.8567 },
+  mumbai: { lat: 19.0760, lng: 72.8777 },
+  lonavala: { lat: 18.7557, lng: 73.4091 },
+  nashik: { lat: 19.9975, lng: 73.7898 },
+  raigad: { lat: 18.2357, lng: 73.4443 },
+  bengaluru: { lat: 12.9716, lng: 77.5946 },
+  coorg: { lat: 12.3375, lng: 75.8069 },
+  chikkamagaluru: { lat: 13.3161, lng: 75.7720 },
+  wayanad: { lat: 11.6854, lng: 76.1320 },
+  munnar: { lat: 10.0889, lng: 77.0595 },
+  idukki: { lat: 9.8494, lng: 76.9804 },
+  leh: { lat: 34.1526, lng: 77.5771 },
+  srinagar: { lat: 34.0837, lng: 74.7973 },
+  anantnag: { lat: 33.7311, lng: 75.1487 },
+  gangtok: { lat: 27.3389, lng: 88.6065 },
+  darjeeling: { lat: 27.0410, lng: 88.2663 },
+  shillong: { lat: 25.5788, lng: 91.8933 },
+};
+
+function getCityCoords(c) {
+  if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+    return { lat: c.lat, lng: c.lng };
   }
+  const norm = normalizeLocationText(c.city);
+  for (const [key, coords] of Object.entries(KNOWN_COORDINATES)) {
+    if (norm.includes(key) || key.includes(norm)) {
+      return coords;
+    }
+  }
+  return null;
 }
 
 // Great-circle distance in km — used to snap a GPS fix to the nearest city the
@@ -121,18 +151,27 @@ export default function LocationPicker({ open, current, onSelect, onClose, darkM
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
-        const place = await reverseGeocode(latitude, longitude);
+        let place = null;
+        try {
+          place = await reverseGeocode(latitude, longitude);
+        } catch (e) {
+          console.warn('Geocoding error:', e);
+        }
         setLocating(false);
 
-        // Snap the fix onto a city the catalog covers. Handing the raw
-        // geocoded name straight to the filter was the old behaviour, and it
-        // left anyone outside the handful of trekking towns staring at an
-        // empty Explore with no idea why.
-        const detected = normalizeLocationText(place?.city);
-        const named = detected && cities.find((c) => {
+        const rawCity = place?.city || place?.district || '';
+        const detectedCity = normalizeLocationText(rawCity);
+        const detectedDistrict = normalizeLocationText(place?.district);
+
+        // 1. Direct city/district match in catalog
+        const named = (detectedCity || detectedDistrict) && cities.find((c) => {
           const name = normalizeLocationText(c.city);
-          return name === detected || name.includes(detected) || detected.includes(name);
+          return (
+            (detectedCity && (name === detectedCity || name.includes(detectedCity) || detectedCity.includes(name))) ||
+            (detectedDistrict && (name === detectedDistrict || name.includes(detectedDistrict) || detectedDistrict.includes(name)))
+          );
         });
+
         if (named) {
           onSelect({
             label: named.label,
@@ -145,37 +184,56 @@ export default function LocationPicker({ open, current, onSelect, onClose, darkM
           return;
         }
 
-        const withCoords = cities.filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lng));
+        // 2. Proximity match to closest trekking hub
+        const withCoords = cities
+          .map(c => ({ city: c, coords: getCityCoords(c) }))
+          .filter(item => item.coords != null);
+
         if (withCoords.length) {
-          const nearest = withCoords.reduce((best, c) => {
-            const d = distanceKm(latitude, longitude, c.lat, c.lng);
-            return !best || d < best.d ? { city: c, d } : best;
+          const nearest = withCoords.reduce((best, item) => {
+            const d = distanceKm(latitude, longitude, item.coords.lat, item.coords.lng);
+            return !best || d < best.d ? { city: item.city, d } : best;
           }, null);
-          setNotice(
-            place?.city
-              ? `No treks around ${place.city} yet — showing ${nearest.city.city}, the closest city we cover.`
-              : `Showing ${nearest.city.city}, the closest city we cover.`,
-          );
-          onSelect({
-            label: nearest.city.label,
-            city: nearest.city.city,
-            state: nearest.city.state,
-            lat: latitude,
-            lng: longitude,
-            source: 'gps-nearest',
-          });
-          return;
+
+          if (nearest && nearest.city) {
+            setNotice(
+              rawCity
+                ? `Detected ${rawCity}. Showing treks in ${nearest.city.city}, the closest trekking hub we cover.`
+                : `Showing ${nearest.city.city}, the closest trekking hub we cover.`,
+            );
+            onSelect({
+              label: nearest.city.label,
+              city: nearest.city.city,
+              state: nearest.city.state,
+              lat: latitude,
+              lng: longitude,
+              source: 'gps-nearest',
+            });
+            return;
+          }
         }
 
-        setError(
-          place?.city
-            ? `We don’t have treks around ${place.city} yet. Try another city below.`
-            : 'Couldn’t match your location to a city. Pick one below.',
-        );
+        // 3. Fallback to state-level match or prompt
+        if (rawCity) {
+          onSelect({
+            label: place.state ? `${rawCity}, ${place.state}` : rawCity,
+            city: rawCity,
+            state: place.state || '',
+            lat: latitude,
+            lng: longitude,
+            source: 'gps-custom',
+          });
+        } else {
+          setError('Couldn’t match your location to a city. Pick one below.');
+        }
       },
-      () => {
+      (err) => {
         setLocating(false);
-        setError('Couldn’t get your location. Allow access or pick a city below.');
+        setError(
+          err?.code === 1
+            ? 'Location permission denied. Please allow GPS access in your browser or select a city below.'
+            : 'Couldn’t get your location. Allow access or pick a city below.'
+        );
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );

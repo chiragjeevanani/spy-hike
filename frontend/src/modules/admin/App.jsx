@@ -27,6 +27,7 @@ import BroadcastView from './components/BroadcastView';
 import LoyaltyProgramView from './components/LoyaltyProgramView';
 import LandingCmsView from './components/LandingCmsView';
 import SiteContentView from './components/SiteContentView';
+import OnboardingCmsView from './components/OnboardingCmsView';
 import SettingsView from './components/SettingsView';
 import NotFoundPage from '../../components/NotFoundPage';
 
@@ -50,6 +51,7 @@ function getAdminTab(pathname) {
   if (p === 'loyalty') return 'Loyalty';
   if (p === 'landing') return 'Landing';
   if (p === 'legal') return 'Legal';
+  if (p === 'onboarding' || p === 'onboarding-cms') return 'OnboardingCMS';
   if (p === 'settings') return 'Settings';
   if (p === 'login') return 'Login';
   return 'NotFound';
@@ -81,6 +83,7 @@ function tabToPath(tab, param) {
   if (tab === 'Loyalty') return `${PATH_PREFIX}/loyalty`;
   if (tab === 'Landing') return `${PATH_PREFIX}/landing`;
   if (tab === 'Legal') return `${PATH_PREFIX}/legal`;
+  if (tab === 'OnboardingCMS') return `${PATH_PREFIX}/onboarding`;
   if (tab === 'Settings') return `${PATH_PREFIX}/settings`;
   if (tab === 'Login') return `${PATH_PREFIX}/login`;
   return `${PATH_PREFIX}/dashboard`;
@@ -255,6 +258,8 @@ export default function AdminApp() {
         return <LandingCmsView darkMode={darkMode} />;
       case 'Legal':
         return <SiteContentView darkMode={darkMode} />;
+      case 'OnboardingCMS':
+        return <OnboardingCmsView darkMode={darkMode} />;
       case 'Settings':
         return <SettingsView admin={admin} darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode} />;
       case 'NotFound':
