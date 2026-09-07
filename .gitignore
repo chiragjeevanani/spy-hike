@@ -33,7 +33,6 @@ dump/
 # Testing, Coverage & Reports
 coverage/
 **/coverage/
-.code-review-graph/
 test-results/
 **/test-results/
 playwright-report/
