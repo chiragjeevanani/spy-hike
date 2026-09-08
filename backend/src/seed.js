@@ -13,9 +13,17 @@ import Coupon from './models/Coupon.js';
 import { hashPassword } from './utils/password.js';
 import { slugify } from './utils/slug.js';
 import { provisionDepartures } from './services/inventoryService.js';
-// The frontend trip catalog is pure data (no JSX/asset imports), so the seed
-// imports it directly to stay in lock-step with what the app shipped.
-import { HIKING_TRIPS } from '../../frontend/src/modules/user/data/trips.js';
+
+// The legacy hardcoded trip catalog this seed used to mirror has since been
+// emptied out in favor of real organizer-submitted trips/treks (see
+// frontend/src/modules/user/data/trips.js — HIKING_TRIPS there is now `[]`).
+// Kept as a local empty array — not a cross-package import into `frontend/` —
+// because backend must be deployable as its own standalone package: a
+// backend-only build (e.g. Render, which builds this directory in isolation)
+// has no `frontend/` sibling on disk, and a top-level import reaching for one
+// crashes the process on every boot with ERR_MODULE_NOT_FOUND before the
+// server can even start listening.
+const HIKING_TRIPS = [];
 
 // Canonical, reconciled category set: the customer-facing list (with its
 // lucide icons) plus the organizer form's extra categories, unified so both

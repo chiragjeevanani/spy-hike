@@ -67,7 +67,7 @@ export const listOrganizers = asyncHandler(async (req, res) => {
 
 // POST /admin/organizers — admin adds a partner directly (already approved).
 export const createOrganizer = asyncHandler(async (req, res) => {
-  const { name, email, mobile, agencyName, agencyWebsite, socialMediaLink, govtIdType, govtIdNumber, yearsExperience, bio, password, approved } = req.body;
+  const { name, email, mobile, agencyName, agencyWebsite, socialMediaLink, govtIdType, govtIdNumber, govtIdImageUrl, yearsExperience, bio, password, approved } = req.body;
   if (!name || !email || !agencyName) throw ApiError.badRequest('name, email and agencyName are required');
 
   const idError = validateGovtId(govtIdType, govtIdNumber);
@@ -100,6 +100,7 @@ export const createOrganizer = asyncHandler(async (req, res) => {
     socialMediaLink: (socialMediaLink || '').trim(),
     govtIdType: govtIdType || 'Aadhaar',
     govtIdNumber: (govtIdNumber || '').trim(),
+    govtIdImageUrl: (govtIdImageUrl || '').trim(),
     yearsExperience: parseInt(yearsExperience) || 1,
     bio: (bio || '').trim(),
     isApproved,
@@ -120,6 +121,7 @@ export const updateOrganizer = asyncHandler(async (req, res) => {
   const org = user.organizer || {};
   const {
     name, agencyName, mobile, agencyWebsite, socialMediaLink,
+    govtIdType, govtIdNumber, govtIdImageUrl,
     yearsExperience, bio, coreCapabilities, supportEmail, supportPhone, headline, avatar,
   } = req.body;
 
@@ -129,6 +131,9 @@ export const updateOrganizer = asyncHandler(async (req, res) => {
   if (agencyName !== undefined) org.agencyName = agencyName;
   if (agencyWebsite !== undefined) org.agencyWebsite = agencyWebsite;
   if (socialMediaLink !== undefined) org.socialMediaLink = socialMediaLink;
+  if (govtIdType !== undefined) org.govtIdType = govtIdType;
+  if (govtIdNumber !== undefined) org.govtIdNumber = govtIdNumber;
+  if (govtIdImageUrl !== undefined) org.govtIdImageUrl = govtIdImageUrl;
   if (yearsExperience !== undefined) org.yearsExperience = Number(yearsExperience) || 1;
   if (bio !== undefined) org.bio = bio;
   if (coreCapabilities !== undefined) {

@@ -2,13 +2,14 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   ArrowLeft, Edit3, Save, X, Trash2, Ban, CheckCircle2, Mail, Phone, Star,
   Globe, FileBadge, Calendar, ShieldAlert, Users, IndianRupee, ExternalLink,
-  Compass, ChevronRight, MapPin, Crown, AlertCircle
+  Compass, ChevronRight, MapPin, Crown, AlertCircle, Upload, Loader2, ShieldQuestion
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import {
   getOrganizerByEmail, getTripsByOrganizerEmail, getBookingsByOrganizerEmail,
 } from '../utils/storage';
 import adminApi from '../../../lib/adminApi';
+import authApi from '../../../lib/authApi';
 import promotionsApi from '../../../lib/promotionsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
@@ -29,7 +30,7 @@ const slugify = (name) => (name || '').toLowerCase().trim().replace(/[^a-z0-9]+/
 
 const blankForm = {
   name: '', email: '', mobile: '', agencyName: '', agencyWebsite: '',
-  govtIdType: 'Aadhaar', govtIdNumber: '', yearsExperience: 1, bio: '',
+  govtIdType: 'Aadhaar', govtIdNumber: '', govtIdImageUrl: '', yearsExperience: 1, bio: '',
 };
 
 export default function AdminOrganizerProfileView({ email, onBack, onNavigateToOrganizer, onNavigateToUser, darkMode }) {
@@ -46,6 +47,7 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
     name: existingOrg.name || '', email: existingOrg.email || '', mobile: existingOrg.mobile || '',
     agencyName: existingOrg.agencyName || '', agencyWebsite: existingOrg.agencyWebsite || '',
     govtIdType: existingOrg.govtIdType || 'Aadhaar', govtIdNumber: existingOrg.govtIdNumber || '',
+    govtIdImageUrl: existingOrg.govtIdImageUrl || '',
     yearsExperience: existingOrg.yearsExperience || 1, bio: existingOrg.bio || '',
   } : blankForm);
 
@@ -67,6 +69,7 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
             agencyWebsite: found.agencyWebsite || '',
             govtIdType: found.govtIdType || 'Aadhaar',
             govtIdNumber: found.govtIdNumber || '',
+            govtIdImageUrl: found.govtIdImageUrl || '',
             yearsExperience: found.yearsExperience || 1,
             bio: found.bio || '',
           });
@@ -97,6 +100,43 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
   const [promoteDates, setPromoteDates] = useState({ startDate: '', endDate: '' });
   const [promoteError, setPromoteError] = useState('');
   const [promoting, setPromoting] = useState(false);
+  const [docUploading, setDocUploading] = useState(false);
+  const [docError, setDocError] = useState('');
+
+  // Lets the admin add or replace the organizer's ID document photo (the
+  // original applicant may not have uploaded one, or uploaded a bad scan).
+  // Same Cloudinary-URL pattern as every other image upload in the app.
+  const handleDocUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setDocError('Please upload an image file (JPG or PNG).');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setDocError('Maximum file size is 8MB.');
+      return;
+    }
+    setDocError('');
+    setDocUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await authApi.uploadImage(reader.result);
+        setForm(p => ({ ...p, govtIdImageUrl: res?.url || '' }));
+      } catch (err) {
+        setDocError(err?.message || 'Could not upload the document. Please try again.');
+      } finally {
+        setDocUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setDocUploading(false);
+      setDocError('Could not read that file. Please try again.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Real trips/bookings from the backend when signed in; localStorage seed
   // data otherwise (offline / no backend) — mirrors the pattern used above
@@ -376,6 +416,29 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
                   </div>
                 </div>
                 <div>
+                  <label className={labelCls}>ID Document Photo</label>
+                  {form.govtIdImageUrl ? (
+                    <div className={`flex items-center gap-3 p-2.5 rounded-xl border ${darkMode ? 'border-slate-800 bg-slate-900/40' : 'border-slate-200 bg-slate-50'}`}>
+                      <img src={form.govtIdImageUrl} alt="ID document" className="w-11 h-11 rounded-lg object-cover shrink-0 border border-black/5" />
+                      <a href={form.govtIdImageUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-[#F27D26] hover:underline flex items-center gap-1">
+                        View Full Size <ExternalLink size={11} />
+                      </a>
+                      <button type="button" onClick={() => setForm(p => ({ ...p, govtIdImageUrl: '' }))} className="ml-auto p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={`w-full px-3.5 py-3 border border-dashed rounded-xl flex items-center gap-2 cursor-pointer text-xs font-semibold ${
+                      darkMode ? 'border-slate-800 text-slate-400 hover:border-[#F27D26]/40' : 'border-slate-200 text-slate-500 hover:border-[#F27D26]/40'
+                    }`}>
+                      {docUploading ? <Loader2 size={14} className="text-[#F27D26] shrink-0 animate-spin" /> : <Upload size={14} className="text-[#F27D26] shrink-0" />}
+                      {docUploading ? 'Uploading...' : 'Upload ID document photo'}
+                      <input type="file" accept="image/*" className="hidden" disabled={docUploading} onChange={handleDocUpload} />
+                    </label>
+                  )}
+                  {docError && <p className="text-[10px] font-bold text-rose-500 mt-1">{docError}</p>}
+                </div>
+                <div>
                   <label className={labelCls}>Years Experience</label>
                   <input type="number" className={inputCls} value={form.yearsExperience} onChange={e => setForm(p => ({ ...p, yearsExperience: e.target.value }))} />
                 </div>
@@ -414,6 +477,30 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
                   </a>
                 )}
                 <div className="flex items-center gap-2.5"><FileBadge size={13} className="text-[#F27D26] shrink-0" /> {existingOrg.govtIdType}: {existingOrg.govtIdNumber}</div>
+
+                {/* ID document photo the organizer uploaded at registration —
+                    the thing missing from the "Organizer Application" review
+                    screen before this. */}
+                {existingOrg.govtIdImageUrl ? (
+                  <a
+                    href={existingOrg.govtIdImageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all hover:border-[#F27D26]/40 ${darkMode ? 'border-slate-800 bg-slate-900/40' : 'border-slate-200 bg-slate-50'}`}
+                  >
+                    <img src={existingOrg.govtIdImageUrl} alt={`${existingOrg.govtIdType} document`} className="w-14 h-14 rounded-lg object-cover shrink-0 border border-black/5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">{existingOrg.govtIdType} Document</p>
+                      <p className="text-[10px] text-slate-400 font-semibold">Uploaded at registration</p>
+                    </div>
+                    <ExternalLink size={14} className="text-[#F27D26] shrink-0" />
+                  </a>
+                ) : (
+                  <div className={`flex items-center gap-2.5 p-2.5 rounded-xl border border-dashed text-[11px] font-semibold ${darkMode ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'}`}>
+                    <ShieldQuestion size={14} className="shrink-0" /> No ID document photo was uploaded with this application.
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2.5"><Calendar size={13} className="text-[#F27D26] shrink-0" /> {existingOrg.yearsExperience} yrs experience</div>
                 <div className="flex items-center gap-2.5"><Star size={13} className="text-amber-400 fill-amber-400 shrink-0" /> {existingOrg.rating > 0 ? existingOrg.rating.toFixed(1) : 'No ratings yet'}</div>
               </div>

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, ChevronLeft, ArrowLeft, Globe, Instagram, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight, AlertCircle, ChevronRight, ChevronLeft, ArrowLeft, Globe, Instagram, ShieldCheck, CheckCircle2, Upload, Loader2, X } from 'lucide-react';
 import { saveOrgUser } from '../utils/storage';
 import authApi from '../../../lib/authApi';
 import usePhoneVerification from '../../../lib/usePhoneVerification';
@@ -71,6 +71,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     socialMediaLink: '',
     govtIdType: 'Aadhaar',
     govtIdNumber: '',
+    govtIdImageUrl: '',
     yearsExperience: '',
     bio: '',
   });
@@ -78,6 +79,9 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [docFileName, setDocFileName] = useState('');
+  const [docUploading, setDocUploading] = useState(false);
+  const [docError, setDocError] = useState('');
   const [step, setStep] = useState(1); // registration multi-step: 1=personal, 2=agency, 3=verification
   // Phone OTP verification — required in step 1 before advancing.
   const phoneVerify = usePhoneVerification(formData.mobile);
@@ -111,6 +115,50 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
     setFormData(prev => ({ ...prev, [field]: val }));
     setError('');
     setFieldErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  // Uploads the photographed ID document to Cloudinary (same pattern as the
+  // avatar upload — see ProfileSetup.jsx) and stores the resulting URL, not
+  // the file itself, in formData.govtIdImageUrl.
+  const handleDocUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // let the same file be re-picked after a failed upload
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setDocError('Please upload an image of your ID (JPG or PNG) — PDFs aren\'t supported yet.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setDocError('Maximum file size is 8MB.');
+      return;
+    }
+    setDocError('');
+    setDocUploading(true);
+    setDocFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await authApi.uploadImage(reader.result);
+        setFormData(prev => ({ ...prev, govtIdImageUrl: res?.url || '' }));
+      } catch (err) {
+        setDocError(err?.message || 'Could not upload the document. Please try again.');
+        setDocFileName('');
+      } finally {
+        setDocUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setDocUploading(false);
+      setDocFileName('');
+      setDocError('Could not read that file. Please try again.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeDoc = () => {
+    setFormData(prev => ({ ...prev, govtIdImageUrl: '' }));
+    setDocFileName('');
+    setDocError('');
   };
 
   const fail = (errors, order) => {
@@ -254,6 +302,7 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
         socialMediaLink: cleanSocial,
         govtIdType: formData.govtIdType,
         govtIdNumber: formData.govtIdNumber,
+        govtIdImageUrl: formData.govtIdImageUrl,
         yearsExperience: parseInt(formData.yearsExperience) || 1,
         bio: formData.bio,
       });
@@ -451,6 +500,32 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
               <FieldError field="govtIdNumber" />
             </div>
           </div>
+
+          <div>
+            <label className={labelCls}>ID Document Photo (Optional)</label>
+            {formData.govtIdImageUrl ? (
+              <div className={`flex items-center gap-3 p-2.5 rounded-2xl border ${darkMode ? 'border-white/10 bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50'}`}>
+                <img src={formData.govtIdImageUrl} alt="ID document" className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold truncate">{docFileName || 'Document uploaded'}</p>
+                  <p className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1"><CheckCircle2 size={12} /> Ready for review</p>
+                </div>
+                <button type="button" onClick={removeDoc} className={`p-1.5 rounded-lg shrink-0 cursor-pointer ${darkMode ? 'text-zinc-400 hover:bg-white/10' : 'text-zinc-500 hover:bg-zinc-200'}`}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className={`w-full px-3.5 py-3.5 border border-dashed rounded-2xl flex items-center gap-2.5 cursor-pointer text-xs transition ${
+                darkMode ? 'bg-zinc-950/40 border-white/15 text-zinc-400 hover:border-spy-orange/50' : 'bg-zinc-50 border-zinc-300 text-zinc-500 hover:border-spy-orange/60'
+              }`}>
+                {docUploading ? <Loader2 size={16} className="text-spy-orange shrink-0 animate-spin" /> : <Upload size={16} className="text-spy-orange shrink-0" />}
+                <span className="truncate">{docUploading ? `Uploading ${docFileName}...` : 'Upload a photo of your ID document'}</span>
+                <input type="file" accept="image/*" className="hidden" disabled={docUploading} onChange={handleDocUpload} />
+              </label>
+            )}
+            {docError && <p className="text-[11px] font-semibold text-rose-500 mt-1.5">{docError}</p>}
+          </div>
+
           <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
             By registering, you agree to Find Your Trek's Partner Terms of Service. All ID information is encrypted and secure.
           </p>
