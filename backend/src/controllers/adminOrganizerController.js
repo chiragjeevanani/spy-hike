@@ -56,7 +56,13 @@ export const listOrganizers = asyncHandler(async (req, res) => {
   }
 
   const organizers = await User.find(filter).sort({ createdAt: -1 });
-  res.json({ organizers: organizers.map((o) => o.toOrganizerJSON()) });
+  // Currently-promoted organizers lead the roster — same priority they get
+  // everywhere else. Stable JS sort (not a Mongo-level one, since "promoted"
+  // depends on comparing to *now*, not a static field) preserves the
+  // newest-first order within each group.
+  const json = organizers.map((o) => o.toOrganizerJSON());
+  json.sort((a, b) => Number(b.isPromoted) - Number(a.isPromoted));
+  res.json({ organizers: json });
 });
 
 // POST /admin/organizers — admin adds a partner directly (already approved).

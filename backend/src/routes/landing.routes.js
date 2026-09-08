@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getPublicLandingContent } from '../controllers/landingController.js';
 import { getPublicSiteContent } from '../controllers/contentController.js';
 import { getPublicOnboardingContent } from '../controllers/onboardingController.js';
+import { getPublicBanners } from '../controllers/promotionalBannerController.js';
 import { cached, TTL } from '../lib/cache.js';
 
 const router = Router();
@@ -11,6 +12,7 @@ const router = Router();
 router.get('/landing-content', cached(() => 'content:landing', TTL.content), getPublicLandingContent);
 router.get('/site-content', cached(() => 'content:site', TTL.content), getPublicSiteContent);
 router.get('/onboarding-content', cached(() => 'content:onboarding', TTL.content), getPublicOnboardingContent);
+router.get('/promotional-banners', cached(() => 'content:banners', TTL.content), getPublicBanners);
 
 export default router;
 

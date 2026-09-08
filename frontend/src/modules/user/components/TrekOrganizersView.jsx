@@ -10,6 +10,8 @@ import {
   Clock, Milestone, Heart, Sparkles, X, Check, Bus, ChevronLeft, ChevronRight, Mountain
 } from 'lucide-react';
 import { durationRange, distanceRange, nightsRange } from '../../../utils/rangeFormat';
+import { isPromotedNow } from '../../../utils/promotion';
+import PromotedBadge, { PROMOTED_RING_CLASS } from '../../../components/PromotedBadge';
 
 // Boarding cities this organizer picks travellers up from, each with its own
 // per-person price where the organizer has set one; older records without
@@ -145,6 +147,13 @@ export default function TrekOrganizersView({
     } else if (sortOption === 'Popular') {
       result.sort((a, b) => b.reviewsCount - a.reviewsCount);
     }
+
+    // Currently-promoted organizers always lead, regardless of the chosen
+    // sort — a stable sort (Array#sort in every modern engine) keeps the
+    // ordering just established within each tier.
+    result.sort((a, b) => (
+      Number(isPromotedNow(b.organizer?.promotedUntil)) - Number(isPromotedNow(a.organizer?.promotedUntil))
+    ));
 
     return result;
   }, [offers, searchQuery, verifiedOnly, selectedFilterDate, sortOption]);
@@ -591,6 +600,7 @@ export default function TrekOrganizersView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredOffers.map((offer, idx) => {
                 const isSaved = wishlist.includes(offer.id);
+                const isPromoted = isPromotedNow(offer.organizer?.promotedUntil);
                 const pObj = offer.pickup || (offer.pickupOptions?.[0]) || (offer.pickupPoints?.length ? { location: offer.pickupPoints[0], price: null } : null);
                 const pickupLoc = pObj?.location || offer.city || (offer.location ? offer.location.split(',')[0] : 'Base Camp');
                 const pickupPrice = pObj?.price != null ? `₹${pObj.price}` : null;
@@ -605,9 +615,14 @@ export default function TrekOrganizersView({
                     transition={{ delay: Math.min(idx * 0.05, 0.25), duration: 0.2 }}
                     whileHover={{ y: -2, scale: 1.005 }}
                     className={`p-3 rounded-2xl cursor-pointer active:scale-[0.99] transition relative ${
+                      isPromoted ? PROMOTED_RING_CLASS : ''
+                    } ${
                       darkMode ? 'bg-zinc-900 hover:bg-zinc-900/80' : 'bg-white shadow-xs hover:shadow-sm'
                     }`}
                   >
+                    {isPromoted && (
+                      <PromotedBadge className="absolute -top-2 left-3 z-10" />
+                    )}
                     <button
                       id={`btn-toggle-wishlist-offer-${offer.id}`}
                       onClick={(e) => { e.stopPropagation(); onToggleWishlist(offer.id); }}

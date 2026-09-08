@@ -41,6 +41,10 @@ const tripSchema = new mongoose.Schema(
       avatar: String,
       rating: Number,
       verified: Boolean,
+      // Snapshotted from User.organizer.promotedUntil (see utils/promotion.js)
+      // so listing/sort queries never need to join User. Kept current by
+      // promotionService's bulk sync whenever an admin promotes/unpromotes.
+      promotedUntil: Date,
     },
     name: { type: String, required: true },
     location: { type: String, required: true },

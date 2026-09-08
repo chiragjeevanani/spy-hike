@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import apiRoutes from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { cacheInvalidate } from './lib/cache.js';
+import { RAZORPAY_WEBHOOK_PATH } from './integrations/payments.js';
 
 // Which cached prefixes a successful write can invalidate. Applied centrally
 // rather than per-controller: a mutation route added later is covered by
@@ -17,7 +18,13 @@ const INVALIDATION_MAP = [
   // Booking or cancelling moves seat counts, which ride along on trip records.
   [/\/bookings/, ['trips']],
   [/\/categories/, ['categories', 'trips']],
-  [/\/(landing|site|onboarding)-content/, ['content']],
+  [/\/(landing|site|onboarding)-content|\/promotional-banners/, ['content']],
+  // Promoting/unpromoting an organizer (directly or via a request approval)
+  // rewrites the `organizer.promotedUntil` snapshot on every trip they've
+  // posted — the same cached "trips" prefix those trips' list/offer pages
+  // live under.
+  [/\/organizers\/[^/]+\/(un)?promote/, ['trips']],
+  [/\/promotion-requests/, ['trips']],
 ];
 
 const prefixesFor = (path) =>
@@ -39,11 +46,25 @@ export function createApp() {
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: '50mb' })); // base64 image uploads can be large
+  // Razorpay signs the EXACT bytes it sends, so the webhook route needs the
+  // raw buffer — re-serialising the parsed body will not reproduce it (key
+  // order, whitespace) and every signature check would fail. `verify` runs
+  // before the JSON is parsed, which is the only hook that still sees them.
+  // Kept narrow: no other route pays the cost of retaining its body.
+  app.use(express.json({
+    limit: '50mb', // base64 image uploads can be large
+    verify: (req, _res, buf) => {
+      if (req.originalUrl.split('?')[0] === RAZORPAY_WEBHOOK_PATH) req.rawBody = buf;
+    },
+  }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.use(async (req, res, next) => {
-    if (req.path.startsWith('/api/v1/admin') || req.path.includes('/admin')) {
+    // Admins still need in during maintenance, and so do gateway callbacks: a
+    // 503 to Razorpay is a delivery failure, and a payment that was taken but
+    // never confirmed here is the worst outcome maintenance mode can produce.
+    if (req.path.startsWith('/api/v1/admin') || req.path.includes('/admin')
+      || req.path === RAZORPAY_WEBHOOK_PATH) {
       return next();
     }
     try {

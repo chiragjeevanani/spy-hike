@@ -1,6 +1,6 @@
 import User from '../models/User.js';
 import Trip from '../models/Trip.js';
-import Booking from '../models/Booking.js';
+import Booking, { SETTLED_BOOKING_FILTER } from '../models/Booking.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const round = (n) => Math.round(n || 0);
@@ -17,7 +17,10 @@ export const getAnalytics = asyncHandler(async (req, res) => {
     User.find().select('status createdAt'),
     User.find({ isOrganizer: true }).select('name organizer.isApproved organizer.isPendingApproval createdAt'),
     Trip.find().select('category state createdAt name'),
-    Booking.find().select('finalAmount commissionAmount status userName tripName organizerName bookingDate createdAt'),
+    // An unpaid checkout is not revenue, so it is left out of GMV, commission
+    // and every series below.
+    Booking.find(SETTLED_BOOKING_FILTER)
+      .select('finalAmount commissionAmount status userName tripName organizerName bookingDate createdAt'),
   ]);
 
   const active = bookings.filter((b) => b.status !== 'Cancelled');

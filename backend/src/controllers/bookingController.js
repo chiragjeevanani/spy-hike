@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import Booking from '../models/Booking.js';
+import Booking, { SETTLED_BOOKING_FILTER } from '../models/Booking.js';
 import Trip from '../models/Trip.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -8,14 +8,15 @@ import { makeBookingId } from '../utils/slug.js';
 import { computeBookingPricing } from '../services/pricingService.js';
 import { reserveSeats, releaseSeats } from '../services/inventoryService.js';
 import { computeRefund } from '../services/refundService.js';
-import { redeemCoupon } from '../services/couponService.js';
+import { redeemCoupon, releaseCouponRedemption } from '../services/couponService.js';
 import { validateTravelers } from '../utils/travelerValidation.js';
-import {
-  getAvailableVoucher, markVoucherUsed, syncCustomerVouchers, syncOrganizerVouchers,
-} from '../services/loyaltyService.js';
+import { getAvailableVoucher, markVoucherUsed } from '../services/loyaltyService.js';
 import { notifyCustomer, notifyOrganizer } from '../services/notificationService.js';
-import { findOrCreateChat } from './chatController.js';
-import { paymentProvider } from '../integrations/payments.js';
+import { finalizeConfirmedBooking } from '../services/bookingFinalizeService.js';
+import {
+  resolvePaymentMode, publicPaymentConfig, markPayOnArrival, startBookingPayment,
+  refundBookingPayment, releasePendingBooking, expireStalePayments,
+} from '../services/paymentService.js';
 import { autoResolveBookingStatuses } from '../utils/bookingStatusHelper.js';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -62,7 +63,9 @@ async function withOrganizers(bookings) {
 }
 
 // Match a booking by either its human bookingId ("TG-…") or its ObjectId.
-const idMatch = (id) => {
+// Exported so the payment routes address bookings the same way the ticket
+// screen does, rather than growing a second, subtly different matcher.
+export const idMatch = (id) => {
   const or = [{ bookingId: id }];
   if (mongoose.isValidObjectId(id)) or.push({ _id: id });
   return { $or: or };
@@ -77,13 +80,25 @@ async function nextBookingId() {
 }
 
 // POST /bookings — customer checkout. Computes pricing authoritatively,
-// reserves the departure seats atomically, runs the (stubbed) payment, and
-// persists the booking with the money snapshot. Seats are released if any
-// later step fails (compensation — the single-node test DB has no multi-doc
-// transactions, and the guarded $inc already prevents oversell).
+// reserves the departure seats atomically, and persists the booking with the
+// money snapshot. Seats are released if any later step fails (compensation —
+// the single-node test DB has no multi-doc transactions, and the guarded $inc
+// already prevents oversell).
+//
+// Two endings, decided by resolvePaymentMode():
+//   'arrival' — the booking is confirmed here and now, exactly as before.
+//   'online'  — a Razorpay order is opened and the booking is returned in a
+//               pending state holding its seats. It only becomes real when the
+//               money lands, via the webhook or the browser handshake; if it
+//               never does, expireStalePayments() gives everything back.
 export const createBooking = asyncHandler(async (req, res) => {
   const { tripId, selectedDate, travelers = [], couponCode, useLoyaltyReward } = req.body;
   const selections = req.body.selections || req.body.travelerBreakdown || [];
+
+  // Reclaim seats still held by abandoned checkouts before deciding this
+  // booking can't have any — otherwise a busy departure stays "full" for the
+  // length of the hold. Same lazy-sweep pattern as autoResolveBookingStatuses.
+  await expireStalePayments();
 
   const trip = await Trip.findById(tripId);
   if (!trip) throw ApiError.notFound('Trip not found');
@@ -110,6 +125,9 @@ export const createBooking = asyncHandler(async (req, res) => {
     throw ApiError.conflict('Not enough seats left on this departure date');
   }
 
+  let voucherReserved = false;
+  let couponRedeemed = false;
+
   try {
     // Traveler details feed a real trek's emergency permits and safety
     // register — validate them for real (not just trust whatever the client
@@ -124,22 +142,13 @@ export const createBooking = asyncHandler(async (req, res) => {
     if (pricing.couponId) {
       const redeemed = await redeemCoupon(pricing.couponId);
       if (!redeemed) throw ApiError.conflict('This coupon just reached its redemption limit — please remove it and try again.');
+      couponRedeemed = true;
     }
 
-    // -------------------------------------------------------------------------
-    // Razorpay Integration (Disabled for Pay on Arrival)
-    // Uncomment the lines below when re-enabling online Razorpay gateway checkout.
-    // -------------------------------------------------------------------------
-    /*
-    const order = await paymentProvider.createOrder({ amount: pricing.finalAmount, receipt: tripId });
-    const payment = await paymentProvider.verifyPayment({ orderId: order.id });
-    if (!payment.verified) throw ApiError.badRequest('Payment could not be verified');
-    const paymentRef = payment.paymentRef;
-    */
-    const paymentRef = `POA_${Date.now()}`;
-
     const { couponId, ...pricingFields } = pricing;
-    const booking = await Booking.create({
+    // Built but not yet saved: in the online flow the Razorpay order has to be
+    // created first, so that a gateway failure leaves no orphan booking behind.
+    const booking = new Booking({
       bookingId: await nextBookingId(),
       tripId: trip._id,
       tripName: trip.name,
@@ -154,65 +163,91 @@ export const createBooking = asyncHandler(async (req, res) => {
       bookingDate: todayStr(),
       selectedDate,
       travelers,
-      paymentRef,
       status: 'Upcoming',
       ...pricingFields,
     });
 
-    // Bump the organizer's lifetime booking count (backs loyalty progress).
-    if (trip.organizerEmail) {
-      await User.updateOne(
-        { email: trip.organizerEmail, isOrganizer: true },
-        { $inc: { 'organizer.totalBookings': 1 } },
-      );
-    }
+    // Spends the loyalty voucher, in both modes. It is a claim on a scarce
+    // reward exactly like the coupon slot above: leaving it available while an
+    // online payment is pending would let the same free booking be redeemed
+    // twice in two open checkout tabs. The catch below, and the expiry sweep,
+    // both hand it back if the booking never completes.
+    //
+    // Called only once the booking is persisted, never before: a reward cycle
+    // starts at the moment its voucher was used, so a voucher stamped ahead of
+    // its own booking would let that booking count toward the next reward too.
+    const spendVoucher = async () => {
+      if (!loyaltyVoucher) return;
+      await markVoucherUsed(loyaltyVoucher, booking.bookingId);
+      voucherReserved = true;
+    };
 
-    // Consume the redeemed loyalty voucher, then mint any newly-earned
-    // milestone vouchers for both the customer and the organizer.
-    if (loyaltyVoucher) await markVoucherUsed(loyaltyVoucher, booking.bookingId);
-    await syncCustomerVouchers(booking.userEmail);
-    if (trip.organizerEmail) await syncOrganizerVouchers(trip.organizerEmail);
-
-    // Notify both sides and seed an organizer welcome chat (context.md §7).
-    await notifyCustomer(booking.userEmail, {
-      title: '⛰️ Permit Slot Secured!',
-      content: `Your pass to ${trip.name} is active for ${selectedDate}. Booking ID: ${booking.bookingId}`,
-      type: 'Booking',
-    });
-    if (trip.organizerEmail) {
-      await notifyOrganizer(trip.organizerEmail, {
-        title: '🎒 New Booking Received',
-        content: `${booking.userName} booked ${trip.name} (${booking.travelersCount} traveler${booking.travelersCount === 1 ? '' : 's'}) for ${selectedDate}.`,
-        type: 'Booking',
+    if (resolvePaymentMode() === 'online') {
+      // Creates the order, stamps the pending payment onto the booking, and
+      // saves it. Nothing is persisted if Razorpay rejects the order.
+      const order = await startBookingPayment(booking);
+      await spendVoucher();
+      return res.status(201).json({
+        booking: await withOrganizers(booking),
+        // Everything the browser needs to open Checkout against this booking.
+        payment: {
+          required: true,
+          provider: 'razorpay',
+          keyId: publicPaymentConfig().keyId,
+          orderId: order.id,
+          amount: order.amount, // paise, as Checkout expects
+          currency: order.currency,
+          expiresAt: booking.payment.expiresAt,
+        },
       });
-      const chat = await findOrCreateChat({ trip, userEmail: booking.userEmail, userName: booking.userName });
-      if (chat.messages.length === 0) {
-        chat.messages.push({
-          sender: 'organizer',
-          text: `Hi ${booking.userName?.split(' ')[0] || 'there'}! Thanks for booking ${trip.name}. We'll share prep details soon — reach out any time.`,
-          timestamp: new Date(),
-        });
-        await chat.save();
-      }
     }
+
+    // Pay on Arrival: nothing to collect, so the booking is confirmed inline.
+    markPayOnArrival(booking);
+    await booking.save();
+    await spendVoucher();
+    await finalizeConfirmedBooking(booking, { trip });
 
     // Same shape the ticket screen reads back from GET /bookings/:id.
-    res.status(201).json({ booking: await withOrganizers(booking) });
+    res.status(201).json({
+      booking: await withOrganizers(booking),
+      payment: { required: false, provider: 'arrival' },
+    });
   } catch (err) {
-    // Compensate: hand the seats back so a failed booking doesn't leak them.
+    // Compensate: hand back everything this booking claimed, so a failure
+    // leaks neither seats, nor a coupon redemption, nor the customer's
+    // hard-earned free booking.
     await releaseSeats(trip._id, selectedDate, pricing.travelersCount);
+    if (couponRedeemed) {
+      await releaseCouponRedemption({ code: pricing.couponUsed, organizerEmail: trip.organizerEmail })
+        .catch(() => {});
+    }
+    if (voucherReserved) {
+      loyaltyVoucher.status = 'available';
+      loyaltyVoucher.usedRef = null;
+      loyaltyVoucher.usedAt = null;
+      await loyaltyVoucher.save().catch(() => {});
+    }
     throw err;
   }
 });
 
 // GET /bookings — the signed-in customer's own bookings.
+//
+// A booking whose online payment is still pending (or was abandoned) is left
+// out: it isn't a trip the customer has, and showing it as "Upcoming" next to
+// paid bookings would be a lie. The one place it IS returned is the checkout
+// response and the payment-status endpoint, which is where it's needed.
 export const listMyBookings = asyncHandler(async (req, res) => {
   await autoResolveBookingStatuses();
-  const bookings = await Booking.find({ userEmail: req.user.email }).sort({ createdAt: -1 });
+  const bookings = await Booking.find({ userEmail: req.user.email, ...SETTLED_BOOKING_FILTER })
+    .sort({ createdAt: -1 });
   res.json({ bookings: await withOrganizers(bookings) });
 });
 
 // GET /bookings/:id — one of the customer's bookings (by bookingId or _id).
+// Unlike the list, this serves a pending booking too, so the checkout screen
+// can keep showing the one it is in the middle of paying for.
 export const getMyBooking = asyncHandler(async (req, res) => {
   await autoResolveBookingStatuses();
   const booking = await Booking.findOne({ userEmail: req.user.email, ...idMatch(req.params.id) });
@@ -231,6 +266,17 @@ export const cancelBooking = asyncHandler(async (req, res) => {
     throw ApiError.badRequest(`A ${booking.status.toLowerCase()} booking cannot be cancelled`);
   }
 
+  // Backing out of a checkout that was never paid for isn't a cancellation
+  // under the refund policy — there's no money to return. Release the hold and
+  // give the coupon and loyalty voucher straight back instead.
+  if (booking.payment?.status === 'pending') {
+    const released = await releasePendingBooking(booking, {
+      reason: 'Cancelled by the customer before payment',
+      notify: false,
+    });
+    return res.json({ booking: await withOrganizers(released || booking) });
+  }
+
   const { refundAmount, refundPercent } = await computeRefund(booking.finalAmount, booking.selectedDate);
   booking.status = 'Cancelled';
   booking.refundAmount = refundAmount;
@@ -240,6 +286,19 @@ export const cancelBooking = asyncHandler(async (req, res) => {
 
   // Return the seats to the departure inventory.
   await releaseSeats(booking.tripId, booking.selectedDate, booking.travelersCount);
+
+  // Push the policy refund back through Razorpay for an online booking. A
+  // gateway failure must not cost the customer their cancellation, so it is
+  // recorded and left for an admin to retry rather than thrown: the booking is
+  // already cancelled and the seats are already back in inventory.
+  if (refundAmount > 0 && booking.payment?.method === 'razorpay') {
+    try {
+      const result = await refundBookingPayment(booking, { amount: refundAmount, reason: 'Customer cancellation' });
+      if (!result.refunded) console.warn(`[payments] refund skipped for ${booking.bookingId}: ${result.reason}`);
+    } catch (err) {
+      console.error(`[payments] refund failed for ${booking.bookingId}:`, err);
+    }
+  }
 
   await notifyCustomer(booking.userEmail, {
     title: '⚠️ Booking Cancelled',
@@ -262,7 +321,10 @@ export const cancelBooking = asyncHandler(async (req, res) => {
 // GET /organizer/bookings — bookings for the approved organizer's trips.
 export const listOrganizerBookings = asyncHandler(async (req, res) => {
   await autoResolveBookingStatuses();
-  const bookings = await Booking.find({ organizerEmail: req.organizer.email }).sort({ createdAt: -1 });
+  // Unpaid checkouts aren't sales — an organizer should never see (or plan
+  // for, or be paid on) a seat someone abandoned at the payment screen.
+  const bookings = await Booking.find({ organizerEmail: req.organizer.email, ...SETTLED_BOOKING_FILTER })
+    .sort({ createdAt: -1 });
   res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
 });
 
@@ -331,10 +393,15 @@ export const redeemOrganizerReward = asyncHandler(async (req, res) => {
   res.json({ booking: booking.toPublicJSON() });
 });
 
-// GET /admin/bookings — all bookings.
+// GET /admin/bookings?includeUnpaid=true — all bookings. Unpaid checkouts are
+// excluded by default so the admin list matches what everyone else sees, but
+// admins can ask for them: an abandoned or half-settled payment is exactly the
+// thing support needs to look at.
 export const listAllBookings = asyncHandler(async (req, res) => {
   await autoResolveBookingStatuses();
-  const bookings = await Booking.find().sort({ createdAt: -1 });
+  const includeUnpaid = String(req.query.includeUnpaid) === 'true';
+  const filter = includeUnpaid ? {} : { ...SETTLED_BOOKING_FILTER };
+  const bookings = await Booking.find(filter).sort({ createdAt: -1 });
   res.json({ bookings: bookings.map((b) => b.toPublicJSON()) });
 });
 

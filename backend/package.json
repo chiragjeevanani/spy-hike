@@ -21,6 +21,7 @@
     "firebase-admin": "^12.7.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
+    "razorpay": "^2.9.8",
     "redis": "^4.7.1"
   },
   "devDependencies": {

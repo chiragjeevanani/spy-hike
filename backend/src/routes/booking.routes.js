@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createBooking, listMyBookings, getMyBooking, cancelBooking } from '../controllers/bookingController.js';
+import {
+  getPaymentConfig, verifyBookingPayment, retryBookingPayment, getBookingPaymentStatus,
+} from '../controllers/paymentController.js';
 import { createReview, listMyReviews } from '../controllers/reviewController.js';
 import { getWishlist, setWishlist } from '../controllers/wishlistController.js';
 import {
@@ -22,6 +25,13 @@ router.post('/bookings', ...customerOnly, createBooking);
 router.get('/bookings', ...customerOnly, listMyBookings);
 router.get('/bookings/:id', ...customerOnly, getMyBooking);
 router.post('/bookings/:id/cancel', ...customerOnly, cancelBooking);
+
+// Online payment (Razorpay). Inert while PAYMENT_MODE is 'arrival' — the config
+// endpoint reports mode 'arrival' and the client never opens Checkout.
+router.get('/payments/config', ...customerOnly, getPaymentConfig);
+router.get('/bookings/:id/payment', ...customerOnly, getBookingPaymentStatus);
+router.post('/bookings/:id/payment/verify', ...customerOnly, verifyBookingPayment);
+router.post('/bookings/:id/payment/retry', ...customerOnly, retryBookingPayment);
 router.post('/bookings/:bookingId/review', ...customerOnly, createReview);
 router.get('/reviews/mine', ...customerOnly, listMyReviews);
 
