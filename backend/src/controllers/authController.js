@@ -370,7 +370,7 @@ export const uploadImage = asyncHandler(async (req, res) => {
 export const registerOrganizer = asyncHandler(async (req, res) => {
   const {
     name, email, password, mobile, agencyName, agencyWebsite, socialMediaLink,
-    govtIdType, govtIdNumber, yearsExperience, bio, phoneToken,
+    govtIdType, govtIdNumber, govtIdImageUrl, yearsExperience, bio, phoneToken,
   } = req.body;
   if (!name || !email || !password || !agencyName) {
     throw ApiError.badRequest('name, email, password and agencyName are required');
@@ -418,6 +418,7 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
     socialMediaLink: formattedSocialLink,
     govtIdType: govtIdType || 'Aadhaar',
     govtIdNumber: (govtIdNumber || '').trim(),
+    govtIdImageUrl: (govtIdImageUrl || '').trim(),
     yearsExperience: parseInt(yearsExperience) || 1,
     bio: (bio || '').trim(),
     isApproved: false,
@@ -432,7 +433,7 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
 // Uses the customer's existing passwordHash — no re-entry needed.
 export const applyAsOrganizer = asyncHandler(async (req, res) => {
   const { sub } = req.user;
-  const { agencyName, agencyWebsite, socialMediaLink, govtIdType, govtIdNumber, yearsExperience, bio } = req.body;
+  const { agencyName, agencyWebsite, socialMediaLink, govtIdType, govtIdNumber, govtIdImageUrl, yearsExperience, bio } = req.body;
 
   if (!agencyName || !agencyName.trim()) throw ApiError.badRequest('agencyName is required');
 
@@ -463,6 +464,7 @@ export const applyAsOrganizer = asyncHandler(async (req, res) => {
     socialMediaLink: formattedSocialLink,
     govtIdType: govtIdType || 'Aadhaar',
     govtIdNumber: (govtIdNumber || '').trim(),
+    govtIdImageUrl: (govtIdImageUrl || '').trim(),
     yearsExperience: parseInt(yearsExperience) || 1,
     bio: (bio || '').trim(),
     isApproved: false,

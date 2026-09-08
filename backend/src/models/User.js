@@ -27,6 +27,11 @@ const organizerSubSchema = new mongoose.Schema(
       default: 'Aadhaar',
     },
     govtIdNumber:      { type: String, default: '' },
+    // Photo of the physical ID/license itself, uploaded at registration —
+    // a Cloudinary URL (see POST /auth/upload), never a base64 blob. Optional:
+    // an organizer can still apply without one, but the admin review screen
+    // has nothing to show until they do.
+    govtIdImageUrl:    { type: String, default: '' },
     yearsExperience:   { type: Number, default: 1 },
     bio:               { type: String, default: '' },
     coreCapabilities:  { type: [String], default: [] },
@@ -169,6 +174,7 @@ userSchema.methods.toOrganizerJSON = function toOrganizerJSON() {
     socialMediaLink:  org.socialMediaLink || '',
     govtIdType:       org.govtIdType      || 'Aadhaar',
     govtIdNumber:     org.govtIdNumber    || '',
+    govtIdImageUrl:   org.govtIdImageUrl  || '',
     yearsExperience:  org.yearsExperience ?? 1,
     bio:              org.bio             || '',
     coreCapabilities: org.coreCapabilities || [],

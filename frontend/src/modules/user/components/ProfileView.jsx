@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Shield, Landmark, Flame, Compass, Bell, Globe, KeyRound, HelpCircle,
   ChevronRight, ArrowLeft, Heart, Star, MessageSquare, AlertCircle, Info, ShieldAlert, Send, Sparkles, X, Check, Award, Sun, Moon,
-  Building2, CreditCard, Upload, Gift, FileText, Phone, Mail, UserX, Clock, RefreshCw
+  Building2, CreditCard, Upload, Gift, FileText, Phone, Mail, UserX, Clock, RefreshCw, Loader2, CheckCircle2
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
@@ -244,10 +244,12 @@ export default function ProfileView({
   // Become an Organizer flow
   const [orgForm, setOrgForm] = useState({
     agencyName: '', agencyWebsite: '', socialMediaLink: '', yearsExperience: '', bio: '',
-    govtIdType: 'Aadhaar', govtIdNumber: '', documentName: ''
+    govtIdType: 'Aadhaar', govtIdNumber: '', documentName: '', govtIdImageUrl: ''
   });
   const [orgFormError, setOrgFormError] = useState('');
   const [orgFieldErrors, setOrgFieldErrors] = useState({});
+  const [orgDocUploading, setOrgDocUploading] = useState(false);
+  const [orgDocError, setOrgDocError] = useState('');
   const orgAgencyNameRef = useRef(null);
   const orgSocialMediaLinkRef = useRef(null);
   const orgGovtIdNumberRef = useRef(null);
@@ -736,6 +738,7 @@ export default function ProfileView({
       socialMediaLink: cleanSocial,
       govtIdType: orgForm.govtIdType,
       govtIdNumber: orgForm.govtIdNumber.trim(),
+      govtIdImageUrl: orgForm.govtIdImageUrl,
       yearsExperience: parseInt(orgForm.yearsExperience) || 1,
       bio: orgForm.bio.trim(),
     })
@@ -786,6 +789,50 @@ export default function ProfileView({
     orgFieldErrors[field] ? 'border-red-500 focus:border-red-500' : darkMode ? 'bg-elegant-card border-white/10 text-white placeholder-white/30' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400'
   }`;
   const clearOrgError = (field) => setOrgFieldErrors(er => ({ ...er, [field]: '' }));
+
+  // Uploads the photographed ID document to Cloudinary and stores the
+  // resulting URL (not the file) — same pattern as the avatar upload in
+  // ProfileSetup.jsx. `documentName` stays purely cosmetic (the filename
+  // shown to the user); `govtIdImageUrl` is what actually goes to the API.
+  const handleOrgDocUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setOrgDocError('Please upload an image of your ID (JPG or PNG) — PDFs aren\'t supported yet.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setOrgDocError('Maximum file size is 8MB.');
+      return;
+    }
+    setOrgDocError('');
+    setOrgDocUploading(true);
+    setOrgForm(prev => ({ ...prev, documentName: file.name }));
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await authApi.uploadImage(reader.result);
+        setOrgForm(prev => ({ ...prev, govtIdImageUrl: res?.url || '' }));
+      } catch (err) {
+        setOrgDocError(err?.message || 'Could not upload the document. Please try again.');
+        setOrgForm(prev => ({ ...prev, documentName: '' }));
+      } finally {
+        setOrgDocUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setOrgDocUploading(false);
+      setOrgForm(prev => ({ ...prev, documentName: '' }));
+      setOrgDocError('Could not read that file. Please try again.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeOrgDoc = () => {
+    setOrgForm(prev => ({ ...prev, documentName: '', govtIdImageUrl: '' }));
+    setOrgDocError('');
+  };
 
   return (
     <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-16 ${
@@ -1814,19 +1861,34 @@ export default function ProfileView({
             })()}
 
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Verification Document</label>
-              <label className={`w-full px-3.5 py-3 border border-dashed rounded-xl flex items-center gap-2.5 cursor-pointer text-sm ${
-                darkMode ? 'bg-zinc-900/50 border-zinc-700 text-zinc-400 hover:border-spy-orange/50' : 'bg-white border-gray-300 text-zinc-500 hover:border-spy-orange/60'
-              }`}>
-                <Upload size={16} className="text-spy-orange shrink-0" />
-                <span className="truncate">{orgForm.documentName || 'Upload ID / License (PDF or image)'}</span>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="hidden"
-                  onChange={e => setOrgForm({ ...orgForm, documentName: e.target.files?.[0]?.name || '' })}
-                />
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider opacity-65">Verification Document (Optional)</label>
+              {orgForm.govtIdImageUrl ? (
+                <div className={`flex items-center gap-3 p-2.5 border rounded-xl ${darkMode ? 'bg-zinc-900/50 border-zinc-700' : 'bg-white border-gray-300'}`}>
+                  <img src={orgForm.govtIdImageUrl} alt="ID document" className="w-11 h-11 rounded-lg object-cover shrink-0 border border-black/5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold truncate">{orgForm.documentName || 'Document uploaded'}</p>
+                    <p className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1"><CheckCircle2 size={12} /> Ready for review</p>
+                  </div>
+                  <button type="button" onClick={removeOrgDoc} className={`p-1.5 rounded-lg shrink-0 cursor-pointer ${darkMode ? 'text-zinc-400 hover:bg-white/10' : 'text-zinc-500 hover:bg-zinc-200'}`}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <label className={`w-full px-3.5 py-3 border border-dashed rounded-xl flex items-center gap-2.5 cursor-pointer text-sm ${
+                  darkMode ? 'bg-zinc-900/50 border-zinc-700 text-zinc-400 hover:border-spy-orange/50' : 'bg-white border-gray-300 text-zinc-500 hover:border-spy-orange/60'
+                }`}>
+                  {orgDocUploading ? <Loader2 size={16} className="text-spy-orange shrink-0 animate-spin" /> : <Upload size={16} className="text-spy-orange shrink-0" />}
+                  <span className="truncate">{orgDocUploading ? `Uploading ${orgForm.documentName}...` : 'Upload a photo of your ID document'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={orgDocUploading}
+                    onChange={handleOrgDocUpload}
+                  />
+                </label>
+              )}
+              {orgDocError && <p className="text-[11px] font-semibold text-rose-500">{orgDocError}</p>}
             </div>
 
             {orgFormError && (
