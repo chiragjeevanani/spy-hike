@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { setOrganizerStatus, listOrganizers, createOrganizer, updateOrganizer, deleteOrganizer } from '../controllers/adminOrganizerController.js';
+import {
+  adminListPromotionRequests, adminReviewPromotionRequest, promoteOrganizerDirect, adminUnpromoteOrganizer,
+} from '../controllers/promotionController.js';
 import { listUsers, getUser, setUserStatus, deleteUser, createUser, updateUser } from '../controllers/adminUserController.js';
 import { listAllTrips, adminSetTripStatus, adminSetTripFeatured, adminSetTripPopular, adminDeleteTrip } from '../controllers/tripController.js';
 import { adminListTreks, createTrek, updateTrek, deleteTrek } from '../controllers/trekController.js';
@@ -12,11 +15,13 @@ import {
   adminListOrganizerCoupons, adminUpdateOrganizerCoupon, adminToggleOrganizerCoupon, adminDeleteOrganizerCoupon,
 } from '../controllers/adminOrganizerCouponController.js';
 import { listAllBookings, adminSetBookingStatus } from '../controllers/bookingController.js';
+import { adminRefundBooking, listWebhookEvents } from '../controllers/paymentController.js';
 import { getAdminConfig, updateAdminConfig, resetPlatformDatabase } from '../controllers/configController.js';
 import { getAdminLandingContent, updateAdminLandingContent } from '../controllers/landingController.js';
 import { getAdminSiteContent, updateAdminSiteContent } from '../controllers/contentController.js';
 import { getAdminOnboardingContent, updateAdminOnboardingContent } from '../controllers/onboardingController.js';
 import { getAdminLoyaltyConfig, updateAdminLoyaltyConfig } from '../controllers/loyaltyController.js';
+import { getAdminBanners, updateAdminBanners } from '../controllers/promotionalBannerController.js';
 import { createBroadcast, listBroadcasts } from '../controllers/broadcastController.js';
 import { listAllPayouts, settlePayout } from '../controllers/financialsController.js';
 import { getAnalytics } from '../controllers/analyticsController.js';
@@ -41,6 +46,13 @@ router.post('/admin/organizers', createOrganizer);
 router.patch('/admin/organizers/:id/status', setOrganizerStatus);
 router.patch('/admin/organizers/:id', updateOrganizer);
 router.delete('/admin/organizers/:id', deleteOrganizer);
+router.patch('/admin/organizers/:id/promote', promoteOrganizerDirect);
+router.patch('/admin/organizers/:id/unpromote', adminUnpromoteOrganizer);
+
+// Promotion requests — organizers ask to be boosted from their profile; this
+// is the "Promotions" sidebar review queue.
+router.get('/admin/promotion-requests', adminListPromotionRequests);
+router.patch('/admin/promotion-requests/:id', adminReviewPromotionRequest);
 
 router.get('/admin/trips', listAllTrips);
 router.patch('/admin/trips/:id/status', adminSetTripStatus);
@@ -72,6 +84,10 @@ router.delete('/admin/organizer-coupons/:id', adminDeleteOrganizerCoupon);
 
 router.get('/admin/bookings', listAllBookings);
 router.patch('/admin/bookings/:id/status', adminSetBookingStatus);
+// Refund an online booking through the Razorpay API, and read the webhook
+// delivery log — payment support without leaving the admin app.
+router.post('/admin/bookings/:id/refund', adminRefundBooking);
+router.get('/admin/payments/webhooks', listWebhookEvents);
 
 router.get('/admin/config', getAdminConfig);
 router.patch('/admin/config', updateAdminConfig);
@@ -88,6 +104,10 @@ router.patch('/admin/onboarding-content', updateAdminOnboardingContent);
 
 router.get('/admin/loyalty/config', getAdminLoyaltyConfig);
 router.patch('/admin/loyalty/config', updateAdminLoyaltyConfig);
+
+router.get('/admin/promotional-banners', getAdminBanners);
+router.put('/admin/promotional-banners', updateAdminBanners);
+router.patch('/admin/promotional-banners', updateAdminBanners);
 
 router.post('/admin/broadcast', createBroadcast);
 router.get('/admin/broadcasts', listBroadcasts);

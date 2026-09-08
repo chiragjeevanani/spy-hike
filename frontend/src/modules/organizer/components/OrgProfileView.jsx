@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import PromotedBadge, { PROMOTED_RING_CLASS } from '../../../components/PromotedBadge';
 import OrgHelpSupportView from './OrgHelpSupportView';
 import OrgAboutView from './OrgAboutView';
+import OrgPromoteCard from './OrgPromoteCard';
 import { saveOrgUser } from '../utils/storage';
 import { loadLoyaltyConfig, getOrganizerProgress } from '../../../utils/loyalty';
 import SwitchTransition from '../../user/components/SwitchTransition';
@@ -186,7 +188,9 @@ export default function OrgProfileView({
                 <img
                   src={organizer?.avatar}
                   alt={organizer?.name}
-                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover shadow-lg border-2 border-spy-orange/40"
+                  className={`w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover shadow-lg border-2 ${
+                    organizer?.isPromoted ? PROMOTED_RING_CLASS : 'border-spy-orange/40'
+                  }`}
                   onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(organizer?.name || 'O')}&background=F27D26&color=fff&size=150`; }}
                 />
                 <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-400 rounded-full border-2 border-zinc-950 flex items-center justify-center shadow-xs">
@@ -202,6 +206,7 @@ export default function OrgProfileView({
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-spy-orange bg-spy-orange/15 border border-spy-orange/25 px-2.5 py-0.5 rounded-full">
                     <ShieldCheck size={13} /> Verified Partner
                   </span>
+                  {organizer?.isPromoted && <PromotedBadge size="md" />}
                 </div>
                 <p className={`text-xs sm:text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   {organizer?.headline || organizer?.email}
@@ -340,6 +345,9 @@ export default function OrgProfileView({
                 <ChevronRight size={18} className="opacity-40 shrink-0" />
               </button>
             )}
+
+            {/* Promote Yourself */}
+            <OrgPromoteCard organizer={organizer} darkMode={darkMode} />
 
             {/* Settings & Tools List */}
             <div className={`rounded-3xl border overflow-hidden shadow-xs ${

@@ -14,6 +14,7 @@ import {
   getOrganizerFinancials, listOrganizerPayouts, requestPayout, updateBankDetails,
 } from '../controllers/financialsController.js';
 import { createTrekRequest, listMyTrekRequests } from '../controllers/trekRequestController.js';
+import { createPromotionRequest, listMyPromotionRequests } from '../controllers/promotionController.js';
 import {
   listMyCoupons, createMyCoupon, updateMyCoupon, toggleMyCouponStatus, deleteMyCoupon,
 } from '../controllers/organizerCouponController.js';
@@ -73,5 +74,10 @@ router.patch('/organizer/bank-details', requireApprovedOrganizer, updateBankDeta
 // gate as posting trips, since that's the only thing this unlocks.
 router.post('/organizer/trek-requests', requireApprovedOrganizer, createTrekRequest);
 router.get('/organizer/trek-requests', requireApprovedOrganizer, listMyTrekRequests);
+
+// "Promote Yourself" — an approved organizer asks the admin to boost their
+// listings for a while; the admin reviews it from the Promotions sidebar.
+router.post('/organizer/promotion-requests', requireApprovedOrganizer, createPromotionRequest);
+router.get('/organizer/promotion-requests', requireApprovedOrganizer, listMyPromotionRequests);
 
 export default router;

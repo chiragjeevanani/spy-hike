@@ -1,5 +1,5 @@
 import Payout from '../models/Payout.js';
-import Booking from '../models/Booking.js';
+import Booking, { SETTLED_BOOKING_FILTER } from '../models/Booking.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -17,10 +17,14 @@ const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]{1}$/;
 // Available balance = organizer payout earned on non-cancelled bookings minus
 // everything already requested/settled (Processing + Paid payouts). Refunds
 // need no reversal here because cancelled bookings are simply excluded.
+//
+// Bookings whose online payment never landed are excluded too, and that
+// exclusion is load-bearing: without it an organizer could withdraw real money
+// against a checkout a customer abandoned at the payment screen.
 async function computeAvailable(organizerEmail) {
   await autoResolveBookingStatuses();
   const [bookings, payouts] = await Promise.all([
-    Booking.find({ organizerEmail, status: { $ne: 'Cancelled' } }),
+    Booking.find({ organizerEmail, status: { $ne: 'Cancelled' }, ...SETTLED_BOOKING_FILTER }),
     Payout.find({ organizerEmail, status: { $in: ['Processing', 'Paid'] } }),
   ]);
   const earned = bookings.reduce((s, b) => s + (b.organizerPayout || 0), 0);

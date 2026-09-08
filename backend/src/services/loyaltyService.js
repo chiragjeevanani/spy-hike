@@ -1,5 +1,5 @@
 import Voucher from '../models/Voucher.js';
-import Booking from '../models/Booking.js';
+import Booking, { SETTLED_BOOKING_FILTER } from '../models/Booking.js';
 import { getLoyaltyConfig } from '../models/LoyaltyConfig.js';
 
 // Server port of utils/loyalty.js. Vouchers are minted whenever *cycle*
@@ -7,17 +7,20 @@ import { getLoyaltyConfig } from '../models/LoyaltyConfig.js';
 // threshold — claiming a reward resets the counter to 0 rather than letting
 // the account's all-time lifetime total immediately re-trigger another.
 
+// Every count below is over non-cancelled bookings that were actually paid for:
+// an abandoned online checkout must not move anyone closer to a free trek.
+//
 // Lifetime "persons booked" for a customer = Σ travelersCount across their
 // non-cancelled bookings. Kept for historical/"lifetime total" display only —
 // progress-toward-next-reward uses the cycle-scoped counters below instead.
 export async function computeLifetimePersons(userEmail) {
-  const bookings = await Booking.find({ userEmail, status: { $ne: 'Cancelled' } });
+  const bookings = await Booking.find({ userEmail, status: { $ne: 'Cancelled' }, ...SETTLED_BOOKING_FILTER });
   return bookings.reduce((sum, b) => sum + (b.travelersCount || b.travelers?.length || 0), 0);
 }
 
 // Lifetime bookings for an organizer = count of their non-cancelled bookings.
 export async function computeLifetimeOrganizerBookings(organizerEmail) {
-  return Booking.countDocuments({ organizerEmail, status: { $ne: 'Cancelled' } });
+  return Booking.countDocuments({ organizerEmail, status: { $ne: 'Cancelled' }, ...SETTLED_BOOKING_FILTER });
 }
 
 // The start of the owner's *current* reward cycle: the moment their most
@@ -30,12 +33,16 @@ async function getCycleStart(ownerType, ownerKey) {
 }
 
 async function cyclePersonsSince(userEmail, since) {
-  const bookings = await Booking.find({ userEmail, status: { $ne: 'Cancelled' }, createdAt: { $gt: since } });
+  const bookings = await Booking.find({
+    userEmail, status: { $ne: 'Cancelled' }, createdAt: { $gt: since }, ...SETTLED_BOOKING_FILTER,
+  });
   return bookings.reduce((sum, b) => sum + (b.travelersCount || b.travelers?.length || 0), 0);
 }
 
 async function cycleOrganizerBookingsSince(organizerEmail, since) {
-  return Booking.countDocuments({ organizerEmail, status: { $ne: 'Cancelled' }, createdAt: { $gt: since } });
+  return Booking.countDocuments({
+    organizerEmail, status: { $ne: 'Cancelled' }, createdAt: { $gt: since }, ...SETTLED_BOOKING_FILTER,
+  });
 }
 
 // Travelers counted toward the customer's *next* milestone since their last

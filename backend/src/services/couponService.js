@@ -75,6 +75,32 @@ export async function validateCoupon(code, bookingAmount = 0, trip = null) {
   };
 }
 
+// Hands a redemption slot back when a booking that claimed one never completed
+// (an abandoned online payment). The booking stores the coupon's code rather
+// than its id, so the lookup repeats validateCoupon's precedence — an organizer
+// coupon for this trip's organizer wins over a same-named platform one — to be
+// sure the decrement lands on the coupon that was actually charged.
+//
+// Floors at zero: a redemption can only ever be given back once, but a manual
+// admin edit in between shouldn't be able to drive the counter negative.
+export async function releaseCouponRedemption({ code, organizerEmail } = {}) {
+  const formatted = (code || '').trim().toUpperCase();
+  if (!formatted) return null;
+
+  let coupon = null;
+  if (organizerEmail) {
+    coupon = await Coupon.findOne({ scope: 'organizer', organizerEmail, code: formatted });
+  }
+  if (!coupon) coupon = await Coupon.findOne({ scope: 'platform', code: formatted });
+  if (!coupon) return null;
+
+  return Coupon.findOneAndUpdate(
+    { _id: coupon._id, usedCount: { $gt: 0 } },
+    { $inc: { usedCount: -1 } },
+    { new: true },
+  );
+}
+
 // Atomically increments usedCount only if the redemption cap (if any) isn't
 // already reached — the same conditional-update pattern reserveSeats uses to
 // avoid overselling, so two concurrent bookings can't both squeeze through a

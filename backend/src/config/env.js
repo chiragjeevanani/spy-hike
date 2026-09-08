@@ -27,6 +27,23 @@ export const env = {
   firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY || '',
   // Google Maps API Key for reverse-geocoding
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY || '',
+  // ─── Razorpay ──────────────────────────────────────────────────────────────
+  // Leaving the key pair unset keeps the platform on Pay on Arrival: the
+  // provider refuses to make a gateway call and resolvePaymentMode() falls back
+  // to 'arrival', so dev machines and CI need no credentials to boot or test.
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+  // Chosen by us when registering the webhook in the Razorpay dashboard, and
+  // deliberately NOT the API key secret above: the two sign different things
+  // (the raw webhook body vs. the checkout `order_id|payment_id` handshake).
+  // Swapping them is the usual reason every delivery fails verification.
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+  // 'arrival' (default) keeps today's Pay-on-Arrival flow; 'online' routes
+  // checkout through Razorpay. Only honoured when the keys above are present.
+  paymentMode: (process.env.PAYMENT_MODE || 'arrival').trim().toLowerCase(),
+  // How long an unpaid online booking holds its reserved seats before the
+  // sweeper cancels it and hands them back (see services/paymentService.js).
+  paymentPendingTtlMinutes: Number(process.env.PAYMENT_PENDING_TTL_MINUTES) || 20,
   // Comma-separated list of allowed browser origins for CORS. Defaults cover
   // the Vite dev server on its usual ports.
   corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174')

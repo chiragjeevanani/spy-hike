@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { isPromotedNow } from '../utils/promotion.js';
 
 // Bank/payout details stored inside the organizer sub-document.
 const bankDetailsSchema = new mongoose.Schema(
@@ -39,6 +40,10 @@ const organizerSubSchema = new mongoose.Schema(
     isPendingApproval: { type: Boolean, default: true },
     isRejected:        { type: Boolean, default: false },
     bankDetails:       { type: bankDetailsSchema, default: () => ({}) },
+    // Admin-granted priority window — see utils/promotion.js. Set together;
+    // "promoted" is never a stored boolean, just promotedUntil > now.
+    promotedFrom:      { type: Date, default: null },
+    promotedUntil:     { type: Date, default: null },
   },
   { _id: false },
 );
@@ -174,6 +179,9 @@ userSchema.methods.toOrganizerJSON = function toOrganizerJSON() {
     totalTrips:       org.totalTrips      ?? 0,
     totalBookings:    org.totalBookings   ?? 0,
     bankDetails:      org.bankDetails     || {},
+    isPromoted:       isPromotedNow(org.promotedUntil),
+    promotedFrom:     org.promotedFrom  || null,
+    promotedUntil:    org.promotedUntil || null,
     joinedDate: this.createdAt ? this.createdAt.toISOString().split('T')[0] : '',
   };
 };

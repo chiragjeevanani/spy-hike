@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Star, ShieldCheck, MapPin, Award, Compass, Heart, Users, ChevronRight, BookOpen, Image as ImageIcon, Phone, Mail, Globe } from 'lucide-react';
 import authApi from '../../../lib/authApi';
 import { durationRange } from '../../../utils/rangeFormat';
+import { isPromotedNow } from '../../../utils/promotion';
+import PromotedBadge, { PROMOTED_RING_CLASS } from '../../../components/PromotedBadge';
 
 export default function OrganizerProfileView({
   organizer: initialOrganizer,
@@ -27,6 +29,7 @@ export default function OrganizerProfileView({
 
   // Filter trips managed by this organizer
   const organizerTrips = trips.filter(t => t.organizer.name === organizer.name);
+  const isPromoted = isPromotedNow(organizer.promotedUntil);
 
   // Generate dynamic about description if not exists
   const simulatedAbout = `Established in 2018, ${organizer.name} has grown to become one of the premier outdoor expedition operators. We specialize in custom alpine routing, high-altitude trekking courses, and wilderness exploration across diverse terrains. With a 100% safety record and a team of certified Wilderness First Responders (WFR), we focus on delivering immersive, eco-friendly, and educational mountain journeys. Our local guides carry deep geological and cultural knowledge of the valleys, ensuring your expedition is safe, authentic, and unforgettable.`;
@@ -86,7 +89,7 @@ export default function OrganizerProfileView({
           {/* Profile Image & Verification Badge */}
           <div className="relative">
             <div className={`w-20 h-20 rounded-full overflow-hidden border-2 shadow-md ${
-              darkMode ? 'border-elegant-green' : 'border-forest-500'
+              isPromoted ? PROMOTED_RING_CLASS : (darkMode ? 'border-elegant-green' : 'border-forest-500')
             }`}>
               <img src={organizer.avatar} alt={organizer.name} className="w-full h-full object-cover" />
             </div>
@@ -101,6 +104,7 @@ export default function OrganizerProfileView({
           <h1 className="text-lg font-display font-black mt-3 flex items-center gap-1">
             {organizer.name}
           </h1>
+          {isPromoted && <PromotedBadge className="mt-1.5" />}
 
           <div className="flex items-center gap-1.5 mt-1.5">
             <div className="flex items-center gap-0.5 bg-amber-500/10 text-amber-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/20">

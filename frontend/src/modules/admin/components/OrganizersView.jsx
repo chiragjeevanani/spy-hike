@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Eye, Star, Globe, Trash2, UserPlus } from 'lucide-react';
+import { Check, X, Eye, Star, Globe, Trash2, UserPlus, Crown, AlertCircle, Save } from 'lucide-react';
 import { loadAllOrganizers, saveOrganizerStatus, deleteOrganizerAccount } from '../utils/storage';
 import adminApi from '../../../lib/adminApi';
+import promotionsApi from '../../../lib/promotionsApi';
 import { getToken } from '../../../lib/apiClient';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import PromotedBadge, { PROMOTED_RING_CLASS } from '../../../components/PromotedBadge';
 import { useToast } from '../../../components/ToastProvider';
 import { AdminSkeletonCard } from './AdminSkeleton';
+
+// Today (and +N days) as yyyy-mm-dd, for the promote modal's date defaults.
+const isoDate = (d) => d.toISOString().split('T')[0];
+const todayStr = () => isoDate(new Date());
+const plusDays = (n) => isoDate(new Date(Date.now() + n * 86400000));
 
 export default function OrganizersView({ onOpenProfile, darkMode }) {
   const [organizers, setOrganizers] = useState([]);
@@ -13,6 +20,10 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
   const [activeSubTab, setActiveSubTab] = useState('Pending'); // 'Pending' or 'All'
   const [approvalAction, setApprovalAction] = useState(null); // { id, email, name, approve, reject, currentlyApproved }
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, email, name }
+  const [promoteTarget, setPromoteTarget] = useState(null); // organizer being promoted
+  const [promoteDates, setPromoteDates] = useState({ startDate: '', endDate: '' });
+  const [promoteError, setPromoteError] = useState('');
+  const [promoting, setPromoting] = useState(false);
   const toast = useToast();
 
   // Real registered organizers when the admin is signed in; localStorage seed
@@ -57,7 +68,39 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
   };
 
   const pendingList = organizers.filter(o => o.isPendingApproval && !o.isApproved);
-  const allList = organizers;
+  // Promoted organizers lead the roster — same priority they get everywhere else.
+  const allList = [...organizers].sort((a, b) => Number(b.isPromoted) - Number(a.isPromoted));
+
+  const openPromote = (org) => {
+    setPromoteTarget(org);
+    setPromoteDates({ startDate: todayStr(), endDate: plusDays(30) });
+    setPromoteError('');
+  };
+
+  const handleConfirmPromote = async () => {
+    setPromoteError('');
+    setPromoting(true);
+    try {
+      await promotionsApi.promoteOrganizer(promoteTarget.id, promoteDates.startDate, promoteDates.endDate);
+      toast.success(`${promoteTarget.agencyName} is now promoted!`);
+      setPromoteTarget(null);
+      refresh();
+    } catch (err) {
+      setPromoteError(err?.message || 'Could not promote this organizer.');
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const handleUnpromote = async (org) => {
+    try {
+      await promotionsApi.unpromoteOrganizer(org.id);
+      toast.success(`${org.agencyName}'s promotion was removed.`);
+      refresh();
+    } catch (err) {
+      toast.error(err?.message || 'Could not remove promotion.');
+    }
+  };
 
   const cardCls = `p-6 rounded-2xl border transition-all duration-300 shadow-sm ${
     darkMode
@@ -248,10 +291,15 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
                       <img
                         src={org.avatar}
                         alt={org.name}
-                        className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 object-cover shrink-0"
+                        className={`w-9 h-9 rounded-xl border object-cover shrink-0 ${
+                          org.isPromoted ? PROMOTED_RING_CLASS : 'border-slate-200 dark:border-slate-800'
+                        }`}
                       />
                       <div className="flex flex-col">
-                        <span className="font-bold">{org.agencyName || 'Demo Agency'}</span>
+                        <span className="font-bold flex items-center gap-1.5">
+                          {org.agencyName || 'Demo Agency'}
+                          {org.isPromoted && <PromotedBadge />}
+                        </span>
                         <span className="text-[10px] text-slate-400 font-semibold">{org.email}</span>
                       </div>
                     </td>
@@ -299,6 +347,26 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
                       >
                         <Eye size={14} />
                       </button>
+
+                      {org.isApproved && (
+                        org.isPromoted ? (
+                          <button
+                            onClick={() => handleUnpromote(org)}
+                            className="p-1.5 rounded-lg border border-amber-200 dark:border-amber-500/20 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all"
+                            title="Remove Promotion"
+                          >
+                            <Crown size={14} fill="currentColor" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openPromote(org)}
+                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-amber-500 hover:border-amber-200 dark:hover:border-amber-500/20 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all"
+                            title="Promote Organizer"
+                          >
+                            <Crown size={14} />
+                          </button>
+                        )
+                      )}
 
                       <button
                         onClick={() => setApprovalAction({ id: org.id, email: org.email, name: org.agencyName, approve: false, reject: false, currentlyApproved: org.isApproved })}
@@ -350,6 +418,75 @@ export default function OrganizersView({ onOpenProfile, darkMode }) {
         onCancel={() => setDeleteTarget(null)}
         darkMode={darkMode}
       />
+
+      {/* Promote modal — pick the date range this organizer stays promoted for */}
+      {promoteTarget && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-sm rounded-2xl border p-6 shadow-2xl relative animate-scaleIn ${
+            darkMode ? 'bg-[#152243] border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-800'
+          }`}>
+            <button onClick={() => setPromoteTarget(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <X size={18} />
+            </button>
+            <h3 className="text-sm font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <Crown size={14} className="text-amber-500" /> Promote {promoteTarget.agencyName}
+            </h3>
+            <p className="text-[11px] text-slate-400 font-semibold mb-5">
+              Their trips will be highlighted and shown first wherever organizers compete for the same trek.
+            </p>
+
+            {promoteError && (
+              <div className="flex gap-2 items-center p-2.5 rounded-xl text-[11px] font-bold bg-rose-500/10 text-rose-500 mb-4">
+                <AlertCircle size={13} className="shrink-0" /> {promoteError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">Promoted From</label>
+                <input
+                  type="date"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border outline-none text-xs font-semibold transition-all ${
+                    darkMode ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-amber-400/60' : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-amber-400/60'
+                  }`}
+                  value={promoteDates.startDate}
+                  onChange={(e) => setPromoteDates((d) => ({ ...d, startDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">Promoted Until</label>
+                <input
+                  type="date"
+                  min={promoteDates.startDate}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border outline-none text-xs font-semibold transition-all ${
+                    darkMode ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-amber-400/60' : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-amber-400/60'
+                  }`}
+                  value={promoteDates.endDate}
+                  onChange={(e) => setPromoteDates((d) => ({ ...d, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setPromoteTarget(null)}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
+                  darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPromote}
+                disabled={promoting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 shadow-lg shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-60"
+              >
+                <Save size={13} /> {promoting ? 'Promoting...' : 'Confirm & Promote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

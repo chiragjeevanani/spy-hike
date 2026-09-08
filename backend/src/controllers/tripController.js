@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { slugify, makeTripId } from '../utils/slug.js';
 import { validateTripPayload } from '../services/tripService.js';
 import { provisionDepartures, getDepartures } from '../services/inventoryService.js';
+import { isPromotedNow } from '../utils/promotion.js';
 
 // ─── Public catalog ────────────────────────────────────────────────────────
 
@@ -16,10 +17,17 @@ import { provisionDepartures, getDepartures } from '../services/inventoryService
 // Deliberately an exclusion list rather than an inclusion one: a field added to
 // the schema later should show up on cards by default and be removed here
 // consciously, rather than silently vanishing from the UI.
-const TRIP_LIST_EXCLUDE = [
+const TRIP_LIST_EXCLUDE_FIELDS = [
   'itinerary', 'faqs', 'reviews', 'galleryImages', 'description',
   'highlights', 'included', 'notIncluded', 'safetyGuidelines', 'cancellationPolicy',
-].map((f) => `-${f}`).join(' ');
+];
+// Mirrors Trip.toPublicJSON() for plain objects coming back from an
+// aggregation pipeline, which — unlike a query's Mongoose documents — don't
+// have that method available.
+const aggregateTripToPublicJSON = (obj) => {
+  const { _id, ...rest } = obj;
+  return { id: _id, ...rest };
+};
 
 // Case-insensitive regex from user input, with special characters neutralised
 // so a search for "C++" can't blow up the query.
@@ -100,8 +108,12 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
 
   const pipeline = [
     { $match: offerMatch },
-    // Highest-rated offer wins the card, so sort before $first picks it.
-    { $sort: { rating: -1, reviewsCount: -1, _id: 1 } },
+    // A currently-promoted organizer's offer wins the group's representative
+    // card ahead of rating — same "always on top" priority promoted offers
+    // get everywhere else. $$NOW is the aggregation-pipeline clock, evaluated
+    // once per run, so an expired promotedUntil naturally stops qualifying.
+    { $addFields: { promoted: { $cond: [{ $gt: ['$organizer.promotedUntil', '$$NOW'] }, 1, 0] } } },
+    { $sort: { promoted: -1, rating: -1, reviewsCount: -1, _id: 1 } },
     {
       $group: {
         _id: '$trekId',
@@ -270,12 +282,22 @@ export const listTrips = asyncHandler(async (req, res) => {
   const lim = Math.min(100, Math.max(1, Number(limit) || 50));
   // Fetch one extra row to answer "is there another page?" without a second
   // full countDocuments pass over the collection on every request.
+  //
+  // An aggregation (rather than .find().sort()) so a currently-promoted
+  // organizer's trips can lead the sort at the database level, before
+  // skip/limit paginates — a plain in-memory sort can't do that once the
+  // list is paged. $$NOW is the pipeline's own clock, so an expired
+  // promotedUntil naturally stops qualifying without any background job.
+  const excludeProjection = Object.fromEntries(TRIP_LIST_EXCLUDE_FIELDS.map((f) => [f, 0]));
   const [rows, total] = await Promise.all([
-    Trip.find(filter)
-      .select(TRIP_LIST_EXCLUDE)
-      .sort({ featured: -1, rating: -1 })
-      .skip((pageNum - 1) * lim)
-      .limit(lim + 1),
+    Trip.aggregate([
+      { $match: filter },
+      { $addFields: { promoted: { $cond: [{ $gt: ['$organizer.promotedUntil', '$$NOW'] }, 1, 0] } } },
+      { $sort: { promoted: -1, featured: -1, rating: -1 } },
+      { $skip: (pageNum - 1) * lim },
+      { $limit: lim + 1 },
+      { $project: { ...excludeProjection, promoted: 0 } },
+    ]),
     req.query.withTotal === 'true' ? Trip.countDocuments(filter) : Promise.resolve(undefined),
   ]);
 
@@ -283,7 +305,7 @@ export const listTrips = asyncHandler(async (req, res) => {
   const docs = hasMore ? rows.slice(0, lim) : rows;
 
   res.json({
-    trips: docs.map((t) => t.toPublicJSON()),
+    trips: docs.map(aggregateTripToPublicJSON),
     page: pageNum,
     limit: lim,
     hasMore,
@@ -317,11 +339,20 @@ export const getTrekOffers = asyncHandler(async (req, res) => {
   const offers = await Trip.find({ trekId: req.params.trekId, status: 'Published' });
   const prices = offers.map((o) => o.price).filter((p) => Number.isFinite(p));
 
+  // Currently-promoted organizers' offers always lead the list — the whole
+  // point of a promotion is standing out among the organizers competing for
+  // the same trek. Stable sort (Array#sort in Node is stable) preserves
+  // whatever order they otherwise arrived in.
+  const now = new Date();
+  const sorted = [...offers].sort((a, b) => (
+    Number(isPromotedNow(b.organizer?.promotedUntil, now)) - Number(isPromotedNow(a.organizer?.promotedUntil, now))
+  ));
+
   res.json({
     trekId: trek._id,
     trekName: trek.title,
     trek: trek.toPublicJSON(),
-    offers: offers.map((o) => o.toPublicJSON()),
+    offers: sorted.map((o) => o.toPublicJSON()),
     organizerCount: offers.length,
     minPrice: prices.length ? Math.min(...prices) : null,
     maxPrice: prices.length ? Math.max(...prices) : null,
@@ -360,6 +391,7 @@ async function buildTripFields(body, organizer) {
       avatar: organizer.avatar,
       rating: organizer.rating || 0,
       verified: !!organizer.isApproved,
+      promotedUntil: organizer.promotedUntil || null,
     },
     name: trek.title,
     location: trek.location,

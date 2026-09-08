@@ -2,16 +2,23 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   ArrowLeft, Edit3, Save, X, Trash2, Ban, CheckCircle2, Mail, Phone, Star,
   Globe, FileBadge, Calendar, ShieldAlert, Users, IndianRupee, ExternalLink,
-  Compass, ChevronRight, MapPin
+  Compass, ChevronRight, MapPin, Crown, AlertCircle
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import {
   getOrganizerByEmail, getTripsByOrganizerEmail, getBookingsByOrganizerEmail,
 } from '../utils/storage';
 import adminApi from '../../../lib/adminApi';
+import promotionsApi from '../../../lib/promotionsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
 import { getToken } from '../../../lib/apiClient';
+import PromotedBadge, { PROMOTED_RING_CLASS } from '../../../components/PromotedBadge';
+
+// Today (and +N days) as yyyy-mm-dd, for the promote modal's date defaults.
+const isoDate = (d) => d.toISOString().split('T')[0];
+const todayStr = () => isoDate(new Date());
+const plusDays = (n) => isoDate(new Date(Date.now() + n * 86400000));
 
 const GOVT_ID_TYPES = ['Aadhaar', 'PAN', 'GST', 'Passport'];
 
@@ -86,6 +93,10 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
   const [saving, setSaving] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPromote, setShowPromote] = useState(false);
+  const [promoteDates, setPromoteDates] = useState({ startDate: '', endDate: '' });
+  const [promoteError, setPromoteError] = useState('');
+  const [promoting, setPromoting] = useState(false);
 
   // Real trips/bookings from the backend when signed in; localStorage seed
   // data otherwise (offline / no backend) — mirrors the pattern used above
@@ -172,6 +183,35 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
     }
   };
 
+  const openPromote = () => {
+    setPromoteDates({ startDate: todayStr(), endDate: plusDays(30) });
+    setPromoteError('');
+    setShowPromote(true);
+  };
+
+  const handleConfirmPromote = async () => {
+    setPromoteError('');
+    setPromoting(true);
+    try {
+      const updated = await promotionsApi.promoteOrganizer(existingOrg.id, promoteDates.startDate, promoteDates.endDate);
+      setOrganizerDb(updated);
+      setShowPromote(false);
+    } catch (err) {
+      setPromoteError(err?.message || 'Could not promote this organizer.');
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const handleUnpromote = async () => {
+    try {
+      const updated = await promotionsApi.unpromoteOrganizer(existingOrg.id);
+      setOrganizerDb(updated);
+    } catch (err) {
+      setFormError(err?.message || 'Could not remove promotion.');
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await adminApi.deleteOrganizer(existingOrg.id);
@@ -225,6 +265,23 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
                 <Edit3 size={13} /> Edit
               </button>
             )}
+            {existingOrg.isApproved && (
+              existingOrg.isPromoted ? (
+                <button
+                  onClick={handleUnpromote}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-500/20 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all active:scale-95"
+                >
+                  <Crown size={13} fill="currentColor" /> Un-promote
+                </button>
+              ) : (
+                <button
+                  onClick={openPromote}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+                >
+                  <Crown size={13} /> Promote
+                </button>
+              )
+            )}
             <button
               onClick={() => setShowStatusConfirm(true)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
@@ -254,17 +311,27 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
             <img
               src={org.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(org.agencyName || 'Agency')}&background=F27D26&color=fff`}
               alt={org.agencyName}
-              className="w-24 h-24 rounded-2xl border-4 border-[#F27D26]/20 object-cover mb-4"
+              className={`w-24 h-24 rounded-2xl border-4 object-cover mb-4 ${
+                !isNew && existingOrg.isPromoted ? PROMOTED_RING_CLASS : 'border-[#F27D26]/20'
+              }`}
             />
             {!isNew && (
               <>
                 <h2 className="font-display font-black text-lg">{existingOrg.agencyName}</h2>
                 <span className="text-xs text-slate-400 font-semibold mt-0.5">Rep: {existingOrg.name}</span>
-                <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase mt-3 ${
-                  existingOrg.isApproved ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
-                }`}>
-                  {existingOrg.isApproved ? 'Approved' : existingOrg.isPendingApproval ? 'Pending Approval' : 'Suspended'}
-                </span>
+                <div className="flex items-center gap-2 mt-3">
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase ${
+                    existingOrg.isApproved ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                  }`}>
+                    {existingOrg.isApproved ? 'Approved' : existingOrg.isPendingApproval ? 'Pending Approval' : 'Suspended'}
+                  </span>
+                  {existingOrg.isPromoted && <PromotedBadge />}
+                </div>
+                {existingOrg.isPromoted && existingOrg.promotedUntil && (
+                  <span className="text-[10px] text-amber-600 font-bold mt-2">
+                    Promoted until {new Date(existingOrg.promotedUntil).toLocaleDateString()}
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -582,6 +649,71 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
         onCancel={() => setShowDeleteConfirm(false)}
         darkMode={darkMode}
       />
+
+      {/* Promote modal — pick the date range this organizer stays promoted for */}
+      {showPromote && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-sm rounded-2xl border p-6 shadow-2xl relative animate-scaleIn ${
+            darkMode ? 'bg-[#152243] border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-800'
+          }`}>
+            <button onClick={() => setShowPromote(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <X size={18} />
+            </button>
+            <h3 className="text-sm font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <Crown size={14} className="text-amber-500" /> Promote {existingOrg?.agencyName}
+            </h3>
+            <p className="text-[11px] text-slate-400 font-semibold mb-5">
+              Their trips will be highlighted and shown first wherever organizers compete for the same trek.
+            </p>
+
+            {promoteError && (
+              <div className="flex gap-2 items-center p-2.5 rounded-xl text-[11px] font-bold bg-rose-500/10 text-rose-500 mb-4">
+                <AlertCircle size={13} className="shrink-0" /> {promoteError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div>
+                <label className={labelCls}>Promoted From</label>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={promoteDates.startDate}
+                  onChange={(e) => setPromoteDates((d) => ({ ...d, startDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Promoted Until</label>
+                <input
+                  type="date"
+                  min={promoteDates.startDate}
+                  className={inputCls}
+                  value={promoteDates.endDate}
+                  onChange={(e) => setPromoteDates((d) => ({ ...d, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowPromote(false)}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
+                  darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPromote}
+                disabled={promoting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 shadow-lg shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-60"
+              >
+                <Save size={13} /> {promoting ? 'Promoting...' : 'Confirm & Promote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
