@@ -31,7 +31,7 @@ export default function OfflineStatusIndicator() {
 
   return (
     <>
-      {/* Offline Alert Bar */}
+      {/* Offline Alert Bar. */}
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-amber-600 to-red-600 text-white px-4 py-2.5 text-sm font-medium shadow-xl flex items-center justify-between transition-all duration-300">
           <div className="flex items-center space-x-2 mx-auto sm:mx-0">
