@@ -915,7 +915,9 @@ export default function OrgApp() {
           />
         )}
 
-        <div className="flex-1 relative overflow-y-auto flex flex-col">
+        {/* pb clears the now-`fixed` OrgBottomNav on mobile so a page's last
+            bit of content never sits underneath it. */}
+        <div className={`flex-1 relative overflow-y-auto flex flex-col ${showBottomNav ? 'pb-20 md:pb-0' : ''}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}

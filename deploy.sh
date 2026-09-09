@@ -44,6 +44,7 @@ if [ ! -d "$FRONTEND_WEBROOT" ]; then
   exit 1
 fi
 rsync -a --delete "$REPO_DIR/frontend/dist/" "$FRONTEND_WEBROOT/"
+rsync -a --no-o --no-g --delete "$REPO_DIR/frontend/dist/" "$FRONTEND_WEBROOT/"
 
 echo "==> Reloading backend via PM2"
 if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
