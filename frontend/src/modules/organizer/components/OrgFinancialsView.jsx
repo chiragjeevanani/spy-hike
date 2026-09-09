@@ -146,10 +146,14 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
             >
               <ArrowLeft size={18} />
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight">Financials & Settlements</h1>
-                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+            <div className="min-w-0">
+              {/* flex-wrap + shrink-0/whitespace-nowrap on the badge: without
+                  these, once the title wraps to 2 lines on a narrow phone the
+                  badge got squeezed for space and wrapped its own text into a
+                  broken 2-line pill. Now it drops to its own line instead. */}
+              <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5">
+                <h1 className="text-lg sm:text-2xl font-display font-black tracking-tight">Financials & Settlements</h1>
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shrink-0 whitespace-nowrap">
                   Live Bank Feed
                 </span>
               </div>
@@ -201,12 +205,12 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
               {/* Available Balance Card */}
               <div className="lg:col-span-7 relative rounded-3xl overflow-hidden bg-gradient-to-br from-orange-600 via-spy-orange to-amber-600 text-white p-6 sm:p-7 shadow-xl shadow-orange-950/20 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-white/90">
-                      <Wallet size={16} />
+                  <div className="flex items-center flex-wrap justify-between gap-x-3 gap-y-1.5">
+                    <div className="flex items-center gap-2 text-white/90 min-w-0">
+                      <Wallet size={16} className="shrink-0" />
                       <span className="text-xs font-bold uppercase tracking-widest">Available for Withdrawal</span>
                     </div>
-                    <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full bg-white/20 text-white backdrop-blur-xs">
+                    <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full bg-white/20 text-white backdrop-blur-xs shrink-0 whitespace-nowrap">
                       Instant Payout
                     </span>
                   </div>

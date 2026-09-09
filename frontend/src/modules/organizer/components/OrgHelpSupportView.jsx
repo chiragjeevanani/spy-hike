@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import { useScrollToTopOnMount } from '../../../utils/scroll';
 
 const TICKETS_KEY = 'trekigo_org_support_tickets';
 
@@ -42,6 +43,9 @@ const FAQS = [
 ];
 
 export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
+  // This view is swapped in via the profile page's own local state, not the
+  // router — see utils/scroll.js for why that needs its own reset.
+  useScrollToTopOnMount();
   const [category, setCategory] = useState('Payouts & Commission');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -103,10 +107,15 @@ export default function OrgHelpSupportView({ organizer, onBack, darkMode }) {
           >
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight">Help & Partner Support</h1>
-              <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20">
+          <div className="min-w-0">
+            {/* flex-wrap + shrink-0/whitespace-nowrap on the badge: on a
+                narrow phone the title alone wraps to 2 lines, and without
+                these the badge used to get squeezed for space alongside it
+                and wrap its own text into a broken 2-line pill. Now it just
+                drops to its own line under the title instead. */}
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5">
+              <h1 className="text-lg sm:text-2xl font-display font-black tracking-tight">Help & Partner Support</h1>
+              <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20 shrink-0 whitespace-nowrap">
                 Support Desk
               </span>
             </div>

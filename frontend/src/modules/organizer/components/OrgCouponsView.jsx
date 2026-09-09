@@ -201,10 +201,14 @@ export default function OrgCouponsView({ onBack, darkMode }) {
             >
               <ArrowLeft size={18} />
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight">Discounts & Promo Coupons</h1>
-                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20">
+            <div className="min-w-0">
+              {/* flex-wrap + shrink-0/whitespace-nowrap on the badge: without
+                  these, once the title wraps to 2 lines on a narrow phone the
+                  badge got squeezed for space and wrapped its own text into a
+                  broken 2-line pill. Now it drops to its own line instead. */}
+              <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5">
+                <h1 className="text-lg sm:text-2xl font-display font-black tracking-tight">Discounts & Promo Coupons</h1>
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20 shrink-0 whitespace-nowrap">
                   Marketing Studio
                 </span>
               </div>

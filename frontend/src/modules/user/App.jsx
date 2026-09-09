@@ -1501,7 +1501,14 @@ export default function App() {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 style={{ willChange: 'opacity, transform' }}
-                className="flex-1 flex flex-col w-full"
+                // overflow-hidden properly bounds this to the space actually
+                // available (flexbox min-height:auto rule) — without it, a
+                // page that swaps to a sub-view via purely local state (never
+                // touching `activeTab`, so this node never remounts) grows to
+                // fit content instead, pushing the *outer*, never-remounted
+                // wrapper into becoming the real scroller — which then keeps
+                // whatever scrollTop the previous view left it at.
+                className="flex-1 flex flex-col w-full overflow-hidden"
               >
                 {renderTabContent()}
               </motion.div>

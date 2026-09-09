@@ -925,7 +925,17 @@ export default function OrgApp() {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              className="flex-1 flex flex-col"
+              // overflow-hidden properly bounds this to the space the flex-1
+              // parent actually has (per the flexbox min-height:auto rule) —
+              // without it, a page that swaps to an internal sub-view purely
+              // via local state (e.g. Profile -> Help & Support, which never
+              // touches `activeTab` so this whole node never remounts) grows
+              // this box to fit content instead, pushing the *outer*,
+              // never-remounted wrapper into being the actual scroller —
+              // and that one keeps whatever scrollTop the previous view left
+              // it at, which is exactly why the new sub-view opened already
+              // scrolled partway down.
+              className="flex-1 flex flex-col overflow-hidden"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}

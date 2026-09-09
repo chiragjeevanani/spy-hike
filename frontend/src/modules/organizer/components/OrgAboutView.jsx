@@ -5,6 +5,7 @@ import {
   Compass, Award, Sparkles, CheckCircle2
 } from 'lucide-react';
 import AppLogo from '../../../components/AppLogo';
+import { useScrollToTopOnMount } from '../../../utils/scroll';
 
 const LEGAL_SECTIONS = [
   {
@@ -30,6 +31,9 @@ const LEGAL_SECTIONS = [
 ];
 
 export default function OrgAboutView({ onBack, darkMode }) {
+  // This view is swapped in via the profile page's own local state, not the
+  // router — see utils/scroll.js for why that needs its own reset.
+  useScrollToTopOnMount();
   const [openSection, setOpenSection] = useState(null);
   const cardCls = darkMode ? 'bg-zinc-900/80 border border-white/10 shadow-xs' : 'bg-white border border-zinc-200/80 shadow-xs';
 
@@ -48,10 +52,14 @@ export default function OrgAboutView({ onBack, darkMode }) {
           >
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight">About Find Your Trek</h1>
-              <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20">
+          <div className="min-w-0">
+            {/* flex-wrap + shrink-0/whitespace-nowrap on the badge: without
+                these, once the title wraps to 2 lines on a narrow phone the
+                badge got squeezed for space and wrapped its own text into a
+                broken 2-line pill. Now it drops to its own line instead. */}
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5">
+              <h1 className="text-lg sm:text-2xl font-display font-black tracking-tight">About Find Your Trek</h1>
+              <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange border border-spy-orange/20 shrink-0 whitespace-nowrap">
                 Partner Portal
               </span>
             </div>

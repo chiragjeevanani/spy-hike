@@ -193,7 +193,13 @@ export default function TrekOrganizersView({
     ];
 
     return (
-      <div className={`flex-1 relative flex flex-col font-sans ${
+      // h-full overflow-hidden (matching TrekDetailsView.jsx) is what lets
+      // the flex-1 overflow-y-auto div below actually become a bounded,
+      // scrollable region — without it, this div's min-height stays 'auto'
+      // per the flexbox spec, so it just grows taller than the fixed parent
+      // overlay's viewport-sized box and gets silently clipped by THAT
+      // overlay's own overflow-hidden instead of scrolling.
+      <div className={`relative flex flex-col h-full overflow-hidden font-sans ${
         darkMode ? 'bg-zinc-950 text-white' : 'bg-gray-55 text-zinc-900'
       }`}>
         <div className="flex-1 overflow-y-auto no-scrollbar">
