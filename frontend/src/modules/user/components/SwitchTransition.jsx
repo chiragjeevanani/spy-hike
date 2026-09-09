@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Repeat } from 'lucide-react';
 import ModuleSwitchAnimation from './ModuleSwitchAnimation';
@@ -15,7 +16,15 @@ export default function SwitchTransition({ darkMode, label = 'Switching to Organ
   // End the flip on the world we're heading into.
   const toTraveller = /Traveller/i.test(label);
 
-  return (
+  // Every caller renders this inside the tab-content `motion.div` that
+  // App.jsx animates with `willChange: 'opacity, transform'` — and any
+  // ancestor with an active transform (or just `will-change: transform`)
+  // becomes the containing block for a `position: fixed` descendant instead
+  // of the viewport. That turned this overlay's `inset-0` into "cover that
+  // ancestor's own (content-height, scrollable-within-#root) box" rather
+  // than "cover the screen", which is exactly why it could be scrolled.
+  // Porting straight to <body> sidesteps the whole containing-block chain.
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -45,6 +54,7 @@ export default function SwitchTransition({ darkMode, label = 'Switching to Organ
         <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
         <span className="text-sm font-bold tracking-wide whitespace-nowrap">{label}</span>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
