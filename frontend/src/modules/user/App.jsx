@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map, AlertTriangle } from 'lucide-react';
+import { resetPageScroll } from '../../utils/scroll';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
 import DesktopNav from './components/DesktopNav';
@@ -340,6 +341,13 @@ export default function App() {
   };
 
   const handleRouteChange = (currentUser = user) => {
+    // Every navigation should open a page at the top, like a fresh screen —
+    // not wherever the previous page happened to be scrolled to. Most tabs
+    // (Home, Profile, ...) share #root as their actual scroll surface rather
+    // than an internal overflow-y-auto container, so an SPA tab swap
+    // otherwise leaves the new page's DOM sitting at the old scroll offset.
+    resetPageScroll();
+
     // Standalone public pages (no login, no phone-frame) take priority over
     // everything else — checked against the raw pathname since they live
     // outside /app.
@@ -1240,7 +1248,9 @@ export default function App() {
           darkMode={darkMode} 
         />
       ) : (
-        <div className="flex-1 flex flex-col min-h-screen relative w-full overflow-x-hidden">
+        // No overflow-x-hidden — see PhoneFrame.jsx for why that silently
+        // turns a div into its own accidental scroll container.
+        <div className="flex-1 flex flex-col min-h-screen relative w-full">
           {/* Top navigation header on tablet and desktop screens */}
           <DesktopNav
             activeTab={activeTab}

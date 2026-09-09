@@ -4,7 +4,13 @@ export default function PhoneFrame({ children, darkMode, onToggleDarkMode }) {
   return (
     <div
       id="findyourtrek-app-root"
-      className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative overflow-x-hidden ${
+      // No overflow-x-hidden here — #root (index.css) already clips
+      // horizontal overflow for the whole app, and setting only one axis
+      // (overflow-x) on an element forces the OTHER axis to compute as
+      // 'auto' per the CSS overflow spec even when left unset, silently
+      // turning this div into its own accidental scroll container that sat
+      // outside #root's overscroll-behavior/background fixes entirely.
+      className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative ${
         darkMode ? 'bg-elegant-bg text-elegant-text' : 'bg-[#FAF8F2] text-zinc-900'
       }`}
     >

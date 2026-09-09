@@ -92,7 +92,13 @@ export default function TrekDetailsView({
     <div className={`relative flex flex-col h-full overflow-hidden ${darkMode ? 'bg-zinc-950 text-white' : 'bg-slate-50 text-zinc-900'}`}>
       
       {/* 1. TOP NAV BAR */}
-      <div className={`sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b backdrop-blur-md transition-colors ${
+      {/* will-change promotes this to its own compositor layer — without it,
+          a `sticky` + `backdrop-blur` element can lag a frame behind fast
+          mobile scrolling, letting whatever's scrolling underneath flash
+          through unblurred for an instant. */}
+      <div
+        style={{ willChange: 'transform' }}
+        className={`sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b backdrop-blur-md transition-colors ${
         darkMode ? 'bg-zinc-950/80 border-zinc-800' : 'bg-white/80 border-zinc-200'
       }`}>
         <div className="max-w-5xl mx-auto w-full flex items-center justify-between">
@@ -181,8 +187,16 @@ export default function TrekDetailsView({
         </div>
 
         {/* SECTION TABS */}
-        <div className={`flex border-b px-4 mt-6 sticky top-12 z-20 backdrop-blur-md overflow-x-auto no-scrollbar ${
-          darkMode ? 'bg-zinc-950/90 border-zinc-800' : 'bg-slate-50/90 border-zinc-200'
+        {/* Sticks flush to the top of its own scroll container (right below
+            the fixed header above it, which lives outside this scroller) —
+            not offset by an arbitrary top-12, which just left a gap where
+            scrolling content could flash through before the bar caught up.
+            A near-opaque bg + will-change (own compositor layer) keeps that
+            content from bleeding through mid-scroll on mobile. */}
+        <div
+          style={{ willChange: 'transform' }}
+          className={`flex border-b px-4 mt-6 sticky top-0 z-20 backdrop-blur-md overflow-x-auto no-scrollbar ${
+          darkMode ? 'bg-zinc-950/95 border-zinc-800' : 'bg-slate-50/95 border-zinc-200'
         }`}>
           {[
             { id: 'overview', label: 'Overview', icon: FileText },
@@ -210,7 +224,7 @@ export default function TrekDetailsView({
         </div>
 
         {/* TAB CONTENTS */}
-        <div className="p-4 space-y-6">
+        <div className="px-4 pb-4 pt-6 space-y-6">
 
           {/* 1. OVERVIEW TAB */}
           {activeTab === 'overview' && (
