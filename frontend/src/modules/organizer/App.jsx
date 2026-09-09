@@ -11,6 +11,7 @@ import {
   loadOrgChats, saveOrgChats,
 } from './utils/storage';
 import { syncOrganizerVouchers, markOrganizerVoucherUsed, hydrateOrganizerLoyalty } from '../../utils/loyalty';
+import { resetPageScroll } from '../../utils/scroll';
 import authApi from '../../lib/authApi';
 import tripsApi from '../../lib/tripsApi';
 import bookingsApi from '../../lib/bookingsApi';
@@ -305,6 +306,9 @@ export default function OrgApp() {
   };
 
   const navigateTo = useCallback((tab, replace = false, tripId = null) => {
+    // Open every page at the top, like a fresh screen, rather than wherever
+    // the previous tab happened to be scrolled to.
+    resetPageScroll();
     setShowOrgFinancials(false);
     setShowOrgCoupons(false);
     setShowOrgNotifications(false);
@@ -1029,7 +1033,12 @@ export default function OrgApp() {
   return (
     <div
       id="findyourtrek-org-root"
-      className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative overflow-x-hidden ${
+      // No overflow-x-hidden — #root (index.css) already clips horizontal
+      // overflow for the whole app; setting only that one axis here forces
+      // overflow-y to compute as 'auto' per the CSS overflow spec even when
+      // left unset, silently making this div its own accidental scroll
+      // container outside #root's overscroll-behavior/background fixes.
+      className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative ${
         darkMode ? 'bg-elegant-bg text-elegant-text' : 'bg-[#FAF8F2] text-zinc-900'
       }`}
     >

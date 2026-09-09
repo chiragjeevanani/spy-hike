@@ -3,17 +3,26 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+/* ── Scroll surface: #root, never html/body ─────────────────────────────────
+   `overscroll-behavior` alone doesn't reliably kill the rubber-band bounce /
+   native pull-to-refresh on the real document scroller (html/body get special
+   browser-native overscroll handling that ignores it in some mobile browsers
+   / PWA contexts) — that's why the previous attempt still showed a white
+   flash and a live pull-to-refresh in production. The robust fix used by
+   every app-shell SPA: html/body never scroll at all (locked to exactly the
+   viewport, overflow hidden), and #root — a plain div with none of that
+   native document-scroller behavior — is the one and only thing that
+   scrolls. overscroll-behavior on a plain scrolling element is fully
+   respected everywhere, so this actually disables the bounce and PTR instead
+   of just hiding their symptom. Any code resetting scroll position must
+   target #root now, not window/document (see navigateTo() in App.jsx). */
 html {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100%;
-  /* Matches --theme-bg's light value; overridden for dark mode below. Without
-     this, an iOS/Android rubber-band overscroll (or the mobile browser's
-     native "pull to refresh" gesture, which is really the same overscroll-at-
-     top event) reveals whatever the OS paints behind the document — plain
-     white — instead of the app's own background, flashing white on every
-     scroll past the top or bottom. */
+  height: 100%;
+  overflow: hidden;
+  /* Matches --theme-bg's light value; overridden for dark mode below. */
   background-color: #fafafa;
 }
 
@@ -25,26 +34,23 @@ body {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   background-color: inherit;
-  /* Disables the rubber-band bounce at the top/bottom of the document —
-     the actual mechanism behind both the white-flash-on-scroll and the
-     browser's native pull-to-refresh gesture (which triggers off exactly
-     that overscroll-at-top event). `contain` is the standard recipe for
-     killing pull-to-refresh in Chrome/Android without disabling the app's
-     own internal scroll containers. */
-  overscroll-behavior-y: contain;
 }
 
 #root {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 
