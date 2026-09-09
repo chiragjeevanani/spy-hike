@@ -8,6 +8,17 @@ html {
   padding: 0;
   width: 100%;
   min-height: 100%;
+  /* Matches --theme-bg's light value; overridden for dark mode below. Without
+     this, an iOS/Android rubber-band overscroll (or the mobile browser's
+     native "pull to refresh" gesture, which is really the same overscroll-at-
+     top event) reveals whatever the OS paints behind the document — plain
+     white — instead of the app's own background, flashing white on every
+     scroll past the top or bottom. */
+  background-color: #fafafa;
+}
+
+html.dark {
+  background-color: #0d1117; /* matches the PWA's theme-color meta tag */
 }
 
 body {
@@ -17,6 +28,14 @@ body {
   min-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  background-color: inherit;
+  /* Disables the rubber-band bounce at the top/bottom of the document —
+     the actual mechanism behind both the white-flash-on-scroll and the
+     browser's native pull-to-refresh gesture (which triggers off exactly
+     that overscroll-at-top event). `contain` is the standard recipe for
+     killing pull-to-refresh in Chrome/Android without disabling the app's
+     own internal scroll containers. */
+  overscroll-behavior-y: contain;
 }
 
 #root {

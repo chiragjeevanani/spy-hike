@@ -11,7 +11,12 @@ export default function OrgBottomNav({ activeTab, onChangeTab, darkMode, unreadC
   ];
 
   return (
-    <div className={`border-t flex justify-around items-center px-2 py-2 select-none z-40 ${
+    // Pinned to the viewport bottom regardless of how tall the current page's
+    // content is — without `fixed` here this was just the last item in a flex
+    // column, so on any page taller than one screen it sat at the true end of
+    // the document instead of staying visible while you scroll (see BottomNav.jsx,
+    // the customer-app equivalent, which already does this correctly).
+    <div className={`fixed bottom-0 left-0 right-0 border-t flex justify-around items-center px-2 py-2 select-none z-40 ${
       darkMode ? 'bg-elegant-app border-white/5' : 'bg-white/95 border-gray-100 backdrop-blur-md'
     }`}>
       {tabs.map(tab => {
