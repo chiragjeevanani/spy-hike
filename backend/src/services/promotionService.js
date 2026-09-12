@@ -6,7 +6,6 @@ import Trip from '../models/Trip.js';
 // takes effect immediately without the organizer re-saving a single trip.
 // Shared by the admin "direct promote" endpoint and the promotion-request
 // approval flow — both just resolve a { from, until } and hand it here.
-export async function promoteOrganizer(user, from, until) {
 export async function promoteOrganizer(user, from, until, priority) {
   const org = user.organizer || {};
   org.promotedFrom = from;
@@ -33,7 +32,6 @@ export async function promoteOrganizer(user, from, until, priority) {
 
   await Trip.updateMany(
     { organizerEmail: user.email },
-    { $set: { 'organizer.promotedUntil': until } },
     {
       $set: {
         'organizer.promotedUntil': until,
@@ -45,7 +43,6 @@ export async function promoteOrganizer(user, from, until, priority) {
 }
 
 export async function unpromoteOrganizer(user) {
-  return promoteOrganizer(user, null, null);
   return promoteOrganizer(user, null, null, 0);
 }
 

@@ -289,11 +289,11 @@ describe('Promoted organizers always sort first', () => {
       .send({ organizerIds: [orgC.id, orgA.id, orgB.id] });
 
     expect(reorderRes.status).toBe(200);
-    expect(reorderRes.body.organizers[0].email).toBe('orgC@example.com');
+    expect(reorderRes.body.organizers[0].email).toBe('orgc@example.com');
     expect(reorderRes.body.organizers[0].promotionPriority).toBe(1);
-    expect(reorderRes.body.organizers[1].email).toBe('orgA@example.com');
+    expect(reorderRes.body.organizers[1].email).toBe('orga@example.com');
     expect(reorderRes.body.organizers[1].promotionPriority).toBe(2);
-    expect(reorderRes.body.organizers[2].email).toBe('orgB@example.com');
+    expect(reorderRes.body.organizers[2].email).toBe('orgb@example.com');
     expect(reorderRes.body.organizers[2].promotionPriority).toBe(3);
 
     // Customer visits trek offers endpoint
@@ -302,8 +302,8 @@ describe('Promoted organizers always sort first', () => {
     expect(offersRes.body.offers).toHaveLength(3);
 
     // Verify exact sequence matches admin custom order: C -> A -> B
-    expect(offersRes.body.offers[0].organizerEmail).toBe('orgC@example.com');
-    expect(offersRes.body.offers[1].organizerEmail).toBe('orgA@example.com');
-    expect(offersRes.body.offers[2].organizerEmail).toBe('orgB@example.com');
+    expect(offersRes.body.offers[0].organizerEmail).toBe('orgc@example.com');
+    expect(offersRes.body.offers[1].organizerEmail).toBe('orga@example.com');
+    expect(offersRes.body.offers[2].organizerEmail).toBe('orgb@example.com');
   });
 });

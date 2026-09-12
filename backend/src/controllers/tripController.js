@@ -381,9 +381,6 @@ export const getTrekOffers = asyncHandler(async (req, res) => {
   // the same trek. Stable sort (Array#sort in Node is stable) preserves
   // whatever order they otherwise arrived in.
   const now = new Date();
-  const sorted = [...offers].sort((a, b) => (
-    Number(isPromotedNow(b.organizer?.promotedUntil, now)) - Number(isPromotedNow(a.organizer?.promotedUntil, now))
-  ));
   const sorted = [...offers].sort((a, b) => {
     const aPromoted = isPromotedNow(a.organizer?.promotedUntil, now);
     const bPromoted = isPromotedNow(b.organizer?.promotedUntil, now);
