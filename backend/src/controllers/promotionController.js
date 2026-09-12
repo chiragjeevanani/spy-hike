@@ -2,7 +2,6 @@ import PromotionRequest from '../models/PromotionRequest.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
-import { promoteOrganizer, unpromoteOrganizer } from '../services/promotionService.js';
 import { promoteOrganizer, unpromoteOrganizer, updatePromotedOrganizersOrder } from '../services/promotionService.js';
 
 // Validates an admin-picked { startDate, endDate } pair and returns real Date

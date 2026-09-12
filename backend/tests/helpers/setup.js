@@ -21,7 +21,6 @@ beforeAll(async () => {
   if (mongoose.connection.readyState === 0) {
     await mongoose.connect(globalThis.__MONGO_URI__);
   }
-});
 }, 60000);
 
 // Wipe collections between tests to guarantee state isolation. The response
@@ -42,7 +41,6 @@ afterAll(async () => {
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
   }
-});
   if (globalThis.__MONGOD_INSTANCE__) {
     await globalThis.__MONGOD_INSTANCE__.stop();
   }
