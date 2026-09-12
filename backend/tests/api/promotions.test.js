@@ -258,4 +258,52 @@ describe('Promoted organizers always sort first', () => {
     const list = await request(app).get(`${api}/trips`);
     expect(list.body.trips[0].id).toBe(tripA.body.trip.id);
   });
+
+  it('admin can reorder multiple promoted organizers and customer offers display in that exact order', async () => {
+    const admin = await adminToken();
+    const orgA = await approvedOrganizer('orgA@example.com', 'Organizer Alpha');
+    const orgB = await approvedOrganizer('orgB@example.com', 'Organizer Beta');
+    const orgC = await approvedOrganizer('orgC@example.com', 'Organizer Gamma');
+
+    const trek = await createTrek({ title: 'Shared Himalayan Trek' });
+
+    // Each organizer posts an offer for the same trek
+    const tripA = await request(app).post(`${api}/organizer/trips`).set(auth(orgA.token)).send(validTrip(trek, { price: 3000 }));
+    const tripB = await request(app).post(`${api}/organizer/trips`).set(auth(orgB.token)).send(validTrip(trek, { price: 2000 }));
+    const tripC = await request(app).post(`${api}/organizer/trips`).set(auth(orgC.token)).send(validTrip(trek, { price: 1000 }));
+
+    // Promote all 3 organizers
+    await request(app).patch(`${api}/admin/organizers/${orgA.id}/promote`).set(auth(admin)).send({ startDate: inDays(0), endDate: inDays(30) });
+    await request(app).patch(`${api}/admin/organizers/${orgB.id}/promote`).set(auth(admin)).send({ startDate: inDays(0), endDate: inDays(30) });
+    await request(app).patch(`${api}/admin/organizers/${orgC.id}/promote`).set(auth(admin)).send({ startDate: inDays(0), endDate: inDays(30) });
+
+    // Check list of promoted organizers
+    const listRes1 = await request(app).get(`${api}/admin/promoted-organizers`).set(auth(admin));
+    expect(listRes1.status).toBe(200);
+    expect(listRes1.body.organizers).toHaveLength(3);
+
+    // Admin sets custom priority sequence: Gamma (C) first, Alpha (A) second, Beta (B) third
+    const reorderRes = await request(app)
+      .put(`${api}/admin/promoted-organizers/order`)
+      .set(auth(admin))
+      .send({ organizerIds: [orgC.id, orgA.id, orgB.id] });
+
+    expect(reorderRes.status).toBe(200);
+    expect(reorderRes.body.organizers[0].email).toBe('orgC@example.com');
+    expect(reorderRes.body.organizers[0].promotionPriority).toBe(1);
+    expect(reorderRes.body.organizers[1].email).toBe('orgA@example.com');
+    expect(reorderRes.body.organizers[1].promotionPriority).toBe(2);
+    expect(reorderRes.body.organizers[2].email).toBe('orgB@example.com');
+    expect(reorderRes.body.organizers[2].promotionPriority).toBe(3);
+
+    // Customer visits trek offers endpoint
+    const offersRes = await request(app).get(`${api}/treks/${trek}/offers`);
+    expect(offersRes.status).toBe(200);
+    expect(offersRes.body.offers).toHaveLength(3);
+
+    // Verify exact sequence matches admin custom order: C -> A -> B
+    expect(offersRes.body.offers[0].organizerEmail).toBe('orgC@example.com');
+    expect(offersRes.body.offers[1].organizerEmail).toBe('orgA@example.com');
+    expect(offersRes.body.offers[2].organizerEmail).toBe('orgB@example.com');
+  });
 });

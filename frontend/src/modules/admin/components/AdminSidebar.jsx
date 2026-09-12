@@ -22,6 +22,7 @@ import {
   Sparkles,
   Image as ImageIcon,
   Crown,
+  Flame,
 } from "lucide-react";
 import { loadAllOrganizers } from "../utils/storage";
 import { getToken } from "../../../lib/apiClient";
@@ -97,6 +98,11 @@ export default function AdminSidebar({
       label: "Promotion Requests",
       icon: Crown,
       badge: pendingPromotionCount,
+    },
+    {
+      id: "PromotedOrganizers",
+      label: "Promoted Organizers",
+      icon: Flame,
     },
     { id: "Treks", label: "Trek Categories", icon: Mountain },
     {

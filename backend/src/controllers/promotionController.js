@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { promoteOrganizer, unpromoteOrganizer } from '../services/promotionService.js';
+import { promoteOrganizer, unpromoteOrganizer, updatePromotedOrganizersOrder } from '../services/promotionService.js';
 
 // Validates an admin-picked { startDate, endDate } pair and returns real Date
 // objects. Shared by direct-promote and request-approval, since both end up
@@ -114,3 +115,49 @@ export const adminUnpromoteOrganizer = asyncHandler(async (req, res) => {
   await unpromoteOrganizer(user);
   res.json({ organizer: user.toOrganizerJSON() });
 });
+
+// GET /admin/promoted-organizers — lists all currently active promoted organizers sorted by promotionPriority
+export const adminListPromotedOrganizers = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const organizers = await User.find({
+    isOrganizer: true,
+    'organizer.promotedUntil': { $gt: now },
+  });
+
+  const json = organizers.map((o) => o.toOrganizerJSON());
+  json.sort((a, b) => {
+    const priA = (a.promotionPriority > 0) ? a.promotionPriority : 999999;
+    const priB = (b.promotionPriority > 0) ? b.promotionPriority : 999999;
+    if (priA !== priB) return priA - priB;
+    return new Date(b.promotedUntil || 0) - new Date(a.promotedUntil || 0);
+  });
+
+  res.json({ organizers: json });
+});
+
+// PUT /admin/promoted-organizers/order { organizerIds: [id1, id2, ...] }
+export const adminUpdatePromotedOrganizersOrder = asyncHandler(async (req, res) => {
+  const { organizerIds } = req.body;
+  if (!Array.isArray(organizerIds)) {
+    throw ApiError.badRequest('organizerIds must be an array of organizer user IDs');
+  }
+
+  await updatePromotedOrganizersOrder(organizerIds);
+
+  const now = new Date();
+  const organizers = await User.find({
+    isOrganizer: true,
+    'organizer.promotedUntil': { $gt: now },
+  });
+
+  const json = organizers.map((o) => o.toOrganizerJSON());
+  json.sort((a, b) => {
+    const priA = (a.promotionPriority > 0) ? a.promotionPriority : 999999;
+    const priB = (b.promotionPriority > 0) ? b.promotionPriority : 999999;
+    if (priA !== priB) return priA - priB;
+    return new Date(b.promotedUntil || 0) - new Date(a.promotedUntil || 0);
+  });
+
+  res.json({ organizers: json });
+});
+

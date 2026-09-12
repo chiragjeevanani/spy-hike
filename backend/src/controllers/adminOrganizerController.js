@@ -62,6 +62,17 @@ export const listOrganizers = asyncHandler(async (req, res) => {
   // newest-first order within each group.
   const json = organizers.map((o) => o.toOrganizerJSON());
   json.sort((a, b) => Number(b.isPromoted) - Number(a.isPromoted));
+  json.sort((a, b) => {
+    if (a.isPromoted !== b.isPromoted) {
+      return Number(b.isPromoted) - Number(a.isPromoted);
+    }
+    if (a.isPromoted && b.isPromoted) {
+      const priA = (a.promotionPriority > 0) ? a.promotionPriority : 999999;
+      const priB = (b.promotionPriority > 0) ? b.promotionPriority : 999999;
+      if (priA !== priB) return priA - priB;
+    }
+    return 0;
+  });
   res.json({ organizers: json });
 });
 

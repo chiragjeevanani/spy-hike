@@ -25,6 +25,10 @@ export const promotionsApi = {
     api.patch(`/admin/organizers/${encodeURIComponent(id)}/promote`, { startDate, endDate }).then((r) => r.organizer),
   unpromoteOrganizer: (id) =>
     api.patch(`/admin/organizers/${encodeURIComponent(id)}/unpromote`).then((r) => r.organizer),
+  listPromotedOrganizers: () =>
+    api.get('/admin/promoted-organizers').then((r) => r.organizers),
+  updatePromotedOrder: (organizerIds) =>
+    api.put('/admin/promoted-organizers/order', { organizerIds }).then((r) => r.organizers),
 };
 
 export default promotionsApi;

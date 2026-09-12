@@ -114,6 +114,25 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
     // once per run, so an expired promotedUntil naturally stops qualifying.
     { $addFields: { promoted: { $cond: [{ $gt: ['$organizer.promotedUntil', '$$NOW'] }, 1, 0] } } },
     { $sort: { promoted: -1, rating: -1, reviewsCount: -1, _id: 1 } },
+    // card ahead of rating — highest promotionPriority first, then rating.
+    {
+      $addFields: {
+        promoted: { $cond: [{ $gt: ['$organizer.promotedUntil', '$$NOW'] }, 1, 0] },
+        priorityVal: {
+          $cond: [
+            {
+              $and: [
+                { $gt: ['$organizer.promotedUntil', '$$NOW'] },
+                { $gt: ['$organizer.promotionPriority', 0] },
+              ],
+            },
+            '$organizer.promotionPriority',
+            999999,
+          ],
+        },
+      },
+    },
+    { $sort: { promoted: -1, priorityVal: 1, rating: -1, reviewsCount: -1, _id: 1 } },
     {
       $group: {
         _id: '$trekId',
@@ -294,6 +313,24 @@ export const listTrips = asyncHandler(async (req, res) => {
       { $match: filter },
       { $addFields: { promoted: { $cond: [{ $gt: ['$organizer.promotedUntil', '$$NOW'] }, 1, 0] } } },
       { $sort: { promoted: -1, featured: -1, rating: -1 } },
+      {
+        $addFields: {
+          promoted: { $cond: [{ $gt: ['$organizer.promotedUntil', '$$NOW'] }, 1, 0] },
+          priorityVal: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$organizer.promotedUntil', '$$NOW'] },
+                  { $gt: ['$organizer.promotionPriority', 0] },
+                ],
+              },
+              '$organizer.promotionPriority',
+              999999,
+            ],
+          },
+        },
+      },
+      { $sort: { promoted: -1, priorityVal: 1, featured: -1, rating: -1 } },
       { $skip: (pageNum - 1) * lim },
       { $limit: lim + 1 },
       { $project: { ...excludeProjection, promoted: 0 } },
@@ -347,6 +384,19 @@ export const getTrekOffers = asyncHandler(async (req, res) => {
   const sorted = [...offers].sort((a, b) => (
     Number(isPromotedNow(b.organizer?.promotedUntil, now)) - Number(isPromotedNow(a.organizer?.promotedUntil, now))
   ));
+  const sorted = [...offers].sort((a, b) => {
+    const aPromoted = isPromotedNow(a.organizer?.promotedUntil, now);
+    const bPromoted = isPromotedNow(b.organizer?.promotedUntil, now);
+    if (aPromoted !== bPromoted) {
+      return Number(bPromoted) - Number(aPromoted);
+    }
+    if (aPromoted && bPromoted) {
+      const aPri = (a.organizer?.promotionPriority > 0) ? a.organizer.promotionPriority : 999999;
+      const bPri = (b.organizer?.promotionPriority > 0) ? b.organizer.promotionPriority : 999999;
+      if (aPri !== bPri) return aPri - bPri;
+    }
+    return 0;
+  });
 
   res.json({
     trekId: trek._id,
@@ -392,6 +442,7 @@ async function buildTripFields(body, organizer) {
       rating: organizer.rating || 0,
       verified: !!organizer.isApproved,
       promotedUntil: organizer.promotedUntil || null,
+      promotionPriority: organizer.promotionPriority ?? 0,
     },
     name: trek.title,
     location: trek.location,
