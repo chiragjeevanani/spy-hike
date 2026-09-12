@@ -133,17 +133,61 @@ export default function HomeView({
   const showLoyaltyBanner =
     loyaltyConfig.customer.enabled && loyaltyConfig.customer.banner.enabled;
 
-  const [promoBanners, setPromoBanners] = useState(PROMOTIONAL_BANNERS);
+  const [promoBanners, setPromoBanners] = useState(() => {
+    try {
+      const raw = localStorage.getItem("fyt_promotional_banners");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return PROMOTIONAL_BANNERS;
+  });
 
   useEffect(() => {
-    bannersApi
-      .getBanners()
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setPromoBanners(data);
-        }
-      })
-      .catch(() => {});
+    const fetchBanners = (forceRefresh = false) => {
+      bannersApi
+        .getBanners({ forceRefresh })
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setPromoBanners(data);
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchBanners();
+
+    // 1. Same-window custom event from admin panel save
+    const handleBannersUpdated = (e) => {
+      if (Array.isArray(e.detail) && e.detail.length > 0) {
+        setPromoBanners(e.detail);
+      }
+    };
+    window.addEventListener("fyt-banners-updated", handleBannersUpdated);
+
+    // 2. Cross-tab storage listener
+    const handleStorage = (e) => {
+      if (e.key === "fyt_promotional_banners" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPromoBanners(parsed);
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    // 3. Re-fetch when user switches back to this tab
+    const handleFocus = () => fetchBanners(true);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("fyt-banners-updated", handleBannersUpdated);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const activeBanners = useMemo(() => {
@@ -430,6 +474,7 @@ export default function HomeView({
               }}
               className="absolute inset-0 cursor-grab active:cursor-grabbing">
               <img
+                key={`${currentPromo.id || activePromoIdx}-${currentPromo.img ? currentPromo.img.slice(0, 40) : ""}`}
                 src={currentPromo.img}
                 alt={currentPromo.title}
                 className="w-full h-full object-cover brightness-[0.7] pointer-events-none"

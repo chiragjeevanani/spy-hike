@@ -22,6 +22,7 @@ import TripsView from "./components/TripsView";
 import TreksView from "./components/TreksView";
 import TrekRequestsView from "./components/TrekRequestsView";
 import PromotionRequestsView from "./components/PromotionRequestsView";
+import PromotedOrganizersView from "./components/PromotedOrganizersView";
 import BookingsView from "./components/BookingsView";
 import PayoutsView from "./components/PayoutsView";
 import CouponsView from "./components/CouponsView";
@@ -47,6 +48,7 @@ function getAdminTab(pathname) {
   if (p === "treks") return "Treks";
   if (p === "trek-requests") return "TrekRequests";
   if (p === "promotions" || p === "promotion-requests") return "Promotions";
+  if (p === "promoted-organizers") return "PromotedOrganizers";
   if (p === "trips") return "Trips";
   if (p === "bookings") return "Bookings";
   if (p === "payouts") return "Payouts";
@@ -85,6 +87,7 @@ function tabToPath(tab, param) {
   if (tab === "Treks") return `${PATH_PREFIX}/treks`;
   if (tab === "TrekRequests") return `${PATH_PREFIX}/trek-requests`;
   if (tab === "Promotions") return `${PATH_PREFIX}/promotions`;
+  if (tab === "PromotedOrganizers") return `${PATH_PREFIX}/promoted-organizers`;
   if (tab === "Trips") return `${PATH_PREFIX}/trips`;
   if (tab === "Bookings") return `${PATH_PREFIX}/bookings`;
   if (tab === "Payouts") return `${PATH_PREFIX}/payouts`;
@@ -270,6 +273,13 @@ export default function AdminApp() {
         );
       case "Promotions":
         return <PromotionRequestsView darkMode={darkMode} />;
+      case "PromotedOrganizers":
+        return (
+          <PromotedOrganizersView
+            onOpenOrganizer={openOrganizerProfile}
+            darkMode={darkMode}
+          />
+        );
       case "Treks":
         return <TreksView darkMode={darkMode} />;
       case "TrekRequests":

@@ -49,6 +49,7 @@ const organizerSubSchema = new mongoose.Schema(
     // "promoted" is never a stored boolean, just promotedUntil > now.
     promotedFrom:      { type: Date, default: null },
     promotedUntil:     { type: Date, default: null },
+    promotionPriority: { type: Number, default: 0 },
   },
   { _id: false },
 );
@@ -188,6 +189,7 @@ userSchema.methods.toOrganizerJSON = function toOrganizerJSON() {
     isPromoted:       isPromotedNow(org.promotedUntil),
     promotedFrom:     org.promotedFrom  || null,
     promotedUntil:    org.promotedUntil || null,
+    promotionPriority: org.promotionPriority ?? 0,
     joinedDate: this.createdAt ? this.createdAt.toISOString().split('T')[0] : '',
   };
 };

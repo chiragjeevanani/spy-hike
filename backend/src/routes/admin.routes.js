@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { setOrganizerStatus, listOrganizers, createOrganizer, updateOrganizer, deleteOrganizer } from '../controllers/adminOrganizerController.js';
 import {
   adminListPromotionRequests, adminReviewPromotionRequest, promoteOrganizerDirect, adminUnpromoteOrganizer,
+  adminListPromotedOrganizers, adminUpdatePromotedOrganizersOrder,
 } from '../controllers/promotionController.js';
 import { listUsers, getUser, setUserStatus, deleteUser, createUser, updateUser } from '../controllers/adminUserController.js';
 import { listAllTrips, adminSetTripStatus, adminSetTripFeatured, adminSetTripPopular, adminDeleteTrip } from '../controllers/tripController.js';
@@ -53,6 +54,10 @@ router.patch('/admin/organizers/:id/unpromote', adminUnpromoteOrganizer);
 // is the "Promotions" sidebar review queue.
 router.get('/admin/promotion-requests', adminListPromotionRequests);
 router.patch('/admin/promotion-requests/:id', adminReviewPromotionRequest);
+
+// Promoted organizers priority ordering CMS
+router.get('/admin/promoted-organizers', adminListPromotedOrganizers);
+router.put('/admin/promoted-organizers/order', adminUpdatePromotedOrganizersOrder);
 
 router.get('/admin/trips', listAllTrips);
 router.patch('/admin/trips/:id/status', adminSetTripStatus);

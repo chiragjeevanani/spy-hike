@@ -1,5 +1,6 @@
 import { getPromotionalBannersDoc, DEFAULT_PROMOTIONAL_BANNERS } from '../models/PromotionalBanner.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { cacheInvalidate } from '../lib/cache.js';
 
 // GET /promotional-banners — public endpoint for customer app
 export const getPublicBanners = asyncHandler(async (req, res) => {
@@ -36,7 +37,9 @@ export const updateAdminBanners = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: { message: 'banners array is required' } });
   }
 
+  doc.markModified('banners');
   await doc.save();
+  await cacheInvalidate('content').catch(() => {});
   res.json(doc.toAdminJSON());
 });
 

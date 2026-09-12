@@ -89,6 +89,7 @@ export default function BannersCmsView({ darkMode }) {
   }, [banners, originalBanners]);
 
   const handleUpdateField = (index, field, value) => {
+    setPreviewIdx(index);
     setBanners((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
@@ -148,11 +149,15 @@ export default function BannersCmsView({ darkMode }) {
       showToast("Please select a valid image file (JPEG, PNG, WebP).", "error");
       return;
     }
+    setPreviewIdx(index);
     try {
       showToast("Compressing image...", "info");
-      const compressedDataUrl = await compressImage(file, 1200, 0.8);
+      const compressedDataUrl = await compressImage(file, 900, 0.75);
       handleUpdateField(index, "img", compressedDataUrl);
-      showToast("Image attached successfully.", "success");
+      showToast(
+        "Image attached! Click 'Save Changes' to publish to Customer App.",
+        "success",
+      );
     } catch (err) {
       showToast("Failed to process image: " + err.message, "error");
     }
@@ -165,12 +170,19 @@ export default function BannersCmsView({ darkMode }) {
       if (res && res.banners) {
         setBanners(res.banners);
         setOriginalBanners(JSON.stringify(res.banners));
-        showToast(
-          res.synced
-            ? "Promotional banners saved and live in Customer App!"
-            : "Banners saved locally.",
-          "success",
-        );
+        if (res.synced) {
+          showToast(
+            "Promotional banners saved and live in Customer App!",
+            "success",
+          );
+        } else {
+          showToast(
+            res.error
+              ? `Banners saved locally (${res.error}).`
+              : "Banners saved locally.",
+            "warning",
+          );
+        }
       } else {
         showToast("Banners saved.", "success");
         setOriginalBanners(JSON.stringify(banners));
@@ -589,17 +601,22 @@ export default function BannersCmsView({ darkMode }) {
                         <input
                           type="file"
                           accept="image/*"
-                          ref={(el) => (fileInputRefs.current[banner.id] = el)}
-                          className="hidden"
-                          onChange={(e) =>
-                            handleFileUpload(index, e.target.files?.[0])
+                          ref={(el) =>
+                            (fileInputRefs.current[banner.id || index] = el)
                           }
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            handleFileUpload(index, file);
+                          }}
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            fileInputRefs.current[banner.id]?.click()
-                          }
+                          onClick={() => {
+                            setPreviewIdx(index);
+                            fileInputRefs.current[banner.id || index]?.click();
+                          }}
                           className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer ${
                             darkMode
                               ? "border-slate-700 hover:bg-slate-800/60 text-slate-300"
@@ -705,6 +722,7 @@ export default function BannersCmsView({ darkMode }) {
               <div className="relative w-full aspect-[2.3/1] rounded-2xl overflow-hidden shadow-lg bg-zinc-900 select-none">
                 {currentPreviewBanner.img ? (
                   <img
+                    key={`${previewIdx}-${currentPreviewBanner.img?.slice(0, 40) || ""}`}
                     src={currentPreviewBanner.img}
                     alt={currentPreviewBanner.title}
                     className="w-full h-full object-cover brightness-[0.7]"
