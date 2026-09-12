@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import bannersApi from "../../../lib/bannersApi";
 import treksApi from "../../../lib/treksApi";
+import authApi from "../../../lib/authApi";
 import { PROMOTIONAL_BANNERS } from "../../user/data/trips";
 import { compressImage } from "../../../utils/imageCompressor";
 import { useToast } from "../../../components/ToastProvider";
@@ -153,15 +154,19 @@ export default function BannersCmsView({ darkMode }) {
     try {
       showToast("Compressing image...", "info");
       const compressedDataUrl = await compressImage(file, 900, 0.75);
-      handleUpdateField(index, "img", compressedDataUrl);
+      showToast("Uploading image to cloud...", "info");
+      const res = await authApi.uploadImage(compressedDataUrl);
+      const imageUrl = res?.url || compressedDataUrl;
+      handleUpdateField(index, "img", imageUrl);
       showToast(
-        "Image attached! Click 'Save Changes' to publish to Customer App.",
+        "Image uploaded! Click 'Save Changes' to publish to Customer App.",
         "success",
       );
     } catch (err) {
-      showToast("Failed to process image: " + err.message, "error");
+      showToast("Failed to upload image: " + err.message, "error");
     }
   };
+
 
   const handleSave = async () => {
     setSaving(true);
