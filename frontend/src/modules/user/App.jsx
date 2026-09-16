@@ -118,6 +118,8 @@ const isOverlayPath = (internalPath) => (
     || internalPath.startsWith('/book/')
     || internalPath.startsWith('/booking/')
     || internalPath.startsWith('/organizers/')
+    || internalPath === '/loyalty'
+    || internalPath === '/map'
   )
 );
 
@@ -270,6 +272,10 @@ const getInitialStateFromUrl = () => {
       tab = 'Explore';
       selectedOrganizer = foundTrip.organizer;
     }
+  } else if (path === '/loyalty' || path === '/map') {
+    // Both render over a tab rather than replacing it; Home is the sane one
+    // to have underneath when the URL is opened cold.
+    tab = 'Home';
   } else if (path === '/login') {
     tab = 'Login';
   } else if (path === '/register') {
@@ -312,7 +318,12 @@ export default function App() {
   // via the CMS (see lib/contentApi.js), with sane fallback defaults.
   const [supportContact, setSupportContact] = useState({ email: 'support@findyourtrek.com', phone: '+91 99999 88888' });
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
-  const [showMap, setShowMap] = useState(false);
+  // Loyalty Rewards and the fullscreen map are pages, not modals: each gets
+  // its own URL so opening one pushes a history entry. Without that, a back
+  // gesture popped whatever entry happened to be underneath while the screen
+  // itself — plain local state the router never touched — stayed painted on
+  // top, which looked like "it goes back and then comes straight back".
+  const [showMap, setShowMap] = useState(() => toInternalPath(window.location.pathname) === '/map');
   const [showGlobalNotificationDrawer, setShowGlobalNotificationDrawer] = useState(false);
   // Hides the bottom nav while a tab renders a fullscreen flow (e.g. the
   // "Become an Organizer" application form inside Profile).
@@ -341,7 +352,7 @@ export default function App() {
   // ProfileView reads it as `initialSub` and reports taps back via
   // `onNavigateProfile` so the browser's back button works as expected.
   const [profileSub, setProfileSub] = useState(() => getInitialStateFromUrl().profileSub);
-  const [showLoyalty, setShowLoyalty] = useState(false);
+  const [showLoyalty, setShowLoyalty] = useState(() => toInternalPath(window.location.pathname) === '/loyalty');
 
   // 3. Search & Filter & Location dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState('');
@@ -436,6 +447,9 @@ export default function App() {
         resetPageScroll();
       }
     }
+
+    setShowLoyalty(path === '/loyalty');
+    setShowMap(path === '/map');
 
     // Standalone public pages (no login, no phone-frame) take priority over
     // everything else — checked against the raw pathname since they live
@@ -666,6 +680,16 @@ export default function App() {
       } else {
         navigateTo('/', true, currentUser);
       }
+    } else if (path === '/loyalty' || path === '/map') {
+      // Handled by setShowLoyalty/setShowMap above — these render on top of
+      // whichever tab is already showing, so activeTab is deliberately left
+      // alone (on a cold load getInitialStateFromUrl has already put Home
+      // underneath).
+      setSelectedTrip(null);
+      setActiveBookingTrip(null);
+      setSelectedBooking(null);
+      setSelectedOrganizer(null);
+      setSelectedTrekName(null);
     } else if (path === '/login') {
       setActiveTab('Login');
       setSelectedTrip(null);
@@ -1292,7 +1316,7 @@ export default function App() {
             onApplyCategory={handleApplyCategoryFromHome}
             onApplySearch={handleApplySearchFromHome}
             onApplyDate={setExploreDate}
-            onOpenLoyalty={() => setShowLoyalty(true)}
+            onOpenLoyalty={() => navigateTo('/loyalty')}
             bookings={bookings}
             notifications={notifications}
             onMarkNotificationRead={handleMarkNotificationRead}
@@ -1365,7 +1389,7 @@ export default function App() {
             onTriggerOnboarding={handleTriggerOnboardingWalkthrough}
             bookings={bookings}
             onFullscreenChange={setNavHidden}
-            onOpenLoyalty={() => setShowLoyalty(true)}
+            onOpenLoyalty={() => navigateTo('/loyalty')}
             initialSub={profileSub}
             onNavigateProfile={navigateProfileSub}
             onOpenPrivacyPolicy={() => navigateToPublic('/privacy-policy')}
@@ -1646,21 +1670,22 @@ export default function App() {
            </AnimatePresence>
  
            {/* Dynamic Loyalty Rewards page absolute overlay */}
-           <AnimatePresence mode="wait">
+           <AnimatePresence mode="wait" custom={instantNav}>
              {showLoyalty && (
                <motion.div
                  key="overlay-loyalty-rewards"
-                 initial={{ opacity: 0, y: 16 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 exit={{ opacity: 0, y: 12 }}
-                 transition={{ duration: 0.18, ease: 'easeOut' }}
+                 custom={instantNav}
+                 variants={overlayVariants}
+                 initial="initial"
+                 animate="animate"
+                 exit="exit"
                  style={{ willChange: 'opacity, transform' }}
                  className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <LoyaltyRewardsView
                    bookings={bookings}
-                   onBack={() => setShowLoyalty(false)}
-                   onGoExplore={() => { setShowLoyalty(false); navigateTo('/explore'); }}
+                   onBack={() => goBack('/')}
+                   onGoExplore={() => navigateTo('/explore')}
                    darkMode={darkMode}
                  />
                </motion.div>
@@ -1707,7 +1732,7 @@ export default function App() {
             {(activeTab === 'Home' || activeTab === 'Explore') && !showMap && (
               <motion.button
                 id="btn-open-map"
-                onClick={() => setShowMap(true)}
+                onClick={() => navigateTo('/map')}
                 aria-label="Open map"
                 initial={{ opacity: 0, scale: 0.8, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1743,8 +1768,8 @@ export default function App() {
                 trips={trips}
                 wishlist={wishlist}
                 onToggleWishlist={handleToggleWishlist}
-                onSelectTrek={(trekName) => { setShowMap(false); navigateTo(`/trek/${slugifyTrekName(trekName)}`); }}
-                onClose={() => setShowMap(false)}
+                onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
+                onClose={() => goBack('/')}
                 darkMode={darkMode}
               />
             )}

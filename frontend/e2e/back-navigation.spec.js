@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { CUSTOMER_USER, seedLocalStorage } from './fixtures/seed.js';
+import { CUSTOMER_USER, makeLoyaltyConfig, seedLocalStorage } from './fixtures/seed.js';
 
 // Back navigation, from the angle iOS cares about.
 //
@@ -40,6 +40,7 @@ async function seedSession(page) {
   await seedLocalStorage(page, {
     trekigo_user: { ...CUSTOMER_USER, profileSetupComplete: true },
     trekigo_last_route: '/app',
+    trekigo_loyalty_config: makeLoyaltyConfig(),
   });
   // A token the API stub never rejects — without one the first authed call
   // 401s and the session resets itself to the login screen.
@@ -186,5 +187,63 @@ test.describe('Customer — back navigation', () => {
     const frames = await framesAfter(page, "document.querySelector('form button').click()", 'form');
     expect(frames[1].leaving).toBe(true);
     await expect(page).toHaveURL(/\/app\/profile$/);
+  });
+
+  // Loyalty Rewards and the fullscreen map used to be plain component state
+  // with no URL of their own, so opening one pushed nothing onto the history
+  // stack. A back gesture then popped whatever entry happened to be
+  // underneath — while the screen itself, which the router never touched,
+  // stayed painted on top. It read as "it goes back and then comes straight
+  // back", and a later tap on the screen's own back button revealed a page
+  // the visitor had never navigated to from there.
+  async function homeWithExploreBehind(page) {
+    await seedSession(page);
+    await page.goto('/app');
+    await page.getByText(/^Explore$/).last().click({ force: true });
+    await expect(page).toHaveURL(/\/app\/explore$/);
+    await page.getByText(/^Home$/).last().click({ force: true });
+    await expect(page).toHaveURL(/\/app$/);
+  }
+
+  test('opening Loyalty Rewards pushes a history entry of its own', async ({ page }) => {
+    await homeWithExploreBehind(page);
+
+    await page.locator('#btn-open-loyalty-home').click();
+    await expect(page).toHaveURL(/\/app\/loyalty$/);
+    await expect(page.getByText(/Loyalty Rewards/i).first()).toBeVisible();
+  });
+
+  test('a gesture back out of Loyalty Rewards lands on Home, not the entry behind it', async ({ page }) => {
+    await homeWithExploreBehind(page);
+    await page.locator('#btn-open-loyalty-home').click();
+    await expect(page).toHaveURL(/\/app\/loyalty$/);
+
+    const frames = await framesAfter(page, 'history.back()', '.z-55');
+
+    // Closed, not left hanging over whatever the pop landed on.
+    expect(frames.slice(3).some((f) => f.leaving)).toBe(false);
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.locator('#btn-open-loyalty-home')).toBeVisible();
+  });
+
+  test('the Loyalty Rewards back button goes back to Home', async ({ page }) => {
+    await homeWithExploreBehind(page);
+    await page.locator('#btn-open-loyalty-home').click();
+    await expect(page).toHaveURL(/\/app\/loyalty$/);
+
+    await page.locator('.z-55 button').first().click();
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.locator('#btn-open-loyalty-home')).toBeVisible();
+  });
+
+  test('the fullscreen map is a route too, so a gesture back closes it', async ({ page }) => {
+    await homeWithExploreBehind(page);
+
+    await page.locator('#btn-open-map').click();
+    await expect(page).toHaveURL(/\/app\/map$/);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.locator('#btn-open-map')).toBeVisible();
   });
 });
