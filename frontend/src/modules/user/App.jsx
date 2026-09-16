@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map, AlertTriangle } from 'lucide-react';
-import { resetPageScroll } from '../../utils/scroll';
+import {
+  resetPageScroll,
+  nextHistoryKey,
+  enterHistoryEntry,
+  rememberPageScroll,
+  recallPageScroll,
+  restorePageScroll,
+} from '../../utils/scroll';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
 import DesktopNav from './components/DesktopNav';
@@ -93,6 +100,48 @@ const toInternalPath = (rawPath) => {
   if (rawPath === APP_PREFIX) return '/';
   if (rawPath.startsWith(APP_PREFIX + '/')) return rawPath.slice(APP_PREFIX.length);
   return null;
+};
+
+// Routes that render as a FULLSCREEN OVERLAY (fixed inset-0, with its own
+// internal overflow-y-auto scroller) on top of whichever tab is showing —
+// the tab itself stays mounted in #root, keeping its scroll position, and
+// is revealed again when the overlay closes. Navigating to one of these
+// must therefore leave #root's scroll alone: resetting it scrolls the page
+// UNDERNEATH back to the top for no visible benefit, and that silent jump
+// is precisely what iOS's swipe-back snapshot exposes on the way back (see
+// utils/scroll.js).
+const isOverlayPath = (internalPath) => (
+  !!internalPath && (
+    internalPath.startsWith('/trek/')
+    || internalPath.startsWith('/trip/')
+    || internalPath.startsWith('/book/')
+    || internalPath.startsWith('/booking/')
+    || internalPath.startsWith('/organizers/')
+  )
+);
+
+// Enter/exit for those overlays, and for the tab swap underneath. Both take
+// `instant` through framer-motion's `custom` channel — the one way to reach
+// an element that is ALREADY being removed, since its ordinary props are
+// frozen at the last render in which it existed.
+//
+// instant = this navigation came from a real popstate (iOS edge-swipe back,
+// Android's back button, the browser's own back/forward). WebKit has already
+// played its swipe animation against a snapshot of the destination and drops
+// the live DOM in at the end of the gesture, so a 180ms fade-out of the
+// screen being left lands AFTER the snapshot lifts — a flash of the old page
+// over the new one. In-app navigation keeps the fade; it has no snapshot to
+// race.
+const overlayVariants = {
+  initial: (instant) => (instant ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }),
+  animate: (instant) => ({ opacity: 1, y: 0, transition: { duration: instant ? 0 : 0.18, ease: 'easeOut' } }),
+  exit: (instant) => ({ opacity: 0, y: instant ? 0 : 12, transition: { duration: instant ? 0 : 0.18, ease: 'easeOut' } }),
+};
+
+const tabVariants = {
+  initial: (instant) => (instant ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }),
+  animate: (instant) => ({ opacity: 1, y: 0, transition: { duration: instant ? 0 : 0.15, ease: 'easeOut' } }),
+  exit: (instant) => ({ opacity: 0, y: instant ? 0 : -6, transition: { duration: instant ? 0 : 0.15, ease: 'easeOut' } }),
 };
 
 // Internal relative path -> real browser URL (e.g. '/explore' -> '/app/explore').
@@ -281,6 +330,11 @@ export default function App() {
   // "Become an Organizer" application form inside Profile).
   const [navHidden, setNavHidden] = useState(false);
 
+  // True while the screen swap on the wire came from a real back/forward
+  // (popstate) rather than a tap inside the app — see overlayVariants for
+  // why that has to skip the transition rather than play it.
+  const [instantNav, setInstantNav] = useState(false);
+
   // 2. Navigation registers initialized from URL
   const [activeTab, setActiveTab] = useState(() => getInitialStateFromUrl().tab);
   const [selectedTrip, setSelectedTrip] = useState(() => getInitialStateFromUrl().trip);
@@ -322,11 +376,17 @@ export default function App() {
 
   const navigateTo = (path, replace = false, currentUser = user) => {
     const url = toBrowserPath(path);
+    // Bank where this page is scrolled to BEFORE leaving it, so coming back
+    // lands exactly where it was left — matching the snapshot iOS animates
+    // during its swipe-back gesture instead of jumping against it.
+    rememberPageScroll();
+    const state = { path: url, key: nextHistoryKey() };
     if (replace) {
-      window.history.replaceState({ path: url }, '', url);
+      window.history.replaceState(state, '', url);
     } else {
-      window.history.pushState({ path: url }, '', url);
+      window.history.pushState(state, '', url);
     }
+    setInstantNav(false);
     if (url && url !== '/' && url !== '/login') {
       safeSetItem('trekigo_last_route', url);
     }
@@ -336,8 +396,31 @@ export default function App() {
   // Navigates to a standalone public page that lives outside /app (Privacy
   // Policy, Support) — a raw pathname, not run through toBrowserPath.
   const navigateToPublic = (rawPath) => {
-    window.history.pushState({ path: rawPath }, '', rawPath);
+    rememberPageScroll();
+    window.history.pushState({ path: rawPath, key: nextHistoryKey() }, '', rawPath);
+    setInstantNav(false);
     handleRouteChange();
+  };
+
+  // Every in-app back button (the chevron at the top of a trek/trip/booking
+  // screen) goes through here. It is a REAL history back — the entry stack
+  // has to stay honest, or the next gesture-back skips a screen — but it is
+  // flagged as in-app on the way out, because it is the one kind of back
+  // that should still play the fade: there is no WebKit swipe snapshot
+  // waiting to be lifted, so nothing to race. Entries this app never pushed
+  // (a cold load straight onto a deep link) have nothing to go back TO
+  // without leaving the site, hence the fallback.
+  const inAppBackRef = useRef(false);
+  const goBack = (fallbackPath) => {
+    if (window.history.state?.path) {
+      inAppBackRef.current = true;
+      // Safety net: if that back never lands (nothing left in the stack),
+      // don't leave the flag armed for a later gesture-back.
+      setTimeout(() => { inAppBackRef.current = false; }, 300);
+      window.history.back();
+    } else {
+      navigateTo(fallbackPath);
+    }
   };
 
   // ProfileView reports every currentSub change here so the URL stays in
@@ -347,13 +430,23 @@ export default function App() {
     navigateTo(sub === 'MAIN' || !PROFILE_SUB_TO_PATH[sub] ? '/profile' : PROFILE_SUB_TO_PATH[sub]);
   };
 
-  const handleRouteChange = (currentUser = user) => {
-    // Every navigation should open a page at the top, like a fresh screen —
-    // not wherever the previous page happened to be scrolled to. Most tabs
-    // (Home, Profile, ...) share #root as their actual scroll surface rather
-    // than an internal overflow-y-auto container, so an SPA tab swap
-    // otherwise leaves the new page's DOM sitting at the old scroll offset.
-    resetPageScroll();
+  const handleRouteChange = (currentUser = user, { pop = false, scroll = true } = {}) => {
+    const path = toInternalPath(window.location.pathname);
+
+    if (scroll) {
+      if (pop) {
+        // Back/forward: put the destination back exactly as it was left.
+        restorePageScroll(recallPageScroll());
+      } else if (!isOverlayPath(path)) {
+        // Forward, and the page living in #root really is changing: open it
+        // at the top like a fresh screen. Most tabs (Home, Profile, ...)
+        // share #root as their actual scroll surface rather than an internal
+        // overflow-y-auto container, so an SPA tab swap otherwise leaves the
+        // new page's DOM sitting at the old scroll offset. Overlay routes
+        // are deliberately excluded — see isOverlayPath.
+        resetPageScroll();
+      }
+    }
 
     // Standalone public pages (no login, no phone-frame) take priority over
     // everything else — checked against the raw pathname since they live
@@ -370,7 +463,6 @@ export default function App() {
     }
 
     // Root (and anything else outside /app) is the public marketing Landing page — bypasses all gates.
-    const path = toInternalPath(window.location.pathname);
     setProfileSub(null); // default; overridden below for /profile/* routes
     if (path === null) {
       setActiveTab('Landing');
@@ -451,8 +543,11 @@ export default function App() {
       return;
     }
 
-    // Normal paths parsing
-    if (path === '/' || path === '') {
+    // Normal paths parsing. '/home' is an alias for '/' rather than a route
+    // of its own: older builds parked restored sessions on /app/home, so it
+    // is still sitting in people's saved last-route — and it has to survive a
+    // popstate, not just the initial load that getInitialStateFromUrl handles.
+    if (path === '/' || path === '' || path === '/home') {
       setActiveTab('Home');
       setSelectedTrip(null);
       setActiveBookingTrip(null);
@@ -620,7 +715,31 @@ export default function App() {
   handleRouteChangeRef.current = handleRouteChange;
 
   useEffect(() => {
-    const onPopState = () => handleRouteChangeRef.current();
+    // We own #root's scroll across history entries (utils/scroll.js); the
+    // browser's own restoration targets the document scroller, which is
+    // locked at overflow:hidden here and so would silently do nothing.
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+    // Adopt whatever entry the document loaded on, so the first navigation
+    // away from it has somewhere to bank its scroll offset.
+    enterHistoryEntry();
+
+    const onPopState = (event) => {
+      // ProfileView pushes a URL and then fires a synthetic PopStateEvent to
+      // make this router re-read it. That's a forward navigation wearing a
+      // popstate costume: no WebKit snapshot to race, and nowhere to restore
+      // a scroll offset from — so it keeps the normal transition and opens
+      // at the top like any other tap.
+      const isPop = event?.isTrusted !== false;
+      // An in-app back button got us here, not a gesture — see goBack().
+      const inApp = inAppBackRef.current;
+      inAppBackRef.current = false;
+      // Either way we're leaving the entry that was on screen: bank its
+      // scroll offset before adopting the one we just landed on.
+      rememberPageScroll();
+      enterHistoryEntry();
+      setInstantNav(isPop && !inApp);
+      handleRouteChangeRef.current(undefined, { pop: isPop });
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -645,7 +764,7 @@ export default function App() {
       (path.startsWith('/book/') && !activeBookingTrip) ||
       (path.startsWith('/booking/') && !selectedBooking) ||
       (path.startsWith('/organizers/') && !selectedOrganizer);
-    if (stillUnresolved) handleRouteChangeRef.current();
+    if (stillUnresolved) handleRouteChangeRef.current(undefined, { scroll: false });
   }, [tripsLoading, catalogLoading, bookingsLoading]);
 
   // Sync state mutations to LocalStorage standard hooks
@@ -1350,14 +1469,15 @@ export default function App() {
           />
           
           {/* Dynamic master trek details page overlay */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" custom={instantNav}>
             {selectedTrekName && !showOrganizersList && !selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trek-details"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 style={{ willChange: 'opacity, transform' }}
                 className={`fixed inset-0 z-47 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
@@ -1368,7 +1488,7 @@ export default function App() {
                     || trips.find(t => t.name === selectedTrekName)
                   }
                   offers={trips.filter(t => t.name === selectedTrekName)}
-                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                  onBack={() => goBack('/explore')}
                   onViewOrganisers={(tName) => navigateTo(`/trek/${slugifyTrekName(tName)}/organizers`)}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
@@ -1379,14 +1499,15 @@ export default function App() {
           </AnimatePresence>
 
           {/* Dynamic trek -> choose organizer listing absolute overlay */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" custom={instantNav}>
             {selectedTrekName && showOrganizersList && !selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trek-organizers"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 style={{ willChange: 'opacity, transform' }}
                 className={`fixed inset-0 z-48 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
@@ -1400,7 +1521,7 @@ export default function App() {
                     || catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
                   }
                   offers={trips.filter(t => t.name === selectedTrekName)}
-                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo(`/trek/${slugifyTrekName(selectedTrekName)}`); } }}
+                  onBack={() => goBack(`/trek/${slugifyTrekName(selectedTrekName)}`)}
                   onSelectOrganizerOffer={(t) => navigateTo(`/trip/${t.id}`)}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
@@ -1411,20 +1532,21 @@ export default function App() {
           </AnimatePresence>
 
           {/* Dynamic details page loaded absolute overlay */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" custom={instantNav}>
             {selectedTrip && !activeBookingTrip && (
               <motion.div
                 key="overlay-trip-details"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 style={{ willChange: 'opacity, transform' }}
                 className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
               >
                 <TripDetailsView
                   trip={tripWithDetailDefaults}
-                  onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                  onBack={() => goBack('/explore')}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
                   onTriggerBooking={(t) => navigateTo(`/book/${t.id}`)}
@@ -1436,20 +1558,21 @@ export default function App() {
           </AnimatePresence>
  
            {/* Dynamic Booking flow workflow absolute overlay loaded */}
-           <AnimatePresence mode="wait">
+           <AnimatePresence mode="wait" custom={instantNav}>
              {activeBookingTrip && (
                <motion.div
                  key="overlay-booking-flow"
-                 initial={{ opacity: 0, y: 20 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 exit={{ opacity: 0, y: 16 }}
-                 transition={{ duration: 0.18, ease: 'easeOut' }}
+                 custom={instantNav}
+                 variants={overlayVariants}
+                 initial="initial"
+                 animate="animate"
+                 exit="exit"
                  style={{ willChange: 'opacity, transform' }}
                  className={`fixed inset-0 z-45 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <BookingFlow
                    trip={activeBookingTrip}
-                   onCancel={() => { if (window.history.state) { window.history.back(); } else { navigateTo(selectedTrip ? `/trip/${selectedTrip.id}` : '/explore'); } }}
+                   onCancel={() => goBack(selectedTrip ? `/trip/${selectedTrip.id}` : '/explore')}
                    onConfirmBooking={handleFinalizeBookingSetup}
                    onGoHome={() => navigateTo('/')}
                    darkMode={darkMode}
@@ -1459,20 +1582,21 @@ export default function App() {
            </AnimatePresence>
  
            {/* Dynamic Booking Details page absolute overlay */}
-           <AnimatePresence mode="wait">
+           <AnimatePresence mode="wait" custom={instantNav}>
              {selectedBooking && (
                <motion.div
                  key="overlay-booking-details"
-                 initial={{ opacity: 0, y: 16 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 exit={{ opacity: 0, y: 12 }}
-                 transition={{ duration: 0.18, ease: 'easeOut' }}
+                 custom={instantNav}
+                 variants={overlayVariants}
+                 initial="initial"
+                 animate="animate"
+                 exit="exit"
                  style={{ willChange: 'opacity, transform' }}
                  className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <BookingDetailsView
                    booking={selectedBooking}
-                   onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/bookings'); } }}
+                   onBack={() => goBack('/bookings')}
                    onModifyBookingStatus={handleModifyBookingStatus}
                    availableRescheduleDates={(() => {
                      const matchedTrip = trips.find(t => t.id === selectedBooking.tripId || t.name === selectedBooking.tripName);
@@ -1506,21 +1630,22 @@ export default function App() {
            </AnimatePresence>
  
            {/* Dynamic Organizer Profile page absolute overlay */}
-           <AnimatePresence mode="wait">
+           <AnimatePresence mode="wait" custom={instantNav}>
              {selectedOrganizer && (
                <motion.div
                  key="overlay-organizer-profile"
-                 initial={{ opacity: 0, y: 16 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 exit={{ opacity: 0, y: 12 }}
-                 transition={{ duration: 0.18, ease: 'easeOut' }}
+                 custom={instantNav}
+                 variants={overlayVariants}
+                 initial="initial"
+                 animate="animate"
+                 exit="exit"
                  style={{ willChange: 'opacity, transform' }}
                  className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
                >
                  <OrganizerProfileView
                    organizer={selectedOrganizer}
                    trips={trips}
-                   onBack={() => { if (window.history.state) { window.history.back(); } else { navigateTo('/explore'); } }}
+                   onBack={() => goBack('/explore')}
                    onSelectTrip={(t) => {
                      setSelectedOrganizer(null);
                      navigateTo(`/trip/${t.id}`);
@@ -1555,13 +1680,14 @@ export default function App() {
  
           {/* Main Tabs view renderer */}
           <div className="flex-1 flex flex-col relative w-full">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" custom={instantNav}>
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
+                custom={instantNav}
+                variants={tabVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 style={{ willChange: 'opacity, transform' }}
                 // overflow-hidden properly bounds this to the space actually
                 // available (flexbox min-height:auto rule) — without it, a

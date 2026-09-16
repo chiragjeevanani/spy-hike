@@ -29,7 +29,9 @@ if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/ap
     } else if (rawUser) {
       const hikerUser = JSON.parse(rawUser);
       if (hikerUser?.isAuthenticated) {
-        const target = (lastRoute && (lastRoute.startsWith('/app') || lastRoute.startsWith('/profile'))) ? lastRoute : '/app/home';
+        // '/app' IS the home route (see APP_PREFIX in modules/user/App.jsx);
+        // '/app/home' is not one the router recognises.
+        const target = (lastRoute && (lastRoute.startsWith('/app') || lastRoute.startsWith('/profile'))) ? lastRoute : '/app';
         window.history.replaceState(null, '', target);
         routePath = target;
       }
