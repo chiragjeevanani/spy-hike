@@ -47,3 +47,4 @@ describe('validateBannerImage', () => {
     expect(res.error).toContain('exceeds the 2 MB limit');
   });
 });
+

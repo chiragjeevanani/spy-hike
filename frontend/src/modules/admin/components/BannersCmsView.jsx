@@ -290,7 +290,9 @@ export default function BannersCmsView({ darkMode }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty || Object.values(uploadState).some(Boolean)}
+            disabled={
+              saving || !isDirty || Object.values(uploadState).some(Boolean)
+            }
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
               isDirty
                 ? "bg-[#F27D26] hover:bg-[#d96c1c] text-white"
@@ -696,7 +698,8 @@ export default function BannersCmsView({ darkMode }) {
                           )}
                         </div>
                         <p className="text-[10px] text-slate-400 font-medium">
-                          Accepts PNG, JPG, JPEG, WebP (Max 2 MB). Converts to WebP before uploading.
+                          Accepts PNG, JPG, JPEG, WebP (Max 2 MB). Converts to
+                          WebP before uploading.
                         </p>
                       </div>
                     )}
