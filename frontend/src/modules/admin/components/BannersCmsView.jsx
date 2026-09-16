@@ -55,7 +55,7 @@ const PRESET_IMAGES = [
 ];
 
 export default function BannersCmsView({ darkMode }) {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [banners, setBanners] = useState([]);
   const [originalBanners, setOriginalBanners] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,10 +119,7 @@ export default function BannersCmsView({ darkMode }) {
 
   const handleRemove = (index) => {
     if (banners.length <= 1) {
-      showToast(
-        "You must keep at least one promotional banner slide.",
-        "error",
-      );
+      toast.error("You must keep at least one promotional banner slide.");
       return;
     }
     setBanners((prev) => prev.filter((_, i) => i !== index));
@@ -156,7 +153,7 @@ export default function BannersCmsView({ darkMode }) {
     // 1. Validation (PNG, JPG, JPEG, WEBP; max 2 MB)
     const validation = validateBannerImage(file);
     if (!validation.valid) {
-      showToast(validation.error, "error");
+      toast.error(validation.error);
       return;
     }
 
@@ -164,11 +161,11 @@ export default function BannersCmsView({ darkMode }) {
     setUploadState((prev) => ({ ...prev, [index]: "compressing" }));
 
     try {
-      showToast("Compressing and converting image to WebP format...", "info");
+      toast.info("Compressing and converting image to WebP format...");
       const { dataUrl } = await compressAndConvertToWebP(file, 1600, 0.88);
 
       setUploadState((prev) => ({ ...prev, [index]: "uploading" }));
-      showToast("Uploading WebP image to cloud storage...", "info");
+      toast.info("Uploading WebP image to cloud storage...");
 
       const res = await authApi.uploadImage(dataUrl);
       if (!res?.url) {
@@ -178,13 +175,12 @@ export default function BannersCmsView({ darkMode }) {
       }
 
       handleUpdateField(index, "img", res.url);
-      showToast(
+      toast.success(
         "Image converted to WebP & uploaded! Click 'Save Changes' to publish.",
-        "success",
       );
     } catch (err) {
       console.error("Banner upload error:", err);
-      showToast("Failed to upload image: " + err.message, "error");
+      toast.error("Failed to upload image: " + err.message);
     } finally {
       setUploadState((prev) => {
         const next = { ...prev };
@@ -202,24 +198,20 @@ export default function BannersCmsView({ darkMode }) {
         setBanners(res.banners);
         setOriginalBanners(JSON.stringify(res.banners));
         if (res.synced) {
-          showToast(
-            "Promotional banners saved and live in Customer App!",
-            "success",
-          );
+          toast.success("Promotional banners saved and live in Customer App!");
         } else {
-          showToast(
+          toast.warning(
             res.error
               ? `Banners saved locally (${res.error}).`
               : "Banners saved locally.",
-            "warning",
           );
         }
       } else {
-        showToast("Banners saved.", "success");
+        toast.success("Banners saved.");
         setOriginalBanners(JSON.stringify(banners));
       }
     } catch (err) {
-      showToast("Error saving banners: " + err.message, "error");
+      toast.error("Error saving banners: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -235,9 +227,9 @@ export default function BannersCmsView({ darkMode }) {
       setBanners(updated);
       setOriginalBanners(JSON.stringify(updated));
       setPreviewIdx(0);
-      showToast("Restored default promotional banners.", "success");
+      toast.success("Restored default promotional banners.");
     } catch (err) {
-      showToast("Failed to reset: " + err.message, "error");
+      toast.error("Failed to reset: " + err.message);
     } finally {
       setSaving(false);
     }

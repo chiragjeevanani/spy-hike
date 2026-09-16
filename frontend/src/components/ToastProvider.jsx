@@ -3,7 +3,7 @@ import Toast from './Toast';
 
 // App-wide toast surface: mounted once in main.jsx above whichever module
 // (admin/organizer/user) is active, so any form anywhere can call
-// useToast().error(...)/success(...)/info(...) without prop-drilling or
+// useToast().error(...)/success(...)/info(...)/warning(...) without prop-drilling or
 // re-implementing its own error banner.
 const ToastContext = createContext(null);
 
@@ -25,6 +25,9 @@ export function ToastProvider({ children }) {
     error: (message, duration) => show(message, 'error', duration),
     success: (message, duration) => show(message, 'success', duration),
     info: (message, duration) => show(message, 'info', duration),
+    // For outcomes that aren't failures but shouldn't read as all-clear —
+    // "saved locally, the server didn't get it" and friends.
+    warning: (message, duration) => show(message, 'warning', duration),
   }), [show]);
 
   return (
@@ -47,7 +50,7 @@ export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) {
     console.warn('useToast() called outside <ToastProvider> — toast will no-op.');
-    return { error: () => {}, success: () => {}, info: () => {} };
+    return { error: () => {}, success: () => {}, info: () => {}, warning: () => {} };
   }
   return ctx;
 }
