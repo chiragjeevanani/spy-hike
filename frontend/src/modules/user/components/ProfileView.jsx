@@ -9,6 +9,7 @@ import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import TravelTicket from './TravelTicket';
 import SwitchTransition from './SwitchTransition';
+import { useInstantNav, routeSwapVariants } from '../../../utils/navTransition';
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import authApi from '../../../lib/authApi';
@@ -120,6 +121,24 @@ const validateGovtId = (type, number) => {
   return null;
 };
 
+// Each Profile sub-page is a real route (/app/profile/settings and friends),
+// so these swaps are navigations: arriving by back/forward has to land on the
+// finished screen, not play a 220ms exit-then-enter on top of the page iOS
+// has already swiped to. See utils/navTransition.js.
+const MENU_SWAP = routeSwapVariants({
+  from: { opacity: 0, y: -8, scale: 0.99 }, exit: { opacity: 0, y: 8, scale: 0.99 },
+  duration: 0.22, ease: [0.25, 0.1, 0.25, 1],
+});
+const PAGE_SWAP = routeSwapVariants({
+  from: { opacity: 0, y: 16, scale: 0.99 }, exit: { opacity: 0, y: -10, scale: 0.99 },
+  duration: 0.22, ease: [0.25, 0.1, 0.25, 1],
+});
+const SHEET_SWAP = routeSwapVariants({
+  from: { opacity: 0, y: 28, scale: 0.98 }, exit: { opacity: 0, y: 20, scale: 0.98 },
+  duration: 0.26, ease: [0.22, 1, 0.36, 1],
+});
+const FADE_SWAP = routeSwapVariants({ from: { opacity: 0 }, exit: { opacity: 0 } });
+
 export default function ProfileView({
   user,
   onUpdateUser,
@@ -142,6 +161,8 @@ export default function ProfileView({
   onOpenPrivacyPolicy
 }) {
   const [currentSub, setCurrentSub] = useState(initialSub || 'MAIN');
+  // Skips the swap animation when the URL changed because of a back/forward.
+  const instantNav = useInstantNav();
   // Keeps currentSub in sync when the URL changes from outside this
   // component (browser back/forward, or a direct link landing on a sub-page).
   useEffect(() => {
@@ -1070,14 +1091,15 @@ export default function ProfileView({
 
         {/* Right Column (Desktop) / Main Stack (Mobile) */}
         <main className="lg:col-span-8 w-full min-w-0">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" custom={instantNav}>
             {currentSub === 'MAIN' && (
               <motion.div
                 key="MAIN"
-                initial={{ opacity: 0, y: -8, scale: 0.99 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.99 }}
-                transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                custom={instantNav}
+                variants={MENU_SWAP}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 className="w-full"
               >
               
@@ -1421,10 +1443,11 @@ export default function ProfileView({
         {currentSub === 'EDIT_PERSONAL' && (
           <motion.form
             key="EDIT_PERSONAL"
-            initial={{ opacity: 0, y: 16, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            custom={instantNav}
+            variants={PAGE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             onSubmit={handleSavePersonalInfo}
             noValidate
             className="flex-1 flex flex-col justify-between px-5 pt-4 pb-28 md:pb-16"
@@ -1543,9 +1566,11 @@ export default function ProfileView({
         {currentSub === 'BECOME_ORGANIZER' && !orgStatusResolved && (
           <motion.div
             key="ORG_STATUS_LOADING"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            custom={instantNav}
+            variants={FADE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className={`fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 px-6 ${
               darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
             }`}
@@ -1558,10 +1583,11 @@ export default function ProfileView({
         {currentSub === 'BECOME_ORGANIZER' && orgStatusResolved && hasApplied && (
           <motion.div
             key="ORG_APPLICATION_STATUS"
-            initial={{ opacity: 0, y: 28, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.98 }}
-            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            custom={instantNav}
+            variants={SHEET_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className={`fixed inset-0 z-50 flex flex-col overflow-y-auto no-scrollbar pt-[calc(1.25rem+env(safe-area-inset-top,20px))] pb-10 px-4 sm:px-6 ${
               darkMode ? 'bg-elegant-app' : 'bg-[#FAF8F2]'
             }`}
@@ -1695,10 +1721,11 @@ export default function ProfileView({
         {currentSub === 'BECOME_ORGANIZER' && orgStatusResolved && !hasApplied && (
           <motion.form
             key="BECOME_ORGANIZER"
-            initial={{ opacity: 0, y: 28, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.98 }}
-            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            custom={instantNav}
+            variants={SHEET_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             onSubmit={handleSubmitOrgApplication}
             noValidate
             // Full-screen overlay (covers the bottom nav) — applying to become
@@ -1917,10 +1944,11 @@ export default function ProfileView({
         {currentSub === 'EDIT_STATS' && (
           <motion.form
             key="EDIT_STATS"
-            initial={{ opacity: 0, y: 16, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            custom={instantNav}
+            variants={PAGE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             onSubmit={handleSaveStatsInfo}
             className="flex-1 flex flex-col px-4 sm:px-5 pt-4 pb-28 md:pb-16 max-w-2xl mx-auto lg:mx-0"
           >
@@ -2020,10 +2048,11 @@ export default function ProfileView({
         {currentSub === 'MY_REVIEWS' && (
           <motion.div
             key="MY_REVIEWS"
-            initial={{ opacity: 0, y: 16, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            custom={instantNav}
+            variants={PAGE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16"
           >
           <div className={subHeaderCls}>
@@ -2072,10 +2101,11 @@ export default function ProfileView({
         {currentSub === 'SETTINGS' && (
           <motion.div
             key="SETTINGS"
-            initial={{ opacity: 0, y: 16, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            custom={instantNav}
+            variants={PAGE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16 space-y-5"
           >
           <div className={subHeaderCls}>
@@ -2191,10 +2221,11 @@ export default function ProfileView({
         {currentSub === 'SUPPORT' && (
           <motion.div
             key="SUPPORT"
-            initial={{ opacity: 0, y: 16, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            custom={instantNav}
+            variants={PAGE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16"
           >
           <div className={subHeaderCls}>
@@ -2327,10 +2358,11 @@ export default function ProfileView({
         {currentSub === 'LIVE_CHAT_SUPPORT' && (
           <motion.div
             key="LIVE_CHAT_SUPPORT"
-            initial={{ opacity: 0, y: 16, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            custom={instantNav}
+            variants={PAGE_SWAP}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className="flex-1 flex flex-col px-5 pt-4 pb-4 overflow-hidden justify-between"
           >
 

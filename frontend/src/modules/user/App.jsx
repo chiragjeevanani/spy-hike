@@ -9,6 +9,7 @@ import {
   recallPageScroll,
   restorePageScroll,
 } from '../../utils/scroll';
+import { setNavInstant, useInstantNav, routeSwapVariants } from '../../utils/navTransition';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
 import DesktopNav from './components/DesktopNav';
@@ -120,29 +121,16 @@ const isOverlayPath = (internalPath) => (
   )
 );
 
-// Enter/exit for those overlays, and for the tab swap underneath. Both take
-// `instant` through framer-motion's `custom` channel — the one way to reach
-// an element that is ALREADY being removed, since its ordinary props are
-// frozen at the last render in which it existed.
-//
-// instant = this navigation came from a real popstate (iOS edge-swipe back,
-// Android's back button, the browser's own back/forward). WebKit has already
-// played its swipe animation against a snapshot of the destination and drops
-// the live DOM in at the end of the gesture, so a 180ms fade-out of the
-// screen being left lands AFTER the snapshot lifts — a flash of the old page
-// over the new one. In-app navigation keeps the fade; it has no snapshot to
-// race.
-const overlayVariants = {
-  initial: (instant) => (instant ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }),
-  animate: (instant) => ({ opacity: 1, y: 0, transition: { duration: instant ? 0 : 0.18, ease: 'easeOut' } }),
-  exit: (instant) => ({ opacity: 0, y: instant ? 0 : 12, transition: { duration: instant ? 0 : 0.18, ease: 'easeOut' } }),
-};
+// Enter/exit for those overlays, and for the tab swap underneath — see
+// utils/navTransition.js for why a back/forward has to skip the transition
+// rather than play it.
+const overlayVariants = routeSwapVariants({
+  from: { opacity: 0, y: 16 }, exit: { opacity: 0, y: 12 }, duration: 0.18, ease: 'easeOut',
+});
 
-const tabVariants = {
-  initial: (instant) => (instant ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }),
-  animate: (instant) => ({ opacity: 1, y: 0, transition: { duration: instant ? 0 : 0.15, ease: 'easeOut' } }),
-  exit: (instant) => ({ opacity: 0, y: instant ? 0 : -6, transition: { duration: instant ? 0 : 0.15, ease: 'easeOut' } }),
-};
+const tabVariants = routeSwapVariants({
+  from: { opacity: 0, y: 6 }, exit: { opacity: 0, y: -6 }, duration: 0.15, ease: 'easeOut',
+});
 
 // Internal relative path -> real browser URL (e.g. '/explore' -> '/app/explore').
 const toBrowserPath = (internalPath) => (
@@ -331,9 +319,10 @@ export default function App() {
   const [navHidden, setNavHidden] = useState(false);
 
   // True while the screen swap on the wire came from a real back/forward
-  // (popstate) rather than a tap inside the app — see overlayVariants for
-  // why that has to skip the transition rather than play it.
-  const [instantNav, setInstantNav] = useState(false);
+  // (popstate) rather than a tap inside the app. Shared app-wide rather than
+  // held here, because the screens that have to honour it are not all in
+  // this file — see utils/navTransition.js.
+  const instantNav = useInstantNav();
 
   // 2. Navigation registers initialized from URL
   const [activeTab, setActiveTab] = useState(() => getInitialStateFromUrl().tab);
@@ -386,7 +375,7 @@ export default function App() {
     } else {
       window.history.pushState(state, '', url);
     }
-    setInstantNav(false);
+    setNavInstant(false);
     if (url && url !== '/' && url !== '/login') {
       safeSetItem('trekigo_last_route', url);
     }
@@ -398,7 +387,7 @@ export default function App() {
   const navigateToPublic = (rawPath) => {
     rememberPageScroll();
     window.history.pushState({ path: rawPath, key: nextHistoryKey() }, '', rawPath);
-    setInstantNav(false);
+    setNavInstant(false);
     handleRouteChange();
   };
 
@@ -737,7 +726,7 @@ export default function App() {
       // scroll offset before adopting the one we just landed on.
       rememberPageScroll();
       enterHistoryEntry();
-      setInstantNav(isPop && !inApp);
+      setNavInstant(isPop && !inApp);
       handleRouteChangeRef.current(undefined, { pop: isPop });
     };
     window.addEventListener('popstate', onPopState);

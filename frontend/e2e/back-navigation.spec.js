@@ -5,14 +5,14 @@ import { CUSTOMER_USER, seedLocalStorage } from './fixtures/seed.js';
 //
 // WebKit's interactive swipe-back animates a SNAPSHOT of the destination page
 // and only swaps the live DOM in when the gesture commits. Anything the app
-// changed about that page in the meantime — most easily its scroll offset —
-// gets painted as a jump the instant the snapshot lifts. That is what "the
-// page flickers when I swipe back, but not when I use the in-app back button"
-// reports as: the in-app button has no snapshot to disagree with, so the same
-// mismatch is invisible there.
+// changed about that page in the meantime — its scroll offset, or an exit
+// animation still playing — gets painted the instant the snapshot lifts. That
+// is what "the page flickers / looks like it refreshes when I swipe back, but
+// not when I use the in-app back button" reports as: the in-app button has no
+// snapshot to disagree with, so the same mismatch is invisible there.
 //
 // Chromium can't reproduce the snapshot, but it CAN pin down every property
-// the snapshot is comparing against, which is what these tests do.
+// the snapshot is compared against, which is what these tests do.
 
 test.use({ viewport: { width: 390, height: 664 } });
 
@@ -34,13 +34,15 @@ const TREKS = Array.from({ length: 8 }, (_, i) => ({
 
 const SCROLLED_TO = 700;
 
-async function openHomeScrolled(page) {
+const scrollTop = (page) => page.evaluate(() => document.getElementById('root').scrollTop);
+
+async function seedSession(page) {
   await seedLocalStorage(page, {
     trekigo_user: { ...CUSTOMER_USER, profileSetupComplete: true },
     trekigo_last_route: '/app',
   });
-  // A token the API stub never rejects — without one, the first authed call
-  // 401s and the session resets to the login screen.
+  // A token the API stub never rejects — without one the first authed call
+  // 401s and the session resets itself to the login screen.
   await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'e2e-token'));
 
   await page.route('http://localhost:4000/**', (route) => {
@@ -56,7 +58,10 @@ async function openHomeScrolled(page) {
     if (url.includes('/trips')) return json({ trips: [], page: 1, limit: 100, hasMore: false });
     return json({});
   });
+}
 
+async function openHomeScrolled(page) {
+  await seedSession(page);
   await page.goto('/app');
   await expect(page.locator('h5', { hasText: 'Test Trek 1' }).first()).toBeVisible();
 
@@ -72,27 +77,28 @@ async function openHomeScrolled(page) {
   await expect.poll(() => scrollTop(page)).toBe(SCROLLED_TO);
 }
 
-const scrollTop = (page) => page.evaluate(() => document.getElementById('root').scrollTop);
-const openComingSoonTile = (page) =>
-  page.locator('h5', { hasText: 'Test Trek 1' }).first().evaluate((el) => el.closest('.cursor-pointer').click());
+const openComingSoonTile = (page) => page
+  .locator('h5', { hasText: 'Test Trek 1' })
+  .first()
+  .evaluate((el) => el.closest('.cursor-pointer').click());
 
-// Samples the overlay and the scroll offset once per animation frame while a
-// navigation plays out — the resolution the flicker actually happens at.
-const framesAfter = (page, trigger) => page.evaluate(async (fn) => {
+// Samples the outgoing screen and the scroll offset once per animation frame
+// while a navigation plays out — the resolution the flicker happens at.
+const framesAfter = (page, trigger, selector = '.z-47') => page.evaluate(async ([fn, sel]) => {
   const out = [];
   // eslint-disable-next-line no-eval
   eval(fn);
   for (let i = 0; i < 10; i += 1) {
     await new Promise(requestAnimationFrame);
-    const el = document.querySelector('.z-47');
+    const el = document.querySelector(sel);
     out.push({
-      overlay: !!el,
+      leaving: !!el,
       opacity: el ? Number(getComputedStyle(el).opacity) : null,
       scrollTop: document.getElementById('root').scrollTop,
     });
   }
   return out;
-}, trigger);
+}, [trigger, selector]);
 
 test.describe('Customer — back navigation', () => {
   test('opening a Coming soon tile leaves the page underneath where it was', async ({ page }) => {
@@ -115,13 +121,13 @@ test.describe('Customer — back navigation', () => {
 
     const frames = await framesAfter(page, 'history.back()');
 
-    // No scroll jump at any point — the live DOM matches the snapshot iOS
-    // has been animating for the whole gesture.
+    // No scroll jump at any point — the live DOM matches the snapshot iOS has
+    // been animating for the whole gesture.
     expect(frames.map((f) => f.scrollTop)).toEqual(Array(10).fill(SCROLLED_TO));
     // And no fade-out of the screen being left: WebKit lifts its snapshot the
     // moment the navigation commits, so a 180ms fade lands on top of the page
     // it just finished swiping to.
-    expect(frames.slice(3).some((f) => f.overlay)).toBe(false);
+    expect(frames.slice(3).some((f) => f.leaving)).toBe(false);
 
     await expect(page).toHaveURL(/\/app$/);
     expect(await scrollTop(page)).toBe(SCROLLED_TO);
@@ -135,7 +141,7 @@ test.describe('Customer — back navigation', () => {
     const frames = await framesAfter(page, "document.querySelector('.z-47 button').click()");
 
     // This one has no snapshot to race, so it keeps its transition.
-    expect(frames[1].overlay).toBe(true);
+    expect(frames[1].leaving).toBe(true);
     await expect(page).toHaveURL(/\/app$/);
     expect(await scrollTop(page)).toBe(SCROLLED_TO);
   });
@@ -146,5 +152,39 @@ test.describe('Customer — back navigation', () => {
     await page.getByText(/^Explore$/).last().click({ force: true });
     await expect(page).toHaveURL(/\/app\/explore$/);
     expect(await scrollTop(page)).toBe(0);
+  });
+
+  // /app/profile -> Personal details -> back. Profile sub-pages are real
+  // routes, but ProfileView swaps them through its own AnimatePresence
+  // mode="wait" — an exit AND an enter, ~440ms of animation that used to be
+  // replayed after the gesture had already committed.
+  test('a gesture back out of a Profile sub-page lands on the finished screen', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/app/profile');
+
+    await page.getByRole('button', { name: 'Personal Details' }).first().click();
+    await expect(page).toHaveURL(/\/app\/profile\/personal-details$/);
+    await expect(page.locator('form').first()).toBeVisible();
+
+    const frames = await framesAfter(page, 'history.back()', 'form');
+
+    expect(frames.slice(3).some((f) => f.leaving)).toBe(false);
+    await expect(page).toHaveURL(/\/app\/profile$/);
+    await expect(page.getByRole('button', { name: 'Personal Details' }).first()).toBeVisible();
+  });
+
+  test('the Profile sub-page back chevron still animates', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/app/profile');
+
+    await page.getByRole('button', { name: 'Personal Details' }).first().click();
+    await expect(page).toHaveURL(/\/app\/profile\/personal-details$/);
+    await expect(page.locator('form').first()).toBeVisible();
+
+    // The in-page back chevron is an in-app navigation: it keeps its
+    // transition, because there is no swipe snapshot waiting to be lifted.
+    const frames = await framesAfter(page, "document.querySelector('form button').click()", 'form');
+    expect(frames[1].leaving).toBe(true);
+    await expect(page).toHaveURL(/\/app\/profile$/);
   });
 });
