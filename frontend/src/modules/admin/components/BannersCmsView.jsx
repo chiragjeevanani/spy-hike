@@ -18,6 +18,7 @@ import {
   Compass,
   TicketPercent,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import bannersApi from "../../../lib/bannersApi";
 import treksApi from "../../../lib/treksApi";
@@ -55,6 +56,7 @@ export default function BannersCmsView({ darkMode }) {
   const [originalBanners, setOriginalBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState(null);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [availableTreks, setAvailableTreks] = useState([]);
   const [imgInputModes, setImgInputModes] = useState({}); // bannerId -> 'upload' | 'url' | 'presets'
@@ -146,24 +148,43 @@ export default function BannersCmsView({ darkMode }) {
 
   const handleFileUpload = async (index, file) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    // Some mobile gallery/Files-app pickers (notably HEIC photos and certain
+    // Android content:// sources) hand back a File with an empty `type`, so
+    // relying on it alone silently rejects a perfectly valid image before any
+    // upload is even attempted — falling back to the filename extension
+    // catches those.
+    const isImage =
+      file.type?.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(file.name || "");
+    if (!isImage) {
       showToast("Please select a valid image file (JPEG, PNG, WebP).", "error");
       return;
     }
     setPreviewIdx(index);
+    setUploadingIdx(index);
     try {
       showToast("Compressing image...", "info");
       const compressedDataUrl = await compressImage(file, 900, 0.75);
       showToast("Uploading image to cloud...", "info");
       const res = await authApi.uploadImage(compressedDataUrl);
-      const imageUrl = res?.url || compressedDataUrl;
-      handleUpdateField(index, "img", imageUrl);
+      // The backend deliberately never returns a base64 fallback here (a data
+      // URL that size bloats the stored banner document) — treat a missing
+      // url as a real failure instead of silently writing the huge data URL
+      // into banner.img.
+      if (!res?.url) {
+        throw new Error(
+          res?.error?.message || "Cloud upload did not return an image URL",
+        );
+      }
+      handleUpdateField(index, "img", res.url);
       showToast(
         "Image uploaded! Click 'Save Changes' to publish to Customer App.",
         "success",
       );
     } catch (err) {
       showToast("Failed to upload image: " + err.message, "error");
+    } finally {
+      setUploadingIdx(null);
     }
   };
 
@@ -263,7 +284,7 @@ export default function BannersCmsView({ darkMode }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty}
+            disabled={saving || !isDirty || uploadingIdx !== null}
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
               isDirty
                 ? "bg-[#F27D26] hover:bg-[#d96c1c] text-white"
@@ -617,17 +638,27 @@ export default function BannersCmsView({ darkMode }) {
                         />
                         <button
                           type="button"
+                          disabled={uploadingIdx !== null}
                           onClick={() => {
                             setPreviewIdx(index);
                             fileInputRefs.current[banner.id || index]?.click();
                           }}
-                          className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer ${
+                          className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                             darkMode
                               ? "border-slate-700 hover:bg-slate-800/60 text-slate-300"
                               : "border-slate-300 hover:bg-slate-50 text-slate-600"
                           }`}>
-                          <Upload size={14} className="text-[#F27D26]" /> Select
-                          Image from Device
+                          {uploadingIdx === index ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin text-[#F27D26]" />
+                              <span>Uploading to cloud...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} className="text-[#F27D26]" />
+                              <span>Select Image from Device</span>
+                            </>
+                          )}
                         </button>
                         {banner.img && (
                           <div className="w-12 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
