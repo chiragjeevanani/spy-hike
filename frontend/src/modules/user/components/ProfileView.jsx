@@ -1104,7 +1104,7 @@ export default function ProfileView({
               >
               
               {/* Quick profile header decoration (Mobile only) */}
-              <div className="lg:hidden px-5 pt-8 pb-2 text-center flex flex-col items-center gap-2">
+              <div className="lg:hidden pt-8 pb-2 text-center flex flex-col items-center gap-2">
                 <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-forest-500 shadow-lg relative select-none">
                   <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                 </div>
@@ -1121,7 +1121,7 @@ export default function ProfileView({
               </div>
 
               {/* Quick profile stats (Mobile only) */}
-              <div className="lg:hidden px-5 pt-4">
+              <div className="lg:hidden pt-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className={`p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm ${
                     darkMode ? 'bg-elegant-card' : 'bg-white'
@@ -1144,7 +1144,7 @@ export default function ProfileView({
 
               {/* Loyalty Rewards highlight card (Mobile only) */}
               {loyaltyConfig.customer.enabled && (
-                <div className="lg:hidden px-5 pt-4">
+                <div className="lg:hidden pt-4">
                   <button
                     id="btn-open-loyalty-rewards"
                     onClick={onOpenLoyalty}
@@ -1174,7 +1174,7 @@ export default function ProfileView({
               )}
 
               {/* Configuration Sections Menu list (Mobile only) */}
-              <div className="lg:hidden px-5 pt-5 space-y-6">
+              <div className="lg:hidden pt-5 space-y-6">
 
                 {/* Group A: Personal stats */}
                 <div className="space-y-2.5">
@@ -1293,7 +1293,7 @@ export default function ProfileView({
               </div>
 
               {/* Group C: Next Departure or Explore Treks (Both Mobile & Desktop) */}
-              <div className="px-5 lg:px-0 pt-5 lg:pt-0">
+              <div className="pt-5 lg:pt-0">
                 {(() => {
                   const upcomingBooking = bookings.find(b => b.status === 'Upcoming');
                   if (upcomingBooking) {
@@ -1427,7 +1427,7 @@ export default function ProfileView({
               </div>
 
               {/* Logout actions (Mobile only - desktop has it in the sidebar) */}
-              <div className="lg:hidden px-5 mt-4">
+              <div className="lg:hidden mt-4">
                 <button
                   onClick={() => setShowLogoutConfirm(true)}
                   className="w-full py-4 rounded-2xl text-center font-bold bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 transition text-sm uppercase tracking-wide shadow-xs cursor-pointer"
@@ -1450,7 +1450,7 @@ export default function ProfileView({
             exit="exit"
             onSubmit={handleSavePersonalInfo}
             noValidate
-            className="flex-1 flex flex-col justify-between px-5 pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col justify-between pt-4 pb-28 md:pb-16"
           >
           <div className="space-y-6">
             <div className={subHeaderCls}>
@@ -1950,7 +1950,7 @@ export default function ProfileView({
             animate="animate"
             exit="exit"
             onSubmit={handleSaveStatsInfo}
-            className="flex-1 flex flex-col px-4 sm:px-5 pt-4 pb-28 md:pb-16 max-w-2xl mx-auto lg:mx-0"
+            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16 max-w-2xl mx-auto lg:mx-0"
           >
             <div className={`rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-colors ${
               darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80 shadow-xs'
@@ -2053,7 +2053,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2106,7 +2106,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16 space-y-5"
+            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16 space-y-5"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2226,7 +2226,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col px-5 pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2363,7 +2363,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col px-5 pt-4 pb-4 overflow-hidden justify-between"
+            className="flex-1 flex flex-col pt-4 pb-4 overflow-hidden justify-between"
           >
 
           <div className={`flex items-center justify-between ${subHeaderCls}`}>
