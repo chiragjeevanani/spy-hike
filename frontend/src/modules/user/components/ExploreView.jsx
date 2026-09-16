@@ -6,6 +6,7 @@ import {
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
 import treksApi from '../../../lib/treksApi';
+import { useAppRefresh } from '../../../utils/refreshSignal';
 import tripsApi from '../../../lib/tripsApi';
 import { durationRange } from '../../../utils/rangeFormat';
 
@@ -28,13 +29,16 @@ export default function ExploreView({
 }) {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
+  // Bumped by a pull-to-refresh to re-run this screen's own fetches.
+  const [reloadKey, setReloadKey] = useState(0);
+  useAppRefresh(() => setReloadKey((key) => key + 1));
 
   // Full active trek catalog — used to surface "Coming soon" cards for
   // treks an admin has added that no organizer has posted a trip under yet
   // (otherwise those treks are invisible anywhere in the customer app).
   useEffect(() => {
     treksApi.listTreks().then(setAllTreks).catch(() => setAllTreks([]));
-  }, []);
+  }, [reloadKey]);
 
   // Pagination state
   const ITEMS_PER_PAGE = 8;
@@ -128,7 +132,7 @@ export default function ExploreView({
       })
       .finally(() => { if (!cancelled) setLoadingGroups(false); });
     return () => { cancelled = true; };
-  }, [query]);
+  }, [query, reloadKey]);
 
   const filteredTreks = groups;
 

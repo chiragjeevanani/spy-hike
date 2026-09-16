@@ -35,6 +35,7 @@ import LandingView from '../landing/LandingView';
 import PrivacyPolicyPage from '../landing/PrivacyPolicyPage';
 import SupportPage from '../landing/SupportPage';
 import NotFoundPage from '../../components/NotFoundPage';
+import PullToRefresh from '../../components/PullToRefresh';
 import treksApi from '../../lib/treksApi';
 
 import {
@@ -55,12 +56,13 @@ import bookingsApi from '../../lib/bookingsApi';
 import socialApi from '../../lib/socialApi';
 import landingApi from '../../lib/landingApi';
 import contentApi from '../../lib/contentApi';
-import { getToken, clearToken } from '../../lib/apiClient';
+import { getToken, clearToken, clearApiCache } from '../../lib/apiClient';
 import authApi from '../../lib/authApi';
 import { loadLandingContentLocal } from '../landing/landingContent';
 import { initPushNotifications } from '../../utils/pushNotifications';
 import { requestPushPermission, HikerAlerts } from '../../utils/pushNotificationService';
 import { useToast } from '../../components/ToastProvider';
+import { requestAppRefresh } from '../../utils/refreshSignal';
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
@@ -1016,6 +1018,55 @@ export default function App() {
     saveDarkMode(darkMode);
   }, [darkMode]);
 
+  // Pull-to-refresh. Deliberately NOT a page reload: this is a standalone
+  // PWA, and reloading re-bootstraps the whole app (white flash, splash,
+  // restored-route logic) for what should be a data refresh. Clearing the
+  // 60s response cache first is what makes the refetches actually hit the
+  // network rather than replay what is already in memory.
+  const handlePullToRefresh = useCallback(async () => {
+    clearApiCache();
+
+    const pending = [
+      tripsApi.listTrips({ limit: 100 })
+        .then((apiTrips) => { if (Array.isArray(apiTrips)) setTrips(apiTrips); })
+        .catch(() => {}),
+      treksApi.listTreks()
+        .then((list) => { if (Array.isArray(list)) setCatalogTreks(list); })
+        .catch(() => {}),
+    ];
+
+    if (user.isAuthenticated && getToken()) {
+      pending.push(
+        bookingsApi.listMine()
+          .then((list) => { if (Array.isArray(list) && list.length) setBookings(list); })
+          .catch(() => {}),
+        socialApi.getNotifications()
+          .then((fresh) => {
+            if (!Array.isArray(fresh)) return;
+            setNotifications(fresh);
+            saveNotifications(fresh);
+          })
+          .catch(() => {}),
+      );
+    }
+
+    // Home's banners, Explore's browse feed, Profile's reviews — each screen
+    // re-reads whatever only it knows about (see utils/refreshSignal.js).
+    requestAppRefresh();
+
+    await Promise.all(pending);
+  }, [user.isAuthenticated]);
+
+  // Only the scrollable tab pages pull to refresh. The fullscreen routes
+  // bring their own scrollers (so the gesture never reaches #root anyway),
+  // and a drawer or sheet sitting over the page shouldn't refresh what is
+  // behind it.
+  const pullToRefreshEnabled = (
+    !selectedTrekName && !selectedTrip && !activeBookingTrip && !selectedBooking
+    && !selectedOrganizer && !showLoyalty && !showMap && !profileSub
+    && !showGlobalNotificationDrawer && !showAppLocationPicker
+  );
+
   // Core Actions
   const handleToggleWishlist = (tripId) => {
     const next = wishlist.includes(tripId)
@@ -1465,6 +1516,12 @@ export default function App() {
             onOpenNotifications={() => setShowGlobalNotificationDrawer(true)}
             user={user}
             onLaunchOrganizer={() => { window.location.href = '/organizer'; }}
+          />
+
+          <PullToRefresh
+            onRefresh={handlePullToRefresh}
+            enabled={pullToRefreshEnabled}
+            darkMode={darkMode}
           />
 
           {/* Global Notification Center Drawer */}

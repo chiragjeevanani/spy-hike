@@ -15,12 +15,39 @@
 // would overscroll — every touch that isn't at a scroll boundary keeps
 // working through the browser's normal (smooth, native-momentum) scrolling
 // untouched.
+// A pull-down at the very top of #root is two things at once: the native
+// gesture this guard exists to block, and the gesture pull-to-refresh is made
+// of. Running a second set of touch listeners alongside this one would mean
+// two handlers fighting over the same touch, so the guard hands that single
+// case to whoever registers here instead — and still blocks the native bounce
+// either way, registered or not. See components/PullToRefresh.jsx.
+let pullConsumer = null;
+
+/**
+ * @param consumer `{ onPull(distancePx), onRelease() }`, or null to detach.
+ *   Distance is raw finger travel from where the pull began; resistance and
+ *   thresholds are the consumer's business, not the guard's.
+ */
+export const setPullGestureHandler = (consumer) => {
+  pullConsumer = consumer;
+};
+
 export function installOverscrollGuard() {
   const root = document.getElementById('root');
   if (!root) return;
 
   let startY = 0;
   let scroller = root;
+  // Where the current pull-at-the-top began, or null when one isn't running.
+  // Re-baselined rather than measured from touchstart, so a flick that
+  // scrolls up INTO the top boundary doesn't arrive already "pulled".
+  let pullOriginY = null;
+
+  const endPull = () => {
+    if (pullOriginY === null) return;
+    pullOriginY = null;
+    pullConsumer?.onRelease();
+  };
 
   const isScrollable = (el) => {
     const style = getComputedStyle(el);
@@ -45,6 +72,7 @@ export function installOverscrollGuard() {
     (e) => {
       startY = e.touches[0].clientY;
       scroller = findScroller(e.target);
+      pullOriginY = null;
     },
     { passive: true },
   );
@@ -53,7 +81,8 @@ export function installOverscrollGuard() {
     'touchmove',
     (e) => {
       if (e.touches.length > 1) return; // pinch-zoom etc. — leave alone
-      const deltaY = e.touches[0].clientY - startY;
+      const y = e.touches[0].clientY;
+      const deltaY = y - startY;
       if (deltaY === 0) return;
 
       const atTop = scroller.scrollTop <= 0;
@@ -61,10 +90,28 @@ export function installOverscrollGuard() {
       // deltaY > 0 = finger moving down the screen = pulling the top of the
       // content into view (this is the pull-to-refresh gesture); deltaY < 0
       // = pushing the bottom past its end.
-      if ((deltaY > 0 && atTop) || (deltaY < 0 && atBottom)) {
+      if (deltaY > 0 && atTop) {
         e.preventDefault();
+        // Only the page itself pulls to refresh. A nested scroller sitting at
+        // its own top (a trek detail body, a drawer's list) still just gets
+        // the bounce blocked, as before.
+        if (pullConsumer && scroller === root) {
+          if (pullOriginY === null) pullOriginY = y;
+          pullConsumer.onPull(Math.max(0, y - pullOriginY));
+        }
+        return;
       }
+      if (deltaY < 0 && atBottom) {
+        e.preventDefault();
+        return;
+      }
+      // Moved back out of the top boundary mid-gesture: the pull is over even
+      // though the finger is still down.
+      endPull();
     },
     { passive: false },
   );
+
+  root.addEventListener('touchend', endPull, { passive: true });
+  root.addEventListener('touchcancel', endPull, { passive: true });
 }

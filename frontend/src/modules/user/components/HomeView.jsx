@@ -25,6 +25,7 @@ import AppLogo from "../../../components/AppLogo";
 import SkeletonCard from "../../../components/SkeletonCard";
 import { matchesLocation } from "../utils/locationFilter";
 import { durationRange } from "../../../utils/rangeFormat";
+import { useAppRefresh, REFRESH_EVENT } from "../../../utils/refreshSignal";
 
 // Promo slides travel in the direction the user is moving: the incoming slide
 // enters from the side being swiped away from, the outgoing one leaves the
@@ -73,6 +74,8 @@ export default function HomeView({
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
+  // Bumped by a pull-to-refresh to re-run this screen's own fetches.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const activeLocation = userLocation || { label: "India" };
 
@@ -85,7 +88,7 @@ export default function HomeView({
       .listTreks()
       .then(setAllTreks)
       .catch(() => setAllTreks([]));
-  }, []);
+  }, [reloadKey]);
 
   const trendingTreks = useMemo(
     () => allTreks.filter((t) => t.trending),
@@ -183,12 +186,19 @@ export default function HomeView({
     const handleFocus = () => fetchBanners(true);
     window.addEventListener("focus", handleFocus);
 
+    // 4. ...and when the page is pulled down to refresh.
+    const handleRefresh = () => fetchBanners(true);
+    window.addEventListener(REFRESH_EVENT, handleRefresh);
+
     return () => {
       window.removeEventListener("fyt-banners-updated", handleBannersUpdated);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(REFRESH_EVENT, handleRefresh);
     };
   }, []);
+
+  useAppRefresh(() => setReloadKey((key) => key + 1));
 
   const activeBanners = useMemo(() => {
     const list =
