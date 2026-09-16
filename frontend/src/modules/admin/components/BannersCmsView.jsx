@@ -24,7 +24,11 @@ import bannersApi from "../../../lib/bannersApi";
 import treksApi from "../../../lib/treksApi";
 import authApi from "../../../lib/authApi";
 import { PROMOTIONAL_BANNERS } from "../../user/data/trips";
-import { compressImage } from "../../../utils/imageCompressor";
+import {
+  compressImage,
+  validateBannerImage,
+  compressAndConvertToWebP,
+} from "../../../utils/imageCompressor";
 import { useToast } from "../../../components/ToastProvider";
 
 const PRESET_IMAGES = [
@@ -56,7 +60,7 @@ export default function BannersCmsView({ darkMode }) {
   const [originalBanners, setOriginalBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingIdx, setUploadingIdx] = useState(null);
+  const [uploadState, setUploadState] = useState({}); // index -> 'compressing' | 'uploading' | null
   const [previewIdx, setPreviewIdx] = useState(0);
   const [availableTreks, setAvailableTreks] = useState([]);
   const [imgInputModes, setImgInputModes] = useState({}); // bannerId -> 'upload' | 'url' | 'presets'
@@ -148,43 +152,45 @@ export default function BannersCmsView({ darkMode }) {
 
   const handleFileUpload = async (index, file) => {
     if (!file) return;
-    // Some mobile gallery/Files-app pickers (notably HEIC photos and certain
-    // Android content:// sources) hand back a File with an empty `type`, so
-    // relying on it alone silently rejects a perfectly valid image before any
-    // upload is even attempted — falling back to the filename extension
-    // catches those.
-    const isImage =
-      file.type?.startsWith("image/") ||
-      /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(file.name || "");
-    if (!isImage) {
-      showToast("Please select a valid image file (JPEG, PNG, WebP).", "error");
+
+    // 1. Validation (PNG, JPG, JPEG, WEBP; max 2 MB)
+    const validation = validateBannerImage(file);
+    if (!validation.valid) {
+      showToast(validation.error, "error");
       return;
     }
+
     setPreviewIdx(index);
-    setUploadingIdx(index);
+    setUploadState((prev) => ({ ...prev, [index]: "compressing" }));
+
     try {
-      showToast("Compressing image...", "info");
-      const compressedDataUrl = await compressImage(file, 900, 0.75);
-      showToast("Uploading image to cloud...", "info");
-      const res = await authApi.uploadImage(compressedDataUrl);
-      // The backend deliberately never returns a base64 fallback here (a data
-      // URL that size bloats the stored banner document) — treat a missing
-      // url as a real failure instead of silently writing the huge data URL
-      // into banner.img.
+      showToast("Compressing and converting image to WebP format...", "info");
+      const { dataUrl } = await compressAndConvertToWebP(file, 1600, 0.88);
+
+      setUploadState((prev) => ({ ...prev, [index]: "uploading" }));
+      showToast("Uploading WebP image to cloud storage...", "info");
+
+      const res = await authApi.uploadImage(dataUrl);
       if (!res?.url) {
         throw new Error(
           res?.error?.message || "Cloud upload did not return an image URL",
         );
       }
+
       handleUpdateField(index, "img", res.url);
       showToast(
-        "Image uploaded! Click 'Save Changes' to publish to Customer App.",
+        "Image converted to WebP & uploaded! Click 'Save Changes' to publish.",
         "success",
       );
     } catch (err) {
+      console.error("Banner upload error:", err);
       showToast("Failed to upload image: " + err.message, "error");
     } finally {
-      setUploadingIdx(null);
+      setUploadState((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
     }
   };
 
@@ -284,7 +290,7 @@ export default function BannersCmsView({ darkMode }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty || uploadingIdx !== null}
+            disabled={saving || !isDirty || Object.values(uploadState).some(Boolean)}
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
               isDirty
                 ? "bg-[#F27D26] hover:bg-[#d96c1c] text-white"
@@ -622,53 +628,76 @@ export default function BannersCmsView({ darkMode }) {
                     </div>
 
                     {mode === "upload" && (
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          ref={(el) =>
-                            (fileInputRefs.current[banner.id || index] = el)
-                          }
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            handleFileUpload(index, file);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          disabled={uploadingIdx !== null}
-                          onClick={() => {
-                            setPreviewIdx(index);
-                            fileInputRefs.current[banner.id || index]?.click();
-                          }}
-                          className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                            darkMode
-                              ? "border-slate-700 hover:bg-slate-800/60 text-slate-300"
-                              : "border-slate-300 hover:bg-slate-50 text-slate-600"
-                          }`}>
-                          {uploadingIdx === index ? (
-                            <>
-                              <Loader2 size={14} className="animate-spin text-[#F27D26]" />
-                              <span>Uploading to cloud...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Upload size={14} className="text-[#F27D26]" />
-                              <span>Select Image from Device</span>
-                            </>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="file"
+                            accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                            ref={(el) => (fileInputRefs.current[index] = el)}
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleFileUpload(index, file);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={Boolean(uploadState[index])}
+                            onClick={() => {
+                              setPreviewIdx(index);
+                              if (fileInputRefs.current[index]) {
+                                fileInputRefs.current[index].value = "";
+                                fileInputRefs.current[index].click();
+                              }
+                            }}
+                            className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                              darkMode
+                                ? "border-slate-700 hover:bg-slate-800/60 text-slate-300"
+                                : "border-slate-300 hover:bg-slate-50 text-slate-600"
+                            }`}>
+                            {uploadState[index] === "compressing" ? (
+                              <>
+                                <Loader2
+                                  size={14}
+                                  className="animate-spin text-[#F27D26]"
+                                />
+                                <span>Compressing to WebP...</span>
+                              </>
+                            ) : uploadState[index] === "uploading" ? (
+                              <>
+                                <Loader2
+                                  size={14}
+                                  className="animate-spin text-[#F27D26]"
+                                />
+                                <span>Uploading to Cloud...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload size={14} className="text-[#F27D26]" />
+                                <span>Select Image from Device</span>
+                              </>
+                            )}
+                          </button>
+                          {banner.img && (
+                            <div className="w-12 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 relative">
+                              <img
+                                src={banner.img}
+                                alt="preview"
+                                className="w-full h-full object-cover"
+                              />
+                              {/\.webp(\?.*)?$/i.test(banner.img) && (
+                                <span className="absolute bottom-0 right-0 bg-emerald-600 text-white text-[7px] font-black px-1 rounded-tl tracking-tighter">
+                                  WEBP
+                                </span>
+                              )}
+                            </div>
                           )}
-                        </button>
-                        {banner.img && (
-                          <div className="w-12 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
-                            <img
-                              src={banner.img}
-                              alt="preview"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          Accepts PNG, JPG, JPEG, WebP (Max 2 MB). Converts to WebP before uploading.
+                        </p>
                       </div>
                     )}
 
