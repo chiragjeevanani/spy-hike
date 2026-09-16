@@ -18,9 +18,11 @@ import {
   Compass,
   TicketPercent,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import bannersApi from "../../../lib/bannersApi";
 import treksApi from "../../../lib/treksApi";
+import authApi from "../../../lib/authApi";
 import { PROMOTIONAL_BANNERS } from "../../user/data/trips";
 import { compressImage } from "../../../utils/imageCompressor";
 import { useToast } from "../../../components/ToastProvider";
@@ -54,6 +56,7 @@ export default function BannersCmsView({ darkMode }) {
   const [originalBanners, setOriginalBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState(null);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [availableTreks, setAvailableTreks] = useState([]);
   const [imgInputModes, setImgInputModes] = useState({}); // bannerId -> 'upload' | 'url' | 'presets'
@@ -145,23 +148,37 @@ export default function BannersCmsView({ darkMode }) {
 
   const handleFileUpload = async (index, file) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    const isImage =
+      file.type?.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name || "");
+    if (!isImage) {
       showToast("Please select a valid image file (JPEG, PNG, WebP).", "error");
       return;
     }
     setPreviewIdx(index);
+    setUploadingIdx(index);
     try {
       showToast("Compressing image...", "info");
       const compressedDataUrl = await compressImage(file, 900, 0.75);
-      handleUpdateField(index, "img", compressedDataUrl);
+      showToast("Uploading image to cloud...", "info");
+      const res = await authApi.uploadImage(compressedDataUrl);
+      if (!res?.url) {
+        throw new Error(
+          res?.error?.message || "Cloud upload did not return an image URL",
+        );
+      }
+      handleUpdateField(index, "img", res.url);
       showToast(
-        "Image attached! Click 'Save Changes' to publish to Customer App.",
+        "Image uploaded! Click 'Save Changes' to publish to Customer App.",
         "success",
       );
     } catch (err) {
-      showToast("Failed to process image: " + err.message, "error");
+      showToast("Failed to upload image: " + err.message, "error");
+    } finally {
+      setUploadingIdx(null);
     }
   };
+
 
   const handleSave = async () => {
     setSaving(true);
@@ -259,7 +276,7 @@ export default function BannersCmsView({ darkMode }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty}
+            disabled={saving || !isDirty || uploadingIdx !== null}
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
               isDirty
                 ? "bg-[#F27D26] hover:bg-[#d96c1c] text-white"
@@ -601,9 +618,7 @@ export default function BannersCmsView({ darkMode }) {
                         <input
                           type="file"
                           accept="image/*"
-                          ref={(el) =>
-                            (fileInputRefs.current[banner.id || index] = el)
-                          }
+                          ref={(el) => (fileInputRefs.current[index] = el)}
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -613,17 +628,27 @@ export default function BannersCmsView({ darkMode }) {
                         />
                         <button
                           type="button"
+                          disabled={uploadingIdx !== null}
                           onClick={() => {
                             setPreviewIdx(index);
-                            fileInputRefs.current[banner.id || index]?.click();
+                            fileInputRefs.current[index]?.click();
                           }}
-                          className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer ${
+                          className={`flex-1 py-2.5 px-3 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                             darkMode
                               ? "border-slate-700 hover:bg-slate-800/60 text-slate-300"
                               : "border-slate-300 hover:bg-slate-50 text-slate-600"
                           }`}>
-                          <Upload size={14} className="text-[#F27D26]" /> Select
-                          Image from Device
+                          {uploadingIdx === index ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin text-[#F27D26]" />
+                              <span>Uploading to cloud...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} className="text-[#F27D26]" />
+                              <span>Select Image from Device</span>
+                            </>
+                          )}
                         </button>
                         {banner.img && (
                           <div className="w-12 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">

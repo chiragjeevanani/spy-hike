@@ -4,7 +4,7 @@
  */
 export function compressImage(file, maxDimension = 1200, quality = 0.75) {
   return new Promise((resolve, reject) => {
-    if (!file || !file.type || !file.type.startsWith('image/')) {
+    if (!file || (!file.type?.startsWith('image/') && !/\.(jpe?g|png|webp|gif|avif)$/i.test(file.name || ''))) {
       return reject(new Error('Invalid image file'));
     }
     const reader = new FileReader();
