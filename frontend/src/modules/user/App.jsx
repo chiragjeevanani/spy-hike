@@ -261,6 +261,13 @@ export default function App() {
   const [landingContent, setLandingContent] = useState(loadLandingContentLocal);
   const [trips, setTrips] = useState(() => loadTrips());
   const [tripsLoading, setTripsLoading] = useState(true);
+  // Mirrors tripsLoading/bookingsLoading for the trek catalog and the
+  // customer's booking roster — used so a deep-linked /trek, /book,
+  // /booking or /organizers route isn't declared "not found" (and bounced
+  // to Home) just because its backing list hasn't finished its first fetch
+  // yet. See the route-resolution reconciliation effect below.
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [bookingsLoading, setBookingsLoading] = useState(() => user.isAuthenticated);
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
   const [bannedAlert, setBannedAlert] = useState(false);
   const [bannedReason, setBannedReason] = useState('banned');
@@ -502,6 +509,12 @@ export default function App() {
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
+      } else if (tripsLoading || catalogLoading) {
+        // Catalog hasn't finished its first fetch yet (e.g. a fresh reload
+        // triggered by the native back gesture / the app resuming from the
+        // background) — a miss here doesn't mean the trek doesn't exist, so
+        // don't bounce to Home over it. The reconciliation effect below
+        // re-runs this once the catalog lands.
       } else {
         navigateTo('/', true, currentUser);
       }
@@ -532,6 +545,9 @@ export default function App() {
         setActiveBookingTrip(foundTrip);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
+      } else if (tripsLoading) {
+        // See the /trip/ branch above — don't bounce to Home while the
+        // catalog is still loading.
       } else {
         navigateTo('/', true, currentUser);
       }
@@ -545,6 +561,9 @@ export default function App() {
         setSelectedBooking(foundBooking);
         setSelectedOrganizer(null);
         setSelectedTrekName(null);
+      } else if (bookingsLoading) {
+        // Don't bounce away while this customer's booking roster is still
+        // being fetched — a cache miss here is often just a timing race.
       } else {
         navigateTo('/bookings', true, currentUser);
       }
@@ -558,6 +577,8 @@ export default function App() {
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedTrekName(null);
+      } else if (tripsLoading) {
+        // Don't bounce to Home while the catalog is still loading.
       } else {
         navigateTo('/', true, currentUser);
       }
@@ -585,11 +606,47 @@ export default function App() {
     }
   };
 
+  // handleRouteChange is redefined every render (it closes over trips,
+  // bookings, catalogTreks, tripsLoading, user, ...). Routing it through a
+  // ref rather than re-subscribing the listener on a hand-picked dependency
+  // list guarantees popstate — fired by the native back button on Android
+  // and the edge-swipe gesture on iOS, not just this app's own back buttons
+  // — always runs against the LATEST data. A stale closure here (e.g. one
+  // still holding an empty catalogTreks from before it finished loading)
+  // was making a real trek/trip look "not found" and silently redirecting
+  // to Home, which is exactly what showed up as native-back "flickering
+  // back to the home page" instead of the previous screen.
+  const handleRouteChangeRef = useRef(handleRouteChange);
+  handleRouteChangeRef.current = handleRouteChange;
+
   useEffect(() => {
-    const onPopState = () => handleRouteChange();
+    const onPopState = () => handleRouteChangeRef.current();
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [trips, bookings, user]);
+  }, []);
+
+  // One-time reconciliation: if the very first attempt to resolve a
+  // data-driven deep link (/trek, /trip, /book, /booking, /organizers) ran
+  // before its backing list had finished loading, the guards above leave it
+  // unresolved rather than wrongly redirecting to Home. Once every relevant
+  // list has finished its first fetch, re-run the router once against the
+  // current URL to pick up anything that was left pending.
+  const routeReconciledRef = useRef(false);
+  useEffect(() => {
+    if (tripsLoading || catalogLoading || bookingsLoading) return;
+    if (routeReconciledRef.current) return;
+    routeReconciledRef.current = true;
+
+    const path = toInternalPath(window.location.pathname);
+    if (!path) return;
+    const stillUnresolved =
+      (path.startsWith('/trek/') && !selectedTrekName) ||
+      (path.startsWith('/trip/') && !selectedTrip) ||
+      (path.startsWith('/book/') && !activeBookingTrip) ||
+      (path.startsWith('/booking/') && !selectedBooking) ||
+      (path.startsWith('/organizers/') && !selectedOrganizer);
+    if (stillUnresolved) handleRouteChangeRef.current();
+  }, [tripsLoading, catalogLoading, bookingsLoading]);
 
   // Sync state mutations to LocalStorage standard hooks
   useEffect(() => {
@@ -733,12 +790,14 @@ export default function App() {
   // the offline fallback keep working); the saveBookings effect mirrors them
   // back to localStorage for the synchronous route-parser.
   useEffect(() => {
-    if (!user.isAuthenticated) return;
+    if (!user.isAuthenticated) { setBookingsLoading(false); return undefined; }
+    setBookingsLoading(true);
     let cancelled = false;
     bookingsApi
       .listMine()
       .then((list) => { if (!cancelled && Array.isArray(list) && list.length) setBookings(list); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setBookingsLoading(false); });
     return () => { cancelled = true; };
   }, [user.isAuthenticated]);
 
@@ -814,7 +873,10 @@ export default function App() {
       localStorage.setItem('fyt_last_module', 'hiker');
     } catch (e) {}
     landingApi.getContent().then((c) => { if (!cancelled && c) setLandingContent(c); }).catch(() => {});
-    treksApi.listTreks().then((list) => { if (!cancelled && Array.isArray(list)) setCatalogTreks(list); }).catch(() => {});
+    treksApi.listTreks()
+      .then((list) => { if (!cancelled && Array.isArray(list)) setCatalogTreks(list); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCatalogLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
