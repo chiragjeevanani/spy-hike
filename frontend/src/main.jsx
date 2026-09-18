@@ -63,12 +63,17 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/ToastProvider';
 import OfflineStatusIndicator from './components/OfflineStatusIndicator';
 import { installOverscrollGuard } from './utils/preventOverscrollBounce';
+import { installIOSInputFocusFix } from './utils/iosInputFocus';
 
 // Blocks iOS Safari's native rubber-band bounce / pull-to-refresh at the
 // touch level — see the file for why the CSS-only fix (index.css) isn't
 // enough on iPhone specifically. #root already exists (static markup in
 // index.html), so this can run before React even mounts.
 installOverscrollGuard();
+
+// Keeps the iOS keyboard open when moving between input fields, so the page
+// doesn't drop and jump back on every field switch — see the file for details.
+installIOSInputFocusFix();
 
 // Register service worker for offline page caching
 if ('serviceWorker' in navigator) {
