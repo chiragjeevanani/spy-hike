@@ -98,6 +98,17 @@ export const createBooking = asyncHandler(async (req, res) => {
   const { tripId, selectedDate, travelers = [], couponCode, useLoyaltyReward } = req.body;
   const selections = req.body.selections || req.body.travelerBreakdown || [];
 
+  // The JWT carries only { sub, role, email } — never the account's name (see
+  // signToken in utils/jwt.js) — so req.user.name is always undefined. This
+  // used to be read directly as `req.user.name || 'Traveller'`, which meant
+  // EVERY booking's userName was 'Traveller', not just ones missing a name:
+  // the customer's real name (a required field on every account) was simply
+  // never being looked up. That name reaches the ticket, the admin bookings
+  // list, the organizer's "X booked Y" notification, and PayU's checkout
+  // (firstname) — PayU's dashboard showing "Traveller" was a symptom of this,
+  // not a PayU-side issue.
+  const bookerAccount = await User.findOne({ email: req.user.email }).select('name').lean();
+
   // Reclaim seats still held by abandoned checkouts before deciding this
   // booking can't have any — otherwise a busy departure stays "full" for the
   // length of the hold. Same lazy-sweep pattern as autoResolveBookingStatuses.
@@ -162,7 +173,7 @@ export const createBooking = asyncHandler(async (req, res) => {
       // account, but this survives that account being removed.
       organizerName: trip.organizer?.name || '',
       userEmail: req.user.email,
-      userName: req.user.name || 'Traveller',
+      userName: bookerAccount?.name || 'Traveller',
       bookingDate: todayStr(),
       selectedDate,
       travelers,

@@ -80,6 +80,30 @@ describe('Booking creation & pricing', () => {
     expect(b.bookingId).toMatch(/^TG-\d{4}-[A-Z]$/);
   });
 
+  // Regression: the JWT never carries the account's name (only sub/role/
+  // email — see utils/jwt.js), so reading it as `req.user.name || 'Traveller'`
+  // meant EVERY booking's userName was silently 'Traveller' — not just ones
+  // genuinely missing a name. That field reaches the ticket, the admin
+  // bookings list, the organizer's "X booked Y" notification and PayU's
+  // checkout (firstname), so this quietly mislabelled every real booking
+  // right up to a live payment showing "Traveller" on the PayU dashboard.
+  it("stamps the booking with the customer's real account name, not the literal fallback", async () => {
+    const org = await approvedOrganizerToken();
+    const cust = await customerToken('priya@example.com'); // registers as 'Hiker' by default — see customerToken()
+    const trip = await makeTrip(org);
+
+    const res = await book(cust, {
+      tripId: trip.id,
+      selectedDate: '2026-08-01',
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.booking.userName).toBe('Hiker');
+    expect(res.body.booking.userName).not.toBe('Traveller');
+  });
+
   it('applies a coupon and increments its usedCount', async () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();

@@ -176,6 +176,12 @@ describe('Online checkout (PayU hosted checkout)', () => {
       surl: 'https://api.example.com/api/v1/payments/payu/return',
       furl: 'https://api.example.com/api/v1/payments/payu/return',
     });
+    // Regression: this used to always be the literal string 'Traveller' —
+    // req.user.name (the JWT payload) never carries the account's real name —
+    // which is exactly what showed up as "Name: Traveller" on the PayU
+    // dashboard for a real customer's live payment.
+    expect(p.firstname).toBe('Payer');
+    expect(p.firstname).not.toBe('Traveller');
     expect(p.phone).toMatch(/^\d{10}$/);
     expect(p.txnid.length).toBeLessThanOrEqual(25);
     // PayU's documented request hash.
