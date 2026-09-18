@@ -64,6 +64,7 @@ import { ToastProvider } from './components/ToastProvider';
 import OfflineStatusIndicator from './components/OfflineStatusIndicator';
 import { installOverscrollGuard } from './utils/preventOverscrollBounce';
 import { installIOSInputFocusFix } from './utils/iosInputFocus';
+import { installKeyboardDebug } from './utils/kbDebug';
 
 // Blocks iOS Safari's native rubber-band bounce / pull-to-refresh at the
 // touch level — see the file for why the CSS-only fix (index.css) isn't
@@ -74,6 +75,9 @@ installOverscrollGuard();
 // Keeps the iOS keyboard open when moving between input fields, so the page
 // doesn't drop and jump back on every field switch — see the file for details.
 installIOSInputFocusFix();
+
+// Temporary on-device keyboard diagnostics — off unless toggled on (see file).
+installKeyboardDebug();
 
 // Register service worker for offline page caching
 if ('serviceWorker' in navigator) {
