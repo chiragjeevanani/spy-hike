@@ -19,6 +19,7 @@ import loyaltyApi from '../../lib/loyaltyApi';
 import socialApi from '../../lib/socialApi';
 import { getToken } from '../../lib/apiClient';
 import { initPushNotifications } from '../../utils/pushNotifications';
+import { useLivePoll, LIVE } from '../../utils/livePoll';
 import { requestPushPermission, OrganizerAlerts } from '../../utils/pushNotificationService';
 import { useToast } from '../../components/ToastProvider';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -138,19 +139,26 @@ export default function OrgApp() {
     }
   }, [organizer?.email, organizer?.isAuthenticated]);
 
-  // Live polling interval for instant real-time sync of Bookings, Messages, and Notifications
+  // Request browser push notification permission if supported
   useEffect(() => {
-    if (!organizer?.isAuthenticated || !organizer?.isApproved) return;
+    if (organizer?.isAuthenticated && organizer?.isApproved) requestPushPermission();
+  }, [organizer?.isAuthenticated, organizer?.isApproved]);
 
-    // Request browser push notification permission if supported
-    requestPushPermission();
-
-    const pollLiveUpdates = async () => {
+  // Live sync of Bookings, Messages and Notifications.
+  //
+  // Every read here passes LIVE (cache: false): these are the endpoints whose
+  // whole point is to be current, and apiClient's 60s GET cache was otherwise
+  // answering the poll with the same stale list — which is why a new booking
+  // only showed up after the app was closed and reopened (a reload being the
+  // one thing that clears that cache). useLivePoll also re-runs the moment the
+  // app returns to the foreground, since a backgrounded webview's timers are
+  // suspended.
+  const pollLiveUpdates = useCallback(async () => {
       if (!getToken()) return;
 
       try {
         // 1. Live Sync Bookings
-        const freshBookings = await bookingsApi.listOrganizer();
+        const freshBookings = await bookingsApi.listOrganizer(LIVE);
         if (Array.isArray(freshBookings)) {
           if (knownBookingIdsRef.current !== null) {
             const newBookings = freshBookings.filter(b => {
@@ -170,7 +178,7 @@ export default function OrgApp() {
         }
 
         // 2. Live Sync Customer Chats & Messages
-        const freshChats = await socialApi.getOrganizerChats();
+        const freshChats = await socialApi.getOrganizerChats(LIVE);
         if (Array.isArray(freshChats)) {
           if (knownChatMsgCountRef.current !== null) {
             freshChats.forEach(chat => {
@@ -201,7 +209,7 @@ export default function OrgApp() {
         }
 
         // 3. Live Sync Notifications
-        const freshNotifs = await socialApi.getOrganizerNotifications();
+        const freshNotifs = await socialApi.getOrganizerNotifications(LIVE);
         if (Array.isArray(freshNotifs)) {
           setNotifications(freshNotifs);
           saveOrgNotifications(freshNotifs);
@@ -209,15 +217,12 @@ export default function OrgApp() {
       } catch (err) {
         /* Ignore transient background network errors */
       }
-    };
+  }, [organizer?.email, toast]);
 
-    // Initial poll check
-    pollLiveUpdates();
-
-    // Poll every 5 seconds for instant updates without page refresh
-    const pollInterval = setInterval(pollLiveUpdates, 5000);
-    return () => clearInterval(pollInterval);
-  }, [organizer?.isAuthenticated, organizer?.isApproved, organizer?.email]);
+  useLivePoll(pollLiveUpdates, {
+    intervalMs: 5000,
+    enabled: !!organizer?.isAuthenticated && !!organizer?.isApproved,
+  });
 
   // History popstate — handle native hardware back button / swipe gestures for all overlays & modals
   useEffect(() => {

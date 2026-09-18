@@ -19,7 +19,7 @@ export const bookingsApi = {
   // is the signed PayU form to redirect to (see lib/payu.js).
   checkout: (payload) =>
     api.post('/bookings', payload, { invalidates: ['/trips', '/departures'] }),
-  listMine: () => api.get('/bookings').then((r) => r.bookings),
+  listMine: (opts) => api.get('/bookings', opts).then((r) => r.bookings),
   getMine: (id) => api.get(`/bookings/${encodeURIComponent(id)}`).then((r) => r.booking),
   // Cancelling releases the seats back to the trip and its departures.
   cancel: (id) =>
@@ -53,7 +53,7 @@ export const bookingsApi = {
     api.patch(`/admin/payouts/${encodeURIComponent(id)}`, { action, reason }).then((r) => r.payout),
 
   // ─── Organizer ───
-  listOrganizer: () => api.get('/organizer/bookings').then((r) => r.bookings),
+  listOrganizer: (opts) => api.get('/organizer/bookings', opts).then((r) => r.bookings),
   // Scan-to-check-in. Resolves to { booking, alreadyCheckedIn }.
   checkin: (bookingId) => api.post(`/organizer/bookings/${encodeURIComponent(bookingId)}/checkin`),
 

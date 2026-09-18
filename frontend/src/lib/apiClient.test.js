@@ -152,3 +152,55 @@ describe('apiClient scoped invalidation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+// Live polling — the organizer app polls bookings every 5s, and the 60s GET
+// cache was answering those polls with a stale list (a booking made elsewhere
+// only appeared after a reload cleared the cache). Polled calls pass
+// { cache: false }, which must reach the network every time.
+describe('apiClient live (uncached) reads', () => {
+  beforeEach(() => {
+    clearApiCache();
+    setToken(null);
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    clearApiCache();
+  });
+
+  it('serves a repeated default GET from the cache', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ bookings: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.get('/organizer/bookings', { auth: false });
+    await api.get('/organizer/bookings', { auth: false });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('hits the network on every poll when cache is disabled', async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async () => jsonResponse({ bookings: [{ id: `b${++call}` }] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await api.get('/organizer/bookings', { auth: false, cache: false });
+    const second = await api.get('/organizer/bookings', { auth: false, cache: false });
+    const third = await api.get('/organizer/bookings', { auth: false, cache: false });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // Each poll sees the current server state, not the first response.
+    expect(first.bookings[0].id).toBe('b1');
+    expect(second.bookings[0].id).toBe('b2');
+    expect(third.bookings[0].id).toBe('b3');
+  });
+
+  it('does not let an uncached read poison the cache for other callers', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ bookings: [{ id: 'live' }] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.get('/organizer/bookings', { auth: false, cache: false });
+    await api.get('/organizer/bookings', { auth: false });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});

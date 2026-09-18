@@ -10,6 +10,7 @@ import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
 import { redirectToPayU } from '../../../lib/payu';
+import { sanitizePhoneInput, isValidPhone, PHONE_MAX_DIGITS, PHONE_RULE_MESSAGE } from '../../../utils/phone';
 import { useToast } from '../../../components/ToastProvider';
 import TravelTicket from './TravelTicket';
 import { downloadTicketPDF } from '../utils/ticketPdf';
@@ -109,12 +110,7 @@ const Perforation = () => (
  * to its first ten characters would silently store "9198765432", a different
  * number that still looks valid.
  */
-const toTenDigits = (raw) => {
-  let digits = String(raw ?? '').replace(/\D/g, '');
-  if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
-  if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
-  return digits.slice(0, 10);
-};
+
 
 // Printer chassis with the feed slot. `tone` colours the status lamp so the
 // same unit reads as working (success) or faulted (failure).
@@ -807,9 +803,8 @@ export default function BookingFlow({
         return { idx, field: 'age', message: `${label}: age must be between 12 and 90.` };
       }
       if (!t.gender) return { idx, field: 'gender', message: `${label}: gender is required.` };
-      const digits = String(t.emergencyContact || '').replace(/\D/g, '');
-      if (!/^\d{10}$/.test(digits)) {
-        return { idx, field: 'emergencyContact', message: `${label}: a valid 10-digit emergency contact number is required.` };
+      if (!isValidPhone(t.emergencyContact)) {
+        return { idx, field: 'emergencyContact', message: `${label}: ${PHONE_RULE_MESSAGE}` };
       }
     }
     return null;
@@ -1572,19 +1567,15 @@ export default function BookingFlow({
                         inputMode="numeric"
                         autoComplete="tel-national"
                         name="emergencyContact"
-                        placeholder="e.g. 9876543210"
-                        maxLength={10}
+                        placeholder="e.g. 9876543210 or +14155552671"
+                        maxLength={PHONE_MAX_DIGITS + 1}
                         value={tr.emergencyContact}
-                        onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', toTenDigits(e.target.value))}
+                        onChange={e => handleTravelerFieldChange(idx, 'emergencyContact', sanitizePhoneInput(e.target.value))}
                         className={fieldCls('emergencyContact')}
                       />
-                      {err.emergencyContact
-                        ? <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>
-                        : tr.emergencyContact.length > 0 && tr.emergencyContact.length < 10 && (
-                          <p className="text-[10px] font-semibold opacity-50">
-                            {10 - tr.emergencyContact.length} more digit{10 - tr.emergencyContact.length === 1 ? '' : 's'}
-                          </p>
-                        )}
+                      {err.emergencyContact && (
+                        <p className="text-[10px] font-semibold text-red-500">{err.emergencyContact}</p>
+                      )}
                     </div>
                   </div>
                 </div>

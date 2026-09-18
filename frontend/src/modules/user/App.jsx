@@ -60,6 +60,7 @@ import { getToken, clearToken, clearApiCache } from '../../lib/apiClient';
 import authApi from '../../lib/authApi';
 import { loadLandingContentLocal } from '../landing/landingContent';
 import { initPushNotifications } from '../../utils/pushNotifications';
+import { useLivePoll, LIVE } from '../../utils/livePoll';
 import { requestPushPermission, HikerAlerts } from '../../utils/pushNotificationService';
 import { useToast } from '../../components/ToastProvider';
 import { requestAppRefresh } from '../../utils/refreshSignal';
@@ -938,16 +939,18 @@ export default function App() {
   const knownHikerMsgCountRef = useRef(null);
   const knownHikerNotifCountRef = useRef(null);
 
-  // Live polling interval for instant real-time push alerts of notifications & messages for Hikers
   useEffect(() => {
-    if (!user.isAuthenticated || !getToken()) return;
+    if (user.isAuthenticated && getToken()) requestPushPermission();
+  }, [user.isAuthenticated]);
 
-    requestPushPermission();
-
-    const pollHikerUpdates = async () => {
+  // Live sync of notifications and organizer messages. Reads pass LIVE
+  // (cache: false) so the poll isn't answered from apiClient's 60s GET cache,
+  // and useLivePoll re-runs it as soon as the app is brought back to the
+  // foreground — a backgrounded webview has its timers suspended.
+  const pollHikerUpdates = useCallback(async () => {
       try {
         // 1. Live Sync Hiker Notifications
-        const freshNotifs = await socialApi.getNotifications();
+        const freshNotifs = await socialApi.getNotifications(LIVE);
         if (Array.isArray(freshNotifs)) {
           if (knownHikerNotifCountRef.current !== null && freshNotifs.length > knownHikerNotifCountRef.current) {
             const latestNotif = freshNotifs[0];
@@ -961,7 +964,7 @@ export default function App() {
         }
 
         // 2. Live Sync Incoming Organizer Messages
-        const freshChats = await socialApi.getChats();
+        const freshChats = await socialApi.getChats(LIVE);
         if (Array.isArray(freshChats)) {
           if (knownHikerMsgCountRef.current !== null) {
             freshChats.forEach(chat => {
@@ -991,12 +994,12 @@ export default function App() {
       } catch (err) {
         /* Ignore background polling errors */
       }
-    };
+  }, [toast]);
 
-    pollHikerUpdates();
-    const timer = setInterval(pollHikerUpdates, 5000);
-    return () => clearInterval(timer);
-  }, [user.isAuthenticated]);
+  useLivePoll(pollHikerUpdates, {
+    intervalMs: 5000,
+    enabled: !!user.isAuthenticated,
+  });
 
   // Public landing-page content — fetched once on mount (no auth) so the
   // marketing page reflects whatever the admin has published in the CMS.

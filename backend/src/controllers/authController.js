@@ -8,6 +8,7 @@ import { signToken, signPhoneToken, verifyPhoneToken } from '../utils/jwt.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { otpProvider } from '../integrations/otp.js';
+import { isValidPhone, PHONE_RULE_MESSAGE } from '../utils/phone.js';
 import { googleProvider } from '../integrations/googleOAuth.js';
 import { validateGovtId } from '../utils/govtIdValidator.js';
 
@@ -223,8 +224,8 @@ export const updateProfile = asyncHandler(async (req, res) => {
   if (emergencyContact !== undefined && !emergencyContact.trim()) {
     throw ApiError.badRequest('Emergency contact is required');
   }
-  if (emergencyContact !== undefined && emergencyContact.trim() && emergencyContact.replace(/\D/g, '').length < 10) {
-    throw ApiError.badRequest('Emergency contact phone number must be at least 10 digits');
+  if (emergencyContact !== undefined && emergencyContact.trim() && !isValidPhone(emergencyContact)) {
+    throw ApiError.badRequest(`Emergency contact must be ${PHONE_RULE_MESSAGE}`);
   }
 
   const user = await findUserByIdOrEmail(sub, req.user?.email);
@@ -273,10 +274,10 @@ export const updateProfileVerify = asyncHandler(async (req, res) => {
     user.name = name;
   }
   if (emergencyContact !== undefined) {
-    // A real 10-digit number must be embedded in it — the field feeds
-    // safety-critical outreach, not just profile completeness.
-    if ((emergencyContact.match(/\d/g) || []).length < 10) {
-      throw ApiError.badRequest('A valid emergency contact with a 10-digit phone number is required');
+    // A real number must be embedded in it — the field feeds safety-critical
+    // outreach, not just profile completeness.
+    if (!isValidPhone(emergencyContact)) {
+      throw ApiError.badRequest(`The emergency contact must include ${PHONE_RULE_MESSAGE}`);
     }
     user.emergencyContact = emergencyContact;
   }
@@ -712,7 +713,14 @@ export const updateFcmToken = asyncHandler(async (req, res) => {
   const user = await User.findById(sub);
   if (!user) throw ApiError.notFound('Account not found');
 
-  user.fcmToken = String(fcmToken).trim();
+  const token = String(fcmToken).trim();
+  // Registering a second device must not evict the first: keep the newest token
+  // in the legacy field and accumulate all of them in the list, newest first,
+  // capped so an account can't grow an unbounded token collection.
+  user.fcmToken = token;
+  if (token) {
+    user.fcmTokens = [token, ...(user.fcmTokens || []).filter((t) => t && t !== token)].slice(0, 10);
+  }
   await user.save();
 
   res.json({ ok: true, message: 'FCM token registered successfully' });

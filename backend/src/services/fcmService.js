@@ -133,3 +133,61 @@ export async function sendMulticastNotification(tokens, title, body, data = {}) 
     return { success: false, error: error.message };
   }
 }
+
+// ─── Per-user delivery ───────────────────────────────────────────────────────
+// Codes FCM returns for a token that will never work again: the app was
+// uninstalled, the browser cleared its site data, or the token was rotated.
+// Keeping them wastes a send on every future notification, so callers are told
+// which ones to drop.
+const DEAD_TOKEN_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+  'messaging/invalid-argument',
+]);
+
+// FCM data payloads must be flat strings.
+const stringifyData = (data) => Object.fromEntries(
+  Object.entries(data || {})
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => [k, String(v)]),
+);
+
+// Exported as an object (rather than loose functions) so tests can swap the
+// send out without touching the network — the same pattern paymentProvider
+// uses. Everything above it deals in users and notifications; this owns tokens.
+export const pushProvider = {
+  isConfigured: () => fcmInitialized,
+
+  /**
+   * Delivers one notification to every device token of a single recipient.
+   * Never throws: a push is a best-effort mirror of an in-app notification.
+   *
+   * @returns {Promise<{sent: number, failed: number, deadTokens: string[]}>}
+   */
+  async sendToTokens(tokens, title, body, data = {}) {
+    const list = [...new Set((tokens || []).filter(Boolean))];
+    if (!list.length) return { sent: 0, failed: 0, deadTokens: [] };
+
+    if (!fcmInitialized || !admin) {
+      console.log(`[FCM STUB] Push to ${list.length} token(s) | Title: "${title}" | Body: "${body}"`);
+      return { sent: 0, failed: 0, deadTokens: [], stub: true };
+    }
+
+    try {
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: list,
+        notification: { title, body },
+        data: { ...stringifyData(data), click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+      });
+
+      const deadTokens = [];
+      response.responses.forEach((r, i) => {
+        if (!r.success && DEAD_TOKEN_CODES.has(r.error?.code)) deadTokens.push(list[i]);
+      });
+      return { sent: response.successCount, failed: response.failureCount, deadTokens };
+    } catch (error) {
+      console.error('✗ FCM push send failed:', error.message);
+      return { sent: 0, failed: list.length, deadTokens: [], error: error.message };
+    }
+  },
+};

@@ -22,25 +22,28 @@ export const createBroadcast = asyncHandler(async (req, res) => {
   const rows = [];
   const fcmTokens = [];
   if (target === 'users' || target === 'both') {
-    const users = await User.find({ status: { $ne: 'Banned' } }).select('email fcmToken');
+    const users = await User.find({ status: { $ne: 'Banned' } }).select('email fcmToken fcmTokens');
     users.forEach((u) => {
       rows.push({ ownerType: 'customer', ownerKey: u.email, title, content, type });
-      if (u.fcmToken) fcmTokens.push(u.fcmToken);
+      fcmTokens.push(u.fcmToken, ...(u.fcmTokens || []));
     });
   }
   if (target === 'organizers' || target === 'both') {
-    const orgs = await User.find({ isOrganizer: true }).select('email fcmToken');
+    const orgs = await User.find({ isOrganizer: true }).select('email fcmToken fcmTokens');
     orgs.forEach((o) => {
       rows.push({ ownerType: 'organizer', ownerKey: o.email, title, content, type });
-      if (o.fcmToken) fcmTokens.push(o.fcmToken);
+      fcmTokens.push(o.fcmToken, ...(o.fcmTokens || []));
     });
   }
   if (rows.length) await Notification.insertMany(rows);
 
   // Send Firebase Cloud Messaging token-based push notifications
   try {
-    if (fcmTokens.length > 0) {
-      await sendMulticastNotification(fcmTokens, title, content, { type });
+    // One account can have several devices, and the same device can appear
+    // under both audiences — dedupe so nobody gets the announcement twice.
+    const tokens = [...new Set(fcmTokens.filter(Boolean))];
+    if (tokens.length > 0) {
+      await sendMulticastNotification(tokens, title, content, { type });
     }
   } catch (err) {
     console.error('FCM token-based multicast send failed:', err.message);

@@ -10,6 +10,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import TravelTicket from './TravelTicket';
 import SwitchTransition from './SwitchTransition';
 import { useInstantNav, routeSwapVariants } from '../../../utils/navTransition';
+import { sanitizePhoneInput, isValidPhone, PHONE_MAX_DIGITS, PHONE_RULE_MESSAGE } from '../../../utils/phone';
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import authApi from '../../../lib/authApi';
@@ -407,14 +408,14 @@ export default function ProfileView({
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const mobileRegex = /^\d{10}$/;
-    const sosNumbersOnly = profileEmergencyPhone.replace(/\D/g, '');
+
 
     const errors = {};
     if (!profileName.trim()) errors.name = 'Full name is required.';
     if (!emailRegex.test(profileEmail)) errors.email = 'Please enter a valid email address.';
     if (!mobileRegex.test(profileMobile)) errors.mobile = 'Mobile number must be a valid 10-digit number.';
     if (!profileEmergencyName.trim()) errors.emergencyName = 'Emergency contact name is required.';
-    if (sosNumbersOnly.length < 10) errors.emergencyPhone = 'Emergency contact phone number must be at least 10 digits.';
+    if (!isValidPhone(profileEmergencyPhone)) errors.emergencyPhone = PHONE_RULE_MESSAGE;
 
     if (Object.keys(errors).length > 0) {
       const order = ['name', 'email', 'mobile', 'emergencyName', 'emergencyPhone'];
@@ -1517,7 +1518,7 @@ export default function ProfileView({
                   ref={profileEmergencyNameRef}
                   type="text"
                   required
-                  placeholder="e.g. Asha Jeevanani"
+                  placeholder="e.g. Priya Sharma"
                   value={profileEmergencyName}
                   onChange={e => { setProfileEmergencyName(e.target.value); clearProfileError('emergencyName'); }}
                   className={`${subInputCls} ${subErrCls('emergencyName')}`}
@@ -1530,11 +1531,13 @@ export default function ProfileView({
                 <label className={subLabelCls}>Emergency Contact Phone</label>
                 <input
                   ref={profileEmergencyPhoneRef}
-                  type="text"
+                  type="tel"
+                  inputMode="tel"
                   required
-                  placeholder="e.g. +91 98765 43219"
+                  placeholder="e.g. 9876543210 or +14155552671"
+                  maxLength={PHONE_MAX_DIGITS + 1}
                   value={profileEmergencyPhone}
-                  onChange={e => { setProfileEmergencyPhone(e.target.value); clearProfileError('emergencyPhone'); }}
+                  onChange={e => { setProfileEmergencyPhone(sanitizePhoneInput(e.target.value)); clearProfileError('emergencyPhone'); }}
                   className={`${subInputCls} ${subErrCls('emergencyPhone')}`}
                 />
                 {profileFieldErrors.emergencyPhone && <p className="text-[11px] font-semibold text-red-500">{profileFieldErrors.emergencyPhone}</p>}

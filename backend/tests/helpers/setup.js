@@ -1,7 +1,8 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { beforeAll, afterAll, afterEach } from 'vitest';
+import { beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { cacheInvalidate, closeCache } from '../../src/lib/cache.js';
+import { env } from '../../src/config/env.js';
 
 /**
  * Single-instance in-memory MongoDB manager.
@@ -22,6 +23,18 @@ beforeAll(async () => {
     await mongoose.connect(globalThis.__MONGO_URI__);
   }
 }, 60000);
+
+// Every suite starts with the gateway switched off, whatever the developer's
+// own .env says. Real PayU credentials in .env would otherwise flip checkout to
+// 'online' and turn every booking pending — which is correct behaviour, but it
+// silently broke the suites that assert the Pay-on-Arrival flow. The payments
+// suite opts into 'online' explicitly in its own beforeEach, which runs after
+// this one.
+beforeEach(() => {
+  env.paymentMode = 'arrival';
+  env.payuMerchantKey = '';
+  env.payuMerchantSalt = '';
+});
 
 // Wipe collections between tests to guarantee state isolation. The response
 // cache has to go with them — otherwise a test that warmed an endpoint hands

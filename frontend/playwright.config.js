@@ -24,7 +24,10 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `cd ../backend && CORS_ORIGINS=http://localhost:${PORT} PORT=${API_PORT} node src/dev-memory-server.js`,
+      // PAYMENT_MODE=arrival regardless of the developer's own .env: with real
+      // PayU credentials present, checkout would redirect to PayU's hosted page
+      // and every booking spec would stall there.
+      command: `cd ../backend && CORS_ORIGINS=http://localhost:${PORT} PORT=${API_PORT} PAYMENT_MODE=arrival node src/dev-memory-server.js`,
       port: API_PORT,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000, // mongodb-memory-server may download its binary on first run

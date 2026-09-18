@@ -1,4 +1,5 @@
 import { ApiError } from './ApiError.js';
+import { isValidPhone, PHONE_RULE_MESSAGE } from './phone.js';
 
 // Traveler details go straight into a real trek's emergency permits and
 // safety register — required, not just for form completeness. Mirrors the
@@ -17,9 +18,8 @@ export function validateTravelers(travelers, expectedCount) {
       throw ApiError.badRequest(`${label}: age must be between 12 and 90`);
     }
     if (!['Male', 'Female', 'Other'].includes(t.gender)) throw ApiError.badRequest(`${label}: gender is required`);
-    const digits = String(t.emergencyContact || '').replace(/\D/g, '');
-    if (!/^\d{10}$/.test(digits)) {
-      throw ApiError.badRequest(`${label}: a valid 10-digit emergency contact number is required`);
+    if (!isValidPhone(t.emergencyContact)) {
+      throw ApiError.badRequest(`${label}: the emergency contact must be ${PHONE_RULE_MESSAGE}`);
     }
   });
 }

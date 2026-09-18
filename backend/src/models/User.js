@@ -105,7 +105,11 @@ const userSchema = new mongoose.Schema(
     notificationPromo:    { type: Boolean, default: false },
     referralCode:  { type: String, unique: true },
     referredBy:    { type: String, default: null },
+    // Legacy single-device field, kept so older clients and existing rows keep
+    // working; `fcmTokens` is the real list. One account can be signed in on a
+    // phone, a tablet and a laptop, and a push has to reach all of them.
     fcmToken:      { type: String, default: '' },
+    fcmTokens:     { type: [String], default: [] },
 
     // ── Organizer fields (only populated when isOrganizer: true) ──────────
     isOrganizer:   { type: Boolean, default: false },

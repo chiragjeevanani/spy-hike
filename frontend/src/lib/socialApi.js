@@ -20,22 +20,22 @@ export const socialApi = {
   listMyReviews: () => api.get('/reviews/mine').then((r) => r.reviews),
 
   // ─── Notifications (customer) ───
-  getNotifications: () => api.get('/notifications').then((r) => r.notifications),
+  getNotifications: (opts) => api.get('/notifications', opts).then((r) => r.notifications),
   markNotificationRead: (id) => api.patch(`/notifications/${encodeURIComponent(id)}/read`),
   markAllNotificationsRead: () => api.patch('/notifications/read-all'),
 
   // ─── Notifications (organizer) ───
-  getOrganizerNotifications: () => api.get('/organizer/notifications').then((r) => r.notifications),
+  getOrganizerNotifications: (opts) => api.get('/organizer/notifications', opts).then((r) => r.notifications),
   markOrganizerNotificationRead: (id) => api.patch(`/organizer/notifications/${encodeURIComponent(id)}/read`),
   markAllOrganizerNotificationsRead: () => api.patch('/organizer/notifications/read-all'),
 
   // ─── Chat (customer) ───
-  getChats: () => api.get('/chats').then((r) => r.chats),
+  getChats: (opts) => api.get('/chats', opts).then((r) => r.chats),
   sendMessage: (tripId, text) => api.post(`/chats/${encodeURIComponent(tripId)}/messages`, { text }).then((r) => r.chat),
   markChatRead: (tripId) => api.patch(`/chats/${encodeURIComponent(tripId)}/read`),
 
   // ─── Chat (organizer) ───
-  getOrganizerChats: () => api.get('/organizer/chats').then((r) => r.chats),
+  getOrganizerChats: (opts) => api.get('/organizer/chats', opts).then((r) => r.chats),
   sendOrganizerMessage: (chatId, text) =>
     api.post(`/organizer/chats/${encodeURIComponent(chatId)}/messages`, { text }).then((r) => r.chat),
   markOrganizerChatRead: (chatId) => api.patch(`/organizer/chats/${encodeURIComponent(chatId)}/read`),
