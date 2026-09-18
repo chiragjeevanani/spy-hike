@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createBooking, listMyBookings, getMyBooking, cancelBooking } from '../controllers/bookingController.js';
 import {
-  getPaymentConfig, verifyBookingPayment, retryBookingPayment, getBookingPaymentStatus,
+  getPaymentConfig, retryBookingPayment, getBookingPaymentStatus,
 } from '../controllers/paymentController.js';
 import { createReview, listMyReviews } from '../controllers/reviewController.js';
 import { getWishlist, setWishlist } from '../controllers/wishlistController.js';
@@ -26,11 +26,11 @@ router.get('/bookings', ...customerOnly, listMyBookings);
 router.get('/bookings/:id', ...customerOnly, getMyBooking);
 router.post('/bookings/:id/cancel', ...customerOnly, cancelBooking);
 
-// Online payment (Razorpay). Inert while PAYMENT_MODE is 'arrival' — the config
-// endpoint reports mode 'arrival' and the client never opens Checkout.
+// Online payment (PayU). Inert while PAYMENT_MODE is 'arrival' — the config
+// endpoint reports mode 'arrival' and the client never redirects to PayU. The
+// unauthenticated return and webhook routes live in webhook.routes.js.
 router.get('/payments/config', ...customerOnly, getPaymentConfig);
 router.get('/bookings/:id/payment', ...customerOnly, getBookingPaymentStatus);
-router.post('/bookings/:id/payment/verify', ...customerOnly, verifyBookingPayment);
 router.post('/bookings/:id/payment/retry', ...customerOnly, retryBookingPayment);
 router.post('/bookings/:bookingId/review', ...customerOnly, createReview);
 router.get('/reviews/mine', ...customerOnly, listMyReviews);

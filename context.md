@@ -117,7 +117,7 @@ collection per entity instead of synced mirrors:
   writes (bookings, commission, payouts, rewards) must use transactions (Mongo multi-document
   transactions / replica set) and an **append-only ledger pattern** for anything touching money.
 - **Auth:** **Real JWT + role-based access** (`customer` | `organizer` | `admin`) now. **Stub** OTP
-  (MSG91/Twilio), Google OAuth, and Razorpay **behind interfaces** so they can be swapped for live
+  (MSG91/Twilio), Google OAuth, and PayU **behind interfaces** so they can be swapped for live
   providers later without changing callers.
 - **Scope/build order:** All three frontend modules already exist and are waiting on real data, so
   the plan is to build **all three APIs together, in phases**, rather than shipping Customer alone
@@ -390,7 +390,7 @@ Routes use custom History-API routing. Source: `frontend/src/modules/user/App.js
 | **Home** `/` | Greeting, categories, promo carousel, popular carousel, AI recommendations (difficulty matched to `hikingExperience`/`fitnessLevel`), trending destinations, notifications drawer, dark mode | Serve trips/categories/banners/destinations; notifications API |
 | **Explore/Search** `/explore` | Client-side filter over name/state/city/category | Server-side search/filter + pagination |
 | **Trip Details** | Tabs: Overview / Itinerary / Checklist / Reviews; shows tiered "Batch Pricing" | `GET /trips/:id` (full object incl. reviews + pricingTiers) |
-| **Booking Wizard** | 3 steps: date + tiered traveler-type counts → traveler details → coupon + checkout (payment simulated) | Create order, validate coupon, compute pricing + commission + payout, decrement seats, persist booking, stub Razorpay, emit notifications |
+| **Booking Wizard** | 3 steps: date + tiered traveler-type counts → traveler details → coupon + checkout (PayU or Pay on Arrival) | Create order, validate coupon, compute pricing + commission + payout, decrement seats, persist booking, PayU checkout, emit notifications |
 | **Bookings** | Tabs Upcoming/Completed/Cancelled; organizer chat drawer; review submission | List bookings by user; chat persistence; create review |
 | **Booking Details** | Download invoice (sim), chat, cancel (→ `Cancelled` + notification), rate | Booking detail; cancel + refund computation; invoice generation; review |
 | **Wishlist** | Bookmarked trip IDs | Persist wishlist per user |
@@ -455,7 +455,7 @@ frame), light-mode-first, collapsible sidebar + fixed header.
    that are never decremented anywhere).
 5. **Policy-driven refund computation** on cancellation (today: display-only strings, no math, no
    money movement).
-6. **Real payment** — Razorpay order creation + webhook verification (today: 2-second loader +
+6. **Real payment** — PayU hosted checkout + hash-verified return/webhook (today: 2-second loader +
    fabricated booking ID/UTR on both the customer checkout and the organizer payout flow).
 7. **Real check-in/redemption state** on bookings so the QR scanner can't "verify" the same ticket
    twice (today: pure read-only lookup, no write).
@@ -513,7 +513,7 @@ frame), light-mode-first, collapsible sidebar + fixed header.
    post-discount, and tax is computed on the post-discount base too, but commission is computed on
    `finalPayAmount` which **includes** tax — worth double-checking this is intended, since it means
    the platform is effectively taking a cut of the tax collection too).
-4. **Gateway fees:** who absorbs Razorpay fees — platform or organizer?
+4. **Gateway fees:** who absorbs PayU fees — platform or organizer?
 5. **Reward definition:** confirmed as free-booking (customer) / zero-commission-on-one-booking
    (organizer) — both now concretely defined and implemented client-side (§4.3). Confirm this
    should carry over as-is.
@@ -533,7 +533,7 @@ frame), light-mode-first, collapsible sidebar + fixed header.
 |---|---|
 | Backend stack | **Node.js + Express** |
 | Database | **MongoDB** (document model) |
-| Auth & integrations | **Real JWT + roles now; stub OTP / Google / Razorpay behind interfaces** |
+| Auth & integrations | **Real JWT + roles now; stub OTP / Google / PayU behind interfaces** |
 | Scope / plan | **Build all three modules' APIs together, in phases** (see the separate phased implementation plan) — all three frontends are fully built and waiting on real data, so there is no longer a case for punting organizer/admin to "later" |
 
 ---

@@ -14,12 +14,29 @@ export const bookingsApi = {
   // Reserving seats changes live availability on the trip and its departures.
   create: (payload) =>
     api.post('/bookings', payload, { invalidates: ['/trips', '/departures'] }).then((r) => r.booking),
+  // Same call, keeping the payment instructions: { booking, payment }. When
+  // `payment.required` is true the booking is pending and `payment.checkout`
+  // is the signed PayU form to redirect to (see lib/payu.js).
+  checkout: (payload) =>
+    api.post('/bookings', payload, { invalidates: ['/trips', '/departures'] }),
   listMine: () => api.get('/bookings').then((r) => r.bookings),
   getMine: (id) => api.get(`/bookings/${encodeURIComponent(id)}`).then((r) => r.booking),
   // Cancelling releases the seats back to the trip and its departures.
   cancel: (id) =>
     api.post(`/bookings/${encodeURIComponent(id)}/cancel`, undefined, { invalidates: ['/trips', '/departures'] })
       .then((r) => r.booking),
+
+  // ─── Online payment (PayU) ───
+  // 'online' or 'arrival' — decides how checkout is labelled and run.
+  getPaymentConfig: () => api.get('/payments/config', { ttlMs: 5 * 60 * 1000 }).then((r) => r.payment),
+  // Polled after PayU redirects back. Never cached: each call may settle the
+  // booking server-side by asking PayU what happened.
+  getPaymentStatus: (id) =>
+    api.get(`/bookings/${encodeURIComponent(id)}/payment`, { cache: false }),
+  // A fresh PayU transaction for a pending booking. Resolves to the same
+  // `payment` shape the checkout call returns.
+  retryPayment: (id) =>
+    api.post(`/bookings/${encodeURIComponent(id)}/payment/retry`).then((r) => r.payment),
 
   // ─── Organizer financials & payouts ───
   getFinancials: () => api.get('/organizer/financials'),

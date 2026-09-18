@@ -3,149 +3,217 @@ import { env } from '../config/env.js';
 
 /*
 ================================================================================
-RAZORPAY INTEGRATION MODULE
+PAYU INTEGRATION MODULE
 ================================================================================
-The single place that talks to Razorpay. Everything above it (paymentService,
-the webhook controller, the booking controller) deals in rupees and booking
-records; this module owns the paise conversion, the SDK client, and the two
-signature schemes.
+The single place that talks to PayU. Everything above it (paymentService, the
+return/webhook controllers, the booking controller) deals in rupees and booking
+records; this module owns the amount formatting, the hash schemes and the
+merchant postservice API.
 
-Two secrets, two different jobs — mixing them up is the classic failure:
-  RAZORPAY_KEY_SECRET     signs the browser handshake `order_id|payment_id`
-                          (verifyCheckoutSignature) and authenticates API calls.
-  RAZORPAY_WEBHOOK_SECRET signs the raw webhook request body
-                          (verifyWebhookSignature). We choose it in the
-                          dashboard when registering the endpoint.
+PayU is a redirect gateway: the browser POSTs a signed form to PayU's hosted
+checkout, and PayU POSTs the result back to our surl/furl (and, separately, to
+the webhook). Every hop is authenticated the same way — a SHA-512 hash keyed by
+the merchant SALT, which never leaves this server:
 
-With no keys configured every gateway call throws, resolvePaymentMode() reports
-'arrival', and the platform behaves exactly as it did before Razorpay existed.
+  request hash   sha512(key|txnid|amount|productinfo|firstname|email|udf1..udf5||||||SALT)
+  response hash  sha512([additionalCharges|]SALT|status||||||udf5..udf1|email|firstname|productinfo|amount|txnid|key)
+  API hash       sha512(key|command|var1|SALT)
+
+With no key/salt configured every gateway call throws, resolvePaymentMode()
+reports 'arrival', and the platform behaves exactly as it does without a gateway.
 ================================================================================
 */
 
-// Mounted in routes/webhook.routes.js. Exported because app.js has to special
-// case this exact path twice — raw body capture and the maintenance-mode
-// bypass — before any router has had a chance to run.
-export const RAZORPAY_WEBHOOK_PATH = '/api/v1/webhooks/razorpay';
+// Both are mounted under /api/v1 and exported because app.js has to exempt them
+// from maintenance mode before any router runs: a 503 on either means a payment
+// that was taken but never recorded here.
+export const PAYU_WEBHOOK_PATH = '/api/v1/webhooks/payu';
+export const PAYU_RETURN_PATH = '/api/v1/payments/payu/return';
 
-// Razorpay speaks paise; bookings are priced in rupees and may carry decimals
-// from a percentage coupon, so every crossing rounds rather than truncates.
-export const toPaise = (rupees) => Math.round(Number(rupees || 0) * 100);
-export const toRupees = (paise) => Math.round(Number(paise || 0)) / 100;
+const HOSTS = {
+  test: { checkout: 'https://test.payu.in/_payment', api: 'https://test.payu.in/merchant/postservice.php?form=2' },
+  production: { checkout: 'https://secure.payu.in/_payment', api: 'https://info.payu.in/merchant/postservice.php?form=2' },
+};
+const hosts = () => (env.payuEnv === 'production' ? HOSTS.production : HOSTS.test);
 
-const isConfigured = () => !!(env.razorpayKeyId && env.razorpayKeySecret);
+// PayU hashes the amount exactly as it was sent, so every crossing uses one
+// canonical two-decimal string. Bookings may carry decimals from a percentage
+// coupon, so this rounds rather than truncates.
+export const formatAmount = (rupees) => (Math.round(Number(rupees || 0) * 100) / 100).toFixed(2);
+export const toRupees = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-// The SDK is imported lazily so an unconfigured deployment never pays for it at
-// boot, and so the module stays importable if the dependency is ever absent.
-let clientPromise = null;
-async function gateway() {
+const isConfigured = () => !!(env.payuMerchantKey && env.payuMerchantSalt);
+
+function assertConfigured() {
   if (!isConfigured()) {
-    throw new Error('Razorpay is not configured — set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET');
+    throw new Error('PayU is not configured — set PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT');
   }
-  if (!clientPromise) {
-    clientPromise = import('razorpay').then(({ default: Razorpay }) =>
-      new Razorpay({ key_id: env.razorpayKeyId, key_secret: env.razorpayKeySecret }));
-  }
-  return clientPromise;
 }
 
-// Razorpay rejects with `{ statusCode, error: { code, description, reason } }`
-// rather than an Error, which reads as "undefined" everywhere it's logged.
-// Normalise it into a real Error while keeping the original on `cause`.
-async function call(fn) {
-  let client;
-  try {
-    client = await gateway();
-  } catch (err) {
-    throw err; // configuration problem, not a gateway failure
-  }
-  try {
-    return await fn(client);
-  } catch (err) {
-    const description = err?.error?.description || err?.description || err?.message || 'request failed';
-    const wrapped = new Error(`Razorpay: ${description}`);
-    wrapped.cause = err;
-    wrapped.razorpayCode = err?.error?.code || null;
-    wrapped.statusCode = err?.statusCode || 502;
-    throw wrapped;
-  }
-}
+const sha512 = (value) => crypto.createHash('sha512').update(value).digest('hex');
 
 // Constant-time compare that tolerates a wrong-length (or absent) candidate —
 // timingSafeEqual throws outright when the buffers differ in size.
 function safeEqualHex(expected, received) {
-  const a = Buffer.from(String(expected), 'utf8');
-  const b = Buffer.from(String(received || ''), 'utf8');
+  const a = Buffer.from(String(expected).toLowerCase(), 'utf8');
+  const b = Buffer.from(String(received || '').toLowerCase(), 'utf8');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// A pipe inside any hashed field silently shifts every position after it, so
+// the hash PayU computes no longer matches ours. Free-text fields are scrubbed
+// of it (and of characters PayU's form validation rejects) before they're sent.
+const clean = (value, max = 100) =>
+  String(value ?? '').replace(/[|<>"'`\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+const UDFS = ['udf1', 'udf2', 'udf3', 'udf4', 'udf5'];
+
+// POST to the merchant postservice API. PayU answers 200 for most business
+// failures and reports them in `status: 0`, so the caller inspects the body.
+async function postservice(command, vars) {
+  assertConfigured();
+  const var1 = String(vars.var1 ?? '');
+  const body = new URLSearchParams({
+    key: env.payuMerchantKey,
+    command,
+    hash: sha512(`${env.payuMerchantKey}|${command}|${var1}|${env.payuMerchantSalt}`),
+  });
+  for (const [k, v] of Object.entries(vars)) {
+    if (v != null) body.set(k, String(v));
+  }
+
+  let res;
+  try {
+    res = await fetch(hosts().api, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body,
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (err) {
+    const wrapped = new Error(`PayU: ${command} request failed — ${err?.message || err}`);
+    wrapped.cause = err;
+    wrapped.statusCode = 502;
+    throw wrapped;
+  }
+
+  const text = await res.text();
+  if (!res.ok) {
+    const err = new Error(`PayU: ${command} returned HTTP ${res.status}`);
+    err.statusCode = 502;
+    throw err;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    const err = new Error(`PayU: ${command} returned a non-JSON response`);
+    err.statusCode = 502;
+    throw err;
+  }
 }
 
 export const paymentProvider = {
   isConfigured,
 
-  // Public key id handed to the browser so Checkout can open. Safe to expose —
-  // it is half of the pair, and the secret never leaves the server.
-  publicKeyId: () => env.razorpayKeyId,
+  // Everything the browser needs to POST the hosted-checkout form. `amount` is
+  // in rupees. udf1 carries our booking id, which comes back on the return
+  // post and every webhook — the fallback used to find a booking when the
+  // txnid lookup misses (e.g. an older attempt paid after a retry).
+  buildCheckout({ txnid, amount, productinfo, firstname, email, phone, surl, furl, udf = {} }) {
+    assertConfigured();
+    const params = {
+      key: env.payuMerchantKey,
+      txnid: String(txnid),
+      amount: formatAmount(amount),
+      productinfo: clean(productinfo, 100) || 'Trek booking',
+      firstname: clean(firstname, 60) || 'Traveller',
+      email: String(email || '').trim(),
+      phone: String(phone || '').replace(/\D/g, '').slice(-10),
+      surl,
+      furl,
+    };
+    for (const name of UDFS) params[name] = clean(udf[name] ?? '', 255);
 
-  // Creates the order the browser will pay against. `amount` is in rupees.
-  // Notes travel with the payment and come back on every webhook, which is the
-  // fallback used to find a booking when the order id lookup misses.
-  async createOrder({ amount, currency = 'INR', receipt, notes = {} }) {
-    return call((client) => client.orders.create({
-      amount: toPaise(amount),
-      currency,
-      // Razorpay caps the receipt at 40 characters and rejects longer ones.
-      receipt: String(receipt || '').slice(0, 40),
-      notes,
-    }));
+    params.hash = sha512([
+      params.key, params.txnid, params.amount, params.productinfo, params.firstname, params.email,
+      ...UDFS.map((n) => params[n]), '', '', '', '', '', env.payuMerchantSalt,
+    ].join('|'));
+
+    return { action: hosts().checkout, method: 'POST', params };
   },
 
-  async fetchOrder(orderId) {
-    return call((client) => client.orders.fetch(orderId));
+  // Reverse hash over a return post or payment webhook. This is the ONLY thing
+  // that makes those unauthenticated requests trustworthy: without the SALT
+  // nobody can produce a matching hash for a `success` status.
+  verifyResponseHash(fields = {}) {
+    if (!isConfigured() || !fields.hash || !fields.txnid || !fields.status) return false;
+    if (fields.key && fields.key !== env.payuMerchantKey) return false;
+
+    const parts = [
+      env.payuMerchantSalt, fields.status, '', '', '', '', '',
+      ...[...UDFS].reverse().map((n) => fields[n] ?? ''),
+      fields.email ?? '', fields.firstname ?? '', fields.productinfo ?? '',
+      fields.amount ?? '', fields.txnid, env.payuMerchantKey,
+    ];
+    const charges = fields.additionalCharges ?? fields.additional_charges;
+    if (charges != null && String(charges) !== '') parts.unshift(charges);
+
+    return safeEqualHex(sha512(parts.join('|')), fields.hash);
   },
 
-  async fetchPayment(paymentId) {
-    return call((client) => client.payments.fetch(paymentId));
+  // Asks PayU what really happened to a txnid. Returns null when PayU has no
+  // record of it (the customer never reached the payment page), otherwise
+  // { status: 'success'|'failure'|'pending'|..., paymentId, amount, reason }.
+  async verifyPayment(txnid) {
+    const result = await postservice('verify_payment', { var1: txnid });
+    const details = result?.transaction_details?.[txnid];
+    if (!details || typeof details !== 'object' || details.status === 'Not Found') return null;
+    return {
+      status: String(details.status || '').toLowerCase(),
+      paymentId: details.mihpayid ? String(details.mihpayid) : null,
+      amount: toRupees(details.transaction_amount ?? details.amt),
+      reason: details.error_Message || details.field9 || '',
+      raw: details,
+    };
   },
 
-  // Every payment recorded against an order — used when `order.paid` arrives
-  // without the payment entity we need.
-  async fetchOrderPayments(orderId) {
-    const result = await call((client) => client.orders.fetchPayments(orderId));
-    return result?.items || [];
+  // `amount` in rupees. PayU always queues refunds, so this returns the refund
+  // request id to poll (or be told about by webhook) — never a settled refund.
+  // `token` is our idempotency key: PayU refuses a second refund with the same
+  // one, so a retried HTTP call can't refund twice.
+  async refund({ paymentId, amount, token, note = '' }) {
+    const result = await postservice('cancel_refund_transaction', {
+      var1: paymentId,
+      var2: String(token).slice(0, 23),
+      var3: formatAmount(amount),
+      ...(note ? { var9: clean(note, 1000) } : {}),
+    });
+    if (Number(result?.status) !== 1) {
+      const err = new Error(`PayU: ${result?.msg || 'refund request rejected'}`);
+      err.statusCode = 502;
+      throw err;
+    }
+    return {
+      id: result.request_id ? String(result.request_id) : (result.txn_update_id ? String(result.txn_update_id) : null),
+      status: 'queued',
+      message: result.msg || '',
+    };
   },
 
-  // `amount` in rupees; omit it for a full refund. 'normal' settles in the
-  // usual 5-7 working days; 'optimum' pays Razorpay's fee for an instant one.
-  async refund({ paymentId, amount, speed = 'normal', notes = {} }) {
-    const payload = { speed, notes };
-    if (amount != null) payload.amount = toPaise(amount);
-    return call((client) => client.payments.refund(paymentId, payload));
-  },
-
-  async fetchRefund({ paymentId, refundId }) {
-    return call((client) => client.payments.fetchRefund(paymentId, refundId));
-  },
-
-  // Browser handshake: Checkout hands the client back an order id, a payment id
-  // and a signature over `order_id|payment_id`, keyed by the API secret.
-  verifyCheckoutSignature({ orderId, paymentId, signature }) {
-    if (!isConfigured() || !orderId || !paymentId) return false;
-    const expected = crypto
-      .createHmac('sha256', env.razorpayKeySecret)
-      .update(`${orderId}|${paymentId}`)
-      .digest('hex');
-    return safeEqualHex(expected, signature);
-  },
-
-  // Webhook delivery: HMAC over the EXACT bytes Razorpay sent. Re-serialising
-  // the parsed body will not reproduce them (key order, whitespace), so this
-  // takes the Buffer captured by the raw-body hook in app.js and nothing else.
-  verifyWebhookSignature({ rawBody, signature }) {
-    if (!env.razorpayWebhookSecret || !Buffer.isBuffer(rawBody) || !rawBody.length) return false;
-    const expected = crypto
-      .createHmac('sha256', env.razorpayWebhookSecret)
-      .update(rawBody)
-      .digest('hex');
-    return safeEqualHex(expected, signature);
+  // Current state of a refund request: { status: 'success'|'failure'|'queued'|
+  // 'in progress'|..., amount, paymentId }, or null if PayU doesn't know it.
+  async fetchRefund(requestId) {
+    const result = await postservice('check_action_status', { var1: requestId });
+    const outer = result?.transaction_details?.[requestId];
+    if (!outer || typeof outer !== 'object') return null;
+    // Nested one level per PayU id: { <request_id>: { <id>: { ...entry } } }.
+    const entry = Object.values(outer).find((v) => v && typeof v === 'object') || outer;
+    return {
+      status: String(entry.status || '').toLowerCase(),
+      amount: toRupees(entry.amt ?? entry.amount),
+      paymentId: entry.mihpayid ? String(entry.mihpayid) : null,
+      requestId: String(entry.request_id || requestId),
+    };
   },
 };
 

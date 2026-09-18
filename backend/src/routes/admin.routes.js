@@ -89,7 +89,7 @@ router.delete('/admin/organizer-coupons/:id', adminDeleteOrganizerCoupon);
 
 router.get('/admin/bookings', listAllBookings);
 router.patch('/admin/bookings/:id/status', adminSetBookingStatus);
-// Refund an online booking through the Razorpay API, and read the webhook
+// Refund an online booking through the PayU API, and read the webhook
 // delivery log — payment support without leaving the admin app.
 router.post('/admin/bookings/:id/refund', adminRefundBooking);
 router.get('/admin/payments/webhooks', listWebhookEvents);

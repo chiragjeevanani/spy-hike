@@ -14,7 +14,7 @@ import { getAvailableVoucher, markVoucherUsed } from '../services/loyaltyService
 import { notifyCustomer, notifyOrganizer } from '../services/notificationService.js';
 import { finalizeConfirmedBooking } from '../services/bookingFinalizeService.js';
 import {
-  resolvePaymentMode, publicPaymentConfig, markPayOnArrival, startBookingPayment,
+  resolvePaymentMode, markPayOnArrival, startBookingPayment, paymentReturnUrl, checkoutResponse,
   refundBookingPayment, releasePendingBooking, expireStalePayments,
 } from '../services/paymentService.js';
 import { autoResolveBookingStatuses } from '../utils/bookingStatusHelper.js';
@@ -87,10 +87,13 @@ async function nextBookingId() {
 //
 // Two endings, decided by resolvePaymentMode():
 //   'arrival' — the booking is confirmed here and now, exactly as before.
-//   'online'  — a Razorpay order is opened and the booking is returned in a
-//               pending state holding its seats. It only becomes real when the
-//               money lands, via the webhook or the browser handshake; if it
-//               never does, expireStalePayments() gives everything back.
+//   'online'  — a PayU transaction is opened and the booking is returned in a
+//               pending state holding its seats, with the signed form the
+//               browser posts to PayU. It only becomes real when the money
+//               lands, via the return post, the webhook or reconciliation; if
+//               it never does, expireStalePayments() gives everything back.
+// A booking that costs nothing (a loyalty reward covering it all) has nothing
+// for PayU to collect, so it always takes the inline path.
 export const createBooking = asyncHandler(async (req, res) => {
   const { tripId, selectedDate, travelers = [], couponCode, useLoyaltyReward } = req.body;
   const selections = req.body.selections || req.body.travelerBreakdown || [];
@@ -146,8 +149,8 @@ export const createBooking = asyncHandler(async (req, res) => {
     }
 
     const { couponId, ...pricingFields } = pricing;
-    // Built but not yet saved: in the online flow the Razorpay order has to be
-    // created first, so that a gateway failure leaves no orphan booking behind.
+    // Built but not yet saved: in the online flow the PayU checkout has to be
+    // built first, so that a gateway failure leaves no orphan booking behind.
     const booking = new Booking({
       bookingId: await nextBookingId(),
       tripId: trip._id,
@@ -182,23 +185,15 @@ export const createBooking = asyncHandler(async (req, res) => {
       voucherReserved = true;
     };
 
-    if (resolvePaymentMode() === 'online') {
-      // Creates the order, stamps the pending payment onto the booking, and
-      // saves it. Nothing is persisted if Razorpay rejects the order.
-      const order = await startBookingPayment(booking);
+    if (resolvePaymentMode() === 'online' && Number(booking.finalAmount) > 0) {
+      // Builds the signed PayU form, stamps the pending payment onto the
+      // booking, and saves it. Nothing is persisted if that fails.
+      const checkout = await startBookingPayment(booking, { returnUrl: paymentReturnUrl(req) });
       await spendVoucher();
       return res.status(201).json({
         booking: await withOrganizers(booking),
-        // Everything the browser needs to open Checkout against this booking.
-        payment: {
-          required: true,
-          provider: 'razorpay',
-          keyId: publicPaymentConfig().keyId,
-          orderId: order.id,
-          amount: order.amount, // paise, as Checkout expects
-          currency: order.currency,
-          expiresAt: booking.payment.expiresAt,
-        },
+        // Everything the browser needs to redirect to PayU for this booking.
+        payment: checkoutResponse(booking, checkout),
       });
     }
 
@@ -287,11 +282,11 @@ export const cancelBooking = asyncHandler(async (req, res) => {
   // Return the seats to the departure inventory.
   await releaseSeats(booking.tripId, booking.selectedDate, booking.travelersCount);
 
-  // Push the policy refund back through Razorpay for an online booking. A
+  // Push the policy refund back through PayU for an online booking. A
   // gateway failure must not cost the customer their cancellation, so it is
   // recorded and left for an admin to retry rather than thrown: the booking is
   // already cancelled and the seats are already back in inventory.
-  if (refundAmount > 0 && booking.payment?.method === 'razorpay') {
+  if (refundAmount > 0 && booking.payment?.method === 'payu') {
     try {
       const result = await refundBookingPayment(booking, { amount: refundAmount, reason: 'Customer cancellation' });
       if (!result.refunded) console.warn(`[payments] refund skipped for ${booking.bookingId}: ${result.reason}`);

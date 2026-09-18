@@ -74,7 +74,7 @@ const landingContentSchema = new mongoose.Schema(
         default: () => [
           { icon: 'Settings', iconColor: 'text-spy-orange', title: 'AI Recommendation Engine', desc: 'Tailors trek difficulty options dynamically based on your physical fitness level and alpine experience.' },
           { icon: 'ShieldCheck', iconColor: 'text-emerald-500', title: 'Verified Agency Guides', desc: 'Connect directly with local Sherpa guides carrying government-audited permits and zero-accident safety records.' },
-          { icon: 'QrCode', iconColor: 'text-[#4A90E2]', title: 'Instant Permit Booking', desc: 'Secure high-altitude transit passes in a streamlined 3-step wizard with simulated Razorpay checkouts.' },
+          { icon: 'QrCode', iconColor: 'text-[#4A90E2]', title: 'Instant Permit Booking', desc: 'Secure high-altitude transit passes in a streamlined 3-step wizard with secure PayU checkout.' },
           { icon: 'MessageSquare', iconColor: 'text-purple-500', title: 'Real-time Coordinator Chat', desc: 'Direct communication line with guides and coordinators to plan gear lists and coordinate base assembly.' },
         ],
       },
@@ -125,7 +125,7 @@ const landingContentSchema = new mongoose.Schema(
         type: [faqSchema],
         default: () => [
           { q: 'What makes Find Your Trek different from other booking systems?', a: 'Find Your Trek is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists.' },
-          { q: 'Is the payment gateway secure?', a: 'Yes! For demonstration purposes, we integrate a simulated Razorpay payment flow which matches the exact steps of a real bank transaction without using real funds.' },
+          { q: 'Is the payment gateway secure?', a: 'Yes! Online payments are processed by PayU, an RBI-authorised payment gateway. Card, UPI and netbanking details are entered on the secure PayU checkout and never touch our servers.' },
           { q: 'How does the AI Recommendation Engine work?', a: 'By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Find Your Trek automatically matches you with hikes that align with your safety limits.' },
         ],
       },

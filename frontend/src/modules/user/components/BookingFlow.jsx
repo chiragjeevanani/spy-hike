@@ -9,6 +9,7 @@ import { getAvailableCustomerVoucher, markCustomerVoucherUsed, loadLoyaltyConfig
 import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
+import { redirectToPayU } from '../../../lib/payu';
 import { useToast } from '../../../components/ToastProvider';
 import TravelTicket from './TravelTicket';
 import { downloadTicketPDF } from '../utils/ticketPdf';
@@ -330,7 +331,14 @@ const ReceiptPrintout = ({ booking, items, subtotal, discount, loyaltyDiscount, 
 // hitches partway as the transaction is refused, finishes short, and takes a
 // DECLINED stamp. Sharing the success screen's mechanism means the outcome is
 // carried by what gets printed rather than by an unrelated animation.
-const PaymentFailedScreen = ({ message, onTryAgain, onGoHome, darkMode }) => {
+const PaymentFailedScreen = ({
+  message,
+  onTryAgain,
+  onGoHome,
+  darkMode,
+  retrying = false,
+  footnote = 'Nothing was charged and your seats are not reserved yet.',
+}) => {
   const reduceMotion = useReducedMotion();
   const feed = reduceMotion ? 0 : 1.5;
   const start = reduceMotion ? 0 : 0.3;
@@ -439,14 +447,15 @@ const PaymentFailedScreen = ({ message, onTryAgain, onGoHome, darkMode }) => {
             type="button"
             id="btn-payment-retry"
             onClick={onTryAgain}
+            disabled={retrying}
             className={`w-full py-4 rounded-2xl font-display font-black text-xs uppercase tracking-wider border flex items-center justify-center gap-2 transition-all duration-300 active:scale-98 cursor-pointer ${
               darkMode
                 ? 'bg-rose-950/40 border-rose-500/50 text-rose-300 hover:bg-rose-950/70 hover:border-rose-400 shadow-lg shadow-rose-950/20'
                 : 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-950/10'
             }`}
           >
-            <RotateCw size={14} />
-            Try Again
+            <RotateCw size={14} className={retrying ? 'animate-spin' : ''} />
+            {retrying ? 'Opening PayU…' : 'Try Again'}
           </button>
 
           <button
@@ -465,7 +474,7 @@ const PaymentFailedScreen = ({ message, onTryAgain, onGoHome, darkMode }) => {
         </div>
 
         <p className="text-[10px] text-zinc-500 mt-4 max-w-[250px] leading-relaxed">
-          Nothing was charged and your seats are not reserved yet.
+          {footnote}
         </p>
       </motion.div>
     </div>
@@ -550,9 +559,24 @@ export default function BookingFlow({
   const [useLoyaltyReward, setUseLoyaltyReward] = useState(false);
   const loyaltyMaxDiscount = loadLoyaltyConfig().customer.maxDiscountAmount;
   
-  // Payment Options
-  const [paymentGateway, setPaymentGateway] = useState('Pay on Arrival');
+  // Payment Options — the server decides whether checkout runs through PayU
+  // ('online') or stays Pay on Arrival; until it answers, assume arrival.
+  const [paymentMode, setPaymentMode] = useState('arrival');
+  const isOnlinePayment = paymentMode === 'online';
+  const paymentGateway = isOnlinePayment ? 'PayU secure checkout' : 'Pay on Arrival';
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  // An online booking created on the server but not yet paid — holding seats.
+  // Lets "Try Again" open a fresh PayU transaction for it instead of booking
+  // (and reserving seats) all over again.
+  const [pendingBookingId, setPendingBookingId] = useState(null);
+  const [retryingPayment, setRetryingPayment] = useState(false);
+  // Set while confirming a payment after PayU redirects back into the app.
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  // PayU hasn't reported a final result yet (e.g. a UPI approval in flight).
+  const [paymentStillPending, setPaymentStillPending] = useState(false);
+  // The wizard's local selections don't survive the round trip to PayU, so the
+  // receipt is drawn from the server's booking instead when this is set.
+  const [restoredFromGateway, setRestoredFromGateway] = useState(false);
   const [paymentFinished, setPaymentFinished] = useState(false);
   const [bookingError, setBookingError] = useState('');
   // Takes over the step-3 checkout with the declined-receipt screen so the
@@ -887,14 +911,138 @@ export default function BookingFlow({
     ? Math.round((baseCostTotal - loyaltyDiscountValue) * 100) / 100
     : Math.round((baseCostTotal - appliedDiscountValue) * 100) / 100;
 
+  useEffect(() => {
+    let cancelled = false;
+    bookingsApi.getPaymentConfig()
+      .then((cfg) => { if (!cancelled && cfg?.mode) setPaymentMode(cfg.mode); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Coming back from PayU: the backend has recorded whatever PayU posted and
+  // redirected here with ?booking=…&payment=return. Poll the server (which also
+  // asks PayU directly) until the booking settles one way or the other.
+  const pollTimerRef = useRef(null);
+  const checkPaymentResult = async (bookingId, attempt = 0) => {
+    const MAX_ATTEMPTS = 20; // ~50s
+    try {
+      const { payment, bookingStatus } = await bookingsApi.getPaymentStatus(bookingId);
+
+      if (payment.status === 'paid' || payment.status === 'not_required') {
+        const booking = await bookingsApi.getMine(bookingId);
+        setCreatedBooking(booking);
+        setRestoredFromGateway(true);
+        setPendingBookingId(null);
+        setPaymentFailed(false);
+        setPaymentStillPending(false);
+        setVerifyingPayment(false);
+        setPaymentFinished(true);
+        setStep(4);
+        return;
+      }
+
+      if (payment.status !== 'pending' || bookingStatus === 'Cancelled') {
+        // The seat hold ran out (or the booking was cancelled) — nothing left
+        // to pay for; the customer has to book again.
+        setPendingBookingId(null);
+        setBookingError(payment.failureReason || 'This booking is no longer awaiting payment. Please book again.');
+        setPaymentFailed(true);
+        setPaymentStillPending(false);
+        setVerifyingPayment(false);
+        return;
+      }
+
+      if (payment.failedAt) {
+        setPendingBookingId(bookingId);
+        setBookingError(payment.failureReason || 'Your payment was not completed.');
+        setPaymentFailed(true);
+        setPaymentStillPending(false);
+        setVerifyingPayment(false);
+        return;
+      }
+
+      if (attempt + 1 >= MAX_ATTEMPTS) {
+        setPendingBookingId(bookingId);
+        setPaymentStillPending(true);
+        setVerifyingPayment(false);
+        return;
+      }
+    } catch (err) {
+      if (attempt + 1 >= MAX_ATTEMPTS) {
+        setPendingBookingId(bookingId);
+        setPaymentStillPending(true);
+        setVerifyingPayment(false);
+        return;
+      }
+    }
+    pollTimerRef.current = setTimeout(() => checkPaymentResult(bookingId, attempt + 1), 2500);
+  };
+
+  useEffect(() => {
+    let params;
+    try {
+      params = new URLSearchParams(window.location.search);
+    } catch {
+      return undefined;
+    }
+    const returnedBookingId = params.get('booking');
+    if (params.get('payment') !== 'return' || !returnedBookingId) return undefined;
+
+    // Drop the query so a reload or back gesture doesn't re-run this.
+    try {
+      window.history.replaceState(window.history.state, '', window.location.pathname);
+    } catch { /* ignore */ }
+
+    setStep(3);
+    setVerifyingPayment(true);
+    setPendingBookingId(returnedBookingId);
+    checkPaymentResult(returnedBookingId);
+    return () => clearTimeout(pollTimerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Pressing Back on PayU's page can restore this page from the back/forward
+  // cache exactly as it was left — mid-redirect, with the Pay button disabled.
+  // Put the checkout back in a usable state; the pending booking is still
+  // there, so Pay offers a fresh PayU attempt for it.
+  useEffect(() => {
+    const onPageShow = (e) => {
+      if (!e.persisted) return;
+      setIsProcessingPayment(false);
+      setRetryingPayment(false);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
+  const startGatewayRedirect = (payment) => {
+    // Leaves the app; PayU brings the customer back via the backend.
+    redirectToPayU(payment.checkout);
+  };
+
   const handleProcessPayment = async () => {
+    // Already holding an unpaid online booking for this checkout (the customer
+    // came back from PayU without paying) — pay for that one rather than
+    // reserving a second set of seats.
+    if (pendingBookingId && isOnlinePayment) {
+      setIsProcessingPayment(true);
+      try {
+        const payment = await bookingsApi.retryPayment(pendingBookingId);
+        startGatewayRedirect(payment);
+        return;
+      } catch {
+        // No longer payable (expired or cancelled) — fall through and book afresh.
+        setPendingBookingId(null);
+      }
+    }
     setIsProcessingPayment(true);
 
     try {
       // The server computes all pricing/commission authoritatively, reserves
-      // the departure seats, runs the (stubbed) payment, and owns the
-      // bookingId — we send only the selection and render what comes back.
-      const booking = await bookingsApi.create({
+      // the departure seats, and owns the bookingId — we send only the
+      // selection and render what comes back. In online mode the booking comes
+      // back pending, with the signed PayU form to redirect to.
+      const { booking, payment } = await bookingsApi.checkout({
         tripId: trip.id,
         selectedDate,
         selections: tierBreakdown
@@ -910,26 +1058,62 @@ export default function BookingFlow({
         markCustomerVoucherUsed(availableVoucher.id, booking.bookingId);
       }
 
+      if (payment?.required) {
+        setPendingBookingId(booking.bookingId);
+        startGatewayRedirect(payment);
+        return; // stay in the processing state while the browser navigates away
+      }
+
       setPaymentFinished(true);
       setCreatedBooking(booking);
       setBookingError('');
       setPaymentFailed(false);
+      setIsProcessingPayment(false);
       setStep(4); // Success is now Step 4
     } catch (err) {
       // The declined screen carries the message itself — a toast on top of a
       // full-screen takeover is just noise.
       setBookingError(err?.message || 'We could not confirm your reservation. Please try again.');
       setPaymentFailed(true);
-    } finally {
       setIsProcessingPayment(false);
     }
   };
 
-  // Dismisses the declined screen and puts the traveller back on the step-3
-  // checkout, where they can review everything and press Pay again.
+  // Dismisses the declined screen and puts the traveller back on the checkout,
+  // where they can review everything and press Pay again. After a PayU round
+  // trip the wizard's selections are gone, so that means starting over.
   const handleReturnToCheckout = () => {
     setPaymentFailed(false);
+    setPaymentStillPending(false);
     setBookingError('');
+    if (restoredFromGateway || verifyingPayment) setStep(1);
+  };
+
+  // Try Again after a failed online payment: the booking still holds its seats,
+  // so open a fresh PayU transaction for it rather than booking again.
+  const handleRetryPayment = async () => {
+    if (!pendingBookingId) return handleReturnToCheckout();
+    setRetryingPayment(true);
+    try {
+      const payment = await bookingsApi.retryPayment(pendingBookingId);
+      startGatewayRedirect(payment);
+    } catch (err) {
+      setRetryingPayment(false);
+      setPendingBookingId(null);
+      setBookingError(err?.message || 'This booking can no longer be paid for. Please book again.');
+      toast.error(err?.message || 'Could not restart the payment.');
+      setPaymentFailed(false);
+      setPaymentStillPending(false);
+      setStep(1);
+    }
+  };
+
+  // Leaving a failed online checkout: release the held seats, coupon and
+  // reward straight away instead of waiting for the hold to expire.
+  const handleAbandonPayment = () => {
+    if (pendingBookingId) bookingsApi.cancel(pendingBookingId).catch(() => {});
+    setPendingBookingId(null);
+    onGoHome?.();
   };
 
   // Renders the boarding pass off-screen and saves it locally as a PDF. It
@@ -1414,14 +1598,65 @@ export default function BookingFlow({
         {step === 3 && paymentFailed && (
           <PaymentFailedScreen
             message={bookingError}
-            onTryAgain={handleReturnToCheckout}
-            onGoHome={onGoHome}
+            onTryAgain={pendingBookingId ? handleRetryPayment : handleReturnToCheckout}
+            onGoHome={pendingBookingId ? handleAbandonPayment : onGoHome}
+            retrying={retryingPayment}
+            footnote={pendingBookingId
+              ? 'Your seats are held for a few more minutes. If any amount was debited, it will be refunded automatically by your bank.'
+              : undefined}
             darkMode={darkMode}
           />
         )}
 
+        {/* Back from PayU — confirming the result, or PayU hasn't settled it yet */}
+        {step === 3 && !paymentFailed && (verifyingPayment || paymentStillPending) && (
+          <div className="py-10 flex flex-col items-center text-center space-y-4" id="payment-verification-panel">
+            {verifyingPayment ? (
+              <>
+                <div className="w-10 h-10 rounded-full border-[3px] border-spy-orange border-t-transparent animate-spin" />
+                <h2 className="text-base font-display font-black">Confirming your payment…</h2>
+                <p className="text-xs text-zinc-500 max-w-[280px] leading-relaxed">
+                  Checking the result with PayU. Please don't close this page.
+                </p>
+              </>
+            ) : (
+              <>
+                <Clock size={34} className="text-spy-orange" />
+                <h2 className="text-base font-display font-black">Payment is still processing</h2>
+                <p className="text-xs text-zinc-500 max-w-[290px] leading-relaxed">
+                  PayU hasn't confirmed this payment yet. If money was debited, your booking will be
+                  confirmed automatically and appear in My Bookings shortly.
+                </p>
+                <div className="w-full max-w-xs space-y-2.5 pt-2">
+                  <button
+                    type="button"
+                    id="btn-payment-check-again"
+                    onClick={() => {
+                      setPaymentStillPending(false);
+                      setVerifyingPayment(true);
+                      checkPaymentResult(pendingBookingId);
+                    }}
+                    className="w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider border border-spy-orange bg-spy-orange text-white flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <RotateCw size={13} /> Check Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onGoHome}
+                    className={`w-full py-3.5 rounded-2xl text-xs font-bold border flex items-center justify-center gap-2 cursor-pointer ${
+                      darkMode ? 'bg-zinc-900/30 border-white/5 text-zinc-400' : 'bg-white border-zinc-200 text-zinc-650'
+                    }`}
+                  >
+                    <Home size={13} /> Go to Home
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Step 3: Checkout & Payment with Coupon */}
-        {step === 3 && !paymentFailed && (
+        {step === 3 && !paymentFailed && !verifyingPayment && !paymentStillPending && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <CreditCard className="text-forest-500" size={18} />
@@ -1561,13 +1796,21 @@ export default function BookingFlow({
             {/* Secure payment partner logo info */}
             <div className="flex items-center justify-center gap-1.5 pt-2 text-[10px] opacity-75 font-semibold text-zinc-500">
               <ShieldCheck size={12} className="text-forest-600 dark:text-forest-400" />
-              <span>Pay on Arrival at Base Camp • Instantly Credited to Organizer Wallet</span>
+              <span>
+                {isOnlinePayment
+                  ? 'Secured by PayU • UPI, Cards, Netbanking & Wallets'
+                  : 'Pay on Arrival at Base Camp • Instantly Credited to Organizer Wallet'}
+              </span>
             </div>
 
             {isProcessingPayment && (
               <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/35 flex items-center justify-center gap-3">
                 <div className="w-3.5 h-3.5 rounded-full border-2 border-spy-orange border-t-transparent animate-spin" />
-                <span className="text-xs font-semibold text-spy-orange">Confirming reservation with {paymentGateway}...</span>
+                <span className="text-xs font-semibold text-spy-orange">
+                  {isOnlinePayment && finalPayAmount > 0
+                    ? 'Redirecting to PayU secure checkout...'
+                    : `Confirming reservation with ${paymentGateway}...`}
+                </span>
               </div>
             )}
 
@@ -1618,7 +1861,7 @@ export default function BookingFlow({
                 </div>
               )}
 
-              {step === 3 && !paymentFailed && (
+              {step === 3 && !paymentFailed && !verifyingPayment && !paymentStillPending && (
                 <div className="pt-6 border-t border-zinc-800/10 dark:border-zinc-850 flex gap-3 shrink-0">
                   <button
                     type="button"
@@ -1652,6 +1895,8 @@ export default function BookingFlow({
                   >
                     {finalPayAmount === 0
                       ? <>Confirm Free Booking <Gift size={14} /></>
+                      : isOnlinePayment
+                      ? <>Pay ₹{finalPayAmount} Securely <ShieldCheck size={14} /></>
                       : <>Pay on Arrival (₹{finalPayAmount}) <ShieldCheck size={14} /></>}
                   </button>
                 </div>
@@ -1786,10 +2031,12 @@ export default function BookingFlow({
               <div className="py-2">
                 <ReceiptPrintout
                   booking={createdBooking}
-                  items={tierBreakdown.filter(t => t.count > 0)}
-                  subtotal={baseCostTotal}
-                  discount={appliedDiscountValue}
-                  loyaltyDiscount={loyaltyDiscountValue}
+                  items={restoredFromGateway
+                    ? (createdBooking.travelerBreakdown || []).filter(t => t.count > 0).map((t, i) => ({ ...t, id: t.id || `tier-${i}` }))
+                    : tierBreakdown.filter(t => t.count > 0)}
+                  subtotal={restoredFromGateway ? (createdBooking.baseCost ?? createdBooking.finalAmount) : baseCostTotal}
+                  discount={restoredFromGateway ? (createdBooking.couponDiscount || 0) : appliedDiscountValue}
+                  loyaltyDiscount={restoredFromGateway ? (createdBooking.loyaltyDiscountAmount || 0) : loyaltyDiscountValue}
                   pickupLabel={pickup?.location}
                 />
 

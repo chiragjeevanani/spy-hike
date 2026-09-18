@@ -13,7 +13,7 @@ import { findOrCreateChat } from '../controllers/chatController.js';
 // booking was Pay on Arrival and therefore confirmed the instant it was created.
 // With an online flow a booking is created *before* the money arrives, so these
 // effects have to be reachable from two places — the browser handshake and the
-// Razorpay webhook — and must run exactly once no matter which gets there
+// PayU webhook — and must run exactly once no matter which gets there
 // first. The once-only guarantee is not here: callers earn it by winning the
 // atomic pending → paid transition in paymentService.confirmBookingPayment().
 export async function finalizeConfirmedBooking(booking, { trip: knownTrip } = {}) {

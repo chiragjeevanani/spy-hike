@@ -2,10 +2,12 @@ import Booking from '../models/Booking.js';
 import WebhookEvent from '../models/WebhookEvent.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
-import { paymentProvider, toRupees } from '../integrations/payments.js';
+import { env } from '../config/env.js';
+import { paymentProvider } from '../integrations/payments.js';
 import {
-  publicPaymentConfig, resolvePaymentMode, confirmBookingPayment,
-  startBookingPayment, refundBookingPayment, expireStalePayments,
+  publicPaymentConfig, resolvePaymentMode, confirmBookingPayment, recordPaymentFailure,
+  startBookingPayment, refundBookingPayment, expireStalePayments, reconcileBookingPayment,
+  paymentReturnUrl, checkoutResponse,
 } from '../services/paymentService.js';
 import { idMatch } from './bookingController.js';
 
@@ -16,100 +18,138 @@ async function ownedBooking(req) {
   return booking;
 }
 
-// GET /payments/config — tells the client whether to open Razorpay Checkout and
-// with which public key, so the payment mode lives in one place (the server)
-// instead of being duplicated into a frontend build flag.
+// GET /payments/config — tells the client whether checkout goes through PayU,
+// so the payment mode lives in one place (the server) instead of being
+// duplicated into a frontend build flag.
 export const getPaymentConfig = asyncHandler(async (req, res) => {
   res.json({ payment: publicPaymentConfig() });
 });
 
-// POST /bookings/:id/payment/verify — the browser handshake.
+// A PayU post-back names our transaction by txnid and our booking in udf1.
+// The txnid is the primary key; udf1 covers an older attempt that was paid
+// after the customer had already started a retry with a fresh txnid.
+export async function findBookingForTxn({ txnid, udf1 }) {
+  if (txnid) {
+    const byTxn = await Booking.findOne({ 'payment.orderId': txnid });
+    if (byTxn) return byTxn;
+  }
+  if (udf1) return Booking.findOne({ bookingId: udf1 });
+  return null;
+}
+
+// Applies a hash-verified PayU payment result (return post or webhook) to its
+// booking. Returns { status, note } for the caller to log or record.
+export async function applyPayuResult(booking, fields, via) {
+  const status = String(fields.status || '').toLowerCase();
+
+  if (status === 'success') {
+    const result = await confirmBookingPayment(booking, {
+      paymentId: fields.mihpayid ? String(fields.mihpayid) : null,
+      orderId: fields.txnid,
+      // `amount` is covered by the hash; it's the amount we asked PayU to
+      // collect, excluding any convenience fee PayU added on top.
+      amountPaid: Number(fields.amount),
+      via,
+      signatureVerified: true,
+    });
+    if (result.error) return { status: 'error', note: result.error };
+    return { status: 'processed', note: result.alreadyConfirmed ? 'Already confirmed' : 'Booking confirmed' };
+  }
+
+  if (status === 'failure' || status === 'failed' || status === 'usercancelled') {
+    await recordPaymentFailure(booking, {
+      paymentId: fields.mihpayid ? String(fields.mihpayid) : null,
+      reason: fields.error_Message || fields.field9 || fields.unmappedstatus || 'Payment attempt failed',
+    });
+    return { status: 'processed', note: 'Failed attempt recorded; the seat hold stands until it expires' };
+  }
+
+  // 'pending' (e.g. a UPI collect still awaiting approval) — nothing to do yet;
+  // the webhook or reconciliation settles it.
+  return { status: 'ignored', note: `Payment is ${status || 'in an unknown state'}` };
+}
+
+// POST /api/v1/payments/payu/return — PayU's surl AND furl.
 //
-// Checkout hands the client `razorpay_order_id`, `razorpay_payment_id` and a
-// signature over the two. Verifying it here is what stops a client simply
-// POSTing "I paid": only Razorpay can produce that HMAC, because only Razorpay
-// and this server know the key secret.
-//
-// This is the FAST path, not the authoritative one. The webhook confirms the
-// same payment independently, so a customer who closes the tab mid-redirect
-// still ends up with a confirmed booking. Whichever arrives first wins; the
-// other is told the booking was already confirmed.
-export const verifyBookingPayment = asyncHandler(async (req, res) => {
-  const orderId = req.body.razorpay_order_id || req.body.orderId;
-  const paymentId = req.body.razorpay_payment_id || req.body.paymentId;
-  const signature = req.body.razorpay_signature || req.body.signature;
+// The customer's browser arrives here as a cross-site form POST from PayU, so
+// there is no JWT: the reverse hash is the authentication. Whatever happens,
+// the browser is redirected back into the app, which then polls the payment
+// status endpoint for the authoritative answer. That means a tampered or
+// unverifiable post changes nothing — it only sends the customer back to a
+// screen that asks PayU's API what really happened.
+export const payuReturn = asyncHandler(async (req, res) => {
+  const fields = req.body || {};
+  const booking = await findBookingForTxn({ txnid: fields.txnid, udf1: fields.udf1 });
 
-  if (!orderId || !paymentId || !signature) {
-    throw ApiError.badRequest('razorpay_order_id, razorpay_payment_id and razorpay_signature are all required');
+  if (!booking) {
+    console.warn(`[payu-return] no booking for txnid ${fields.txnid}`);
+    return res.redirect(303, `${env.frontendUrl}/app/bookings`);
   }
 
-  const booking = await ownedBooking(req);
-  if (booking.payment?.orderId && booking.payment.orderId !== orderId) {
-    throw ApiError.badRequest('This payment belongs to a different booking');
-  }
-  if (!paymentProvider.verifyCheckoutSignature({ orderId, paymentId, signature })) {
-    throw ApiError.badRequest('Payment signature verification failed');
-  }
-
-  // Ask the gateway what was actually paid rather than trusting the amount the
-  // client reports. The signature proves the payment exists, not its value.
-  let amountPaid;
-  try {
-    const payment = await paymentProvider.fetchPayment(paymentId);
-    amountPaid = toRupees(payment.amount);
-    if (payment.status !== 'captured' && payment.status !== 'authorized') {
-      throw ApiError.badRequest(`This payment is ${payment.status}, not captured`);
+  if (paymentProvider.verifyResponseHash(fields)) {
+    try {
+      const outcome = await applyPayuResult(booking, fields, 'checkout');
+      if (outcome.status === 'error') console.warn(`[payu-return] ${booking.bookingId}: ${outcome.note}`);
+    } catch (err) {
+      // Never strand the customer on a JSON error page mid-checkout; the status
+      // poll's reconciliation will settle this booking.
+      console.error(`[payu-return] failed to apply result for ${booking.bookingId}:`, err);
     }
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    // The gateway is unreachable: leave the booking pending and let the webhook
-    // settle it rather than confirming on an unverified amount.
-    console.error('[payments] could not fetch payment during verify:', err);
-    throw new ApiError(502, 'Could not confirm the payment with Razorpay — it will be confirmed automatically in a moment');
+  } else {
+    console.warn(`[payu-return] hash verification failed for txnid ${fields.txnid}; deferring to reconciliation`);
   }
 
-  const result = await confirmBookingPayment(booking, {
-    paymentId, orderId, amountPaid, via: 'checkout', signatureVerified: true,
-  });
-  if (result.error) throw ApiError.badRequest(result.error);
-
-  res.json({
-    booking: result.booking.toPublicJSON(),
-    alreadyConfirmed: result.alreadyConfirmed,
-  });
+  const target = new URL(`${env.frontendUrl}/app/book/${encodeURIComponent(booking.tripId)}`);
+  target.searchParams.set('booking', booking.bookingId);
+  target.searchParams.set('payment', 'return');
+  return res.redirect(303, target.toString());
 });
 
-// POST /bookings/:id/payment/retry — a fresh order for a booking whose first
-// attempt failed. Reuses the existing seat hold and extends it, so the customer
-// isn't sent back to a departure that filled up while their card was declined.
+// POST /bookings/:id/payment/retry — a fresh PayU transaction for a booking
+// whose attempt failed or was abandoned. Reuses the existing seat hold and
+// extends it, so the customer isn't sent back to a departure that filled up
+// while their card was declined.
 export const retryBookingPayment = asyncHandler(async (req, res) => {
   if (resolvePaymentMode() !== 'online') throw ApiError.badRequest('Online payments are not enabled');
 
   const booking = await ownedBooking(req);
-  if (booking.payment?.status === 'paid') throw ApiError.badRequest('This booking is already paid');
-  if (booking.payment?.status !== 'pending') {
+
+  // The previous attempt may have succeeded after all (a UPI approval that
+  // landed late). Check before opening a second transaction the customer
+  // could pay twice.
+  try {
+    await reconcileBookingPayment(booking);
+  } catch (err) {
+    console.warn(`[payments] could not reconcile ${booking.bookingId} before retry:`, err?.message || err);
+  }
+  const current = await Booking.findById(booking._id);
+
+  if (current.payment?.status === 'paid') throw ApiError.badRequest('This booking is already paid');
+  if (current.payment?.status !== 'pending') {
     throw ApiError.badRequest('This booking is no longer awaiting payment — please book again');
   }
 
-  const order = await startBookingPayment(booking);
-  res.json({
-    payment: {
-      required: true,
-      provider: 'razorpay',
-      keyId: publicPaymentConfig().keyId,
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      expiresAt: booking.payment.expiresAt,
-    },
-  });
+  const checkout = await startBookingPayment(current, { returnUrl: paymentReturnUrl(req) });
+  res.json({ payment: checkoutResponse(current, checkout) });
 });
 
-// GET /bookings/:id/payment — what the checkout screen polls after Checkout
-// closes, while waiting for whichever confirmation path lands first.
+// GET /bookings/:id/payment — what the app polls after PayU redirects back,
+// while waiting for whichever confirmation path lands first. A still-pending
+// booking is checked against PayU's API on each poll, so the answer doesn't
+// depend on the return post or the webhook having arrived.
 export const getBookingPaymentStatus = asyncHandler(async (req, res) => {
   await expireStalePayments();
-  const booking = await ownedBooking(req);
+  let booking = await ownedBooking(req);
+
+  if (booking.payment?.status === 'pending') {
+    try {
+      const outcome = await reconcileBookingPayment(booking);
+      if (outcome !== 'skipped') booking = await Booking.findById(booking._id);
+    } catch (err) {
+      console.warn(`[payments] reconcile failed for ${booking.bookingId}:`, err?.message || err);
+    }
+  }
+
   const payment = booking.payment || {};
   res.json({
     payment: {
@@ -121,6 +161,7 @@ export const getBookingPaymentStatus = asyncHandler(async (req, res) => {
       amountPaid: payment.amountPaid ?? 0,
       amountRefunded: payment.amountRefunded ?? 0,
       expiresAt: payment.expiresAt || null,
+      failedAt: payment.failedAt || null,
       failureReason: payment.failureReason || '',
     },
     bookingStatus: booking.status,
@@ -130,8 +171,8 @@ export const getBookingPaymentStatus = asyncHandler(async (req, res) => {
 // ─── Admin ───────────────────────────────────────────────────────────────────
 
 // POST /admin/bookings/:id/refund { amount?, reason? } — refund through the
-// Razorpay API without leaving the dashboard. Omit `amount` for a full refund
-// of whatever is still refundable.
+// PayU API without leaving the dashboard. Omit `amount` for a full refund of
+// whatever is still refundable.
 export const adminRefundBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne(idMatch(req.params.id));
   if (!booking) throw ApiError.notFound('Booking not found');
@@ -144,15 +185,14 @@ export const adminRefundBooking = asyncHandler(async (req, res) => {
 
   res.json({
     booking: result.booking.toPublicJSON(),
-    // false means Razorpay accepted it but is still settling; the
-    // refund.processed webhook closes it out.
+    // PayU always queues refunds; the refund webhook closes it out.
     settled: result.settled,
-    refund: { id: result.refund?.id, status: result.refund?.status, amount: toRupees(result.refund?.amount) },
+    refund: { id: result.refund?.id, status: result.refund?.status, amount: result.refund?.amount },
   });
 });
 
 // GET /admin/payments/webhooks?status=&event= — the delivery log, so a payment
-// that didn't behave can be diagnosed here rather than in the Razorpay console.
+// that didn't behave can be diagnosed here rather than in the PayU dashboard.
 export const listWebhookEvents = asyncHandler(async (req, res) => {
   const filter = {};
   if (req.query.status) filter.status = String(req.query.status);

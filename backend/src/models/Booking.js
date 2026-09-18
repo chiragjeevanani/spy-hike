@@ -19,8 +19,10 @@ const breakdownSchema = new mongoose.Schema(
 const paymentSchema = new mongoose.Schema(
   {
     // 'arrival' — cash at the trailhead, no gateway involved.
-    // 'razorpay' — an online order exists and `status` tracks its lifecycle.
-    method: { type: String, enum: ['arrival', 'razorpay'], default: 'arrival' },
+    // 'payu' — an online PayU transaction exists and `status` tracks its
+    // lifecycle. `orderId` holds our PayU txnid, `paymentId` PayU's mihpayid
+    // and `refundId` the last refund request id.
+    method: { type: String, enum: ['arrival', 'payu'], default: 'arrival' },
     status: {
       type: String,
       enum: ['not_required', 'pending', 'paid', 'failed', 'refund_pending', 'refunded', 'partially_refunded'],
@@ -33,7 +35,8 @@ const paymentSchema = new mongoose.Schema(
     amountDue: { type: Number, default: 0 },
     amountPaid: { type: Number, default: 0 },
     amountRefunded: { type: Number, default: 0 },
-    // 'checkout' (the browser handshake) or 'webhook' — whichever won the race
+    // 'checkout' (PayU's return post), 'webhook' or 'reconcile' (PayU's verify
+    // API) — whichever won the race
     // to confirm. Purely diagnostic, but the first thing worth knowing when a
     // payment lands without the customer ever seeing a success screen.
     confirmedVia: { type: String, default: null },
@@ -88,7 +91,7 @@ const bookingSchema = new mongoose.Schema(
     refundPercent: { type: Number, default: 0 },
     cancelledAt: { type: String, default: null },
     // Kept as-is for existing clients: a human-readable reference, either the
-    // Razorpay payment id or a POA_ marker for Pay on Arrival.
+    // PayU txnid/mihpayid or a POA_ marker for Pay on Arrival.
     paymentRef: String,
     payment: { type: paymentSchema, default: () => ({}) },
     status: { type: String, enum: ['Upcoming', 'Ongoing', 'Completed', 'Missed', 'Cancelled'], default: 'Upcoming' },
@@ -99,7 +102,7 @@ const bookingSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Webhooks and the checkout handshake both arrive knowing only a gateway id,
+// Webhooks and the PayU return post both arrive knowing only a gateway id,
 // and both are on the hot path of a payment landing.
 bookingSchema.index({ 'payment.orderId': 1 }, { sparse: true });
 bookingSchema.index({ 'payment.paymentId': 1 }, { sparse: true });
@@ -111,7 +114,7 @@ bookingSchema.index({ 'payment.status': 1, 'payment.expiresAt': 1 });
 // organizer's list, and — most importantly — out of the organizer's payable
 // balance. Mix this into any query that treats bookings as revenue.
 //
-// `$nin` matches documents where the field is absent, so the pre-Razorpay
+// `$nin` matches documents where the field is absent, so the pre-gateway
 // bookings that have no payment subdocument are included exactly as before.
 export const SETTLED_BOOKING_FILTER = Object.freeze({
   'payment.status': { $nin: ['pending', 'failed'] },

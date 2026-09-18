@@ -27,19 +27,27 @@ export const env = {
   firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY || '',
   // Google Maps API Key for reverse-geocoding
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  // ─── Razorpay ──────────────────────────────────────────────────────────────
-  // Leaving the key pair unset keeps the platform on Pay on Arrival: the
+  // ─── PayU ──────────────────────────────────────────────────────────────────
+  // Leaving the key/salt unset keeps the platform on Pay on Arrival: the
   // provider refuses to make a gateway call and resolvePaymentMode() falls back
   // to 'arrival', so dev machines and CI need no credentials to boot or test.
-  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
-  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
-  // Chosen by us when registering the webhook in the Razorpay dashboard, and
-  // deliberately NOT the API key secret above: the two sign different things
-  // (the raw webhook body vs. the checkout `order_id|payment_id` handshake).
-  // Swapping them is the usual reason every delivery fails verification.
-  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+  payuMerchantKey: (process.env.PAYU_MERCHANT_KEY || '').trim(),
+  // Signs every hop — the checkout form, the return post, payment webhooks and
+  // the merchant API. Server-side only; it must never reach the browser.
+  payuMerchantSalt: (process.env.PAYU_MERCHANT_SALT || '').trim(),
+  // 'test' (test.payu.in) or 'production' (secure.payu.in / info.payu.in).
+  // Test credentials only work against test, and live only against production.
+  payuEnv: (process.env.PAYU_ENV || 'test').trim().toLowerCase() === 'production' ? 'production' : 'test',
+  // Public origin of THIS API as PayU's servers and the customer's browser see
+  // it (e.g. https://api.example.com). PayU posts the payment result to
+  // <API_PUBLIC_URL>/api/v1/payments/payu/return. Falls back to the request's
+  // own host, which is wrong behind a proxy that doesn't forward it.
+  apiPublicUrl: (process.env.API_PUBLIC_URL || '').trim().replace(/\/+$/, ''),
+  // Public origin of the customer web app, where the browser is sent back to
+  // once the payment result has been recorded.
+  frontendUrl: (process.env.FRONTEND_URL || 'http://localhost:5173').trim().replace(/\/+$/, ''),
   // 'arrival' (default) keeps today's Pay-on-Arrival flow; 'online' routes
-  // checkout through Razorpay. Only honoured when the keys above are present.
+  // checkout through PayU. Only honoured when the key and salt are present.
   paymentMode: (process.env.PAYMENT_MODE || 'arrival').trim().toLowerCase(),
   // How long an unpaid online booking holds its reserved seats before the
   // sweeper cancels it and hands them back (see services/paymentService.js).

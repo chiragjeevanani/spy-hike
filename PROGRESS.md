@@ -67,7 +67,7 @@ This file serves as a comprehensive progress summary of all architectural change
   * **Step 2: Hiker Count**: Increment/decrement quantity.
   * **Step 3: Services/Add-ons**: Toggle porter service, gear rental, and high-altitude health kit.
   * **Step 4: Invoice Summary**: Breaks down base fee, add-on costs, taxes, promo discounts, and calculates `finalAmount`.
-  * **Step 5: Razorpay checkout simulation**: Executes payment simulation, updates the ledger, and creates new Booking status objects.
+  * **Step 5: PayU checkout**: Redirects to PayU hosted checkout (or confirms Pay on Arrival), updates the ledger, and creates new Booking status objects.
 * **Actions Completed**: Appends booking object, posts two new notifications, initializes an automated welcome chat with the trip organizer, and redirects user to `/bookings`.
 
 ### G. Bookings Dashboard (`/bookings`)

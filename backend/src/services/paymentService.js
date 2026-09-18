@@ -1,12 +1,19 @@
+import crypto from 'node:crypto';
 import Booking from '../models/Booking.js';
+import User from '../models/User.js';
 import { env } from '../config/env.js';
-import { paymentProvider, toRupees, toPaise } from '../integrations/payments.js';
+import { paymentProvider, PAYU_RETURN_PATH } from '../integrations/payments.js';
 import { releaseSeats } from './inventoryService.js';
 import { releaseCouponRedemption } from './couponService.js';
 import { finalizeConfirmedBooking, releaseBookingVoucher } from './bookingFinalizeService.js';
 import { notifyCustomer } from './notificationService.js';
 
-// Whether checkout goes through Razorpay or stays on Pay on Arrival.
+// Money is compared in whole paise so float noise from a percentage coupon
+// can never make a correct payment look short.
+const toPaise = (rupees) => Math.round(Number(rupees || 0) * 100);
+const paiseToRupees = (paise) => Math.round(Number(paise || 0)) / 100;
+
+// Whether checkout goes through PayU or stays on Pay on Arrival.
 //
 // Deliberately a runtime check rather than a boot-time one: PAYMENT_MODE=online
 // with missing or half-configured keys degrades to 'arrival' instead of taking
@@ -16,16 +23,47 @@ export function resolvePaymentMode() {
   return env.paymentMode === 'online' && paymentProvider.isConfigured() ? 'online' : 'arrival';
 }
 
-// What the browser needs to open Checkout, plus enough for the client to know
-// whether to bother. Safe to serve to an authenticated customer: the key id is
-// public and the secret never appears here.
+// What the client needs to decide how to label and run checkout. Safe to serve
+// to an authenticated customer: nothing here is secret.
 export function publicPaymentConfig() {
   const mode = resolvePaymentMode();
   return {
     mode,
+    provider: mode === 'online' ? 'payu' : 'arrival',
     currency: 'INR',
-    keyId: mode === 'online' ? paymentProvider.publicKeyId() : null,
     pendingTtlMinutes: env.paymentPendingTtlMinutes,
+  };
+}
+
+// Where PayU posts the payment result (used as both surl and furl). PayU's
+// servers and the customer's browser must be able to reach it, so the configured
+// public origin wins; the request's own host is only a development fallback.
+export function paymentReturnUrl(req) {
+  const origin = env.apiPublicUrl || (req ? `${req.protocol}://${req.get('host')}` : '');
+  return `${origin}${PAYU_RETURN_PATH}`;
+}
+
+// PayU needs a unique txnid for every attempt (a retry cannot reuse one) and
+// caps it at 25 characters. The booking id prefix keeps it human-traceable in
+// the PayU dashboard.
+function newTxnId(booking) {
+  const prefix = String(booking.bookingId || 'BK').replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
+  const suffix = `${Date.now().toString(36)}${crypto.randomBytes(2).toString('hex')}`.toUpperCase();
+  return `${prefix}${suffix}`.slice(0, 25);
+}
+
+// The shape the client receives to redirect to PayU — shared by booking
+// creation and the retry endpoint so both stay in lockstep.
+export function checkoutResponse(booking, checkout) {
+  return {
+    required: true,
+    provider: 'payu',
+    txnId: booking.payment.orderId,
+    amount: booking.payment.amountDue,
+    currency: booking.payment.currency || 'INR',
+    expiresAt: booking.payment.expiresAt,
+    // A form the browser POSTs as-is: { action, method, params }.
+    checkout,
   };
 }
 
@@ -44,40 +82,55 @@ export function markPayOnArrival(booking) {
   return booking;
 }
 
-// Opens a Razorpay order against an already-created (pending) booking and
+// Opens a PayU transaction against an already-created (pending) booking and
 // records it. The seats are already reserved by this point, and `expiresAt` is
 // the promise that they won't be held forever if the customer walks away.
-export async function startBookingPayment(booking) {
-  const order = await paymentProvider.createOrder({
+//
+// Returns the signed hosted-checkout form. Building it is local (no network),
+// but it still throws when PayU isn't configured, which the booking controller
+// relies on to leave no orphan booking behind.
+export async function startBookingPayment(booking, { returnUrl } = {}) {
+  const txnid = newTxnId(booking);
+
+  // PayU requires a phone number. The account's verified mobile is the right
+  // one; the lead traveller's contact (validated to 10 digits at booking) is
+  // the fallback for accounts that never added one.
+  const account = await User.findOne({ email: booking.userEmail }).select('mobile name').lean();
+  const phone = account?.mobile || booking.travelers?.[0]?.emergencyContact || '';
+
+  const checkout = paymentProvider.buildCheckout({
+    txnid,
     amount: booking.finalAmount,
-    receipt: booking.bookingId,
-    notes: {
-      bookingId: booking.bookingId,
-      tripId: String(booking.tripId),
-      userEmail: booking.userEmail,
-    },
+    productinfo: `${booking.tripName || 'Trek'} ${booking.selectedDate || ''}`,
+    firstname: booking.userName || account?.name || 'Traveller',
+    email: booking.userEmail,
+    phone,
+    surl: returnUrl || paymentReturnUrl(),
+    furl: returnUrl || paymentReturnUrl(),
+    udf: { udf1: booking.bookingId, udf2: String(booking.tripId || '') },
   });
 
   booking.payment = {
-    method: 'razorpay',
+    method: 'payu',
     status: 'pending',
-    orderId: order.id,
-    currency: order.currency || 'INR',
+    orderId: txnid,
+    currency: 'INR',
     amountDue: booking.finalAmount,
     amountPaid: 0,
     amountRefunded: 0,
     expiresAt: new Date(Date.now() + env.paymentPendingTtlMinutes * 60_000),
   };
-  booking.paymentRef = order.id;
+  booking.paymentRef = txnid;
   await booking.save();
 
-  return order;
+  return checkout;
 }
 
-// The single confirmation path, shared by the browser handshake and the webhook.
+// The single confirmation path, shared by the PayU return post, the webhook and
+// API reconciliation.
 //
-// Both routinely fire for the same payment, and either can arrive first — the
-// webhook regularly beats a customer on a slow connection, and the handshake
+// These routinely fire for the same payment, and any can arrive first — the
+// webhook regularly beats a customer on a slow connection, and the return post
 // beats a delayed delivery. The atomic pending → paid transition below is what
 // makes that a non-event: exactly one caller matches the filter, so the
 // notifications, vouchers and counters in finalizeConfirmedBooking() run once.
@@ -108,8 +161,8 @@ export async function confirmBookingPayment(booking, {
     await Booking.updateOne({ _id: current._id }, {
       $set: {
         'payment.paymentId': paymentId || current.payment.paymentId,
-        'payment.amountPaid': toRupees(paidPaise),
-        'payment.failureReason': `Underpaid: received ₹${toRupees(paidPaise)} of ₹${toRupees(duePaise)}`,
+        'payment.amountPaid': paiseToRupees(paidPaise),
+        'payment.failureReason': `Underpaid: received ₹${paiseToRupees(paidPaise)} of ₹${paiseToRupees(duePaise)}`,
       },
     });
     return { booking: current, alreadyConfirmed: false, error: 'Paid amount does not match the booking total' };
@@ -122,7 +175,7 @@ export async function confirmBookingPayment(booking, {
         'payment.status': 'paid',
         'payment.paymentId': paymentId || null,
         'payment.orderId': orderId || current.payment.orderId,
-        'payment.amountPaid': toRupees(paidPaise),
+        'payment.amountPaid': paiseToRupees(paidPaise),
         'payment.paidAt': new Date(),
         'payment.confirmedVia': via,
         'payment.signatureVerified': !!signatureVerified,
@@ -145,7 +198,7 @@ export async function confirmBookingPayment(booking, {
 
 // Records a failed attempt WITHOUT cancelling the booking.
 //
-// `payment.failed` fires on every declined card, expired UPI collect request
+// A failure result fires on every declined card, expired UPI collect request
 // and abandoned netbanking page — including ones the customer immediately
 // retries and pays. Cancelling here would destroy bookings that are minutes
 // from succeeding, so the booking stays pending and holds its seats until
@@ -210,10 +263,45 @@ export async function releasePendingBooking(booking, { reason, notify = true } =
   return claimed;
 }
 
+// Asks PayU directly what happened to a pending booking's current transaction
+// and applies it. This is the safety net for a return post that never arrived
+// (tab closed mid-redirect) and a webhook that is late or misconfigured.
+//
+// Returns 'paid' | 'failed' | 'pending' | 'unknown' (PayU has no record — the
+// customer never reached the payment page) | 'skipped' (nothing to check).
+export async function reconcileBookingPayment(booking) {
+  const payment = booking.payment || {};
+  if (payment.method !== 'payu' || payment.status !== 'pending' || !payment.orderId) return 'skipped';
+  if (!paymentProvider.isConfigured()) return 'skipped';
+
+  const txn = await paymentProvider.verifyPayment(payment.orderId);
+  if (!txn) return 'unknown';
+
+  if (txn.status === 'success') {
+    const result = await confirmBookingPayment(booking, {
+      paymentId: txn.paymentId,
+      orderId: payment.orderId,
+      amountPaid: txn.amount,
+      via: 'reconcile',
+      // Fetched from PayU's API with our own credentials, not client input.
+      signatureVerified: true,
+    });
+    return result.error ? 'pending' : 'paid';
+  }
+  if (['failure', 'failed', 'usercancelled', 'dropped', 'bounced'].includes(txn.status)) {
+    await recordPaymentFailure(booking, { paymentId: txn.paymentId, reason: txn.reason || `Payment ${txn.status}` });
+    return 'failed';
+  }
+  return 'pending';
+}
+
 // Sweeps every pending booking whose hold has run out. Called opportunistically
 // on the paths that care (a new booking wanting those seats, a payment status
 // poll) — the same lazy-sweep pattern autoResolveBookingStatuses uses, so no
 // scheduler is required for correctness. Safe to also run from cron.
+//
+// Before releasing anything it checks with PayU: a payment that succeeded but
+// whose notification never reached us must be confirmed, not cancelled.
 export async function expireStalePayments() {
   const stale = await Booking.find({
     'payment.status': 'pending',
@@ -223,6 +311,21 @@ export async function expireStalePayments() {
   const expired = [];
   for (const booking of stale) {
     try {
+      let outcome;
+      try {
+        outcome = await reconcileBookingPayment(booking);
+      } catch (err) {
+        // PayU unreachable. Holding the seats a little longer is far cheaper
+        // than cancelling a booking that was paid — but not forever, or an
+        // outage would lock departures indefinitely.
+        const overdueMs = Date.now() - new Date(booking.payment.expiresAt).getTime();
+        if (overdueMs < STALE_RECONCILE_GRACE_MS) {
+          console.warn(`[payments] could not reconcile ${booking.bookingId} before expiry; will retry:`, err?.message || err);
+          continue;
+        }
+      }
+      if (outcome === 'paid' || outcome === 'pending') continue;
+
       const done = await releasePendingBooking(booking);
       if (done) expired.push(done.bookingId);
     } catch (err) {
@@ -232,24 +335,28 @@ export async function expireStalePayments() {
   return expired;
 }
 
+const STALE_RECONCILE_GRACE_MS = 60 * 60_000;
+
 // A payment is fully refunded only once the returned total reaches what was
 // paid; anything short of that is a partial.
 const refundStatusFor = (amountPaid, amountRefunded) =>
   (Number(amountRefunded) >= Number(amountPaid) ? 'refunded' : 'partially_refunded');
 
-// Issues a refund through the Razorpay API. `amount` is in rupees and defaults
-// to whatever is still refundable.
+// Issues a refund through the PayU API. `amount` is in rupees and defaults to
+// whatever is still refundable.
 //
-// Razorpay may settle instantly or asynchronously; the response says which, and
-// the `refund.processed` / `refund.failed` webhooks close the loop on the slow
-// path. A booking paid on arrival has nothing to refund here — that money never
-// went through the gateway and is settled off-platform.
+// PayU never settles a refund synchronously: the API only queues it. The
+// booking is marked 'refund_pending' with the amount counted immediately (so a
+// second request can't over-refund), and the refund webhook — re-checked
+// against the API — moves it to refunded, or hands the amount back on failure.
+// A booking paid on arrival has nothing to refund here — that money never went
+// through the gateway and is settled off-platform.
 export async function refundBookingPayment(booking, { amount, reason = '' } = {}) {
   const payment = booking.payment || {};
-  if (payment.method !== 'razorpay' || !payment.paymentId) {
+  if (payment.method !== 'payu' || !payment.paymentId) {
     return { refunded: false, reason: 'This booking was not paid online' };
   }
-  if (!['paid', 'partially_refunded'].includes(payment.status)) {
+  if (!['paid', 'partially_refunded', 'refund_pending'].includes(payment.status)) {
     return { refunded: false, reason: `A ${payment.status} payment cannot be refunded` };
   }
 
@@ -261,13 +368,16 @@ export async function refundBookingPayment(booking, { amount, reason = '' } = {}
     return { refunded: false, reason: `Only ₹${refundable} is still refundable on this payment` };
   }
 
+  // Unique per refund and ≤ 23 chars, as PayU requires. PayU rejects a reused
+  // token, which is what stops a retried call from refunding twice.
+  const token = `RF${String(booking.bookingId).replace(/[^A-Za-z0-9]/g, '').slice(0, 9)}${Date.now().toString(36).toUpperCase()}`.slice(0, 23);
   const refund = await paymentProvider.refund({
     paymentId: payment.paymentId,
     amount: requested,
-    notes: { bookingId: booking.bookingId, reason: String(reason).slice(0, 250) },
+    token,
+    note: `${booking.bookingId} ${reason}`.trim(),
   });
 
-  const settled = refund?.status === 'processed';
   const total = Math.round((alreadyRefunded + requested) * 100) / 100;
   const updated = await Booking.findByIdAndUpdate(
     booking._id,
@@ -275,41 +385,45 @@ export async function refundBookingPayment(booking, { amount, reason = '' } = {}
       $set: {
         'payment.refundId': refund?.id || null,
         'payment.amountRefunded': total,
-        'payment.refundedAt': settled ? new Date() : null,
-        'payment.status': settled ? refundStatusFor(payment.amountPaid, total) : 'refund_pending',
+        'payment.status': 'refund_pending',
       },
     },
     { new: true },
   );
 
-  return { refunded: true, settled, refund, booking: updated };
+  return { refunded: true, settled: false, refund: { ...refund, amount: requested }, booking: updated };
 }
 
-// Applies a refund webhook to the booking. Razorpay reports the refund's own
-// total, so this takes the gateway's number as authoritative rather than adding
-// to a locally-tracked one — a manual refund issued straight from the dashboard
-// then reconciles itself here instead of drifting.
-export async function applyRefundUpdate(booking, refundEntity, { failed = false } = {}) {
-  const amount = toRupees(refundEntity?.amount);
+// Applies a refund outcome reported by PayU (already verified against the API
+// by the caller). `amount` is in rupees.
+//
+// Success closes the refund out. Failure gives the amount back: it was counted
+// the moment the refund was requested, and the money is still with us.
+export async function applyRefundUpdate(booking, { requestId, amount, failed = false } = {}) {
   const paid = Number(booking.payment?.amountPaid || 0);
-  const total = Math.max(Number(booking.payment?.amountRefunded || 0), amount);
+  const counted = Number(booking.payment?.amountRefunded || 0);
 
-  // A failed refund leaves the money with us: fall back to what the booking's
-  // *successful* refunds add up to, which for the common case (a single failed
-  // refund) is nothing, and the payment reads as fully paid again.
-  const settledRefunds = Number(booking.payment?.amountRefunded || 0);
-  const update = failed
-    ? {
-      'payment.status': settledRefunds > 0 ? refundStatusFor(paid, settledRefunds) : 'paid',
-      'payment.failureReason': 'Refund failed at the gateway — retry it from the dashboard',
-    }
-    : {
-      'payment.refundId': refundEntity?.id || booking.payment?.refundId || null,
+  if (failed) {
+    const remaining = Math.max(0, Math.round((counted - Number(amount || 0)) * 100) / 100);
+    return Booking.findByIdAndUpdate(booking._id, {
+      $set: {
+        'payment.amountRefunded': remaining,
+        'payment.status': remaining > 0 ? refundStatusFor(paid, remaining) : 'paid',
+        'payment.failureReason': 'Refund failed at the gateway — retry it from the dashboard',
+      },
+    }, { new: true });
+  }
+
+  // A refund issued by hand in the PayU dashboard was never counted locally;
+  // take the larger figure so it reconciles itself here instead of drifting.
+  const total = Math.max(counted, Number(amount || 0));
+  return Booking.findByIdAndUpdate(booking._id, {
+    $set: {
+      'payment.refundId': requestId || booking.payment?.refundId || null,
       'payment.amountRefunded': total,
       'payment.refundedAt': new Date(),
       'payment.status': refundStatusFor(paid, total),
       'payment.failureReason': '',
-    };
-
-  return Booking.findByIdAndUpdate(booking._id, { $set: update }, { new: true });
+    },
+  }, { new: true });
 }
