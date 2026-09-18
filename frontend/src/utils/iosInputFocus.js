@@ -52,10 +52,16 @@ export const getKeyboardFixMode = () => {
 };
 const debugLog = (msg) => window.dispatchEvent(new CustomEvent('kbdebug', { detail: msg }));
 
-const isIOS = () => {
+// The user agent alone isn't reliable — an installed iOS web app can report a
+// desktop (Mac) UA — so also accept iOS-only engine traits on a touch screen:
+// `navigator.standalone` and `-webkit-touch-callout` exist only in iOS WebKit.
+export const isIOS = () => {
   const ua = navigator.userAgent || '';
-  // iPadOS 13+ reports itself as Mac; distinguish it by touch support.
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // Supported by iOS WebKit only (not macOS Safari, not Android).
+  if (typeof CSS !== 'undefined' && CSS.supports?.('-webkit-touch-callout', 'none')) return true;
+  const touch = navigator.maxTouchPoints > 1;
+  return touch && (/Macintosh/.test(ua) || typeof navigator.standalone === 'boolean');
 };
 
 // A field that brings up the software keyboard and can be focused.

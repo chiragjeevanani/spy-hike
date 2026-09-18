@@ -128,6 +128,8 @@ export function installKeyboardDebug() {
     hud.textContent =
       `MODE ${MODE_LABELS[getKeyboardFixMode()]}  (5 taps top-right = next)\n` +
       `fix ios:${fix.ios ? 'Y' : 'N'} running:${fix.running ? 'Y' : 'N'} root:${rootShift}\n` +
+      `pf:${navigator.platform} tp:${navigator.maxTouchPoints} sa:${String(navigator.standalone)} ` +
+      `ua:${(navigator.userAgent.match(/\(([^)]*)\)/) || [])[1]?.slice(0, 34) || '?'}\n` +
       `win:${m.win} vvTop:${m.vvTop} vvH:${m.vvH} inner:${m.inner} html:${m.html}\n` +
       `scroller:${m.sc} kb-open:${m.kb} active:${m.active}\n` +
       '────────────────────────────────\n' +
