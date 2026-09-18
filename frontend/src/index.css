@@ -53,23 +53,6 @@ body {
   overscroll-behavior-y: contain;
 }
 
-/* ── iOS keyboard: fit the app above it ──────────────────────────────────────
-   iOS doesn't shrink the layout when the keyboard opens; it scrolls the whole
-   window instead, which slides #root and the `fixed inset-0` screen overlays
-   off-screen and makes every field switch drop and jump. While the keyboard
-   is up, utils/iosInputFocus.js sets `html.kb-open` and `--kb-vvh` (the height
-   left above the keyboard), and these rules size the app to exactly that, so
-   there's never a reason for the window to scroll. Unlayered, so they win
-   over Tailwind's h-full / inset-0 utilities. */
-html.kb-open #root {
-  height: var(--kb-vvh);
-}
-
-html.kb-open .fixed.inset-0 {
-  bottom: auto;
-  height: var(--kb-vvh);
-}
-
 
 /* Restrict text selection and copy, keeping input controls selectable */
 #findyourtrek-app-viewport {
