@@ -12,6 +12,8 @@
 // single screenshot tells which of window / visual viewport / inner scroller
 // actually moved.
 
+import { KB_MODE_KEY, KB_MODES, getKeyboardFixMode } from './iosInputFocus';
+
 const KEY = 'fyt_kbdebug';
 const MAX_LINES = 14;
 
@@ -45,23 +47,43 @@ const findScroller = (el) => {
   return null;
 };
 
-// 5 taps in the top-left 60×60px corner within 3s toggles the HUD.
+// 5 taps within 3s in the top-left 60×60px corner toggles the HUD; in the
+// top-right corner (while the HUD is on) cycles the keyboard-fix strategy
+// A → B → C → D (see utils/iosInputFocus.js). Both reload the page.
 const installToggleGesture = () => {
   let taps = [];
+  let corner = '';
   document.addEventListener('touchend', (e) => {
     const t = e.changedTouches[0];
-    if (!t || t.clientX > 60 || t.clientY > 60) { taps = []; return; }
+    const c = !t || t.clientY > 60 ? ''
+      : t.clientX <= 60 ? 'left'
+      : t.clientX >= window.innerWidth - 60 ? 'right' : '';
+    if (!c || c !== corner) { taps = []; corner = c; }
+    if (!c) return;
     const now = Date.now();
     taps = taps.filter((ts) => now - ts < 3000);
     taps.push(now);
     if (taps.length < 5) return;
     taps = [];
     try {
-      if (localStorage.getItem(KEY) === '1') localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, '1');
+      if (c === 'left') {
+        if (localStorage.getItem(KEY) === '1') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, '1');
+      } else {
+        if (localStorage.getItem(KEY) !== '1') return;
+        const next = KB_MODES[(KB_MODES.indexOf(getKeyboardFixMode()) + 1) % KB_MODES.length];
+        localStorage.setItem(KB_MODE_KEY, next);
+      }
     } catch { return; }
     window.location.reload();
   }, { passive: true, capture: true });
+};
+
+const MODE_LABELS = {
+  A: 'A handoff+pin',
+  B: 'B handoff only',
+  C: 'C pin only',
+  D: 'D off (native)',
 };
 
 export function installKeyboardDebug() {
@@ -102,6 +124,7 @@ export function installKeyboardDebug() {
   const render = () => {
     const m = metrics();
     hud.textContent =
+      `MODE ${MODE_LABELS[getKeyboardFixMode()]}  (5 taps top-right = next)\n` +
       `win:${m.win} vvTop:${m.vvTop} vvH:${m.vvH} inner:${m.inner} html:${m.html}\n` +
       `scroller:${m.sc} kb-open:${m.kb} active:${m.active}\n` +
       '────────────────────────────────\n' +
@@ -136,6 +159,10 @@ export function installKeyboardDebug() {
   }, { passive: true, capture: true });
   window.visualViewport?.addEventListener('resize', () => logIfChanged('vvResz'));
   window.visualViewport?.addEventListener('scroll', () => logIfChanged('vvScrl'));
+  // Messages from the fix itself (e.g. whether a window reset took effect).
+  window.addEventListener('kbdebug', (e) => log(String(e.detail).slice(0, 18)));
 
   render();
+  // Keeps the header live between events, so it shows the settled state.
+  setInterval(render, 300);
 }

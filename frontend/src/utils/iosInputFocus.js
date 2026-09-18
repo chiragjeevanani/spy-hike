@@ -37,6 +37,21 @@ const REVEAL_MARGIN_PX = 24;
 // bar alone is ~45px; a real keyboard is 250px+).
 const KEYBOARD_MIN_PX = 120;
 
+// TEMP (diagnosis): which strategy runs, cycled on-device from the debug HUD
+// (utils/kbDebug.js). A = hand-off + window pin (default), B = hand-off only,
+// C = window pin only, D = off (native iOS behavior).
+export const KB_MODE_KEY = 'fyt_kbmode';
+export const KB_MODES = ['A', 'B', 'C', 'D'];
+export const getKeyboardFixMode = () => {
+  try {
+    const m = localStorage.getItem(KB_MODE_KEY);
+    return KB_MODES.includes(m) ? m : 'A';
+  } catch {
+    return 'A';
+  }
+};
+const debugLog = (msg) => window.dispatchEvent(new CustomEvent('kbdebug', { detail: msg }));
+
 const isIOS = () => {
   const ua = navigator.userAgent || '';
   // iPadOS 13+ reports itself as Mac; distinguish it by touch support.
@@ -85,12 +100,40 @@ const reveal = (el) => {
 export function installIOSInputFocusFix() {
   if (typeof window === 'undefined' || !isIOS()) return;
 
+  // TEMP (diagnosis): strategy switchable on-device from the debug HUD.
+  const mode = getKeyboardFixMode();
+  if (mode === 'D') return;
+  const usePin = mode === 'A' || mode === 'C';
+  const useHandoff = mode === 'A' || mode === 'B';
+
   const html = document.documentElement;
   const vv = window.visualViewport;
 
   // ── 1 + 2. Fit to the visual viewport and keep the window pinned ─────────
-  const pinWindow = () => {
-    if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+  // On a field switch iOS can leave the window at a NEGATIVE offset (one
+  // keyboard height), which a single scrollTo(0, 0) doesn't undo — so try
+  // the other scroll APIs too, and again on the next frames.
+  const resetScroll = () => {
+    window.scrollTo(0, 0);
+    if (window.scrollY !== 0 && document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    if (window.scrollY !== 0) window.scrollBy(0, -window.scrollY);
+  };
+  let pinRetries = [];
+  const pinWindow = (why = '') => {
+    if (!usePin || (window.scrollX === 0 && window.scrollY === 0)) return;
+    const before = Math.round(window.scrollY);
+    resetScroll();
+    debugLog(`pin${why} ${before}>${Math.round(window.scrollY)}`);
+    if (window.scrollY === 0) return;
+    pinRetries.forEach(clearTimeout);
+    pinRetries = [16, 100, 300, 700].map((ms) => {
+      return setTimeout(() => {
+        if (window.scrollY === 0) return;
+        const b = Math.round(window.scrollY);
+        resetScroll();
+        debugLog(`pin+${ms} ${b}>${Math.round(window.scrollY)}`);
+      }, ms);
+    });
   };
 
   let revealTimer = 0;
@@ -180,7 +223,7 @@ export function installIOSInputFocusFix() {
   document.addEventListener(
     'touchend',
     (e) => {
-      if (moved) return; // a scroll, not a tap
+      if (moved || !useHandoff) return; // a scroll, not a tap
       const current = document.activeElement;
       const target = e.target;
       // Only a hand-off between two keyboard fields needs help; the first
