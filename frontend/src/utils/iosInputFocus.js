@@ -3,17 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// iOS (especially the standalone PWA) handles "tap field B while field A is
-// focused" as blur-then-focus: the blur starts dismissing the keyboard, the
-// visual viewport springs back and the page visibly drops, then the focus on
-// B brings the keyboard back and scrolls up again. With html/body locked and
-// #root as the only scroller (see index.css) that round-trip is very visible.
+// iOS (especially the standalone PWA) keyboard handling for an app shell
+// whose html/body never scroll (see index.css) and whose screens are either
+// #root or `fixed inset-0` overlays with their own internal scroller.
 //
-// This hands focus over directly instead: when a keyboard field is already
-// focused and the user taps another one, the native tap is cancelled and the
-// new field is focused programmatically inside the same user gesture, so the
-// keyboard never closes and nothing jumps. The field is then revealed inside
-// its own scroll container (not the window) if the keyboard covers it.
+// When the keyboard opens iOS does NOT shrink the layout: it scrolls the
+// whole window/layout viewport to push the focused field above the keyboard.
+// That window scroll is exactly what the app is built never to have — fixed
+// overlays slide off-screen, a blank band shows, and every field switch
+// (tap or the keyboard's ▲/▼ arrows) re-runs it, so the page visibly drops
+// and jumps back. Three parts stop it:
+//
+//  1. Fit the app to the visible area: while the keyboard is up, #root and
+//     every full-screen overlay are sized to the visual viewport (the part
+//     above the keyboard) via `html.kb-open` + `--kb-vvh` (index.css), so a
+//     field is never "under" the keyboard and there is nothing for iOS to
+//     reveal by scrolling the window.
+//  2. Pin the window: any window scroll iOS still does is undone at once, and
+//     the focused field is revealed inside its OWN scroll container instead.
+//  3. Hand focus over directly on a tap from one field to another, so the
+//     keyboard never starts to close between them (blur-then-focus).
 
 const TEXT_INPUT_TYPES = new Set([
   'text', 'search', 'email', 'tel', 'url', 'password', 'number',
@@ -24,6 +33,9 @@ const CARET_TYPES = new Set(['text', 'search', 'tel', 'url', 'password']);
 
 const TAP_SLOP_PX = 10;
 const REVEAL_MARGIN_PX = 24;
+// Smallest viewport shrink treated as "the keyboard is open" (the QuickType
+// bar alone is ~45px; a real keyboard is 250px+).
+const KEYBOARD_MIN_PX = 120;
 
 const isIOS = () => {
   const ua = navigator.userAgent || '';
@@ -47,28 +59,100 @@ const findScroller = (el) => {
     if (/(auto|scroll)/.test(overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
     node = node.parentElement;
   }
-  return document.getElementById('root');
+  return null;
 };
 
 // Keep the field inside the part of the screen the keyboard isn't covering,
 // scrolling its container rather than the window so the layout never shifts.
 const reveal = (el) => {
+  if (!el || !el.isConnected || document.activeElement !== el) return;
   const vv = window.visualViewport;
   const top = vv ? vv.offsetTop : 0;
   const bottom = top + (vv ? vv.height : window.innerHeight);
   const rect = el.getBoundingClientRect();
   const scroller = findScroller(el);
   if (!scroller) return;
-  if (rect.bottom > bottom - REVEAL_MARGIN_PX) {
-    scroller.scrollTop += rect.bottom - (bottom - REVEAL_MARGIN_PX);
-  } else if (rect.top < top + REVEAL_MARGIN_PX) {
-    scroller.scrollTop -= top + REVEAL_MARGIN_PX - rect.top;
+  const sRect = scroller.getBoundingClientRect();
+  const visTop = Math.max(top, sRect.top) + REVEAL_MARGIN_PX;
+  const visBottom = Math.min(bottom, sRect.bottom) - REVEAL_MARGIN_PX;
+  if (rect.bottom > visBottom) {
+    scroller.scrollTop += rect.bottom - visBottom;
+  } else if (rect.top < visTop) {
+    scroller.scrollTop -= visTop - rect.top;
   }
 };
 
 export function installIOSInputFocusFix() {
   if (typeof window === 'undefined' || !isIOS()) return;
 
+  const html = document.documentElement;
+  const vv = window.visualViewport;
+
+  // ── 1 + 2. Fit to the visual viewport and keep the window pinned ─────────
+  const pinWindow = () => {
+    if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+  };
+
+  let revealTimer = 0;
+  const scheduleReveal = (el, delay = 0) => {
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => requestAnimationFrame(() => reveal(el)), delay);
+  };
+
+  const syncViewport = () => {
+    if (!vv) return;
+    // html is locked to the layout viewport, which iOS never shrinks for the
+    // keyboard — so the gap between the two is the keyboard's height.
+    const layoutHeight = html.clientHeight;
+    const keyboardOpen = isKeyboardField(document.activeElement)
+      && layoutHeight - vv.height > KEYBOARD_MIN_PX;
+
+    if (keyboardOpen) {
+      html.style.setProperty('--kb-vvh', `${Math.round(vv.height)}px`);
+      if (!html.classList.contains('kb-open')) html.classList.add('kb-open');
+      pinWindow();
+      scheduleReveal(document.activeElement);
+    } else if (html.classList.contains('kb-open')) {
+      html.classList.remove('kb-open');
+      html.style.removeProperty('--kb-vvh');
+      pinWindow();
+    }
+  };
+
+  if (vv) {
+    vv.addEventListener('resize', syncViewport);
+    vv.addEventListener('scroll', () => {
+      if (isKeyboardField(document.activeElement) || html.classList.contains('kb-open')) pinWindow();
+    });
+  }
+  window.addEventListener('scroll', () => {
+    if (isKeyboardField(document.activeElement) || html.classList.contains('kb-open')) pinWindow();
+  }, { passive: true });
+
+  // Any focus change — a tap, the keyboard's ▲/▼ arrows, or code calling
+  // focus() — re-fits the app and reveals the field in its own scroller once
+  // the keyboard has settled.
+  document.addEventListener('focusin', (e) => {
+    if (!isKeyboardField(e.target)) return;
+    syncViewport();
+    pinWindow();
+    scheduleReveal(e.target, 60);
+    // The keyboard animates in over ~250-300ms; re-check once it has landed.
+    setTimeout(() => { syncViewport(); pinWindow(); reveal(e.target); }, 350);
+  }, true);
+
+  // Once the keyboard closes, restore full height and undo any leftover
+  // window scroll — but only when no other field took focus (a field switch
+  // must never collapse and re-open the layout).
+  document.addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (isKeyboardField(document.activeElement)) return;
+      syncViewport();
+      pinWindow();
+    }, 100);
+  }, true);
+
+  // ── 3. Direct focus hand-off between fields on tap ───────────────────────
   let startX = 0;
   let startY = 0;
   let moved = false;
@@ -121,24 +205,7 @@ export function installIOSInputFocusFix() {
       // The native click was cancelled with the tap; replay it for any
       // onClick handler that relies on it.
       target.click();
-
-      requestAnimationFrame(() => reveal(target));
     },
     { passive: false, capture: true },
-  );
-
-  // Once the keyboard fully closes, iOS can leave the window scrolled
-  // (html/body never scroll by design), leaving a gap at the bottom. Snap it
-  // back only when no keyboard field took focus, so switching fields never
-  // triggers it.
-  document.addEventListener(
-    'focusout',
-    () => {
-      setTimeout(() => {
-        if (isKeyboardField(document.activeElement)) return;
-        if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
-      }, 100);
-    },
-    true,
   );
 }
