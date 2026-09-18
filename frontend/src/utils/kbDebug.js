@@ -80,9 +80,9 @@ const installToggleGesture = () => {
 };
 
 const MODE_LABELS = {
-  A: 'A handoff+pin',
-  B: 'B handoff only',
-  C: 'C pin only',
+  A: 'A handoff+shift',
+  B: 'B shift only',
+  C: 'C handoff only',
   D: 'D off (native)',
 };
 
@@ -123,8 +123,11 @@ export function installKeyboardDebug() {
 
   const render = () => {
     const m = metrics();
+    const fix = window.__kbFix || {};
+    const rootShift = document.getElementById('root')?.style.transform || 'none';
     hud.textContent =
       `MODE ${MODE_LABELS[getKeyboardFixMode()]}  (5 taps top-right = next)\n` +
+      `fix ios:${fix.ios ? 'Y' : 'N'} running:${fix.running ? 'Y' : 'N'} root:${rootShift}\n` +
       `win:${m.win} vvTop:${m.vvTop} vvH:${m.vvH} inner:${m.inner} html:${m.html}\n` +
       `scroller:${m.sc} kb-open:${m.kb} active:${m.active}\n` +
       '────────────────────────────────\n' +

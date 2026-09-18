@@ -38,8 +38,8 @@ const REVEAL_MARGIN_PX = 24;
 const KEYBOARD_MIN_PX = 120;
 
 // TEMP (diagnosis): which strategy runs, cycled on-device from the debug HUD
-// (utils/kbDebug.js). A = hand-off + window pin (default), B = hand-off only,
-// C = window pin only, D = off (native iOS behavior).
+// (utils/kbDebug.js). A = hand-off + shift correction (default), B = shift
+// correction only, C = hand-off only, D = off (native iOS behavior).
 export const KB_MODE_KEY = 'fyt_kbmode';
 export const KB_MODES = ['A', 'B', 'C', 'D'];
 export const getKeyboardFixMode = () => {
@@ -98,42 +98,52 @@ const reveal = (el) => {
 };
 
 export function installIOSInputFocusFix() {
-  if (typeof window === 'undefined' || !isIOS()) return;
+  if (typeof window === 'undefined') return;
+  // TEMP (diagnosis): lets the debug HUD show whether this actually runs.
+  const mode = getKeyboardFixMode();
+  window.__kbFix = { ios: isIOS(), mode, running: false };
+  if (!isIOS()) return;
 
   // TEMP (diagnosis): strategy switchable on-device from the debug HUD.
-  const mode = getKeyboardFixMode();
   if (mode === 'D') return;
-  const usePin = mode === 'A' || mode === 'C';
-  const useHandoff = mode === 'A' || mode === 'B';
+  const useShift = mode === 'A' || mode === 'B';
+  const useHandoff = mode === 'A' || mode === 'C';
+  window.__kbFix.running = true;
 
   const html = document.documentElement;
   const vv = window.visualViewport;
+  const root = document.getElementById('root');
 
-  // ── 1 + 2. Fit to the visual viewport and keep the window pinned ─────────
-  // On a field switch iOS can leave the window at a NEGATIVE offset (one
-  // keyboard height), which a single scrollTo(0, 0) doesn't undo — so try
-  // the other scroll APIs too, and again on the next frames.
-  const resetScroll = () => {
-    window.scrollTo(0, 0);
-    if (window.scrollY !== 0 && document.scrollingElement) document.scrollingElement.scrollTop = 0;
-    if (window.scrollY !== 0) window.scrollBy(0, -window.scrollY);
+  // ── 1 + 2. Undo iOS's window displacement ────────────────────────────────
+  // With the keyboard already open, focusing another field makes iOS (26,
+  // standalone) leave the window at a NEGATIVE offset one keyboard high —
+  // the whole app drops by that much, and scrollTo(0, 0) doesn't bring it
+  // back. So: try the reset once; if the window is still displaced, move
+  // #root back up by exactly the displacement (the visible area then shows
+  // the app where it was), and drop that as soon as iOS returns to 0. A
+  // per-frame watch runs only while a field is focused or a shift is active.
+  let shift = 0;
+  const applyShift = (px) => {
+    if (px === shift || !root) return;
+    shift = px;
+    root.style.transform = px ? `translateY(${px}px)` : '';
+    debugLog(px ? `shift ${px}` : 'unshift');
   };
-  let pinRetries = [];
-  const pinWindow = (why = '') => {
-    if (!usePin || (window.scrollX === 0 && window.scrollY === 0)) return;
-    const before = Math.round(window.scrollY);
-    resetScroll();
-    debugLog(`pin${why} ${before}>${Math.round(window.scrollY)}`);
-    if (window.scrollY === 0) return;
-    pinRetries.forEach(clearTimeout);
-    pinRetries = [16, 100, 300, 700].map((ms) => {
-      return setTimeout(() => {
-        if (window.scrollY === 0) return;
-        const b = Math.round(window.scrollY);
-        resetScroll();
-        debugLog(`pin+${ms} ${b}>${Math.round(window.scrollY)}`);
-      }, ms);
-    });
+
+  let watchFrame = 0;
+  const watch = () => {
+    watchFrame = 0;
+    let y = window.scrollY;
+    if (y < 0 && !shift) {
+      window.scrollTo(0, 0);
+      debugLog(`reset ${Math.round(y)}>${Math.round(window.scrollY)}`);
+      y = window.scrollY;
+    }
+    applyShift(y < 0 ? Math.round(y) : 0);
+    if (shift || isKeyboardField(document.activeElement)) watchFrame = requestAnimationFrame(watch);
+  };
+  const pinWindow = () => {
+    if (useShift && !watchFrame) watchFrame = requestAnimationFrame(watch);
   };
 
   let revealTimer = 0;
