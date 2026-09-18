@@ -19,9 +19,12 @@ Three things make this safe, and all three are load-bearing:
 
   1. Authentication — this endpoint carries no JWT.
        Payment events carry PayU's reverse hash, keyed by our SALT.
-       Refund events are treated as a hint only: the refund's status is
-       re-fetched from PayU's API with our own credentials before anything is
-       recorded, so a forged delivery can at most trigger a harmless lookup.
+       Refund events carry no hash (per PayU's own docs) and are treated as a
+       hint only: request_id/token/merchantTxnId/mihpayid are used to find a
+       booking WE already hold a matching refund record for, and only then is
+       the refund's real status re-fetched from PayU's API with our own
+       credentials. A delivery naming a refund we don't recognise touches
+       neither the database nor PayU's API.
   2. Idempotency — PayU sends no event id, so one is derived from the
      transaction and its status. The unique index on WebhookEvent.eventId is
      the lock.
@@ -46,18 +49,34 @@ async function processPayment(fields) {
   return { ...base, ...outcome, bookingId: booking.bookingId };
 }
 
-async function processRefund(fields, refund) {
-  const requestId = refund.requestId;
-  const paymentId = refund.paymentId || (fields.mihpayid ? String(fields.mihpayid) : null);
-  const base = { paymentId, orderId: null };
+// PayU's documented refund webhook carries: request_id (their refund id),
+// token (the idempotency key WE generated), merchantTxnId (our original
+// txnid) and mihpayid (the payment id) — see
+// https://docs.payu.in/docs/webhook-events-and-sample-payloads. None of it is
+// signed, so it is used only to find a CANDIDATE booking locally; every match
+// here still gets its status re-fetched from PayU's own API before anything
+// is recorded (see payuWebhook below). Matching first, and only calling PayU
+// for a booking we actually recognise, means a delivery naming a request_id
+// that isn't ours is dropped for free instead of spending an outbound API
+// call on it.
+function findBookingForRefundFields(fields) {
+  const requestId = String(fields.request_id || '');
+  const token = fields.token ? String(fields.token) : null;
+  const orderId = fields.merchantTxnId ? String(fields.merchantTxnId) : null;
+  const paymentId = fields.mihpayid ? String(fields.mihpayid).trim() : null;
 
-  const booking = await Booking.findOne({
-    $or: [
-      { 'payment.refundId': requestId },
-      ...(paymentId ? [{ 'payment.paymentId': paymentId }] : []),
-    ],
-  });
-  if (!booking) return { ...base, status: 'ignored', note: `No booking for refund ${requestId}` };
+  const or = [{ 'payment.refundId': requestId }];
+  if (token) or.push({ 'payment.refundToken': token });
+  if (orderId) or.push({ 'payment.orderId': orderId });
+  if (paymentId) or.push({ 'payment.paymentId': paymentId });
+
+  return Booking.findOne({ $or: or });
+}
+
+async function processRefund(booking, refund) {
+  const requestId = refund.requestId;
+  const paymentId = refund.paymentId || booking.payment?.paymentId || null;
+  const base = { paymentId, orderId: booking.payment?.orderId || null };
 
   if (refund.status === 'success') {
     await applyRefundUpdate(booking, { requestId, amount: refund.amount });
@@ -109,7 +128,14 @@ export const payuWebhook = asyncHandler(async (req, res) => {
     const requestId = String(fields.request_id || '');
     if (!requestId) return res.status(400).json({ error: { message: 'Missing refund request id' } });
 
-    // The delivery itself is not signed in a way we can rely on — ask PayU.
+    // Look up locally FIRST — nothing in this delivery is signed, so a
+    // request_id we don't recognise from any of our own refunds is dropped
+    // without ever calling PayU's API over it.
+    const booking = await findBookingForRefundFields(fields);
+    if (!booking) return res.json({ ok: true, status: 'ignored', note: `No booking for refund ${requestId}` });
+
+    // A booking WAS found, so this is worth the round trip — but its status
+    // still comes from PayU's own API, never from the unsigned delivery.
     let refund;
     try {
       refund = await paymentProvider.fetchRefund(requestId);
@@ -121,8 +147,8 @@ export const payuWebhook = asyncHandler(async (req, res) => {
 
     event = `refund.${refund.status || 'unknown'}`;
     eventId = `refund:${requestId}:${refund.status || 'unknown'}`;
-    ids = { orderId: null, paymentId: refund.paymentId };
-    handler = () => processRefund(fields, refund);
+    ids = { orderId: booking.payment?.orderId || null, paymentId: refund.paymentId };
+    handler = () => processRefund(booking, refund);
   } else {
     if (!paymentProvider.verifyResponseHash(fields)) {
       // 400 rather than 401: this is malformed input, not a credentials prompt.

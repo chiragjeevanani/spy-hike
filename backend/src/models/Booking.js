@@ -22,7 +22,12 @@ const paymentSchema = new mongoose.Schema(
     // 'payu' — an online PayU transaction exists and `status` tracks its
     // lifecycle. `orderId` holds our PayU txnid, `paymentId` PayU's mihpayid
     // and `refundId` the last refund request id.
-    method: { type: String, enum: ['arrival', 'payu'], default: 'arrival' },
+    // 'razorpay' is retained ONLY so a booking made before the PayU migration
+    // still saves — nothing writes this value going forward, and no gateway
+    // code path reads it, so those old rows are simply inert history. Removing
+    // it from the enum would throw the moment anything (an admin status
+    // change, the completed/missed sweep) tried to save one of those bookings.
+    method: { type: String, enum: ['arrival', 'payu', 'razorpay'], default: 'arrival' },
     status: {
       type: String,
       enum: ['not_required', 'pending', 'paid', 'failed', 'refund_pending', 'refunded', 'partially_refunded'],
@@ -31,6 +36,11 @@ const paymentSchema = new mongoose.Schema(
     orderId: { type: String, default: null },
     paymentId: { type: String, default: null },
     refundId: { type: String, default: null },
+    // The idempotency token WE generated and sent with the refund request
+    // (PayU's `token` field). Lets the refund webhook be matched to this
+    // booking locally — see webhookController.js — without having to trust
+    // anything else in an unsigned delivery.
+    refundToken: { type: String, default: null },
     currency: { type: String, default: 'INR' },
     amountDue: { type: Number, default: 0 },
     amountPaid: { type: Number, default: 0 },

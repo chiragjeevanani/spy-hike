@@ -651,6 +651,39 @@ describe('Refunds', () => {
     expect(after.payment.amountRefunded).toBe(400);
   });
 
+  it('ignores a refund webhook naming a request_id we never issued, without calling PayU\'s API', async () => {
+    let fetchRefundCalls = 0;
+    paymentProvider.fetchRefund = async () => { fetchRefundCalls += 1; return null; };
+
+    const hook = await request(app).post(WEBHOOK_URL).type('form')
+      .send({ request_id: 'REQ_NEVER_ISSUED', mihpayid: 'NOPE', action: 'refund', status: 'success', amt: '999.00' });
+
+    expect(hook.status).toBe(200);
+    expect(hook.body.status).toBe('ignored');
+    // No booking recognised this request_id/token/txnid/paymentId combination,
+    // so PayU's API is never asked about it — an unsigned delivery naming an
+    // arbitrary id can't be used to spend our API quota.
+    expect(fetchRefundCalls).toBe(0);
+  });
+
+  it('matches a refund webhook by our idempotency token even if request_id were somehow wrong', async () => {
+    const { booking } = await paidBooking();
+    const admin = await adminToken();
+    await request(app).post(`${api}/admin/bookings/${booking.bookingId}/refund`)
+      .set('Authorization', `Bearer ${admin}`).send({ amount: 400 });
+
+    const stored = await Booking.findOne({ bookingId: booking.bookingId });
+    expect(stored.payment.refundToken).toBeTruthy();
+
+    paymentProvider.fetchRefund = async (requestId) => ({ status: 'success', amount: 400, paymentId: 'PAID1', requestId });
+    const hook = await request(app).post(WEBHOOK_URL).type('form').send({
+      request_id: 'REQ1', token: stored.payment.refundToken, merchantTxnId: stored.payment.orderId,
+      mihpayid: 'PAID1', action: 'refund', status: 'success', amt: '400.00',
+    });
+
+    expect(hook.body.note).toBe('Refund recorded');
+  });
+
   it('ignores a forged refund webhook that PayU\'s API does not confirm', async () => {
     const { booking } = await paidBooking();
     const admin = await adminToken();
@@ -713,6 +746,55 @@ describe('PayU hash helpers', () => {
     });
     expect(params.productinfo).not.toContain('|');
     expect(params.firstname).not.toContain('|');
+  });
+
+  // "Salt v1" and "Salt v2" in the PayU dashboard are two rotatable salt
+  // VALUES, not different hash formulas — both verified below with the exact
+  // same formula. PAYU_MERCHANT_SALT_PREVIOUS exists purely to bridge a
+  // rotation window.
+  // Builds the exact reverse-hash string PayU's formula specifies, so the
+  // test can't drift from the source by a stray (or missing) pipe.
+  const reverseHash = (salt, fields) => sha512([
+    salt, fields.status, '', '', '', '', '',
+    fields.udf5, fields.udf4, fields.udf3, fields.udf2, fields.udf1,
+    fields.email, fields.firstname, fields.productinfo, fields.amount, fields.txnid, fields.key,
+  ].join('|'));
+
+  it('accepts a hash signed with the current salt', () => {
+    const fields = {
+      key: KEY, txnid: 'T3', amount: '50.00', productinfo: 'Trek', firstname: 'A', email: 'a@b.co',
+      udf1: '', udf2: '', udf3: '', udf4: '', udf5: '', status: 'success',
+    };
+    fields.hash = reverseHash(SALT, fields);
+    expect(paymentProvider.verifyResponseHash(fields)).toBe(true);
+  });
+
+  it('falls back to the previous salt during a rotation window', () => {
+    const oldSalt = 'OLD_SALT_BEFORE_ROTATION';
+    env.payuMerchantSaltPrevious = oldSalt;
+
+    const fields = {
+      key: KEY, txnid: 'T4', amount: '50.00', productinfo: 'Trek', firstname: 'A', email: 'a@b.co',
+      udf1: '', udf2: '', udf3: '', udf4: '', udf5: '', status: 'success',
+    };
+    // Signed with the OLD salt, as an in-flight transaction from before the
+    // rotation would be.
+    fields.hash = reverseHash(oldSalt, fields);
+
+    expect(paymentProvider.verifyResponseHash(fields)).toBe(true);
+
+    env.payuMerchantSaltPrevious = '';
+  });
+
+  it('rejects a hash that matches neither salt', () => {
+    env.payuMerchantSaltPrevious = 'OLD_SALT_BEFORE_ROTATION';
+    const fields = {
+      key: KEY, txnid: 'T5', amount: '50.00', productinfo: 'Trek', firstname: 'A', email: 'a@b.co',
+      udf1: '', udf2: '', udf3: '', udf4: '', udf5: '', status: 'success',
+      hash: sha512('completely-unrelated-string'),
+    };
+    expect(paymentProvider.verifyResponseHash(fields)).toBe(false);
+    env.payuMerchantSaltPrevious = '';
   });
 });
 

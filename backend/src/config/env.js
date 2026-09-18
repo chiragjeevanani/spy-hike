@@ -34,7 +34,22 @@ export const env = {
   payuMerchantKey: (process.env.PAYU_MERCHANT_KEY || '').trim(),
   // Signs every hop — the checkout form, the return post, payment webhooks and
   // the merchant API. Server-side only; it must never reach the browser.
+  //
+  // "Salt v1" and "Salt v2" in the PayU dashboard are NOT two different hash
+  // formulas — they're two rotatable salt VALUES that both use the exact same
+  // sha512 formula this integration implements. Put whichever one PayU's
+  // dashboard currently shows as active here; the label (v1/v2) doesn't
+  // matter to the code. See payuMerchantSaltPrevious below for rotating
+  // between them without downtime.
   payuMerchantSalt: (process.env.PAYU_MERCHANT_SALT || '').trim(),
+  // Optional. When you rotate salts in the PayU dashboard, transactions
+  // already in flight (a customer mid-checkout, a delayed webhook) were
+  // signed with the OLD salt and would otherwise fail verification the moment
+  // PAYU_MERCHANT_SALT is updated. Set this to the salt you're rotating away
+  // from, deploy, wait out your longest in-flight transaction (a day is
+  // generous), then clear it. New checkouts always sign with the primary
+  // salt above; only verification tries this one as a fallback.
+  payuMerchantSaltPrevious: (process.env.PAYU_MERCHANT_SALT_PREVIOUS || '').trim(),
   // 'test' (test.payu.in) or 'production' (secure.payu.in / info.payu.in).
   // Test credentials only work against test, and live only against production.
   payuEnv: (process.env.PAYU_ENV || 'test').trim().toLowerCase() === 'production' ? 'production' : 'test',

@@ -149,16 +149,26 @@ export const paymentProvider = {
     if (!isConfigured() || !fields.hash || !fields.txnid || !fields.status) return false;
     if (fields.key && fields.key !== env.payuMerchantKey) return false;
 
-    const parts = [
-      env.payuMerchantSalt, fields.status, '', '', '', '', '',
-      ...[...UDFS].reverse().map((n) => fields[n] ?? ''),
-      fields.email ?? '', fields.firstname ?? '', fields.productinfo ?? '',
-      fields.amount ?? '', fields.txnid, env.payuMerchantKey,
-    ];
-    const charges = fields.additionalCharges ?? fields.additional_charges;
-    if (charges != null && String(charges) !== '') parts.unshift(charges);
+    const hashWith = (salt) => {
+      const parts = [
+        salt, fields.status, '', '', '', '', '',
+        ...[...UDFS].reverse().map((n) => fields[n] ?? ''),
+        fields.email ?? '', fields.firstname ?? '', fields.productinfo ?? '',
+        fields.amount ?? '', fields.txnid, env.payuMerchantKey,
+      ];
+      const charges = fields.additionalCharges ?? fields.additional_charges;
+      if (charges != null && String(charges) !== '') parts.unshift(charges);
+      return sha512(parts.join('|'));
+    };
 
-    return safeEqualHex(sha512(parts.join('|')), fields.hash);
+    // Tried against the primary (currently active) salt first. The previous
+    // salt is only ever a fallback, and only during a deliberate rotation —
+    // see payuMerchantSaltPrevious in config/env.js.
+    if (safeEqualHex(hashWith(env.payuMerchantSalt), fields.hash)) return true;
+    if (env.payuMerchantSaltPrevious) {
+      return safeEqualHex(hashWith(env.payuMerchantSaltPrevious), fields.hash);
+    }
+    return false;
   },
 
   // Asks PayU what really happened to a txnid. Returns null when PayU has no

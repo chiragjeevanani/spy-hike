@@ -384,6 +384,10 @@ export async function refundBookingPayment(booking, { amount, reason = '' } = {}
     {
       $set: {
         'payment.refundId': refund?.id || null,
+        // Stored so the refund webhook can be matched to this booking locally
+        // (by PayU's `token` field) without hitting PayU's API for a delivery
+        // that turns out to belong to someone else's refund entirely.
+        'payment.refundToken': token,
         'payment.amountRefunded': total,
         'payment.status': 'refund_pending',
       },
