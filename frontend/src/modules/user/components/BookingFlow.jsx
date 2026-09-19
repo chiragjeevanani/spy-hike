@@ -9,8 +9,7 @@ import { getAvailableCustomerVoucher, markCustomerVoucherUsed, loadLoyaltyConfig
 import couponsApi, { computeDiscount } from '../../../lib/couponsApi';
 import tripsApi from '../../../lib/tripsApi';
 import bookingsApi from '../../../lib/bookingsApi';
-// IOS-REVIEW-TEMP: PayU disabled during App Store review — uncomment to restore.
-// import { redirectToPayU } from '../../../lib/payu';
+import { redirectToPayU } from '../../../lib/payu';
 import { sanitizePhoneInput, isValidPhone, PHONE_MAX_DIGITS, PHONE_RULE_MESSAGE } from '../../../utils/phone';
 import { useToast } from '../../../components/ToastProvider';
 import TravelTicket from './TravelTicket';
@@ -228,8 +227,9 @@ const ReceiptPrintout = ({ booking, items, subtotal, discount, loyaltyDiscount, 
       >
         <ShieldCheck size={13} className="text-emerald-500" />
         <span className="text-[9px] font-mono font-black uppercase tracking-[0.2em] text-emerald-500">
-          {/* IOS-REVIEW-TEMP: was "Payment Authorised" — restore after App Store approval. */}
-          Booking Confirmed · Pay on Arrival
+          {booking.payment?.method === 'arrival'
+            ? 'Booking Confirmed · Pay on Arrival'
+            : 'Payment Authorised'}
         </span>
       </motion.div>
 
@@ -290,23 +290,34 @@ const ReceiptPrintout = ({ booking, items, subtotal, discount, loyaltyDiscount, 
                 className="flex justify-between items-baseline mt-2 pt-2 border-t-2 border-dashed"
                 style={{ borderColor: 'rgba(39,39,42,0.4)' }}
               >
-                {/* IOS-REVIEW-TEMP: was "TOTAL" — restore after App Store approval. */}
-                <span className="text-[10px] font-black tracking-[0.15em]">DUE ON ARRIVAL</span>
+                <span className="text-[10px] font-black tracking-[0.15em]">
+                  {booking.payment?.method === 'arrival' ? 'DUE ON ARRIVAL' : 'TOTAL'}
+                </span>
                 <span className="text-[16px] font-black leading-none">₹{booking.finalAmount}</span>
               </div>
 
-              <div
-                className="mt-2.5 text-center text-[7.5px] font-black tracking-[0.15em] py-1.5 border border-dashed"
-                style={{ borderColor: 'rgba(39,39,42,0.35)' }}
-              >
-                ** PAY ON ARRIVAL AT BASE CAMP **
-              </div>
-              {/* IOS-REVIEW-TEMP: Pay-on-Arrival guidance — remove after App Store approval. */}
-              <div className="mt-2 text-center text-[7px] leading-relaxed tracking-[0.08em] opacity-70">
-                NO PAYMENT TAKEN NOW. PAY THE AMOUNT ABOVE TO YOUR
-                ORGANIZER AT BASE CAMP ON THE DAY OF DEPARTURE.
-                SHOW THIS RECEIPT OR YOUR TICKET AT CHECK-IN.
-              </div>
+              {booking.payment?.method === 'arrival' ? (
+                <>
+                  <div
+                    className="mt-2.5 text-center text-[7.5px] font-black tracking-[0.15em] py-1.5 border border-dashed"
+                    style={{ borderColor: 'rgba(39,39,42,0.35)' }}
+                  >
+                    ** PAY ON ARRIVAL AT BASE CAMP **
+                  </div>
+                  <div className="mt-2 text-center text-[7px] leading-relaxed tracking-[0.08em] opacity-70">
+                    NO PAYMENT TAKEN NOW. PAY THE AMOUNT ABOVE TO YOUR
+                    ORGANIZER AT BASE CAMP ON THE DAY OF DEPARTURE.
+                    SHOW THIS RECEIPT OR YOUR TICKET AT CHECK-IN.
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="mt-2.5 text-center text-[7.5px] font-black tracking-[0.15em] py-1.5 border border-dashed"
+                  style={{ borderColor: 'rgba(39,39,42,0.35)' }}
+                >
+                  ** ONLINE PAYMENT SETTLED VIA PAYU **
+                </div>
+              )}
 
               <div className="flex items-end justify-center gap-[1.5px] h-9 mt-3.5">
                 {bars.map((w, i) => (
@@ -566,10 +577,7 @@ export default function BookingFlow({
   
   // Payment Options — the server decides whether checkout runs through PayU
   // ('online') or stays Pay on Arrival; until it answers, assume arrival.
-  // IOS-REVIEW-TEMP: pinned to Pay on Arrival during App Store review (the
-  // server-config fetch below is commented out). Restore the original line.
-  const [paymentMode] = useState('arrival');
-  // const [paymentMode, setPaymentMode] = useState('arrival');
+  const [paymentMode, setPaymentMode] = useState('arrival');
   const isOnlinePayment = paymentMode === 'online';
   const paymentGateway = isOnlinePayment ? 'PayU secure checkout' : 'Pay on Arrival';
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -918,15 +926,13 @@ export default function BookingFlow({
     ? Math.round((baseCostTotal - loyaltyDiscountValue) * 100) / 100
     : Math.round((baseCostTotal - appliedDiscountValue) * 100) / 100;
 
-  // IOS-REVIEW-TEMP: PayU disabled during App Store review — uncomment to
-  // let the server choose online vs arrival again.
-  // useEffect(() => {
-  //   let cancelled = false;
-  //   bookingsApi.getPaymentConfig()
-  //     .then((cfg) => { if (!cancelled && cfg?.mode) setPaymentMode(cfg.mode); })
-  //     .catch(() => {});
-  //   return () => { cancelled = true; };
-  // }, []);
+  useEffect(() => {
+    let cancelled = false;
+    bookingsApi.getPaymentConfig()
+      .then((cfg) => { if (!cancelled && cfg?.mode) setPaymentMode(cfg.mode); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Coming back from PayU: the backend has recorded whatever PayU posted and
   // redirected here with ?booking=…&payment=return. Poll the server (which also
@@ -1025,11 +1031,8 @@ export default function BookingFlow({
   }, []);
 
   const startGatewayRedirect = (payment) => {
-    // IOS-REVIEW-TEMP: PayU disabled during App Store review — the app never
-    // leaves for an external payment page. Uncomment to restore.
     // Leaves the app; PayU brings the customer back via the backend.
-    // redirectToPayU(payment.checkout);
-    throw new Error('We could not confirm your reservation. Please try again.');
+    redirectToPayU(payment.checkout);
   };
 
   const handleProcessPayment = async () => {
@@ -1796,8 +1799,9 @@ export default function BookingFlow({
               <hr className="my-1 border-dashed border-zinc-200 dark:border-zinc-800" />
 
               <div className="flex justify-between text-sm font-bold pt-1">
-                {/* IOS-REVIEW-TEMP: was "Final Settlement Amount" — restore after App Store approval. */}
-                <span className="text-forest-600 dark:text-forest-400">Payable on Arrival</span>
+                <span className="text-forest-600 dark:text-forest-400">
+                  {isOnlinePayment ? 'Total Payable' : 'Payable on Arrival'}
+                </span>
                 <span className={`font-sans font-black text-base ${darkMode ? 'text-emerald-450' : 'text-emerald-700'}`}>₹{finalPayAmount}</span>
               </div>
             </div>
@@ -1808,8 +1812,7 @@ export default function BookingFlow({
               <span>
                 {isOnlinePayment
                   ? 'Secured by PayU • UPI, Cards, Netbanking & Wallets'
-                  // IOS-REVIEW-TEMP: was 'Pay on Arrival at Base Camp • Instantly Credited to Organizer Wallet'
-                  : 'Pay on Arrival at Base Camp • No payment is taken in the app'}
+                  : 'Pay on Arrival at Base Camp • Instantly Credited to Organizer Wallet'}
               </span>
             </div>
 
@@ -1905,9 +1908,7 @@ export default function BookingFlow({
                   >
                     {finalPayAmount === 0
                       ? <>Confirm Free Booking <Gift size={14} /></>
-                      : isOnlinePayment
-                      ? <>Pay ₹{finalPayAmount} Securely <ShieldCheck size={14} /></>
-                      : <>Pay on Arrival (₹{finalPayAmount}) <ShieldCheck size={14} /></>}
+                      : <>Pay ₹{finalPayAmount} <ShieldCheck size={14} /></>}
                   </button>
                 </div>
               )}
@@ -2014,8 +2015,9 @@ export default function BookingFlow({
                     </div>
                   )}
                   <div className="flex justify-between font-bold pt-1.5 text-sm">
-                    {/* IOS-REVIEW-TEMP: was "Total Payable" — restore after App Store approval. */}
-                    <span className="text-forest-600 dark:text-forest-400">Payable on Arrival</span>
+                    <span className="text-forest-600 dark:text-forest-400">
+                      {isOnlinePayment ? 'Total Payable' : 'Payable on Arrival'}
+                    </span>
                     <span className={`font-black ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{finalPayAmount}</span>
                   </div>
                 </div>

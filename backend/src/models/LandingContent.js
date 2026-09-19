@@ -99,7 +99,7 @@ const landingContentSchema = new mongoose.Schema(
       items: {
         type: [portalSchema],
         default: () => [
-          { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, book with pay on arrival, and manage live ticket bookings.' /* IOS-REVIEW-TEMP: was "pay via simulated gateways" */, cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
+          { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, book with secure PayU checkout, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
           { key: 'organizer', title: 'Organizer Portal', badge: 'Agency Access', desc: 'Designed for local trekking agencies. Publish multi-day itineraries, manage seat inventory, upload dynamic photo galleries, and coordinate with hikers.', cta: 'Launch Organizer Portal', features: ['Dynamic Hike Form Builder', 'Booking Roster Trackers', 'Simulated Hiker Reply Chat', 'Verification Wizard'] },
         ],
       },
@@ -127,9 +127,7 @@ const landingContentSchema = new mongoose.Schema(
         type: [faqSchema],
         default: () => [
           { q: 'What makes Find Your Trek different from other booking systems?', a: 'Find Your Trek is built with a dual ecosystem: Hiker App and Organizer Portal. Hikers get direct access to local agencies without middlemen, while agencies get rich tools to manage day-by-day itineraries, add-ons, and safety lists.' },
-          // IOS-REVIEW-TEMP: original copy (restore after App Store approval):
-          // { q: 'Is the payment gateway secure?', a: 'Yes! Online payments are processed by PayU, an RBI-authorised payment gateway. Card, UPI and netbanking details are entered on the secure PayU checkout and never touch our servers.' },
-          { q: 'How do I pay for my trek?', a: 'Bookings are Pay on Arrival. Reserve your seats in the app at no charge, then pay the organizer directly at base camp on the day of departure — just show your receipt or ticket at check-in.' },
+          { q: 'Is the payment gateway secure?', a: 'Yes! Online payments are processed by PayU, an RBI-authorised payment gateway. Card, UPI and netbanking details are entered on the secure PayU checkout and never touch our servers.' },
           { q: 'How does the AI Recommendation Engine work?', a: 'By auditing your user profile (Experience: Beginner/Intermediate/Advanced and Fitness Level: Low/Moderate/High), Find Your Trek automatically matches you with hikes that align with your safety limits.' },
         ],
       },

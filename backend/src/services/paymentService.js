@@ -20,11 +20,7 @@ const paiseToRupees = (paise) => Math.round(Number(paise || 0)) / 100;
 // the booking flow down, so a credentials mistake in production costs the
 // online payment option rather than every sale.
 export function resolvePaymentMode() {
-  // IOS-REVIEW-TEMP: PayU is switched off while the iOS build is in App Store
-  // review — every booking is Pay on Arrival regardless of PAYMENT_MODE.
-  // Revert after approval: delete the return below and uncomment the original.
-  return 'arrival';
-  // return env.paymentMode === 'online' && paymentProvider.isConfigured() ? 'online' : 'arrival';
+  return env.paymentMode === 'online' && paymentProvider.isConfigured() ? 'online' : 'arrival';
 }
 
 // What the client needs to decide how to label and run checkout. Safe to serve
