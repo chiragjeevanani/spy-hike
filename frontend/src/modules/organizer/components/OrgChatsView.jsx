@@ -1,22 +1,34 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { MessageCircle, Send, ArrowLeft } from 'lucide-react';
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { MessageCircle, Send, ArrowLeft } from "lucide-react";
 
-export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack, darkMode, initialChatId }) {
+export default function OrgChatsView({
+  chats,
+  onSendMessage,
+  onMarkRead,
+  onBack,
+  darkMode,
+  initialChatId,
+}) {
   const [selectedChat, setSelectedChat] = useState(() => {
     if (initialChatId && Array.isArray(chats)) {
-      return chats.find(c => String(c.id || c._id) === String(initialChatId)) || null;
+      return (
+        chats.find((c) => String(c.id || c._id) === String(initialChatId)) ||
+        null
+      );
     }
     return null;
   });
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const messagesContainerRef = useRef(null);
   const orgInputRef = useRef(null);
 
   // Sync initialChatId when chats load or prop updates
   useEffect(() => {
     if (initialChatId && Array.isArray(chats)) {
-      const match = chats.find(c => String(c.id || c._id) === String(initialChatId));
+      const match = chats.find(
+        (c) => String(c.id || c._id) === String(initialChatId),
+      );
       if (match) setSelectedChat(match);
     }
   }, [initialChatId, chats]);
@@ -34,7 +46,8 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
   // Smooth internal scroll for messages container without shifting the window layout
   useEffect(() => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
     }
   }, [selectedChat?.id, selectedChat?.messages?.length]);
 
@@ -48,12 +61,12 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
   // Handle native hardware / gesture back button when viewing a chat thread
   useEffect(() => {
     if (selectedChat) {
-      window.history.pushState({ subview: 'chat-detail' }, '');
+      window.history.pushState({ subview: "chat-detail" }, "");
       const handlePop = () => {
         setSelectedChat(null);
       };
-      window.addEventListener('popstate', handlePop);
-      return () => window.removeEventListener('popstate', handlePop);
+      window.addEventListener("popstate", handlePop);
+      return () => window.removeEventListener("popstate", handlePop);
     }
   }, [selectedChat]);
 
@@ -67,52 +80,77 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
   const handleSend = () => {
     if (!inputText.trim() || !selectedChat) return;
     onSendMessage(selectedChat.id, inputText.trim());
-    setInputText('');
+    setInputText("");
   };
 
   const avatarFor = (chat) =>
     chat.userAvatar ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.userName || 'Hiker')}&background=F27D26&color=fff`;
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.userName || "Hiker")}&background=F27D26&color=fff`;
 
   const formatTime = (ts) => {
     const d = new Date(ts);
-    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   if (selectedChat) {
-    const chat = chats.find(c => String(c.id) === String(selectedChat.id)) || selectedChat;
+    const chat =
+      chats.find((c) => String(c.id) === String(selectedChat.id)) ||
+      selectedChat;
     return (
-      <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
+      <div
+        className={`h-full flex flex-col font-sans ${darkMode ? "text-white" : "text-zinc-800"}`}>
         {/* Chat header with safe-area status bar padding */}
-        <div className={`shrink-0 px-4 pt-12 pb-3.5 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? 'bg-zinc-900/95 border-b border-white/5' : 'bg-white/85 backdrop-blur-md border-b border-zinc-200/80 shadow-xs'}`}>
-          <button type="button" onClick={() => setSelectedChat(null)} className={`p-2 rounded-xl active:scale-95 transition ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`} aria-label="Back to conversations">
+        <div
+          className={`shrink-0 px-4 pt-12 pb-3.5 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? "bg-zinc-900/95 border-b border-white/5" : "bg-white/85 backdrop-blur-md border-b border-zinc-200/80 shadow-xs"}`}>
+          <button
+            type="button"
+            onClick={() => setSelectedChat(null)}
+            className={`p-2 rounded-xl active:scale-95 transition ${darkMode ? "bg-zinc-800 text-zinc-200" : "bg-zinc-100 text-zinc-700"}`}
+            aria-label="Back to conversations">
             <ArrowLeft size={18} />
           </button>
-          <img src={avatarFor(chat)} alt={chat.userName} className="w-10 h-10 rounded-full object-cover" />
+          <img
+            src={avatarFor(chat)}
+            alt={chat.userName}
+            className="w-10 h-10 rounded-full object-cover"
+          />
           <div>
             <p className="font-bold text-sm leading-tight">{chat.userName}</p>
-            <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chat.tripName}</p>
+            <p
+              className={`text-xs mt-0.5 ${darkMode ? "text-zinc-500" : "text-zinc-400"}`}>
+              {chat.tripName}
+            </p>
           </div>
         </div>
 
         {/* Messages */}
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {chat.messages.map((msg) => {
-            const isOrg = msg.sender === 'organizer';
+            const isOrg = msg.sender === "organizer";
             return (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex ${isOrg ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${
-                  isOrg
-                    ? 'bg-spy-orange text-white rounded-tr-sm'
-                    : darkMode ? 'bg-zinc-800 text-white rounded-tl-sm' : 'bg-zinc-100 text-zinc-800 rounded-tl-sm'
-                }`}>
+                className={`flex ${isOrg ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${
+                    isOrg
+                      ? "bg-spy-orange text-white rounded-tr-sm"
+                      : darkMode
+                        ? "bg-zinc-800 text-white rounded-tl-sm"
+                        : "bg-zinc-100 text-zinc-800 rounded-tl-sm"
+                  }`}>
                   <p className="text-sm leading-relaxed">{msg.text}</p>
-                  <p className={`text-[9px] mt-1 ${isOrg ? 'text-white/60 text-right' : darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{formatTime(msg.timestamp)}</p>
+                  <p
+                    className={`text-[9px] mt-1 ${isOrg ? "text-white/60 text-right" : darkMode ? "text-zinc-500" : "text-zinc-400"}`}>
+                    {formatTime(msg.timestamp)}
+                  </p>
                 </div>
               </motion.div>
             );
@@ -120,24 +158,26 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
         </div>
 
         {/* Input bar */}
-        <div className={`shrink-0 px-4 py-3 flex items-center gap-2 ${darkMode ? 'bg-zinc-900 border-t border-white/5' : 'bg-white/90 backdrop-blur-md border-t border-zinc-200/80 shadow-xs'}`}>
+        <div
+          className={`shrink-0 px-4 py-3 flex items-center gap-2 ${darkMode ? "bg-zinc-900 border-t border-white/5" : "bg-white/90 backdrop-blur-md border-t border-zinc-200/80 shadow-xs"}`}>
           <input
             ref={orgInputRef}
             type="text"
             value={inputText}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSend()}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type a message..."
             className={`flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none border transition ${
-              darkMode ? 'bg-zinc-800 border-white/10 text-white placeholder-white/30 focus:border-spy-orange/40' : 'bg-zinc-50 border-zinc-200 focus:border-spy-orange/40'
+              darkMode
+                ? "bg-zinc-800 border-white/10 text-white placeholder-white/30 focus:border-spy-orange/40"
+                : "bg-zinc-50 border-zinc-200 focus:border-spy-orange/40"
             }`}
           />
           <button
             type="button"
             onClick={handleSend}
             disabled={!inputText.trim()}
-            className="w-10 h-10 bg-spy-orange disabled:opacity-40 text-white rounded-2xl flex items-center justify-center shadow-md shadow-spy-orange/20 active:scale-90 transition-all"
-          >
+            className="w-10 h-10 bg-spy-orange disabled:opacity-40 text-white rounded-2xl flex items-center justify-center shadow-md shadow-spy-orange/20 active:scale-90 transition-all">
             <Send size={16} />
           </button>
         </div>
@@ -146,25 +186,33 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
   }
 
   return (
-    <div className={`h-full flex flex-col font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
+    <div
+      className={`h-full flex flex-col font-sans ${darkMode ? "text-white" : "text-zinc-800"}`}>
       {/* Header with safe-area status bar padding */}
-      <div className={`px-5 pt-12 pb-4 shrink-0 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? 'bg-gradient-to-b from-zinc-900/90 to-transparent' : 'bg-gradient-to-b from-orange-50 to-transparent'}`}>
+      <div
+        className={`px-5 pt-12 pb-4 shrink-0 flex items-center gap-3 pt-[calc(1.75rem+env(safe-area-inset-top,24px))] ${darkMode ? "bg-gradient-to-b from-zinc-900/90 to-transparent" : "bg-gradient-to-b from-orange-50 to-transparent"}`}>
         {onBack && (
           <button
             id="btn-back-org-messages"
             type="button"
             onClick={onBack}
             className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition shrink-0 ${
-              darkMode ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700' : 'bg-white text-zinc-600 shadow-sm hover:bg-zinc-100'
+              darkMode
+                ? "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+                : "bg-white text-zinc-600 shadow-sm hover:bg-zinc-100"
             }`}
-            aria-label="Go back"
-          >
+            aria-label="Go back">
             <ArrowLeft size={18} />
           </button>
         )}
         <div>
-          <h1 className="text-xl font-display font-black tracking-tight mb-0.5">Messages</h1>
-          <p className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{chats.length} active conversation{chats.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-xl font-display font-black tracking-tight mb-0.5">
+            Messages
+          </h1>
+          <p
+            className={`text-xs ${darkMode ? "text-zinc-500" : "text-zinc-400"}`}>
+            {chats.length} active conversation{chats.length !== 1 ? "s" : ""}
+          </p>
         </div>
       </div>
 
@@ -173,12 +221,17 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
           <div className="flex flex-col items-center justify-center pt-16 text-center">
             <MessageCircle size={40} className="text-zinc-300 mb-3" />
             <p className="font-bold text-sm">No messages yet</p>
-            <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>Hikers will reach out after booking your trips</p>
+            <p
+              className={`text-xs mt-1 ${darkMode ? "text-zinc-600" : "text-zinc-400"}`}>
+              Hikers will reach out after booking your trips
+            </p>
           </div>
         ) : (
           chats.map((chat, i) => {
             const lastMsg = chat.messages[chat.messages.length - 1];
-            const unread = chat.messages.filter(m => m.sender === 'user' && !m.read).length;
+            const unread = chat.messages.filter(
+              (m) => m.sender === "user" && !m.read,
+            ).length;
             return (
               <motion.div
                 key={chat.id}
@@ -187,11 +240,16 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
                 transition={{ delay: i * 0.06 }}
                 onClick={() => handleSelectChat(chat)}
                 className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-all ${
-                  darkMode ? 'bg-zinc-900/80 border border-white/10 hover:border-white/20' : 'bg-white/90 border border-zinc-200/80 shadow-xs hover:shadow'
-                }`}
-              >
+                  darkMode
+                    ? "bg-zinc-900/80 border border-white/10 hover:border-white/20"
+                    : "bg-white/90 border border-zinc-200/80 shadow-xs hover:shadow"
+                }`}>
                 <div className="relative">
-                  <img src={avatarFor(chat)} alt={chat.userName} className="w-12 h-12 rounded-full object-cover" />
+                  <img
+                    src={avatarFor(chat)}
+                    alt={chat.userName}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
                   {unread > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-spy-orange text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-zinc-950">
                       {unread}
@@ -200,11 +258,23 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
-                    <p className={`text-sm font-bold truncate ${unread > 0 ? '' : darkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{chat.userName}</p>
-                    <p className={`text-[10px] shrink-0 ml-2 ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>{lastMsg ? formatTime(lastMsg.timestamp) : ''}</p>
+                    <p
+                      className={`text-sm font-bold truncate ${unread > 0 ? "" : darkMode ? "text-zinc-300" : "text-zinc-700"}`}>
+                      {chat.userName}
+                    </p>
+                    <p
+                      className={`text-[10px] shrink-0 ml-2 ${darkMode ? "text-zinc-600" : "text-zinc-400"}`}>
+                      {lastMsg ? formatTime(lastMsg.timestamp) : ""}
+                    </p>
                   </div>
-                  <p className={`text-xs truncate ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{lastMsg?.text || 'No messages yet'}</p>
-                  <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-zinc-600' : 'text-zinc-300'}`}>{chat.tripName}</p>
+                  <p
+                    className={`text-xs truncate ${darkMode ? "text-zinc-500" : "text-zinc-400"}`}>
+                    {lastMsg?.text || "No messages yet"}
+                  </p>
+                  <p
+                    className={`text-[10px] mt-0.5 ${darkMode ? "text-zinc-600" : "text-zinc-300"}`}>
+                    {chat.tripName}
+                  </p>
                 </div>
               </motion.div>
             );
@@ -213,5 +283,4 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
       </div>
     </div>
   );
-
 }

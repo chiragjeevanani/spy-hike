@@ -41,9 +41,10 @@ const tripPayload = (trekId, over = {}) => ({
 });
 
 async function makeTrip(orgToken, over) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `booking-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Booking Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `booking-trek-${Date.now()}-${seq}`,
+    title: `Booking Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send(tripPayload(trek._id, over));

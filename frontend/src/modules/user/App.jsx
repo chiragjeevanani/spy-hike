@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Map, AlertTriangle } from 'lucide-react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Map, AlertTriangle } from "lucide-react";
 import {
   resetPageScroll,
   nextHistoryKey,
@@ -8,74 +14,91 @@ import {
   rememberPageScroll,
   recallPageScroll,
   restorePageScroll,
-} from '../../utils/scroll';
-import { setNavInstant, useInstantNav, routeSwapVariants } from '../../utils/navTransition';
-import PhoneFrame from './components/PhoneFrame';
-import BottomNav from './components/BottomNav';
-import DesktopNav from './components/DesktopNav';
-import NotificationDrawer from './components/NotificationDrawer';
-import Onboarding from './components/Onboarding';
-import Auth from './components/Auth';
-import ProfileSetup from './components/ProfileSetup';
-import HomeView from './components/HomeView';
-import ExploreView from './components/ExploreView';
-import TrekOrganizersView from './components/TrekOrganizersView';
-import TrekDetailsView from './components/TrekDetailsView';
-import TripDetailsView from './components/TripDetailsView';
-import BookingFlow from './components/BookingFlow';
-import BookingsView from './components/BookingsView';
-import WishlistView from './components/WishlistView';
-import ProfileView from './components/ProfileView';
-import BookingDetailsView from './components/BookingDetailsView';
-import OrganizerProfileView from './components/OrganizerProfileView';
-import LoyaltyRewardsView from './components/LoyaltyRewardsView';
-import LocationPicker from './components/LocationPicker';
-import MapView from './components/MapView';
-import LandingView from '../landing/LandingView';
-import PrivacyPolicyPage from '../landing/PrivacyPolicyPage';
-import SupportPage from '../landing/SupportPage';
-import NotFoundPage from '../../components/NotFoundPage';
-import PullToRefresh from '../../components/PullToRefresh';
-import treksApi from '../../lib/treksApi';
+} from "../../utils/scroll";
+import {
+  setNavInstant,
+  useInstantNav,
+  routeSwapVariants,
+} from "../../utils/navTransition";
+import PhoneFrame from "./components/PhoneFrame";
+import BottomNav from "./components/BottomNav";
+import DesktopNav from "./components/DesktopNav";
+import NotificationDrawer from "./components/NotificationDrawer";
+import Onboarding from "./components/Onboarding";
+import Auth from "./components/Auth";
+import ProfileSetup from "./components/ProfileSetup";
+import HomeView from "./components/HomeView";
+import ExploreView from "./components/ExploreView";
+import TrekOrganizersView from "./components/TrekOrganizersView";
+import TrekDetailsView from "./components/TrekDetailsView";
+import TripDetailsView from "./components/TripDetailsView";
+import BookingFlow from "./components/BookingFlow";
+import BookingsView from "./components/BookingsView";
+import WishlistView from "./components/WishlistView";
+import ProfileView from "./components/ProfileView";
+import BookingDetailsView from "./components/BookingDetailsView";
+import OrganizerProfileView from "./components/OrganizerProfileView";
+import LoyaltyRewardsView from "./components/LoyaltyRewardsView";
+import LocationPicker from "./components/LocationPicker";
+import MapView from "./components/MapView";
+import LandingView from "../landing/LandingView";
+import PrivacyPolicyPage from "../landing/PrivacyPolicyPage";
+import SupportPage from "../landing/SupportPage";
+import NotFoundPage from "../../components/NotFoundPage";
+import PullToRefresh from "../../components/PullToRefresh";
+import treksApi from "../../lib/treksApi";
 
 import {
-  loadUserState, saveUserState,
-  loadWishlist, saveWishlist,
-  loadBookings, saveBookings,
-  loadNotifications, saveNotifications,
-  loadChats, saveChats,
-  loadTrips, saveTrips,
-  loadDarkMode, saveDarkMode
-} from './utils/storage';
-import { slugifyTrekName } from './utils/trekGroups';
-import { downloadTicketPDF } from './utils/ticketPdf';
-import { syncCustomerVouchers, hydrateCustomerLoyalty } from '../../utils/loyalty';
-import { safeSetItem } from '../../utils/safeStorage';
-import tripsApi from '../../lib/tripsApi';
-import bookingsApi from '../../lib/bookingsApi';
-import socialApi from '../../lib/socialApi';
-import landingApi from '../../lib/landingApi';
-import contentApi from '../../lib/contentApi';
-import { getToken, clearToken, clearApiCache } from '../../lib/apiClient';
-import authApi from '../../lib/authApi';
-import { loadLandingContentLocal } from '../landing/landingContent';
-import { initPushNotifications } from '../../utils/pushNotifications';
-import { useLivePoll, LIVE } from '../../utils/livePoll';
-import { requestPushPermission, HikerAlerts } from '../../utils/pushNotificationService';
-import { useToast } from '../../components/ToastProvider';
-import { requestAppRefresh } from '../../utils/refreshSignal';
+  loadUserState,
+  saveUserState,
+  loadWishlist,
+  saveWishlist,
+  loadBookings,
+  saveBookings,
+  loadNotifications,
+  saveNotifications,
+  loadChats,
+  saveChats,
+  loadTrips,
+  saveTrips,
+  loadDarkMode,
+  saveDarkMode,
+} from "./utils/storage";
+import { slugifyTrekName } from "./utils/trekGroups";
+import { downloadTicketPDF } from "./utils/ticketPdf";
+import {
+  syncCustomerVouchers,
+  hydrateCustomerLoyalty,
+} from "../../utils/loyalty";
+import { safeSetItem } from "../../utils/safeStorage";
+import tripsApi from "../../lib/tripsApi";
+import bookingsApi from "../../lib/bookingsApi";
+import socialApi from "../../lib/socialApi";
+import landingApi from "../../lib/landingApi";
+import contentApi from "../../lib/contentApi";
+import { getToken, clearToken, clearApiCache } from "../../lib/apiClient";
+import authApi from "../../lib/authApi";
+import { loadLandingContentLocal } from "../landing/landingContent";
+import { initPushNotifications } from "../../utils/pushNotifications";
+import { useLivePoll, LIVE } from "../../utils/livePoll";
+import {
+  requestPushPermission,
+  HikerAlerts,
+} from "../../utils/pushNotificationService";
+import { useToast } from "../../components/ToastProvider";
+import { requestAppRefresh } from "../../utils/refreshSignal";
 
 // The traveller app lives entirely under /app (e.g. /app/explore, /app/login);
 // the root path (and anything else outside /app, /organizer, /admin) is the
 // public marketing Landing page and bypasses onboarding/auth gates entirely.
-const APP_PREFIX = '/app';
+const APP_PREFIX = "/app";
 
 // Standalone public pages that live outside /app — reachable with zero login
 // (unlike everything else, which is gated behind /app's auth/onboarding
 // checks below). Raw browser pathname -> the tab that renders it.
 const PUBLIC_PAGE_ROUTES = {
-  '/privacy-policy': 'PrivacyPolicy',
-  '/support': 'SupportPublic',
+  "/privacy-policy": "PrivacyPolicy",
+  "/support": "SupportPublic",
 };
 
 // Deep-linkable Profile sub-pages (each menu item in ProfileView gets a real
@@ -83,12 +106,12 @@ const PUBLIC_PAGE_ROUTES = {
 // currentSub key ProfileView renders. Absent from this map (or exactly
 // '/profile') means the main Profile menu.
 const PROFILE_SUB_ROUTES = {
-  '/profile/personal-details': 'EDIT_PERSONAL',
-  '/profile/athletics': 'EDIT_STATS',
-  '/profile/reviews': 'MY_REVIEWS',
-  '/profile/settings': 'SETTINGS',
-  '/profile/support': 'SUPPORT',
-  '/profile/become-organizer': 'BECOME_ORGANIZER',
+  "/profile/personal-details": "EDIT_PERSONAL",
+  "/profile/athletics": "EDIT_STATS",
+  "/profile/reviews": "MY_REVIEWS",
+  "/profile/settings": "SETTINGS",
+  "/profile/support": "SUPPORT",
+  "/profile/become-organizer": "BECOME_ORGANIZER",
 };
 // Reverse lookup used when ProfileView reports a currentSub change so the URL
 // can be kept in sync (see onNavigateProfile below).
@@ -101,8 +124,9 @@ const PROFILE_SUB_TO_PATH = Object.fromEntries(
 // /app" — render the Landing page (or one of the standalone public pages
 // above, both handled before this ever gets called).
 const toInternalPath = (rawPath) => {
-  if (rawPath === APP_PREFIX) return '/';
-  if (rawPath.startsWith(APP_PREFIX + '/')) return rawPath.slice(APP_PREFIX.length);
+  if (rawPath === APP_PREFIX) return "/";
+  if (rawPath.startsWith(APP_PREFIX + "/"))
+    return rawPath.slice(APP_PREFIX.length);
   return null;
 };
 
@@ -114,38 +138,41 @@ const toInternalPath = (rawPath) => {
 // UNDERNEATH back to the top for no visible benefit, and that silent jump
 // is precisely what iOS's swipe-back snapshot exposes on the way back (see
 // utils/scroll.js).
-const isOverlayPath = (internalPath) => (
-  !!internalPath && (
-    internalPath.startsWith('/trek/')
-    || internalPath.startsWith('/trip/')
-    || internalPath.startsWith('/book/')
-    || internalPath.startsWith('/booking/')
-    || internalPath.startsWith('/organizers/')
-    || internalPath === '/loyalty'
-    || internalPath === '/map'
-  )
-);
+const isOverlayPath = (internalPath) =>
+  !!internalPath &&
+  (internalPath.startsWith("/trek/") ||
+    internalPath.startsWith("/trip/") ||
+    internalPath.startsWith("/book/") ||
+    internalPath.startsWith("/booking/") ||
+    internalPath.startsWith("/organizers/") ||
+    internalPath === "/loyalty" ||
+    internalPath === "/map");
 
 // Enter/exit for those overlays, and for the tab swap underneath — see
 // utils/navTransition.js for why a back/forward has to skip the transition
 // rather than play it.
 const overlayVariants = routeSwapVariants({
-  from: { opacity: 0, y: 16 }, exit: { opacity: 0, y: 12 }, duration: 0.18, ease: 'easeOut',
+  from: { opacity: 0, y: 16 },
+  exit: { opacity: 0, y: 12 },
+  duration: 0.18,
+  ease: "easeOut",
 });
 
 const tabVariants = routeSwapVariants({
-  from: { opacity: 0, y: 6 }, exit: { opacity: 0, y: -6 }, duration: 0.15, ease: 'easeOut',
+  from: { opacity: 0, y: 6 },
+  exit: { opacity: 0, y: -6 },
+  duration: 0.15,
+  ease: "easeOut",
 });
 
 // Internal relative path -> real browser URL (e.g. '/explore' -> '/app/explore').
-const toBrowserPath = (internalPath) => (
-  internalPath === '/' ? APP_PREFIX : `${APP_PREFIX}${internalPath}`
-);
+const toBrowserPath = (internalPath) =>
+  internalPath === "/" ? APP_PREFIX : `${APP_PREFIX}${internalPath}`;
 
 const getInitialStateFromUrl = () => {
   const user = loadUserState();
 
-  let tab = 'Home';
+  let tab = "Home";
   let trip = null;
   let bookingTrip = null;
   let selectedBooking = null;
@@ -157,136 +184,198 @@ const getInitialStateFromUrl = () => {
   // everything else — checked against the raw pathname since they live
   // outside /app.
   if (PUBLIC_PAGE_ROUTES[window.location.pathname]) {
-    return { tab: PUBLIC_PAGE_ROUTES[window.location.pathname], trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
+    return {
+      tab: PUBLIC_PAGE_ROUTES[window.location.pathname],
+      trip,
+      bookingTrip,
+      selectedBooking,
+      selectedOrganizer,
+      trekName,
+      profileSub,
+    };
   }
 
   // Root path (and anything else outside /app) is the public marketing Landing page.
   const path = toInternalPath(window.location.pathname);
   if (path === null) {
-    return { tab: 'Landing', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
+    return {
+      tab: "Landing",
+      trip,
+      bookingTrip,
+      selectedBooking,
+      selectedOrganizer,
+      trekName,
+      profileSub,
+    };
   }
 
   // 1. Authenticated Profile Setup & Onboarding Gate redirect rules
-  if (user.isAuthenticated && path !== '/login' && path !== '/register') {
+  if (user.isAuthenticated && path !== "/login" && path !== "/register") {
     if (!user.profileSetupComplete) {
-      tab = 'ProfileSetup';
-      if (path !== '/profilesetup') {
-        const url = toBrowserPath('/profilesetup');
-        window.history.replaceState({ path: url }, '', url);
+      tab = "ProfileSetup";
+      if (path !== "/profilesetup") {
+        const url = toBrowserPath("/profilesetup");
+        window.history.replaceState({ path: url }, "", url);
       }
-      return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+      return {
+        tab,
+        trip,
+        bookingTrip,
+        selectedBooking,
+        selectedOrganizer,
+        trekName,
+      };
     } else if (!user.isOnboarded) {
-      tab = 'Onboarding';
-      if (path !== '/onboardingguide') {
-        const url = toBrowserPath('/onboardingguide');
-        window.history.replaceState({ path: url }, '', url);
+      tab = "Onboarding";
+      if (path !== "/onboardingguide") {
+        const url = toBrowserPath("/onboardingguide");
+        window.history.replaceState({ path: url }, "", url);
       }
-      return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+      return {
+        tab,
+        trip,
+        bookingTrip,
+        selectedBooking,
+        selectedOrganizer,
+        trekName,
+      };
     }
   }
 
   // 2. Unauthenticated Gate redirect rules
   if (!user.isAuthenticated) {
     const isProtectedRoute =
-      path === '/profile' ||
-      path.startsWith('/profile/') ||
-      path === '/bookings' ||
-      path === '/profilesetup' ||
-      path === '/onboardingguide' ||
-      path.startsWith('/booking/') ||
-      path.startsWith('/book/');
+      path === "/profile" ||
+      path.startsWith("/profile/") ||
+      path === "/bookings" ||
+      path === "/profilesetup" ||
+      path === "/onboardingguide" ||
+      path.startsWith("/booking/") ||
+      path.startsWith("/book/");
 
     if (isProtectedRoute) {
-      if (path === '/register') {
-        tab = 'Register';
+      if (path === "/register") {
+        tab = "Register";
       } else {
-        tab = 'Login';
-        if (path !== '/login') {
-          const url = toBrowserPath('/login');
-          window.history.replaceState({ path: url }, '', url);
+        tab = "Login";
+        if (path !== "/login") {
+          const url = toBrowserPath("/login");
+          window.history.replaceState({ path: url }, "", url);
         }
       }
-      return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+      return {
+        tab,
+        trip,
+        bookingTrip,
+        selectedBooking,
+        selectedOrganizer,
+        trekName,
+      };
     }
   }
 
   // 3. Authenticated, Onboarded & Configured redirect rules
-  if (user.isAuthenticated && (path === '/login' || path === '/register' || path === '/onboardingguide' || path === '/profilesetup')) {
-    const url = toBrowserPath('/');
-    window.history.replaceState({ path: url }, '', url);
-    return { tab: 'Home', trip, bookingTrip, selectedBooking, selectedOrganizer, trekName };
+  if (
+    user.isAuthenticated &&
+    (path === "/login" ||
+      path === "/register" ||
+      path === "/onboardingguide" ||
+      path === "/profilesetup")
+  ) {
+    const url = toBrowserPath("/");
+    window.history.replaceState({ path: url }, "", url);
+    return {
+      tab: "Home",
+      trip,
+      bookingTrip,
+      selectedBooking,
+      selectedOrganizer,
+      trekName,
+    };
   }
 
   // 4. Normal Tab / Detail routing parsing
   const allTrips = loadTrips();
   const allBookings = loadBookings();
 
-  if (path === '/' || path === '' || path === '/home') {
-    tab = 'Home';
-  } else if (path === '/explore') {
-    tab = 'Explore';
-  } else if (path === '/bookings') {
-    tab = 'Bookings';
-  } else if (path === '/wishlist') {
-    tab = 'Wishlist';
-  } else if (path === '/profile') {
-    tab = 'Profile';
+  if (path === "/" || path === "" || path === "/home") {
+    tab = "Home";
+  } else if (path === "/explore") {
+    tab = "Explore";
+  } else if (path === "/bookings") {
+    tab = "Bookings";
+  } else if (path === "/wishlist") {
+    tab = "Wishlist";
+  } else if (path === "/profile") {
+    tab = "Profile";
   } else if (PROFILE_SUB_ROUTES[path]) {
-    tab = 'Profile';
+    tab = "Profile";
     profileSub = PROFILE_SUB_ROUTES[path];
-  } else if (path.startsWith('/trek/')) {
-    const subPath = path.replace('/trek/', '');
-    const isOrganizers = subPath.endsWith('/organizers');
-    const trekSlug = isOrganizers ? subPath.replace('/organizers', '') : subPath;
-    const foundTrip = allTrips.find(t => slugifyTrekName(t.name) === trekSlug);
+  } else if (path.startsWith("/trek/")) {
+    const subPath = path.replace("/trek/", "");
+    const isOrganizers = subPath.endsWith("/organizers");
+    const trekSlug = isOrganizers
+      ? subPath.replace("/organizers", "")
+      : subPath;
+    const foundTrip = allTrips.find(
+      (t) => slugifyTrekName(t.name) === trekSlug,
+    );
     if (foundTrip) {
-      tab = 'Explore';
+      tab = "Explore";
       trekName = foundTrip.name;
     }
-  } else if (path.startsWith('/trip/')) {
-    const tripId = path.replace('/trip/', '');
-    const foundTrip = allTrips.find(t => t.id === tripId);
+  } else if (path.startsWith("/trip/")) {
+    const tripId = path.replace("/trip/", "");
+    const foundTrip = allTrips.find((t) => t.id === tripId);
     if (foundTrip) {
-      tab = 'Explore';
+      tab = "Explore";
       trip = foundTrip;
       trekName = foundTrip.name;
     }
-  } else if (path.startsWith('/book/')) {
-    const tripId = path.replace('/book/', '');
-    const foundTrip = allTrips.find(t => t.id === tripId);
+  } else if (path.startsWith("/book/")) {
+    const tripId = path.replace("/book/", "");
+    const foundTrip = allTrips.find((t) => t.id === tripId);
     if (foundTrip) {
-      tab = 'Explore';
+      tab = "Explore";
       trip = foundTrip;
       bookingTrip = foundTrip;
       trekName = foundTrip.name;
     }
-  } else if (path.startsWith('/booking/')) {
-    const bookingId = path.replace('/booking/', '');
-    const foundBooking = allBookings.find(b => b.id === bookingId);
+  } else if (path.startsWith("/booking/")) {
+    const bookingId = path.replace("/booking/", "");
+    const foundBooking = allBookings.find((b) => b.id === bookingId);
     if (foundBooking) {
-      tab = 'Bookings';
+      tab = "Bookings";
       selectedBooking = foundBooking;
     }
-  } else if (path.startsWith('/organizers/')) {
-    const orgNameEncoded = path.replace('/organizers/', '');
+  } else if (path.startsWith("/organizers/")) {
+    const orgNameEncoded = path.replace("/organizers/", "");
     const orgName = decodeURIComponent(orgNameEncoded);
-    const foundTrip = allTrips.find(t => t.organizer.name === orgName);
+    const foundTrip = allTrips.find((t) => t.organizer.name === orgName);
     if (foundTrip) {
-      tab = 'Explore';
+      tab = "Explore";
       selectedOrganizer = foundTrip.organizer;
     }
-  } else if (path === '/loyalty' || path === '/map') {
+  } else if (path === "/loyalty" || path === "/map") {
     // Both render over a tab rather than replacing it; Home is the sane one
     // to have underneath when the URL is opened cold.
-    tab = 'Home';
-  } else if (path === '/login') {
-    tab = 'Login';
-  } else if (path === '/register') {
-    tab = 'Register';
+    tab = "Home";
+  } else if (path === "/login") {
+    tab = "Login";
+  } else if (path === "/register") {
+    tab = "Register";
   } else {
-    tab = 'NotFound';
+    tab = "NotFound";
   }
-  return { tab, trip, bookingTrip, selectedBooking, selectedOrganizer, trekName, profileSub };
+  return {
+    tab,
+    trip,
+    bookingTrip,
+    selectedBooking,
+    selectedOrganizer,
+    trekName,
+    profileSub,
+  };
 };
 
 export default function App() {
@@ -302,7 +391,7 @@ export default function App() {
   // Bookings opens that trip's chat drawer immediately instead of just
   // landing on the list. BookingsView clears it once the drawer is open.
   const [pendingChatTripId, setPendingChatTripId] = useState(
-    () => new URLSearchParams(window.location.search).get('chatTripId') || null
+    () => new URLSearchParams(window.location.search).get("chatTripId") || null,
   );
   // Admin-managed marketing content for the public landing page. Seeded from
   // the same-origin localStorage cache (so offline admin edits show at once),
@@ -316,21 +405,29 @@ export default function App() {
   // to Home) just because its backing list hasn't finished its first fetch
   // yet. See the route-resolution reconciliation effect below.
   const [catalogLoading, setCatalogLoading] = useState(true);
-  const [bookingsLoading, setBookingsLoading] = useState(() => user.isAuthenticated);
+  const [bookingsLoading, setBookingsLoading] = useState(
+    () => user.isAuthenticated,
+  );
   const [darkMode, setDarkMode] = useState(() => loadDarkMode());
   const [bannedAlert, setBannedAlert] = useState(false);
-  const [bannedReason, setBannedReason] = useState('banned');
+  const [bannedReason, setBannedReason] = useState("banned");
   // Support contact shown on the deactivated/banned overlay — admin-editable
   // via the CMS (see lib/contentApi.js), with sane fallback defaults.
-  const [supportContact, setSupportContact] = useState({ email: 'support@findyourtrek.com', phone: '+91 99999 88888' });
+  const [supportContact, setSupportContact] = useState({
+    email: "support@findyourtrek.com",
+    phone: "+91 99999 88888",
+  });
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
   // Loyalty Rewards and the fullscreen map are pages, not modals: each gets
   // its own URL so opening one pushes a history entry. Without that, a back
   // gesture popped whatever entry happened to be underneath while the screen
   // itself — plain local state the router never touched — stayed painted on
   // top, which looked like "it goes back and then comes straight back".
-  const [showMap, setShowMap] = useState(() => toInternalPath(window.location.pathname) === '/map');
-  const [showGlobalNotificationDrawer, setShowGlobalNotificationDrawer] = useState(false);
+  const [showMap, setShowMap] = useState(
+    () => toInternalPath(window.location.pathname) === "/map",
+  );
+  const [showGlobalNotificationDrawer, setShowGlobalNotificationDrawer] =
+    useState(false);
   // Hides the bottom nav while a tab renders a fullscreen flow (e.g. the
   // "Become an Organizer" application form inside Profile).
   const [navHidden, setNavHidden] = useState(false);
@@ -342,41 +439,59 @@ export default function App() {
   const instantNav = useInstantNav();
 
   // 2. Navigation registers initialized from URL
-  const [activeTab, setActiveTab] = useState(() => getInitialStateFromUrl().tab);
-  const [selectedTrip, setSelectedTrip] = useState(() => getInitialStateFromUrl().trip);
-  const [activeBookingTrip, setActiveBookingTrip] = useState(() => getInitialStateFromUrl().bookingTrip);
-  const [selectedBooking, setSelectedBooking] = useState(() => getInitialStateFromUrl().selectedBooking);
-  const [selectedOrganizer, setSelectedOrganizer] = useState(() => getInitialStateFromUrl().selectedOrganizer);
-  const [selectedTrekName, setSelectedTrekName] = useState(() => getInitialStateFromUrl().trekName);
+  const [activeTab, setActiveTab] = useState(
+    () => getInitialStateFromUrl().tab,
+  );
+  const [selectedTrip, setSelectedTrip] = useState(
+    () => getInitialStateFromUrl().trip,
+  );
+  const [activeBookingTrip, setActiveBookingTrip] = useState(
+    () => getInitialStateFromUrl().bookingTrip,
+  );
+  const [selectedBooking, setSelectedBooking] = useState(
+    () => getInitialStateFromUrl().selectedBooking,
+  );
+  const [selectedOrganizer, setSelectedOrganizer] = useState(
+    () => getInitialStateFromUrl().selectedOrganizer,
+  );
+  const [selectedTrekName, setSelectedTrekName] = useState(
+    () => getInitialStateFromUrl().trekName,
+  );
   const [showOrganizersList, setShowOrganizersList] = useState(() => {
     const p = window.location.pathname;
-    return p.startsWith('/trek/') && p.endsWith('/organizers');
+    return p.startsWith("/trek/") && p.endsWith("/organizers");
   });
   const [catalogTreks, setCatalogTreks] = useState([]);
   // Which Profile sub-page is deep-linked (e.g. '/app/profile/settings') —
   // null means the main Profile menu. Kept in sync with the URL both ways:
   // ProfileView reads it as `initialSub` and reports taps back via
   // `onNavigateProfile` so the browser's back button works as expected.
-  const [profileSub, setProfileSub] = useState(() => getInitialStateFromUrl().profileSub);
-  const [showLoyalty, setShowLoyalty] = useState(() => toInternalPath(window.location.pathname) === '/loyalty');
+  const [profileSub, setProfileSub] = useState(
+    () => getInitialStateFromUrl().profileSub,
+  );
+  const [showLoyalty, setShowLoyalty] = useState(
+    () => toInternalPath(window.location.pathname) === "/loyalty",
+  );
 
   // 3. Search & Filter & Location dynamic bindings to propagate to Explore tab
-  const [exploreSearchQuery, setExploreSearchQuery] = useState('');
-  const [exploreCategory, setExploreCategory] = useState('All');
+  const [exploreSearchQuery, setExploreSearchQuery] = useState("");
+  const [exploreCategory, setExploreCategory] = useState("All");
   // Departure-date filter ('' = off) — set from the Home calendar, applied in Explore.
-  const [exploreDate, setExploreDate] = useState('');
+  const [exploreDate, setExploreDate] = useState("");
   const [userLocation, setUserLocation] = useState(() => {
     try {
-      const v = localStorage.getItem('trekigo_location');
+      const v = localStorage.getItem("trekigo_location");
       if (v) return JSON.parse(v);
     } catch (e) {}
-    return { label: 'India' };
+    return { label: "India" };
   });
   const [showAppLocationPicker, setShowAppLocationPicker] = useState(false);
 
   const handleSelectUserLocation = (loc) => {
     setUserLocation(loc);
-    try { localStorage.setItem('trekigo_location', JSON.stringify(loc)); } catch (e) {}
+    try {
+      localStorage.setItem("trekigo_location", JSON.stringify(loc));
+    } catch (e) {}
     setShowAppLocationPicker(false);
   };
 
@@ -388,13 +503,13 @@ export default function App() {
     rememberPageScroll();
     const state = { path: url, key: nextHistoryKey() };
     if (replace) {
-      window.history.replaceState(state, '', url);
+      window.history.replaceState(state, "", url);
     } else {
-      window.history.pushState(state, '', url);
+      window.history.pushState(state, "", url);
     }
     setNavInstant(false);
-    if (url && url !== '/' && url !== '/login') {
-      safeSetItem('trekigo_last_route', url);
+    if (url && url !== "/" && url !== "/login") {
+      safeSetItem("trekigo_last_route", url);
     }
     handleRouteChange(currentUser);
   };
@@ -403,7 +518,11 @@ export default function App() {
   // Policy, Support) — a raw pathname, not run through toBrowserPath.
   const navigateToPublic = (rawPath) => {
     rememberPageScroll();
-    window.history.pushState({ path: rawPath, key: nextHistoryKey() }, '', rawPath);
+    window.history.pushState(
+      { path: rawPath, key: nextHistoryKey() },
+      "",
+      rawPath,
+    );
     setNavInstant(false);
     handleRouteChange();
   };
@@ -422,7 +541,9 @@ export default function App() {
       inAppBackRef.current = true;
       // Safety net: if that back never lands (nothing left in the stack),
       // don't leave the flag armed for a later gesture-back.
-      setTimeout(() => { inAppBackRef.current = false; }, 300);
+      setTimeout(() => {
+        inAppBackRef.current = false;
+      }, 300);
       window.history.back();
     } else {
       navigateTo(fallbackPath);
@@ -433,10 +554,17 @@ export default function App() {
   // sync (deep-linkable, refresh-safe, back-button-friendly). 'MAIN' maps to
   // plain /profile; anything else maps through PROFILE_SUB_TO_PATH.
   const navigateProfileSub = (sub) => {
-    navigateTo(sub === 'MAIN' || !PROFILE_SUB_TO_PATH[sub] ? '/profile' : PROFILE_SUB_TO_PATH[sub]);
+    navigateTo(
+      sub === "MAIN" || !PROFILE_SUB_TO_PATH[sub]
+        ? "/profile"
+        : PROFILE_SUB_TO_PATH[sub],
+    );
   };
 
-  const handleRouteChange = (currentUser = user, { pop = false, scroll = true } = {}) => {
+  const handleRouteChange = (
+    currentUser = user,
+    { pop = false, scroll = true } = {},
+  ) => {
     const path = toInternalPath(window.location.pathname);
 
     if (scroll) {
@@ -454,8 +582,8 @@ export default function App() {
       }
     }
 
-    setShowLoyalty(path === '/loyalty');
-    setShowMap(path === '/map');
+    setShowLoyalty(path === "/loyalty");
+    setShowMap(path === "/map");
 
     // Standalone public pages (no login, no phone-frame) take priority over
     // everything else — checked against the raw pathname since they live
@@ -474,7 +602,7 @@ export default function App() {
     // Root (and anything else outside /app) is the public marketing Landing page — bypasses all gates.
     setProfileSub(null); // default; overridden below for /profile/* routes
     if (path === null) {
-      setActiveTab('Landing');
+      setActiveTab("Landing");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
@@ -484,27 +612,31 @@ export default function App() {
     }
 
     // Redirect rules based on user auth/onboard states
-    if (currentUser.isAuthenticated && path !== '/login' && path !== '/register') {
+    if (
+      currentUser.isAuthenticated &&
+      path !== "/login" &&
+      path !== "/register"
+    ) {
       if (!currentUser.profileSetupComplete) {
-        setActiveTab('ProfileSetup');
+        setActiveTab("ProfileSetup");
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
         setSelectedTrekName(null);
-        if (path !== '/profilesetup') {
-          navigateTo('/profilesetup', true, currentUser);
+        if (path !== "/profilesetup") {
+          navigateTo("/profilesetup", true, currentUser);
         }
         return;
       } else if (!currentUser.isOnboarded) {
-        setActiveTab('Onboarding');
+        setActiveTab("Onboarding");
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(null);
         setSelectedOrganizer(null);
         setSelectedTrekName(null);
-        if (path !== '/onboardingguide') {
-          navigateTo('/onboardingguide', true, currentUser);
+        if (path !== "/onboardingguide") {
+          navigateTo("/onboardingguide", true, currentUser);
         }
         return;
       }
@@ -513,33 +645,33 @@ export default function App() {
     // 2. Auth Gate redirect rules (only protect profile, bookings, and booking/checkout paths)
     if (!currentUser.isAuthenticated) {
       const isProtectedRoute =
-        path === '/profile' ||
-        path.startsWith('/profile/') ||
-        path === '/bookings' ||
-        path === '/profilesetup' ||
-        path === '/onboardingguide' ||
-        path.startsWith('/booking/') ||
-        path.startsWith('/book/');
+        path === "/profile" ||
+        path.startsWith("/profile/") ||
+        path === "/bookings" ||
+        path === "/profilesetup" ||
+        path === "/onboardingguide" ||
+        path.startsWith("/booking/") ||
+        path.startsWith("/book/");
 
       if (isProtectedRoute) {
         setRedirectAfterAuth(path);
 
-        if (path === '/register') {
-          setActiveTab('Register');
+        if (path === "/register") {
+          setActiveTab("Register");
           setSelectedTrip(null);
           setActiveBookingTrip(null);
           setSelectedBooking(null);
           setSelectedOrganizer(null);
           setSelectedTrekName(null);
         } else {
-          setActiveTab('Login');
+          setActiveTab("Login");
           setSelectedTrip(null);
           setActiveBookingTrip(null);
           setSelectedBooking(null);
           setSelectedOrganizer(null);
           setSelectedTrekName(null);
-          if (path !== '/login') {
-            navigateTo('/login', true, currentUser);
+          if (path !== "/login") {
+            navigateTo("/login", true, currentUser);
           }
         }
         return;
@@ -547,8 +679,13 @@ export default function App() {
     }
 
     // Authenticated & Onboarded: Redirect away from onboarding guide or profile setup if already complete
-    if (currentUser.isAuthenticated && currentUser.profileSetupComplete && currentUser.isOnboarded && (path === '/onboardingguide' || path === '/profilesetup')) {
-      navigateTo('/', true, currentUser);
+    if (
+      currentUser.isAuthenticated &&
+      currentUser.profileSetupComplete &&
+      currentUser.isOnboarded &&
+      (path === "/onboardingguide" || path === "/profilesetup")
+    ) {
+      navigateTo("/", true, currentUser);
       return;
     }
 
@@ -556,58 +693,70 @@ export default function App() {
     // of its own: older builds parked restored sessions on /app/home, so it
     // is still sitting in people's saved last-route — and it has to survive a
     // popstate, not just the initial load that getInitialStateFromUrl handles.
-    if (path === '/' || path === '' || path === '/home') {
-      setActiveTab('Home');
+    if (path === "/" || path === "" || path === "/home") {
+      setActiveTab("Home");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
-    } else if (path === '/explore') {
-      setActiveTab('Explore');
+    } else if (path === "/explore") {
+      setActiveTab("Explore");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
-    } else if (path === '/bookings') {
-      setActiveTab('Bookings');
+    } else if (path === "/bookings") {
+      setActiveTab("Bookings");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
-      const chatTripId = new URLSearchParams(window.location.search).get('chatTripId');
+      const chatTripId = new URLSearchParams(window.location.search).get(
+        "chatTripId",
+      );
       if (chatTripId) setPendingChatTripId(chatTripId);
-    } else if (path === '/wishlist') {
-      setActiveTab('Wishlist');
+    } else if (path === "/wishlist") {
+      setActiveTab("Wishlist");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
-    } else if (path === '/profile') {
-      setActiveTab('Profile');
+    } else if (path === "/profile") {
+      setActiveTab("Profile");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
     } else if (PROFILE_SUB_ROUTES[path]) {
-      setActiveTab('Profile');
+      setActiveTab("Profile");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
       setProfileSub(PROFILE_SUB_ROUTES[path]);
-    } else if (path.startsWith('/trek/')) {
-      const subPath = path.replace('/trek/', '');
-      const isOrganizers = subPath.endsWith('/organizers');
-      const trekSlug = isOrganizers ? subPath.replace('/organizers', '') : subPath;
-      const foundTrip = trips.find(t => slugifyTrekName(t.name) === trekSlug);
-      const foundCatalog = catalogTreks.find(ct => slugifyTrekName(ct.title || ct.name || '') === trekSlug || ct.id === trekSlug);
-      const targetName = foundTrip ? foundTrip.name : (foundCatalog ? (foundCatalog.title || foundCatalog.name) : null);
+    } else if (path.startsWith("/trek/")) {
+      const subPath = path.replace("/trek/", "");
+      const isOrganizers = subPath.endsWith("/organizers");
+      const trekSlug = isOrganizers
+        ? subPath.replace("/organizers", "")
+        : subPath;
+      const foundTrip = trips.find((t) => slugifyTrekName(t.name) === trekSlug);
+      const foundCatalog = catalogTreks.find(
+        (ct) =>
+          slugifyTrekName(ct.title || ct.name || "") === trekSlug ||
+          ct.id === trekSlug,
+      );
+      const targetName = foundTrip
+        ? foundTrip.name
+        : foundCatalog
+          ? foundCatalog.title || foundCatalog.name
+          : null;
       if (targetName) {
         setSelectedTrekName(targetName);
         setShowOrganizersList(isOrganizers);
@@ -622,11 +771,11 @@ export default function App() {
         // don't bounce to Home over it. The reconciliation effect below
         // re-runs this once the catalog lands.
       } else {
-        navigateTo('/', true, currentUser);
+        navigateTo("/", true, currentUser);
       }
-    } else if (path.startsWith('/trip/')) {
-      const tripId = path.replace('/trip/', '');
-      const foundTrip = trips.find(t => t.id === tripId);
+    } else if (path.startsWith("/trip/")) {
+      const tripId = path.replace("/trip/", "");
+      const foundTrip = trips.find((t) => t.id === tripId);
       if (foundTrip) {
         setSelectedTrip(foundTrip);
         setSelectedTrekName(foundTrip.name);
@@ -640,11 +789,11 @@ export default function App() {
         setSelectedBooking(null);
         setSelectedOrganizer(null);
       } else {
-        navigateTo('/', true, currentUser);
+        navigateTo("/", true, currentUser);
       }
-    } else if (path.startsWith('/book/')) {
-      const tripId = path.replace('/book/', '');
-      const foundTrip = trips.find(t => t.id === tripId);
+    } else if (path.startsWith("/book/")) {
+      const tripId = path.replace("/book/", "");
+      const foundTrip = trips.find((t) => t.id === tripId);
       if (foundTrip) {
         setSelectedTrip(foundTrip);
         setSelectedTrekName(foundTrip.name);
@@ -655,13 +804,13 @@ export default function App() {
         // See the /trip/ branch above — don't bounce to Home while the
         // catalog is still loading.
       } else {
-        navigateTo('/', true, currentUser);
+        navigateTo("/", true, currentUser);
       }
-    } else if (path.startsWith('/booking/')) {
-      const bookingId = path.replace('/booking/', '');
-      const foundBooking = bookings.find(b => b.id === bookingId);
+    } else if (path.startsWith("/booking/")) {
+      const bookingId = path.replace("/booking/", "");
+      const foundBooking = bookings.find((b) => b.id === bookingId);
       if (foundBooking) {
-        setActiveTab('Bookings');
+        setActiveTab("Bookings");
         setSelectedTrip(null);
         setActiveBookingTrip(null);
         setSelectedBooking(foundBooking);
@@ -671,12 +820,12 @@ export default function App() {
         // Don't bounce away while this customer's booking roster is still
         // being fetched — a cache miss here is often just a timing race.
       } else {
-        navigateTo('/bookings', true, currentUser);
+        navigateTo("/bookings", true, currentUser);
       }
-    } else if (path.startsWith('/organizers/')) {
-      const orgNameEncoded = path.replace('/organizers/', '');
+    } else if (path.startsWith("/organizers/")) {
+      const orgNameEncoded = path.replace("/organizers/", "");
       const orgName = decodeURIComponent(orgNameEncoded);
-      const foundTrip = trips.find(t => t.organizer.name === orgName);
+      const foundTrip = trips.find((t) => t.organizer.name === orgName);
       if (foundTrip) {
         setSelectedOrganizer(foundTrip.organizer);
         setSelectedTrip(null);
@@ -686,9 +835,9 @@ export default function App() {
       } else if (tripsLoading) {
         // Don't bounce to Home while the catalog is still loading.
       } else {
-        navigateTo('/', true, currentUser);
+        navigateTo("/", true, currentUser);
       }
-    } else if (path === '/loyalty' || path === '/map') {
+    } else if (path === "/loyalty" || path === "/map") {
       // Handled by setShowLoyalty/setShowMap above — these render on top of
       // whichever tab is already showing, so activeTab is deliberately left
       // alone (on a cold load getInitialStateFromUrl has already put Home
@@ -698,22 +847,22 @@ export default function App() {
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
-    } else if (path === '/login') {
-      setActiveTab('Login');
+    } else if (path === "/login") {
+      setActiveTab("Login");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
-    } else if (path === '/register') {
-      setActiveTab('Register');
+    } else if (path === "/register") {
+      setActiveTab("Register");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
     } else {
-      setActiveTab('NotFound');
+      setActiveTab("NotFound");
       setSelectedTrip(null);
       setActiveBookingTrip(null);
       setSelectedBooking(null);
@@ -739,7 +888,8 @@ export default function App() {
     // We own #root's scroll across history entries (utils/scroll.js); the
     // browser's own restoration targets the document scroller, which is
     // locked at overflow:hidden here and so would silently do nothing.
-    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+    if ("scrollRestoration" in window.history)
+      window.history.scrollRestoration = "manual";
     // Adopt whatever entry the document loaded on, so the first navigation
     // away from it has somewhere to bank its scroll offset.
     enterHistoryEntry();
@@ -761,8 +911,8 @@ export default function App() {
       setNavInstant(isPop && !inApp);
       handleRouteChangeRef.current(undefined, { pop: isPop });
     };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   // One-time reconciliation: if the very first attempt to resolve a
@@ -780,12 +930,13 @@ export default function App() {
     const path = toInternalPath(window.location.pathname);
     if (!path) return;
     const stillUnresolved =
-      (path.startsWith('/trek/') && !selectedTrekName) ||
-      (path.startsWith('/trip/') && !selectedTrip) ||
-      (path.startsWith('/book/') && !activeBookingTrip) ||
-      (path.startsWith('/booking/') && !selectedBooking) ||
-      (path.startsWith('/organizers/') && !selectedOrganizer);
-    if (stillUnresolved) handleRouteChangeRef.current(undefined, { scroll: false });
+      (path.startsWith("/trek/") && !selectedTrekName) ||
+      (path.startsWith("/trip/") && !selectedTrip) ||
+      (path.startsWith("/book/") && !activeBookingTrip) ||
+      (path.startsWith("/booking/") && !selectedBooking) ||
+      (path.startsWith("/organizers/") && !selectedOrganizer);
+    if (stillUnresolved)
+      handleRouteChangeRef.current(undefined, { scroll: false });
   }, [tripsLoading, catalogLoading, bookingsLoading]);
 
   // Sync state mutations to LocalStorage standard hooks
@@ -817,7 +968,8 @@ export default function App() {
 
   useEffect(() => {
     contentApi.getContent().then((c) => {
-      if (c?.support) setSupportContact({ email: c.support.email, phone: c.support.phone });
+      if (c?.support)
+        setSupportContact({ email: c.support.email, phone: c.support.phone });
     });
   }, []);
 
@@ -828,12 +980,24 @@ export default function App() {
   const tripWithDetailDefaults = useMemo(() => {
     if (!selectedTrip) return selectedTrip;
     const filled = { ...selectedTrip };
-    for (const key of ['itinerary', 'faqs', 'reviews', 'included', 'notIncluded', 'highlights', 'safetyGuidelines', 'cancellationPolicy']) {
+    for (const key of [
+      "itinerary",
+      "faqs",
+      "reviews",
+      "included",
+      "notIncluded",
+      "highlights",
+      "safetyGuidelines",
+      "cancellationPolicy",
+    ]) {
       if (!Array.isArray(filled[key])) filled[key] = [];
     }
     // The cover always exists on a card, so the gallery has something to show
     // rather than flashing an empty "1 / 0 Photos" carousel mid-hydration.
-    if (!Array.isArray(filled.galleryImages) || filled.galleryImages.length === 0) {
+    if (
+      !Array.isArray(filled.galleryImages) ||
+      filled.galleryImages.length === 0
+    ) {
       filled.galleryImages = filled.coverImage ? [filled.coverImage] : [];
     }
     return filled;
@@ -848,40 +1012,67 @@ export default function App() {
     const id = selectedTrip?.id;
     if (!id || selectedTrip.itinerary !== undefined) return undefined;
     let cancelled = false;
-    tripsApi.getTrip(id)
+    tripsApi
+      .getTrip(id)
       .then((full) => {
         if (cancelled || !full) return;
-        setSelectedTrip((prev) => (prev?.id === id ? { ...prev, ...full } : prev));
+        setSelectedTrip((prev) =>
+          prev?.id === id ? { ...prev, ...full } : prev,
+        );
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedTrip?.id, selectedTrip?.itinerary]);
 
   // Same for the trek detail screen, which reads from the projected catalog.
   const [hydratedTrek, setHydratedTrek] = useState(null);
   useEffect(() => {
-    if (!selectedTrekName) { setHydratedTrek(null); return undefined; }
+    if (!selectedTrekName) {
+      setHydratedTrek(null);
+      return undefined;
+    }
     const match = catalogTreks.find(
-      ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName)
+      (ct) =>
+        (ct.title || ct.name) === selectedTrekName ||
+        ct.id === slugifyTrekName(selectedTrekName),
     );
-    if (!match) { setHydratedTrek(null); return undefined; }
-    if (match.itinerary !== undefined) { setHydratedTrek(match); return undefined; }
+    if (!match) {
+      setHydratedTrek(null);
+      return undefined;
+    }
+    if (match.itinerary !== undefined) {
+      setHydratedTrek(match);
+      return undefined;
+    }
     let cancelled = false;
-    treksApi.getTrek(match.id)
-      .then((full) => { if (!cancelled && full) setHydratedTrek(full); })
-      .catch(() => { if (!cancelled) setHydratedTrek(match); });
-    return () => { cancelled = true; };
+    treksApi
+      .getTrek(match.id)
+      .then((full) => {
+        if (!cancelled && full) setHydratedTrek(full);
+      })
+      .catch(() => {
+        if (!cancelled) setHydratedTrek(match);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedTrekName, catalogTreks]);
 
   useEffect(() => {
     const handleStatusChangeEvent = (e) => {
-      const reason = e.detail?.reason || 'banned';
+      const reason = e.detail?.reason || "banned";
       setBannedReason(reason);
       handleLogoutResets();
       setBannedAlert(true);
     };
-    window.addEventListener('hiker-status-changed', handleStatusChangeEvent);
-    return () => window.removeEventListener('hiker-status-changed', handleStatusChangeEvent);
+    window.addEventListener("hiker-status-changed", handleStatusChangeEvent);
+    return () =>
+      window.removeEventListener(
+        "hiker-status-changed",
+        handleStatusChangeEvent,
+      );
   }, []);
 
   // The stored JWT was rejected (expired, or signed with a different secret).
@@ -891,12 +1082,13 @@ export default function App() {
   useEffect(() => {
     const handleSessionExpired = () => {
       if (!loadUserState().isAuthenticated) return;
-      setBannedReason('expired');
+      setBannedReason("expired");
       handleLogoutResets();
       setBannedAlert(true);
     };
-    window.addEventListener('auth-session-expired', handleSessionExpired);
-    return () => window.removeEventListener('auth-session-expired', handleSessionExpired);
+    window.addEventListener("auth-session-expired", handleSessionExpired);
+    return () =>
+      window.removeEventListener("auth-session-expired", handleSessionExpired);
   }, []);
 
   useEffect(() => {
@@ -922,7 +1114,9 @@ export default function App() {
       .finally(() => {
         if (!cancelled) setTripsLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Hydrate this customer's bookings from the API once authenticated. Only
@@ -930,15 +1124,24 @@ export default function App() {
   // the offline fallback keep working); the saveBookings effect mirrors them
   // back to localStorage for the synchronous route-parser.
   useEffect(() => {
-    if (!user.isAuthenticated) { setBookingsLoading(false); return undefined; }
+    if (!user.isAuthenticated) {
+      setBookingsLoading(false);
+      return undefined;
+    }
     setBookingsLoading(true);
     let cancelled = false;
     bookingsApi
       .listMine()
-      .then((list) => { if (!cancelled && Array.isArray(list) && list.length) setBookings(list); })
+      .then((list) => {
+        if (!cancelled && Array.isArray(list) && list.length) setBookings(list);
+      })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setBookingsLoading(false); });
-    return () => { cancelled = true; };
+      .finally(() => {
+        if (!cancelled) setBookingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user.isAuthenticated]);
 
   const knownHikerMsgCountRef = useRef(null);
@@ -953,52 +1156,67 @@ export default function App() {
   // and useLivePoll re-runs it as soon as the app is brought back to the
   // foreground — a backgrounded webview has its timers suspended.
   const pollHikerUpdates = useCallback(async () => {
-      try {
-        // 1. Live Sync Hiker Notifications
-        const freshNotifs = await socialApi.getNotifications(LIVE);
-        if (Array.isArray(freshNotifs)) {
-          if (knownHikerNotifCountRef.current !== null && freshNotifs.length > knownHikerNotifCountRef.current) {
-            const latestNotif = freshNotifs[0];
-            if (latestNotif && !latestNotif.read) {
-              HikerAlerts.tripNotice(latestNotif.title, latestNotif.content, toast);
-            }
+    try {
+      // 1. Live Sync Hiker Notifications
+      const freshNotifs = await socialApi.getNotifications(LIVE);
+      if (Array.isArray(freshNotifs)) {
+        if (
+          knownHikerNotifCountRef.current !== null &&
+          freshNotifs.length > knownHikerNotifCountRef.current
+        ) {
+          const latestNotif = freshNotifs[0];
+          if (latestNotif && !latestNotif.read) {
+            HikerAlerts.tripNotice(
+              latestNotif.title,
+              latestNotif.content,
+              toast,
+            );
           }
-          knownHikerNotifCountRef.current = freshNotifs.length;
-          setNotifications(freshNotifs);
-          saveNotifications(freshNotifs);
         }
-
-        // 2. Live Sync Incoming Organizer Messages
-        const freshChats = await socialApi.getChats(LIVE);
-        if (Array.isArray(freshChats)) {
-          if (knownHikerMsgCountRef.current !== null) {
-            freshChats.forEach(chat => {
-              const cId = String(chat.id || chat._id);
-              const orgMsgs = (chat.messages || []).filter(m => m.sender === 'organizer');
-              const prevCount = knownHikerMsgCountRef.current.get(cId) || 0;
-
-              if (orgMsgs.length > prevCount) {
-                const latestOrgMsg = orgMsgs[orgMsgs.length - 1];
-                if (latestOrgMsg) {
-                  HikerAlerts.newMessage(chat.organizerName || chat.agencyName || 'Organizer', latestOrgMsg.text, toast);
-                }
-              }
-            });
-          }
-
-          const newCounts = new Map();
-          freshChats.forEach(c => {
-            const cId = String(c.id || c._id);
-            const orgMsgs = (c.messages || []).filter(m => m.sender === 'organizer');
-            newCounts.set(cId, orgMsgs.length);
-          });
-          knownHikerMsgCountRef.current = newCounts;
-          setChats(freshChats);
-          saveChats(freshChats);
-        }
-      } catch (err) {
-        /* Ignore background polling errors */
+        knownHikerNotifCountRef.current = freshNotifs.length;
+        setNotifications(freshNotifs);
+        saveNotifications(freshNotifs);
       }
+
+      // 2. Live Sync Incoming Organizer Messages
+      const freshChats = await socialApi.getChats(LIVE);
+      if (Array.isArray(freshChats)) {
+        if (knownHikerMsgCountRef.current !== null) {
+          freshChats.forEach((chat) => {
+            const cId = String(chat.id || chat._id);
+            const orgMsgs = (chat.messages || []).filter(
+              (m) => m.sender === "organizer",
+            );
+            const prevCount = knownHikerMsgCountRef.current.get(cId) || 0;
+
+            if (orgMsgs.length > prevCount) {
+              const latestOrgMsg = orgMsgs[orgMsgs.length - 1];
+              if (latestOrgMsg) {
+                HikerAlerts.newMessage(
+                  chat.organizerName || chat.agencyName || "Organizer",
+                  latestOrgMsg.text,
+                  toast,
+                );
+              }
+            }
+          });
+        }
+
+        const newCounts = new Map();
+        freshChats.forEach((c) => {
+          const cId = String(c.id || c._id);
+          const orgMsgs = (c.messages || []).filter(
+            (m) => m.sender === "organizer",
+          );
+          newCounts.set(cId, orgMsgs.length);
+        });
+        knownHikerMsgCountRef.current = newCounts;
+        setChats(freshChats);
+        saveChats(freshChats);
+      }
+    } catch (err) {
+      /* Ignore background polling errors */
+    }
   }, [toast]);
 
   useLivePoll(pollHikerUpdates, {
@@ -1011,15 +1229,27 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     try {
-      sessionStorage.setItem('fyt_last_module', 'hiker');
-      localStorage.setItem('fyt_last_module', 'hiker');
+      sessionStorage.setItem("fyt_last_module", "hiker");
+      localStorage.setItem("fyt_last_module", "hiker");
     } catch (e) {}
-    landingApi.getContent().then((c) => { if (!cancelled && c) setLandingContent(c); }).catch(() => {});
-    treksApi.listTreks()
-      .then((list) => { if (!cancelled && Array.isArray(list)) setCatalogTreks(list); })
+    landingApi
+      .getContent()
+      .then((c) => {
+        if (!cancelled && c) setLandingContent(c);
+      })
+      .catch(() => {});
+    treksApi
+      .listTreks()
+      .then((list) => {
+        if (!cancelled && Array.isArray(list)) setCatalogTreks(list);
+      })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setCatalogLoading(false); });
-    return () => { cancelled = true; };
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1035,20 +1265,30 @@ export default function App() {
     clearApiCache();
 
     const pending = [
-      tripsApi.listTrips({ limit: 100 })
-        .then((apiTrips) => { if (Array.isArray(apiTrips)) setTrips(apiTrips); })
+      tripsApi
+        .listTrips({ limit: 100 })
+        .then((apiTrips) => {
+          if (Array.isArray(apiTrips)) setTrips(apiTrips);
+        })
         .catch(() => {}),
-      treksApi.listTreks()
-        .then((list) => { if (Array.isArray(list)) setCatalogTreks(list); })
+      treksApi
+        .listTreks()
+        .then((list) => {
+          if (Array.isArray(list)) setCatalogTreks(list);
+        })
         .catch(() => {}),
     ];
 
     if (user.isAuthenticated && getToken()) {
       pending.push(
-        bookingsApi.listMine()
-          .then((list) => { if (Array.isArray(list) && list.length) setBookings(list); })
+        bookingsApi
+          .listMine()
+          .then((list) => {
+            if (Array.isArray(list) && list.length) setBookings(list);
+          })
           .catch(() => {}),
-        socialApi.getNotifications()
+        socialApi
+          .getNotifications()
           .then((fresh) => {
             if (!Array.isArray(fresh)) return;
             setNotifications(fresh);
@@ -1069,16 +1309,22 @@ export default function App() {
   // bring their own scrollers (so the gesture never reaches #root anyway),
   // and a drawer or sheet sitting over the page shouldn't refresh what is
   // behind it.
-  const pullToRefreshEnabled = (
-    !selectedTrekName && !selectedTrip && !activeBookingTrip && !selectedBooking
-    && !selectedOrganizer && !showLoyalty && !showMap && !profileSub
-    && !showGlobalNotificationDrawer && !showAppLocationPicker
-  );
+  const pullToRefreshEnabled =
+    !selectedTrekName &&
+    !selectedTrip &&
+    !activeBookingTrip &&
+    !selectedBooking &&
+    !selectedOrganizer &&
+    !showLoyalty &&
+    !showMap &&
+    !profileSub &&
+    !showGlobalNotificationDrawer &&
+    !showAppLocationPicker;
 
   // Core Actions
   const handleToggleWishlist = (tripId) => {
     const next = wishlist.includes(tripId)
-      ? wishlist.filter(id => id !== tripId)
+      ? wishlist.filter((id) => id !== tripId)
       : [...wishlist, tripId];
     setWishlist(next);
     // Persist to the API for a real session (localStorage mirror still updates
@@ -1088,12 +1334,12 @@ export default function App() {
 
   const handleApplyCategoryFromHome = (catName) => {
     setExploreCategory(catName);
-    setExploreSearchQuery(''); // clear main search query to prevent clash
+    setExploreSearchQuery(""); // clear main search query to prevent clash
   };
 
   const handleApplySearchFromHome = (query) => {
     setExploreSearchQuery(query);
-    setExploreCategory('All'); // clear category to prevent block
+    setExploreCategory("All"); // clear category to prevent block
   };
 
   // Complete Profile Setup setup helper
@@ -1101,10 +1347,10 @@ export default function App() {
     const updated = {
       ...user,
       ...updatedUser,
-      profileSetupComplete: true
+      profileSetupComplete: true,
     };
     setUser(updated);
-    navigateTo('/onboardingguide', false, updated);
+    navigateTo("/onboardingguide", false, updated);
   };
 
   // Complete Onboarding walkthrough helper
@@ -1112,15 +1358,15 @@ export default function App() {
     try {
       const updatedUser = await authApi.updateProfile({ isOnboarded: true });
       setUser(updatedUser);
-      navigateTo('/', false, updatedUser);
+      navigateTo("/", false, updatedUser);
     } catch (err) {
-      console.error('Failed to save onboarding completion:', err);
+      console.error("Failed to save onboarding completion:", err);
       const updated = {
         ...user,
-        isOnboarded: true
+        isOnboarded: true,
       };
       setUser(updated);
-      navigateTo('/', false, updated);
+      navigateTo("/", false, updated);
     }
   };
 
@@ -1131,7 +1377,7 @@ export default function App() {
       navigateTo(redirectAfterAuth, false, authenticatedUser);
       setRedirectAfterAuth(null);
     } else {
-      navigateTo('/', false, authenticatedUser);
+      navigateTo("/", false, authenticatedUser);
     }
   };
 
@@ -1144,41 +1390,53 @@ export default function App() {
       isAuthenticated: false,
       isOnboarded: true, // Keep onboarding done — logout should land on the login screen, not the onboarding carousel
       isOrganizer: false,
-      name: '',
-      email: '',
-      mobile: '',
+      name: "",
+      email: "",
+      mobile: "",
       age: 24,
-      gender: '',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      hikingExperience: 'Beginner',
-      fitnessLevel: 'Moderate',
-      emergencyContact: '',
-      rememberMe: false
+      gender: "",
+      avatar:
+        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      hikingExperience: "Beginner",
+      fitnessLevel: "Moderate",
+      emergencyContact: "",
+      rememberMe: false,
     };
     setUser(resetUser);
-    navigateTo('/login', true, resetUser);
+    navigateTo("/login", true, resetUser);
   };
 
   // Add review to data dynamically so it displays inside reviews tab instantly
   const handleAddReviewToTrip = (tripId, rating, comment, bookingId) => {
     const newRatingReview = {
-      id: 'rev-' + Date.now(),
-      userName: user.name || 'Hiker',
-      userAvatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'Hiker')}&background=02542D&color=fff&bold=true`,
+      id: "rev-" + Date.now(),
+      userName: user.name || "Chirag Jeevanani",
+      userAvatar:
+        user.avatar ||
+        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
       rating,
       comment,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split("T")[0],
     };
 
     // Optimistic local update (immediate UX + offline path).
-    const updatedTrips = trips.map(item => {
+    const updatedTrips = trips.map((item) => {
       if (item.id === tripId) {
         // `reviews` is absent on catalog list records — it only ships on the
         // single-trip detail response.
         const updatedReviewsList = [newRatingReview, ...(item.reviews || [])];
-        const totalRatingPoints = updatedReviewsList.reduce((acc, r) => acc + r.rating, 0);
-        const newAveragedRating = Math.round((totalRatingPoints / updatedReviewsList.length) * 10) / 10;
-        return { ...item, reviews: updatedReviewsList, reviewsCount: updatedReviewsList.length, rating: newAveragedRating };
+        const totalRatingPoints = updatedReviewsList.reduce(
+          (acc, r) => acc + r.rating,
+          0,
+        );
+        const newAveragedRating =
+          Math.round((totalRatingPoints / updatedReviewsList.length) * 10) / 10;
+        return {
+          ...item,
+          reviews: updatedReviewsList,
+          reviewsCount: updatedReviewsList.length,
+          rating: newAveragedRating,
+        };
       }
       return item;
     });
@@ -1187,11 +1445,14 @@ export default function App() {
     // Persist server-side (the trip's rollups are recomputed authoritatively);
     // refresh the catalog so the averaged rating reflects the server.
     if (getToken() && bookingId) {
-      socialApi.createReview(bookingId, { rating, comment })
-        .then(() => Promise.all([
-          tripsApi.listTrips({ limit: 100 }),
-          socialApi.listMyReviews().catch(() => null),
-        ]))
+      socialApi
+        .createReview(bookingId, { rating, comment })
+        .then(() =>
+          Promise.all([
+            tripsApi.listTrips({ limit: 100 }),
+            socialApi.listMyReviews().catch(() => null),
+          ]),
+        )
         .then(([apiTrips, myReviews]) => {
           if (Array.isArray(apiTrips) && apiTrips.length) setTrips(apiTrips);
           if (Array.isArray(myReviews)) setUserReviews(myReviews);
@@ -1208,88 +1469,110 @@ export default function App() {
     const resolvedBooking = {
       ...rawBooking,
       userEmail: user.email,
-      userName: user.name || 'Hiker',
+      userName: user.name || "Chirag Jeevanani",
       hikersCount: rawBooking.hikersCount ?? rawBooking.travelersCount,
     };
 
     // 1. Append booking object to local roster list
-    setBookings(prev => [resolvedBooking, ...prev]);
+    setBookings((prev) => [resolvedBooking, ...prev]);
 
     // For a real (token) session the server already emits the booking
     // notifications + welcome chat, and the social hydration effect (keyed on
     // bookings.length) pulls them in — so skip the local fabrication to avoid
     // duplicates. The offline/seeded path still builds them below.
-    if (getToken()) { navigateTo('/bookings'); return; }
+    if (getToken()) {
+      navigateTo("/bookings");
+      return;
+    }
 
     // 2. Generate customized push alerts inside Notification Center stream
     const confirmAlert = {
-      id: 'n-new-confirm-' + Date.now(),
-      title: '⛰️ Permit Slot Secured!',
+      id: "n-new-confirm-" + Date.now(),
+      title: "⛰️ Permit Slot Secured!",
       content: `Your high elevation pass to ${resolvedBooking.tripName} is active for ${resolvedBooking.selectedDate}. Booking ID: ${resolvedBooking.bookingId}`,
       timestamp: new Date().toISOString(),
-      type: 'Booking',
-      read: false
+      type: "Booking",
+      read: false,
     };
 
     const paymentAlert = {
-      id: 'n-new-pay-' + Date.now(),
-      title: '💳 Refund Settlement Rules',
+      id: "n-new-pay-" + Date.now(),
+      title: "💳 Refund Settlement Rules",
       content: `Total fee settlement values of ₹${resolvedBooking.finalAmount} was secured successfully is secure. Check your ledger files.`,
       timestamp: new Date().toISOString(),
-      type: 'Payment',
-      read: false
+      type: "Payment",
+      read: false,
     };
 
-    setNotifications(prev => [confirmAlert, paymentAlert, ...prev]);
+    setNotifications((prev) => [confirmAlert, paymentAlert, ...prev]);
 
     // 3. Auto-populate chat with organizer
-    const matchedTrip = trips.find(t => t.id === resolvedBooking.tripId);
-    const hikerName = (user?.name || resolvedBooking.userName || 'Hiker').trim();
+    const matchedTrip = trips.find((t) => t.id === resolvedBooking.tripId);
+    const hikerName = (
+      user?.name ||
+      resolvedBooking.userName ||
+      "Hiker"
+    ).trim();
     const welcomeMsg = `Hi ${hikerName}! Verified guides from ${resolvedBooking.organizerName} have received your pass application. Looking forward to hiking soon!`;
     const newOrganizerMsg = {
-      id: 'm-new-start-' + Date.now(),
-      sender: 'organizer',
+      id: "m-new-start-" + Date.now(),
+      sender: "organizer",
       text: welcomeMsg,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    const realAvatar = resolvedBooking.organizerAvatar || resolvedBooking.organizer?.avatar || matchedTrip?.organizer?.avatar
-      || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedBooking.organizerName || 'Organizer')}&background=F27D26&color=fff`;
+    const realAvatar =
+      resolvedBooking.organizerAvatar ||
+      resolvedBooking.organizer?.avatar ||
+      matchedTrip?.organizer?.avatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedBooking.organizerName || "Organizer")}&background=F27D26&color=fff`;
 
-    const existingChatSession = chats.find(c => c.tripId === resolvedBooking.tripId);
+    const existingChatSession = chats.find(
+      (c) => c.tripId === resolvedBooking.tripId,
+    );
     if (existingChatSession) {
-      const updatedMessages = [...existingChatSession.messages, newOrganizerMsg];
-      setChats(prev => prev.map(c => 
-        c.tripId === resolvedBooking.tripId ? { ...c, organizerAvatar: realAvatar, messages: updatedMessages } : c
-      ));
+      const updatedMessages = [
+        ...existingChatSession.messages,
+        newOrganizerMsg,
+      ];
+      setChats((prev) =>
+        prev.map((c) =>
+          c.tripId === resolvedBooking.tripId
+            ? { ...c, organizerAvatar: realAvatar, messages: updatedMessages }
+            : c,
+        ),
+      );
     } else {
       const newChatSession = {
         tripId: resolvedBooking.tripId,
         tripName: resolvedBooking.tripName,
         organizerName: resolvedBooking.organizerName,
         organizerAvatar: realAvatar,
-        messages: [newOrganizerMsg]
+        messages: [newOrganizerMsg],
       };
-      setChats(prev => [...prev, newChatSession]);
+      setChats((prev) => [...prev, newChatSession]);
     }
 
     // 4. Return viewport to listings or details cleanly
-    navigateTo('/bookings');
+    navigateTo("/bookings");
   };
 
   // Switch Booking slot states (e.g. Cancel slots)
   const handleModifyBookingStatus = (bookingId, status) => {
-    setBookings(prev => prev.map(b =>
-      b.id === bookingId ? { ...b, status: status } : b
-    ));
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: status } : b)),
+    );
 
     // For a real session, cancellation is server-authoritative: it computes the
     // policy refund, frees the seats, and emits the notification. Refresh
     // bookings + notifications from the API afterward.
-    if (status === 'Cancelled' && getToken()) {
-      const bObj = bookings.find(b => b.id === bookingId);
-      bookingsApi.cancel(bObj?.bookingId || bObj?.id || bookingId)
-        .then(() => Promise.all([bookingsApi.listMine(), socialApi.getNotifications()]))
+    if (status === "Cancelled" && getToken()) {
+      const bObj = bookings.find((b) => b.id === bookingId);
+      bookingsApi
+        .cancel(bObj?.bookingId || bObj?.id || bookingId)
+        .then(() =>
+          Promise.all([bookingsApi.listMine(), socialApi.getNotifications()]),
+        )
         .then(([bs, ns]) => {
           if (Array.isArray(bs)) setBookings(bs);
           if (Array.isArray(ns)) setNotifications(ns);
@@ -1299,22 +1582,24 @@ export default function App() {
     }
 
     // Offline/seeded fallback: fabricate the cancellation notice locally.
-    if (status === 'Cancelled') {
-      const bObj = bookings.find(b => b.id === bookingId);
+    if (status === "Cancelled") {
+      const bObj = bookings.find((b) => b.id === bookingId);
       const cancelNotify = {
-        id: 'n-cancel-' + Date.now(),
-        title: '⚠️ Registration Cancelled',
-        content: `Your slot configuration for ${bObj?.tripName || 'hiking trip'} has been cancelled. Refunds will reach your credit bank.`,
+        id: "n-cancel-" + Date.now(),
+        title: "⚠️ Registration Cancelled",
+        content: `Your slot configuration for ${bObj?.tripName || "hiking trip"} has been cancelled. Refunds will reach your credit bank.`,
         timestamp: new Date().toISOString(),
-        type: 'Updates',
-        read: false
+        type: "Updates",
+        read: false,
       };
-      setNotifications(prev => [cancelNotify, ...prev]);
+      setNotifications((prev) => [cancelNotify, ...prev]);
     }
   };
 
   const handleMarkNotificationRead = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
     if (getToken()) socialApi.markNotificationRead(id).catch(() => {});
   };
 
@@ -1332,7 +1617,9 @@ export default function App() {
       const chat = await socialApi.sendMessage(tripId, text);
       setChats((prev) => {
         const exists = prev.some((c) => c.tripId === chat.tripId);
-        return exists ? prev.map((c) => (c.tripId === chat.tripId ? chat : c)) : [...prev, chat];
+        return exists
+          ? prev.map((c) => (c.tripId === chat.tripId ? chat : c))
+          : [...prev, chat];
       });
       return chat;
     } catch {
@@ -1348,12 +1635,22 @@ export default function App() {
   // customers sharing a display name saw each other's reviews.
   const [userReviews, setUserReviews] = useState([]);
   useEffect(() => {
-    if (!user.isAuthenticated || !getToken()) { setUserReviews([]); return undefined; }
+    if (!user.isAuthenticated || !getToken()) {
+      setUserReviews([]);
+      return undefined;
+    }
     let cancelled = false;
-    socialApi.listMyReviews()
-      .then((list) => { if (!cancelled) setUserReviews(Array.isArray(list) ? list : []); })
-      .catch(() => { if (!cancelled) setUserReviews([]); });
-    return () => { cancelled = true; };
+    socialApi
+      .listMyReviews()
+      .then((list) => {
+        if (!cancelled) setUserReviews(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!cancelled) setUserReviews([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user.isAuthenticated, user.email]);
 
   // Global toggle theme function
@@ -1362,13 +1659,13 @@ export default function App() {
   };
 
   const handleTriggerOnboardingWalkthrough = () => {
-    setUser(prev => ({ ...prev, isOnboarded: false }));
+    setUser((prev) => ({ ...prev, isOnboarded: false }));
   };
 
   // Helper selectors rendering view states inside viewport
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'Home':
+      case "Home":
         return (
           <HomeView
             user={user}
@@ -1376,12 +1673,16 @@ export default function App() {
             tripsLoading={tripsLoading}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
-            onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
-            onSwitchTab={(tab) => navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`)}
+            onSelectTrek={(trekName) =>
+              navigateTo(`/trek/${slugifyTrekName(trekName)}`)
+            }
+            onSwitchTab={(tab) =>
+              navigateTo(tab === "Home" ? "/" : `/${tab.toLowerCase()}`)
+            }
             onApplyCategory={handleApplyCategoryFromHome}
             onApplySearch={handleApplySearchFromHome}
             onApplyDate={setExploreDate}
-            onOpenLoyalty={() => navigateTo('/loyalty')}
+            onOpenLoyalty={() => navigateTo("/loyalty")}
             bookings={bookings}
             notifications={notifications}
             onMarkNotificationRead={handleMarkNotificationRead}
@@ -1394,14 +1695,16 @@ export default function App() {
             onToggleDarkMode={handleToggleDarkMode}
           />
         );
-      case 'Explore':
+      case "Explore":
         return (
           <ExploreView
             trips={trips}
             tripsLoading={tripsLoading}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
-            onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
+            onSelectTrek={(trekName) =>
+              navigateTo(`/trek/${slugifyTrekName(trekName)}`)
+            }
             searchQuery={exploreSearchQuery}
             onSetSearchQuery={setExploreSearchQuery}
             selectedCategory={exploreCategory}
@@ -1414,7 +1717,7 @@ export default function App() {
             darkMode={darkMode}
           />
         );
-      case 'Bookings':
+      case "Bookings":
         return (
           <BookingsView
             bookings={bookings}
@@ -1433,7 +1736,7 @@ export default function App() {
             darkMode={darkMode}
           />
         );
-      case 'Wishlist':
+      case "Wishlist":
         return (
           <WishlistView
             wishlist={wishlist}
@@ -1444,7 +1747,7 @@ export default function App() {
             darkMode={darkMode}
           />
         );
-      case 'Profile':
+      case "Profile":
         return (
           <ProfileView
             user={user}
@@ -1456,10 +1759,10 @@ export default function App() {
             onTriggerOnboarding={handleTriggerOnboardingWalkthrough}
             bookings={bookings}
             onFullscreenChange={setNavHidden}
-            onOpenLoyalty={() => navigateTo('/loyalty')}
+            onOpenLoyalty={() => navigateTo("/loyalty")}
             initialSub={profileSub}
             onNavigateProfile={navigateProfileSub}
-            onOpenPrivacyPolicy={() => navigateToPublic('/privacy-policy')}
+            onOpenPrivacyPolicy={() => navigateToPublic("/privacy-policy")}
           />
         );
       default:
@@ -1467,35 +1770,40 @@ export default function App() {
     }
   };
 
-  if (activeTab === 'PrivacyPolicy') {
+  if (activeTab === "PrivacyPolicy") {
     return <PrivacyPolicyPage darkMode={darkMode} />;
   }
-  if (activeTab === 'SupportPublic') {
+  if (activeTab === "SupportPublic") {
     return <SupportPage darkMode={darkMode} />;
   }
-  if (activeTab === 'NotFound') {
-    return <NotFoundPage onGoHome={() => navigateTo('/')} darkMode={darkMode} />;
+  if (activeTab === "NotFound") {
+    return (
+      <NotFoundPage onGoHome={() => navigateTo("/")} darkMode={darkMode} />
+    );
   }
 
-  return activeTab === 'Landing' ? (
+  return activeTab === "Landing" ? (
     <LandingView
       content={landingContent}
       darkMode={darkMode}
       onToggleDarkMode={handleToggleDarkMode}
-      onLaunchApp={() => navigateTo('/')}
-      onLaunchOrganizer={() => { window.location.href = '/organizer'; }}
-      onLaunchAdmin={() => { window.location.href = '/admin'; }}
+      onLaunchApp={() => navigateTo("/")}
+      onLaunchOrganizer={() => {
+        window.location.href = "/organizer";
+      }}
+      onLaunchAdmin={() => {
+        window.location.href = "/admin";
+      }}
     />
   ) : (
     <PhoneFrame darkMode={darkMode} onToggleDarkMode={handleToggleDarkMode}>
-      
       {!user.isAuthenticated ? (
-        <Auth 
-          onSuccess={handleAuthSuccess} 
-          darkMode={darkMode} 
-          initialMode={activeTab === 'Register' ? 'REGISTER' : 'LOGIN_EMAIL'}
-          onSwitchToRegister={() => navigateTo('/register')}
-          onSwitchToLogin={() => navigateTo('/login')}
+        <Auth
+          onSuccess={handleAuthSuccess}
+          darkMode={darkMode}
+          initialMode={activeTab === "Register" ? "REGISTER" : "LOGIN_EMAIL"}
+          onSwitchToRegister={() => navigateTo("/register")}
+          onSwitchToLogin={() => navigateTo("/login")}
         />
       ) : !user.profileSetupComplete ? (
         <ProfileSetup
@@ -1504,9 +1812,9 @@ export default function App() {
           darkMode={darkMode}
         />
       ) : !user.isOnboarded ? (
-        <Onboarding 
-          onComplete={handleCompleteOnboardingWalkthrough} 
-          darkMode={darkMode} 
+        <Onboarding
+          onComplete={handleCompleteOnboardingWalkthrough}
+          darkMode={darkMode}
         />
       ) : (
         // No overflow-x-hidden — see PhoneFrame.jsx for why that silently
@@ -1516,11 +1824,11 @@ export default function App() {
           <DesktopNav
             activeTab={activeTab}
             onChangeTab={(tab) => {
-              navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`);
-              if (tab !== 'Explore') {
-                setExploreSearchQuery('');
-                setExploreCategory('All');
-                setExploreDate('');
+              navigateTo(tab === "Home" ? "/" : `/${tab.toLowerCase()}`);
+              if (tab !== "Explore") {
+                setExploreSearchQuery("");
+                setExploreCategory("All");
+                setExploreDate("");
               }
             }}
             darkMode={darkMode}
@@ -1528,10 +1836,12 @@ export default function App() {
             wishlistCount={wishlist.length}
             userLocation={userLocation}
             onOpenLocationPicker={() => setShowAppLocationPicker(true)}
-            unreadCount={notifications.filter(n => !n.read).length}
+            unreadCount={notifications.filter((n) => !n.read).length}
             onOpenNotifications={() => setShowGlobalNotificationDrawer(true)}
             user={user}
-            onLaunchOrganizer={() => { window.location.href = '/organizer'; }}
+            onLaunchOrganizer={() => {
+              window.location.href = "/organizer";
+            }}
           />
 
           <PullToRefresh
@@ -1549,72 +1859,88 @@ export default function App() {
             onClearAll={handleClearNotifications}
             onNavigate={(tab) => {
               setShowGlobalNotificationDrawer(false);
-              navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`);
+              navigateTo(tab === "Home" ? "/" : `/${tab.toLowerCase()}`);
             }}
             darkMode={darkMode}
           />
-          
+
           {/* Dynamic master trek details page overlay */}
           <AnimatePresence mode="wait" custom={instantNav}>
-            {selectedTrekName && !showOrganizersList && !selectedTrip && !activeBookingTrip && (
-              <motion.div
-                key="overlay-trek-details"
-                custom={instantNav}
-                variants={overlayVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                style={{ willChange: 'opacity, transform' }}
-                className={`fixed inset-0 z-47 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-              >
-                <TrekDetailsView
-                  trek={
-                    hydratedTrek
-                    || catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
-                    || trips.find(t => t.name === selectedTrekName)
-                  }
-                  offers={trips.filter(t => t.name === selectedTrekName)}
-                  onBack={() => goBack('/explore')}
-                  onViewOrganisers={(tName) => navigateTo(`/trek/${slugifyTrekName(tName)}/organizers`)}
-                  wishlist={wishlist}
-                  onToggleWishlist={handleToggleWishlist}
-                  darkMode={darkMode}
-                />
-              </motion.div>
-            )}
+            {selectedTrekName &&
+              !showOrganizersList &&
+              !selectedTrip &&
+              !activeBookingTrip && (
+                <motion.div
+                  key="overlay-trek-details"
+                  custom={instantNav}
+                  variants={overlayVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  style={{ willChange: "opacity, transform" }}
+                  className={`fixed inset-0 z-47 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
+                  <TrekDetailsView
+                    trek={
+                      hydratedTrek ||
+                      catalogTreks.find(
+                        (ct) =>
+                          (ct.title || ct.name) === selectedTrekName ||
+                          ct.id === slugifyTrekName(selectedTrekName),
+                      ) ||
+                      trips.find((t) => t.name === selectedTrekName)
+                    }
+                    offers={trips.filter((t) => t.name === selectedTrekName)}
+                    onBack={() => goBack("/explore")}
+                    onViewOrganisers={(tName) =>
+                      navigateTo(`/trek/${slugifyTrekName(tName)}/organizers`)
+                    }
+                    wishlist={wishlist}
+                    onToggleWishlist={handleToggleWishlist}
+                    darkMode={darkMode}
+                  />
+                </motion.div>
+              )}
           </AnimatePresence>
 
           {/* Dynamic trek -> choose organizer listing absolute overlay */}
           <AnimatePresence mode="wait" custom={instantNav}>
-            {selectedTrekName && showOrganizersList && !selectedTrip && !activeBookingTrip && (
-              <motion.div
-                key="overlay-trek-organizers"
-                custom={instantNav}
-                variants={overlayVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                style={{ willChange: 'opacity, transform' }}
-                className={`fixed inset-0 z-48 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-              >
-                <TrekOrganizersView
-                  trekName={selectedTrekName}
-                  // Same catalog lookup the detail screen uses — the organizer
-                  // list falls back to it to render a real preview of a trek
-                  // nobody has posted a batch for yet.
-                  trek={
-                    hydratedTrek
-                    || catalogTreks.find(ct => (ct.title || ct.name) === selectedTrekName || ct.id === slugifyTrekName(selectedTrekName))
-                  }
-                  offers={trips.filter(t => t.name === selectedTrekName)}
-                  onBack={() => goBack(`/trek/${slugifyTrekName(selectedTrekName)}`)}
-                  onSelectOrganizerOffer={(t) => navigateTo(`/trip/${t.id}`)}
-                  wishlist={wishlist}
-                  onToggleWishlist={handleToggleWishlist}
-                  darkMode={darkMode}
-                />
-              </motion.div>
-            )}
+            {selectedTrekName &&
+              showOrganizersList &&
+              !selectedTrip &&
+              !activeBookingTrip && (
+                <motion.div
+                  key="overlay-trek-organizers"
+                  custom={instantNav}
+                  variants={overlayVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  style={{ willChange: "opacity, transform" }}
+                  className={`fixed inset-0 z-48 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
+                  <TrekOrganizersView
+                    trekName={selectedTrekName}
+                    // Same catalog lookup the detail screen uses — the organizer
+                    // list falls back to it to render a real preview of a trek
+                    // nobody has posted a batch for yet.
+                    trek={
+                      hydratedTrek ||
+                      catalogTreks.find(
+                        (ct) =>
+                          (ct.title || ct.name) === selectedTrekName ||
+                          ct.id === slugifyTrekName(selectedTrekName),
+                      )
+                    }
+                    offers={trips.filter((t) => t.name === selectedTrekName)}
+                    onBack={() =>
+                      goBack(`/trek/${slugifyTrekName(selectedTrekName)}`)
+                    }
+                    onSelectOrganizerOffer={(t) => navigateTo(`/trip/${t.id}`)}
+                    wishlist={wishlist}
+                    onToggleWishlist={handleToggleWishlist}
+                    darkMode={darkMode}
+                  />
+                </motion.div>
+              )}
           </AnimatePresence>
 
           {/* Dynamic details page loaded absolute overlay */}
@@ -1627,144 +1953,164 @@ export default function App() {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                style={{ willChange: 'opacity, transform' }}
-                className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-              >
+                style={{ willChange: "opacity, transform" }}
+                className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
                 <TripDetailsView
                   trip={tripWithDetailDefaults}
-                  onBack={() => goBack('/explore')}
+                  onBack={() => goBack("/explore")}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
                   onTriggerBooking={(t) => navigateTo(`/book/${t.id}`)}
-                  onSelectOrganizer={(org) => navigateTo(`/organizers/${encodeURIComponent(org.name)}`)}
+                  onSelectOrganizer={(org) =>
+                    navigateTo(`/organizers/${encodeURIComponent(org.name)}`)
+                  }
                   darkMode={darkMode}
                 />
               </motion.div>
             )}
           </AnimatePresence>
- 
-           {/* Dynamic Booking flow workflow absolute overlay loaded */}
-           <AnimatePresence mode="wait" custom={instantNav}>
-             {activeBookingTrip && (
-               <motion.div
-                 key="overlay-booking-flow"
-                 custom={instantNav}
-                 variants={overlayVariants}
-                 initial="initial"
-                 animate="animate"
-                 exit="exit"
-                 style={{ willChange: 'opacity, transform' }}
-                 className={`fixed inset-0 z-45 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-               >
-                 <BookingFlow
-                   trip={activeBookingTrip}
-                   onCancel={() => goBack(selectedTrip ? `/trip/${selectedTrip.id}` : '/explore')}
-                   onConfirmBooking={handleFinalizeBookingSetup}
-                   onGoHome={() => navigateTo('/')}
-                   darkMode={darkMode}
-                 />
-               </motion.div>
-             )}
-           </AnimatePresence>
- 
-           {/* Dynamic Booking Details page absolute overlay */}
-           <AnimatePresence mode="wait" custom={instantNav}>
-             {selectedBooking && (
-               <motion.div
-                 key="overlay-booking-details"
-                 custom={instantNav}
-                 variants={overlayVariants}
-                 initial="initial"
-                 animate="animate"
-                 exit="exit"
-                 style={{ willChange: 'opacity, transform' }}
-                 className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-               >
-                 <BookingDetailsView
-                   booking={selectedBooking}
-                   onBack={() => goBack('/bookings')}
-                   onModifyBookingStatus={handleModifyBookingStatus}
-                   availableRescheduleDates={(() => {
-                     const matchedTrip = trips.find(t => t.id === selectedBooking.tripId || t.name === selectedBooking.tripName);
-                     return matchedTrip?.availableDates || [selectedBooking.selectedDate];
-                   })()}
-                   onRequestReschedule={(bookingId, requestedDate, reason) => {
-                     setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
-                       ...b,
-                       rescheduleStatus: 'Pending',
-                       requestedDate,
-                       rescheduleReason: reason
-                     } : b));
-                   }}
-                   onContactOrganizer={(b) => {
-                     setPendingChatTripId(b.tripId);
-                     setSelectedBooking(null);
-                     navigateTo('/bookings');
-                   }}
-                   onViewOrganizerProfile={(name) => {
-                     setSelectedBooking(null);
-                     navigateTo(`/organizers/${encodeURIComponent(name)}`);
-                   }}
-                   onDownloadInvoice={(b) => downloadTicketPDF(b)}
-                   onRateHike={(b, ratingVal, commentVal) => {
-                     handleAddReviewToTrip(b.tripId, ratingVal, commentVal, b.bookingId);
-                   }}
-                   darkMode={darkMode}
-                 />
-               </motion.div>
-             )}
-           </AnimatePresence>
- 
-           {/* Dynamic Organizer Profile page absolute overlay */}
-           <AnimatePresence mode="wait" custom={instantNav}>
-             {selectedOrganizer && (
-               <motion.div
-                 key="overlay-organizer-profile"
-                 custom={instantNav}
-                 variants={overlayVariants}
-                 initial="initial"
-                 animate="animate"
-                 exit="exit"
-                 style={{ willChange: 'opacity, transform' }}
-                 className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-               >
-                 <OrganizerProfileView
-                   organizer={selectedOrganizer}
-                   trips={trips}
-                   onBack={() => goBack('/explore')}
-                   onSelectTrip={(t) => {
-                     setSelectedOrganizer(null);
-                     navigateTo(`/trip/${t.id}`);
-                   }}
-                   darkMode={darkMode}
-                 />
-               </motion.div>
-             )}
-           </AnimatePresence>
- 
-           {/* Dynamic Loyalty Rewards page absolute overlay */}
-           <AnimatePresence mode="wait" custom={instantNav}>
-             {showLoyalty && (
-               <motion.div
-                 key="overlay-loyalty-rewards"
-                 custom={instantNav}
-                 variants={overlayVariants}
-                 initial="initial"
-                 animate="animate"
-                 exit="exit"
-                 style={{ willChange: 'opacity, transform' }}
-                 className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? 'bg-zinc-950' : 'bg-white'}`}
-               >
-                 <LoyaltyRewardsView
-                   bookings={bookings}
-                   onBack={() => goBack('/')}
-                   onGoExplore={() => navigateTo('/explore')}
-                   darkMode={darkMode}
-                 />
-               </motion.div>
-             )}
-           </AnimatePresence>
- 
+
+          {/* Dynamic Booking flow workflow absolute overlay loaded */}
+          <AnimatePresence mode="wait" custom={instantNav}>
+            {activeBookingTrip && (
+              <motion.div
+                key="overlay-booking-flow"
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                style={{ willChange: "opacity, transform" }}
+                className={`fixed inset-0 z-45 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
+                <BookingFlow
+                  trip={activeBookingTrip}
+                  onCancel={() =>
+                    goBack(
+                      selectedTrip ? `/trip/${selectedTrip.id}` : "/explore",
+                    )
+                  }
+                  onConfirmBooking={handleFinalizeBookingSetup}
+                  onGoHome={() => navigateTo("/")}
+                  darkMode={darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Dynamic Booking Details page absolute overlay */}
+          <AnimatePresence mode="wait" custom={instantNav}>
+            {selectedBooking && (
+              <motion.div
+                key="overlay-booking-details"
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                style={{ willChange: "opacity, transform" }}
+                className={`fixed inset-0 z-50 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
+                <BookingDetailsView
+                  booking={selectedBooking}
+                  onBack={() => goBack("/bookings")}
+                  onModifyBookingStatus={handleModifyBookingStatus}
+                  availableRescheduleDates={(() => {
+                    const matchedTrip = trips.find(
+                      (t) =>
+                        t.id === selectedBooking.tripId ||
+                        t.name === selectedBooking.tripName,
+                    );
+                    return (
+                      matchedTrip?.availableDates || [
+                        selectedBooking.selectedDate,
+                      ]
+                    );
+                  })()}
+                  onRequestReschedule={(bookingId, requestedDate, reason) => {
+                    setBookings((prev) =>
+                      prev.map((b) =>
+                        b.id === bookingId || b.bookingId === bookingId
+                          ? {
+                              ...b,
+                              rescheduleStatus: "Pending",
+                              requestedDate,
+                              rescheduleReason: reason,
+                            }
+                          : b,
+                      ),
+                    );
+                  }}
+                  onContactOrganizer={(b) => {
+                    setPendingChatTripId(b.tripId);
+                    setSelectedBooking(null);
+                    navigateTo("/bookings");
+                  }}
+                  onViewOrganizerProfile={(name) => {
+                    setSelectedBooking(null);
+                    navigateTo(`/organizers/${encodeURIComponent(name)}`);
+                  }}
+                  onDownloadInvoice={(b) => downloadTicketPDF(b)}
+                  onRateHike={(b, ratingVal, commentVal) => {
+                    handleAddReviewToTrip(
+                      b.tripId,
+                      ratingVal,
+                      commentVal,
+                      b.bookingId,
+                    );
+                  }}
+                  darkMode={darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Dynamic Organizer Profile page absolute overlay */}
+          <AnimatePresence mode="wait" custom={instantNav}>
+            {selectedOrganizer && (
+              <motion.div
+                key="overlay-organizer-profile"
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                style={{ willChange: "opacity, transform" }}
+                className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
+                <OrganizerProfileView
+                  organizer={selectedOrganizer}
+                  trips={trips}
+                  onBack={() => goBack("/explore")}
+                  onSelectTrip={(t) => {
+                    setSelectedOrganizer(null);
+                    navigateTo(`/trip/${t.id}`);
+                  }}
+                  darkMode={darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Dynamic Loyalty Rewards page absolute overlay */}
+          <AnimatePresence mode="wait" custom={instantNav}>
+            {showLoyalty && (
+              <motion.div
+                key="overlay-loyalty-rewards"
+                custom={instantNav}
+                variants={overlayVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                style={{ willChange: "opacity, transform" }}
+                className={`fixed inset-0 z-55 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
+                <LoyaltyRewardsView
+                  bookings={bookings}
+                  onBack={() => goBack("/")}
+                  onGoExplore={() => navigateTo("/explore")}
+                  darkMode={darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Main Tabs view renderer */}
           <div className="flex-1 flex flex-col relative w-full">
             <AnimatePresence mode="wait" custom={instantNav}>
@@ -1775,7 +2121,7 @@ export default function App() {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                style={{ willChange: 'opacity, transform' }}
+                style={{ willChange: "opacity, transform" }}
                 // overflow-hidden properly bounds this to the space actually
                 // available (flexbox min-height:auto rule) — without it, a
                 // page that swaps to a sub-view via purely local state (never
@@ -1783,8 +2129,7 @@ export default function App() {
                 // fit content instead, pushing the *outer*, never-remounted
                 // wrapper into becoming the real scroller — which then keeps
                 // whatever scrollTop the previous view left it at.
-                className="flex-1 flex flex-col w-full overflow-hidden"
-              >
+                className="flex-1 flex flex-col w-full overflow-hidden">
                 {renderTabContent()}
               </motion.div>
             </AnimatePresence>
@@ -1797,42 +2142,43 @@ export default function App() {
               darkMode={darkMode}
             />
           </div>
- 
+
           {/* Floating Map button — only on Home & Explore, icon-only, sits with a
               clear gap above the glassmorphic nav. Hides while the map is open
               (the map shows its own labelled "Map" pill). */}
           <AnimatePresence>
-            {(activeTab === 'Home' || activeTab === 'Explore') && !showMap && (
+            {(activeTab === "Home" || activeTab === "Explore") && !showMap && (
               <motion.button
                 id="btn-open-map"
-                onClick={() => navigateTo('/map')}
+                onClick={() => navigateTo("/map")}
                 aria-label="Open map"
                 initial={{ opacity: 0, scale: 0.8, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.8, y: 8 }}
                 whileTap={{ scale: 0.9 }}
-                className="fixed right-5 bottom-20 md:bottom-8 z-40 w-12 h-12 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 hover:bg-forest-700 active:scale-95 transition cursor-pointer"
-              >
+                className="fixed right-5 bottom-20 md:bottom-8 z-40 w-12 h-12 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 hover:bg-forest-700 active:scale-95 transition cursor-pointer">
                 <Map size={20} />
               </motion.button>
             )}
           </AnimatePresence>
 
           {/* Sticky bottom navigation system */}
-          {!navHidden && <BottomNav
-            activeTab={activeTab}
-            onChangeTab={(tab) => {
-              navigateTo(tab === 'Home' ? '/' : `/${tab.toLowerCase()}`);
-              // Clear filters when user actively taps main tabs to feel fresh
-              if (tab !== 'Explore') {
-                setExploreSearchQuery('');
-                setExploreCategory('All');
-                setExploreDate('');
-              }
-            }}
-            darkMode={darkMode}
-            wishlistCount={wishlist.length}
-          />}
+          {!navHidden && (
+            <BottomNav
+              activeTab={activeTab}
+              onChangeTab={(tab) => {
+                navigateTo(tab === "Home" ? "/" : `/${tab.toLowerCase()}`);
+                // Clear filters when user actively taps main tabs to feel fresh
+                if (tab !== "Explore") {
+                  setExploreSearchQuery("");
+                  setExploreCategory("All");
+                  setExploreDate("");
+                }
+              }}
+              darkMode={darkMode}
+              wishlistCount={wishlist.length}
+            />
+          )}
 
           {/* Full-screen map view (draggable list sheet over the map) */}
           <AnimatePresence>
@@ -1841,8 +2187,10 @@ export default function App() {
                 trips={trips}
                 wishlist={wishlist}
                 onToggleWishlist={handleToggleWishlist}
-                onSelectTrek={(trekName) => navigateTo(`/trek/${slugifyTrekName(trekName)}`)}
-                onClose={() => goBack('/')}
+                onSelectTrek={(trekName) =>
+                  navigateTo(`/trek/${slugifyTrekName(trekName)}`)
+                }
+                onClose={() => goBack("/")}
                 darkMode={darkMode}
               />
             )}
@@ -1856,35 +2204,42 @@ export default function App() {
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  className="bg-white dark:bg-[#1C120C] border border-red-500/30 rounded-3xl p-6 w-full text-center space-y-4 shadow-xl z-[1000]"
-                >
+                  className="bg-white dark:bg-[#1C120C] border border-red-500/30 rounded-3xl p-6 w-full text-center space-y-4 shadow-xl z-[1000]">
                   <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto text-red-500">
                     <AlertTriangle size={24} />
                   </div>
                   <div className="space-y-1">
                     <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
-                      {bannedReason === 'expired'
-                        ? 'Session Expired'
-                        : bannedReason === 'deleted'
-                          ? 'Account Deleted'
-                          : bannedReason === 'deactivated' ? 'Account Deactivated' : 'Account Suspended'}
+                      {bannedReason === "expired"
+                        ? "Session Expired"
+                        : bannedReason === "deleted"
+                          ? "Account Deleted"
+                          : bannedReason === "deactivated"
+                            ? "Account Deactivated"
+                            : "Account Suspended"}
                     </h4>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
-                      {bannedReason === 'expired'
-                        ? 'Your sign-in session has expired. Please sign in again to continue.'
-                        : bannedReason === 'deleted'
-                          ? 'Your account has been deleted by the admin.'
-                          : bannedReason === 'deactivated'
-                            ? 'Your account is deactivated. Kindly contact customer support for more details.'
-                            : 'You are banned by the admin.'}
+                      {bannedReason === "expired"
+                        ? "Your sign-in session has expired. Please sign in again to continue."
+                        : bannedReason === "deleted"
+                          ? "Your account has been deleted by the admin."
+                          : bannedReason === "deactivated"
+                            ? "Your account is deactivated. Kindly contact customer support for more details."
+                            : "You are banned by the admin."}
                     </p>
                   </div>
 
-                  {bannedReason === 'deactivated' && (
+                  {bannedReason === "deactivated" && (
                     <div className="bg-slate-50 dark:bg-[#2A1E17] border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Customer Support Contacts</div>
-                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{supportContact.phone}</div>
-                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{supportContact.email}</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">
+                        Customer Support Contacts
+                      </div>
+                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        {supportContact.phone}
+                      </div>
+                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        {supportContact.email}
+                      </div>
                     </div>
                   )}
 
@@ -1893,18 +2248,15 @@ export default function App() {
                     onClick={() => {
                       setBannedAlert(false);
                     }}
-                    className="w-full bg-red-650 hover:bg-red-750 text-white text-xs font-bold py-3 rounded-full cursor-pointer active:scale-95 transition-all"
-                  >
+                    className="w-full bg-red-650 hover:bg-red-750 text-white text-xs font-bold py-3 rounded-full cursor-pointer active:scale-95 transition-all">
                     Okay
                   </button>
                 </motion.div>
               </div>
             )}
           </AnimatePresence>
-
         </div>
       )}
- 
     </PhoneFrame>
   );
 }
