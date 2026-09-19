@@ -14,8 +14,6 @@ async function start() {
     const server = app.listen(env.port, () => {
       console.log(`✓ Find Your Trek API listening on http://localhost:${env.port} (${env.nodeEnv})`);
       connectDB()
-        .then(async () => {
-          console.log('✓ MongoDB connected');
         .then(async (conn) => {
           console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);
           await upsertAdmin();
