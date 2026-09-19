@@ -16,6 +16,8 @@ async function start() {
       connectDB()
         .then(async () => {
           console.log('✓ MongoDB connected');
+        .then(async (conn) => {
+          console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);
           await upsertAdmin();
         })
         .catch((err) => console.error('✗ MongoDB connection failed:', err.message));

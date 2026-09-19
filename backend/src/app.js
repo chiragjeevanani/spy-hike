@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import apiRoutes from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -72,6 +73,20 @@ export function createApp() {
         });
       }
     } catch (e) {}
+    if (mongoose.connection.readyState === 1) {
+      try {
+        const { getConfig } = await import('./models/AdminConfig.js');
+        const cfg = await getConfig();
+        if (cfg.maintenanceMode) {
+          return res.status(503).json({
+            error: {
+              status: 503,
+              message: 'System is undergoing scheduled maintenance. Please try again later.',
+            }
+          });
+        }
+      } catch (e) {}
+    }
     next();
   });
 
