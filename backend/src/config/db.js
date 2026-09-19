@@ -10,8 +10,6 @@ export async function connectDB(uri = env.mongoUri) {
     throw new Error('MONGO_URI is not set. Copy backend/.env.example to backend/.env and fill it in.');
   }
   mongoose.set('strictQuery', true);
-  await mongoose.connect(uri);
-  return mongoose.connection;
 
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });

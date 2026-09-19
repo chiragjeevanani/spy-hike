@@ -17,6 +17,7 @@ const chatSchema = new mongoose.Schema(
     tripName: String,
     userEmail: { type: String, required: true, index: true },
     userName: String,
+    userAvatar: String,
     organizerEmail: { type: String, required: true, index: true },
     organizerName: String,
     organizerAvatar: String,
@@ -27,15 +28,16 @@ const chatSchema = new mongoose.Schema(
 
 chatSchema.index({ tripId: 1, userEmail: 1, organizerEmail: 1 }, { unique: true });
 
-chatSchema.methods.toPublicJSON = function toPublicJSON() {
+chatSchema.methods.toPublicJSON = function toPublicJSON(extra = {}) {
   return {
     id: this._id.toString(),
     tripId: this.tripId,
     tripName: this.tripName,
     userEmail: this.userEmail,
-    userName: this.userName,
-    organizerName: this.organizerName,
-    organizerAvatar: this.organizerAvatar,
+    userName: extra.userName || this.userName || '',
+    userAvatar: extra.userAvatar || this.userAvatar || '',
+    organizerName: extra.organizerName || this.organizerName || '',
+    organizerAvatar: extra.organizerAvatar || this.organizerAvatar || '',
     messages: this.messages.map((m) => ({
       id: `${this._id}-${m.timestamp?.getTime?.() || Date.now()}`,
       sender: m.sender,

@@ -1944,7 +1944,7 @@ export default function BookingFlow({
                     darkMode ? 'bg-zinc-950/60 border border-white/5' : 'bg-gray-50 border border-gray-150'
                   }`}>
                     <img
-                      src={trip.organizer.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'}
+                      src={trip.organizer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(trip.organizer.name || 'Organizer')}&background=02542D&color=fff&bold=true`}
                       alt={trip.organizer.name}
                       className="w-8 h-8 rounded-full object-cover border border-forest-500/40 shrink-0"
                     />

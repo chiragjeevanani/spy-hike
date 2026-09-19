@@ -214,10 +214,24 @@ describe('Chat', () => {
     expect(sent.status).toBe(201);
     expect(sent.body.chat.messages.some((m) => m.sender === 'user' && m.text === 'What should I pack?')).toBe(true);
 
+    // Organizer receives an in-app notification with sender name
+    const orgNotifs = await request(app).get('/api/v1/organizer/notifications').set('Authorization', `Bearer ${org}`);
+    expect(orgNotifs.body.notifications.some((n) => /Message from Hiker/i.test(n.title))).toBe(true);
+
     const orgChats = await request(app).get('/api/v1/organizer/chats').set('Authorization', `Bearer ${org}`);
     const chatId = orgChats.body.chats[0].id;
+    expect(orgChats.body.chats[0].userName).toBe('Hiker');
+
     const reply = await request(app).post(`/api/v1/organizer/chats/${chatId}/messages`).set('Authorization', `Bearer ${org}`).send({ text: 'Warm layers + boots.' });
     expect(reply.body.chat.messages.some((m) => m.sender === 'organizer' && m.text === 'Warm layers + boots.')).toBe(true);
+
+    // Customer receives an in-app notification from organizer
+    const custNotifs = await request(app).get('/api/v1/notifications').set('Authorization', `Bearer ${token}`);
+    expect(custNotifs.body.notifications.some((n) => /Message from (Guides|Org)/i.test(n.title))).toBe(true);
+
+    // Customer chats list includes organizer details
+    const custChatsAfter = await request(app).get('/api/v1/chats').set('Authorization', `Bearer ${token}`);
+    expect(custChatsAfter.body.chats[0].organizerName).toMatch(/Guides|Org/);
   });
 
   it("an organizer cannot post to another organizer's chat (403)", async () => {

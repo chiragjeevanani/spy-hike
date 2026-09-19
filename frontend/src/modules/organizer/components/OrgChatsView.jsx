@@ -2,10 +2,34 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, Send, ArrowLeft } from 'lucide-react';
 
-export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack, darkMode }) {
-  const [selectedChat, setSelectedChat] = useState(null);
+export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack, darkMode, initialChatId }) {
+  const [selectedChat, setSelectedChat] = useState(() => {
+    if (initialChatId && Array.isArray(chats)) {
+      return chats.find(c => String(c.id || c._id) === String(initialChatId)) || null;
+    }
+    return null;
+  });
   const [inputText, setInputText] = useState('');
   const messagesContainerRef = useRef(null);
+  const orgInputRef = useRef(null);
+
+  // Sync initialChatId when chats load or prop updates
+  useEffect(() => {
+    if (initialChatId && Array.isArray(chats)) {
+      const match = chats.find(c => String(c.id || c._id) === String(initialChatId));
+      if (match) setSelectedChat(match);
+    }
+  }, [initialChatId, chats]);
+
+  // Auto-focus input when a chat thread opens
+  useEffect(() => {
+    if (selectedChat) {
+      const timer = setTimeout(() => {
+        orgInputRef.current?.focus();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedChat?.id]);
 
   // Smooth internal scroll for messages container without shifting the window layout
   useEffect(() => {
@@ -98,6 +122,7 @@ export default function OrgChatsView({ chats, onSendMessage, onMarkRead, onBack,
         {/* Input bar */}
         <div className={`shrink-0 px-4 py-3 flex items-center gap-2 ${darkMode ? 'bg-zinc-900 border-t border-white/5' : 'bg-white/90 backdrop-blur-md border-t border-zinc-200/80 shadow-xs'}`}>
           <input
+            ref={orgInputRef}
             type="text"
             value={inputText}
             onChange={e => setInputText(e.target.value)}

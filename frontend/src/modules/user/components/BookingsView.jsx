@@ -10,6 +10,7 @@ import { getComputedBookingStatus, getStatusBadgeStyle } from '../../../utils/bo
 export default function BookingsView({
   bookings,
   trips,
+  user,
   onSelectTrip,
   chats,
   onSaveChats,
@@ -19,6 +20,7 @@ export default function BookingsView({
   onSelectBooking,
   initialChatTripId,
   onChatOpened,
+  onChatStateChange,
   darkMode
 }) {
   const [activeTab, setActiveTab] = useState('Upcoming');
@@ -37,12 +39,34 @@ export default function BookingsView({
   const toast = useToast();
   const reviewCommentRef = useRef(null);
   const chatBottomRef = useRef(null);
+  const chatInputRef = useRef(null);
+
+  // Derive the latest session from `chats` prop (which updates via polling & send)
+  const currentChatSession = activeChatSession
+    ? (chats.find(c => c.tripId === activeChatSession.tripId) || activeChatSession)
+    : null;
 
   useEffect(() => {
-    if (activeChatSession) {
+    if (currentChatSession) {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [activeChatSession?.messages]);
+  }, [currentChatSession?.messages]);
+
+  // Hide bottom navbar and auto-focus message input when chat is open
+  useEffect(() => {
+    if (activeChatSession) {
+      onChatStateChange?.(true);
+      const timer = setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 150);
+      return () => {
+        clearTimeout(timer);
+        onChatStateChange?.(false);
+      };
+    } else {
+      onChatStateChange?.(false);
+    }
+  }, [activeChatSession?.tripId, onChatStateChange]);
 
   const filteredBookings = bookings.filter(b => {
     const computed = getComputedBookingStatus(b);
@@ -58,19 +82,41 @@ export default function BookingsView({
     return true;
   });
 
-  // Trigger simulated chat drawer
+  // Helper for real organizer avatar
+  const getOrganizerAvatar = (booking, trip) => {
+    const avatar = booking?.organizerAvatar || booking?.organizer?.avatar || trip?.organizer?.avatar;
+    if (avatar && !avatar.includes('photo-1534528741775-53994a69daeb')) {
+      return avatar;
+    }
+    const name = booking?.organizerName || trip?.organizer?.name || 'Organizer';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F27D26&color=fff`;
+  };
+
+  // Trigger chat drawer with real profile metadata
   const handleContactOrganizer = (booking) => {
-    // Find or create chat session
+    const matchedTrip = trips?.find(t => t.id === booking.tripId);
     const existing = chats.find(c => c.tripId === booking.tripId);
+    const realAvatar = getOrganizerAvatar(booking, matchedTrip);
+
     if (existing) {
-      setActiveChatSession(existing);
+      const updated = (!existing.organizerAvatar || existing.organizerAvatar.includes('photo-1534528741775-53994a69daeb'))
+        ? { ...existing, organizerAvatar: realAvatar }
+        : existing;
+      setActiveChatSession(updated);
     } else {
+      const hikerName = (user?.name || booking.userName || 'Hiker').trim();
       const newSession = {
         tripId: booking.tripId,
-        organizerName: booking.organizerName,
-        organizerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        tripName: booking.tripName,
+        organizerName: booking.organizerName || 'Organizer',
+        organizerAvatar: realAvatar,
         messages: [
-          { id: 'm-start', sender: 'organizer', text: `Hi Chirag! Thanks for reaching out about ${booking.tripName}. How can I assist you today?`, timestamp: new Date().toISOString() }
+          {
+            id: 'm-start',
+            sender: 'organizer',
+            text: `Hi ${hikerName}! Thanks for reaching out about ${booking.tripName}. How can I assist you today?`,
+            timestamp: new Date().toISOString()
+          }
         ]
       };
       onSaveChats([...chats, newSession]);
@@ -89,10 +135,10 @@ export default function BookingsView({
   }, [initialChatTripId]);
 
   const handleSendChatMessage = () => {
-    if (!chatInputText.trim() || !activeChatSession) return;
+    if (!chatInputText.trim() || !currentChatSession) return;
 
     const text = chatInputText.trim();
-    const tripId = activeChatSession.tripId;
+    const tripId = currentChatSession.tripId;
     const userMsg = {
       id: 'm-u-' + Date.now(),
       sender: 'user',
@@ -102,8 +148,8 @@ export default function BookingsView({
 
     // Optimistically show the sent message right away.
     const updatedSession = {
-      ...activeChatSession,
-      messages: [...activeChatSession.messages, userMsg]
+      ...currentChatSession,
+      messages: [...currentChatSession.messages, userMsg]
     };
     onSaveChats(chats.map(c => (c.tripId === tripId ? updatedSession : c)));
     setActiveChatSession(updatedSession);
@@ -291,11 +337,14 @@ export default function BookingsView({
       {/* 3. SIMULATED ORGANIZER LIVE CHAT DRAWER / DESKTOP PANEL */}
       {/* ============================================== */}
       <AnimatePresence>
-        {activeChatSession && (() => {
-          const matchedBooking = bookings.find(b => b.tripId === activeChatSession.tripId);
-          const tripName = activeChatSession.tripName || matchedBooking?.tripName;
+        {currentChatSession && (() => {
+          const matchedBooking = bookings.find(b => b.tripId === currentChatSession.tripId);
+          const matchedTrip = trips?.find(t => t.id === currentChatSession.tripId);
+          const tripName = currentChatSession.tripName || matchedBooking?.tripName || matchedTrip?.name;
           const departureDate = matchedBooking?.selectedDate;
-          const avatarUrl = activeChatSession.organizerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+          const avatarUrl = (currentChatSession.organizerAvatar && !currentChatSession.organizerAvatar.includes('photo-1534528741775-53994a69daeb'))
+            ? currentChatSession.organizerAvatar
+            : getOrganizerAvatar(matchedBooking, matchedTrip);
 
           const quickReplies = [
             "What essentials should I pack for this trek?",
@@ -306,7 +355,7 @@ export default function BookingsView({
 
           return (
             <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-55 flex justify-end items-stretch md:p-4 lg:p-6 transition-all"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-end items-stretch md:p-4 lg:p-6 transition-all"
               onClick={() => setActiveChatSession(null)}
             >
               <motion.div
@@ -315,7 +364,7 @@ export default function BookingsView({
                 exit={{ x: '100%', opacity: 0 }}
                 transition={{ type: 'spring', damping: 28, stiffness: 260 }}
                 onClick={(e) => e.stopPropagation()}
-                className={`w-full sm:w-[440px] md:w-[480px] lg:w-[500px] h-full md:h-[calc(100vh-3rem)] md:my-auto md:rounded-3xl flex flex-col justify-between shadow-2xl relative border overflow-hidden ${
+                className={`w-full sm:w-[440px] md:w-[480px] lg:w-[500px] h-[100dvh] md:h-[calc(100vh-3rem)] md:my-auto md:rounded-3xl flex flex-col justify-between shadow-2xl relative border overflow-hidden ${
                   darkMode ? 'bg-zinc-950 text-zinc-100 border-white/10' : 'bg-white text-zinc-900 border-zinc-200 shadow-xl'
                 }`}
               >
@@ -328,7 +377,7 @@ export default function BookingsView({
                       <div className="relative shrink-0">
                         <img
                           src={avatarUrl}
-                          alt={activeChatSession.organizerName}
+                          alt={currentChatSession.organizerName}
                           className="w-10 h-10 rounded-full object-cover border border-forest-500/40"
                         />
                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-zinc-950" />
@@ -336,7 +385,7 @@ export default function BookingsView({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <h4 className="text-sm font-bold font-display truncate">
-                            {activeChatSession.organizerName}
+                            {currentChatSession.organizerName}
                           </h4>
                           <ShieldCheck size={13} className="text-emerald-400 shrink-0" />
                         </div>
@@ -385,7 +434,7 @@ export default function BookingsView({
                     </span>
                   </div>
 
-                  {activeChatSession.messages.map((m) => {
+                  {currentChatSession.messages.map((m) => {
                     const isUser = m.sender === 'user';
                     return (
                       <div
@@ -420,7 +469,7 @@ export default function BookingsView({
                 </div>
 
                 {/* Quick suggestions pills */}
-                {activeChatSession.messages.length <= 4 && (
+                {currentChatSession.messages.length <= 4 && (
                   <div className="px-4 pb-2">
                     <span className="text-[9px] font-bold uppercase tracking-wider opacity-50 block mb-1.5">
                       Suggested questions
@@ -447,11 +496,12 @@ export default function BookingsView({
                 )}
 
                 {/* Inputs bar footer */}
-                <div className={`p-3.5 sm:p-4 border-t shrink-0 ${
+                <div className={`p-3.5 sm:p-4 border-t shrink-0 pb-[max(0.875rem,env(safe-area-inset-bottom))] ${
                   darkMode ? 'bg-zinc-900/40 border-white/10' : 'bg-gray-50/80 border-zinc-200/80'
                 }`}>
                   <div className="flex gap-2 items-center">
                     <input
+                      ref={chatInputRef}
                       type="text"
                       placeholder="Type your message..."
                       value={chatInputText}

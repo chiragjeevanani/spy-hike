@@ -297,10 +297,13 @@ export default function App() {
   const [bookings, setBookings] = useState(() => loadBookings());
   const [notifications, setNotifications] = useState(() => loadNotifications());
   const [chats, setChats] = useState(() => loadChats());
-  // Set when "Message" is tapped from BookingDetailsView, so navigating to
+  // Set when "Message" is tapped from BookingDetailsView, or arriving via
+  // push notification deep link (?chatTripId=...), so navigating to
   // Bookings opens that trip's chat drawer immediately instead of just
   // landing on the list. BookingsView clears it once the drawer is open.
-  const [pendingChatTripId, setPendingChatTripId] = useState(null);
+  const [pendingChatTripId, setPendingChatTripId] = useState(
+    () => new URLSearchParams(window.location.search).get('chatTripId') || null
+  );
   // Admin-managed marketing content for the public landing page. Seeded from
   // the same-origin localStorage cache (so offline admin edits show at once),
   // then refreshed from the public endpoint when the backend is reachable.
@@ -574,6 +577,8 @@ export default function App() {
       setSelectedBooking(null);
       setSelectedOrganizer(null);
       setSelectedTrekName(null);
+      const chatTripId = new URLSearchParams(window.location.search).get('chatTripId');
+      if (chatTripId) setPendingChatTripId(chatTripId);
     } else if (path === '/wishlist') {
       setActiveTab('Wishlist');
       setSelectedTrip(null);
@@ -1158,8 +1163,8 @@ export default function App() {
   const handleAddReviewToTrip = (tripId, rating, comment, bookingId) => {
     const newRatingReview = {
       id: 'rev-' + Date.now(),
-      userName: user.name || 'Chirag Jeevanani',
-      userAvatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      userName: user.name || 'Hiker',
+      userAvatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'Hiker')}&background=02542D&color=fff&bold=true`,
       rating,
       comment,
       date: new Date().toISOString().split('T')[0]
@@ -1203,7 +1208,7 @@ export default function App() {
     const resolvedBooking = {
       ...rawBooking,
       userEmail: user.email,
-      userName: user.name || 'Chirag Jeevanani',
+      userName: user.name || 'Hiker',
       hikersCount: rawBooking.hikersCount ?? rawBooking.travelersCount,
     };
 
@@ -1238,7 +1243,9 @@ export default function App() {
     setNotifications(prev => [confirmAlert, paymentAlert, ...prev]);
 
     // 3. Auto-populate chat with organizer
-    const welcomeMsg = `Hi Chirag! Verified guides from ${resolvedBooking.organizerName} have received your pass application. Looking forward to hiking soon!`;
+    const matchedTrip = trips.find(t => t.id === resolvedBooking.tripId);
+    const hikerName = (user?.name || resolvedBooking.userName || 'Hiker').trim();
+    const welcomeMsg = `Hi ${hikerName}! Verified guides from ${resolvedBooking.organizerName} have received your pass application. Looking forward to hiking soon!`;
     const newOrganizerMsg = {
       id: 'm-new-start-' + Date.now(),
       sender: 'organizer',
@@ -1246,17 +1253,21 @@ export default function App() {
       timestamp: new Date().toISOString()
     };
 
+    const realAvatar = resolvedBooking.organizerAvatar || resolvedBooking.organizer?.avatar || matchedTrip?.organizer?.avatar
+      || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedBooking.organizerName || 'Organizer')}&background=F27D26&color=fff`;
+
     const existingChatSession = chats.find(c => c.tripId === resolvedBooking.tripId);
     if (existingChatSession) {
       const updatedMessages = [...existingChatSession.messages, newOrganizerMsg];
       setChats(prev => prev.map(c => 
-        c.tripId === resolvedBooking.tripId ? { ...c, messages: updatedMessages } : c
+        c.tripId === resolvedBooking.tripId ? { ...c, organizerAvatar: realAvatar, messages: updatedMessages } : c
       ));
     } else {
       const newChatSession = {
         tripId: resolvedBooking.tripId,
+        tripName: resolvedBooking.tripName,
         organizerName: resolvedBooking.organizerName,
-        organizerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        organizerAvatar: realAvatar,
         messages: [newOrganizerMsg]
       };
       setChats(prev => [...prev, newChatSession]);
@@ -1408,6 +1419,7 @@ export default function App() {
           <BookingsView
             bookings={bookings}
             trips={trips}
+            user={user}
             onSelectTrip={(t) => navigateTo(`/trip/${t.id}`)}
             chats={chats}
             onSaveChats={setChats}
@@ -1417,6 +1429,7 @@ export default function App() {
             onSelectBooking={(b) => navigateTo(`/booking/${b.id}`)}
             initialChatTripId={pendingChatTripId}
             onChatOpened={() => setPendingChatTripId(null)}
+            onChatStateChange={setNavHidden}
             darkMode={darkMode}
           />
         );

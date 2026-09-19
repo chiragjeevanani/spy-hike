@@ -91,7 +91,13 @@ export default function OrgApp() {
   const [showOrgFinancials, setShowOrgFinancials] = useState(false);
   const [showOrgCoupons, setShowOrgCoupons] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [showOrgChats, setShowOrgChats] = useState(false);
+  const [showOrgChats, setShowOrgChats] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') === 'chats' || Boolean(params.get('chatId'));
+  });
+  const [pendingOrgChatId, setPendingOrgChatId] = useState(() => {
+    return new URLSearchParams(window.location.search).get('chatId') || null;
+  });
   const [deleteTripTarget, setDeleteTripTarget] = useState(null);
   const toast = useToast();
   const [chats, setChats] = useState([]);
@@ -1032,9 +1038,13 @@ export default function OrgApp() {
               <div className="max-w-5xl mx-auto w-full h-full flex flex-col min-h-0">
                 <OrgChatsView
                   chats={chats}
+                  initialChatId={pendingOrgChatId}
                   onSendMessage={handleSendOrgMessage}
                   onMarkRead={handleMarkOrgChatRead}
-                  onBack={() => closeCurrentOverlay(setShowOrgChats)}
+                  onBack={() => {
+                    setPendingOrgChatId(null);
+                    closeCurrentOverlay(setShowOrgChats);
+                  }}
                   darkMode={darkMode}
                 />
               </div>

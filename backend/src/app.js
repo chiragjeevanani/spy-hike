@@ -61,18 +61,6 @@ export function createApp() {
       || req.path === PAYU_WEBHOOK_PATH || req.path === PAYU_RETURN_PATH) {
       return next();
     }
-    try {
-      const { getConfig } = await import('./models/AdminConfig.js');
-      const cfg = await getConfig();
-      if (cfg.maintenanceMode) {
-        return res.status(503).json({
-          error: {
-            status: 503,
-            message: 'System is undergoing scheduled maintenance. Please try again later.',
-          }
-        });
-      }
-    } catch (e) {}
     if (mongoose.connection.readyState === 1) {
       try {
         const { getConfig } = await import('./models/AdminConfig.js');
