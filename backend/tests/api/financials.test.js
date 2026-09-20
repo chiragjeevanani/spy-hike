@@ -33,9 +33,10 @@ async function adminToken() {
 }
 let trekSeq = 0;
 async function makeTrip(orgToken, departDays) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `refund-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Refund Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `refund-trek-${Date.now()}-${seq}`,
+    title: `Refund Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({

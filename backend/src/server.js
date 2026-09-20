@@ -5,6 +5,9 @@ import { upsertAdmin } from './seed.js';
 import { initCache, closeCache } from './lib/cache.js';
 import mongoose from 'mongoose';
 
+import Notification from './models/Notification.js';
+import { purgeExpiredNotifications } from './services/notificationService.js';
+
 async function start() {
   const app = createApp();
   let retries = 0;
@@ -17,8 +20,19 @@ async function start() {
         .then(async (conn) => {
           console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);
           await upsertAdmin();
+          // Register 30-day TTL index and compound query indexes on MongoDB
+          Notification.syncIndexes().catch((err) => console.warn('[notifications] syncIndexes warning:', err.message));
+          // Immediately purge any stale notifications older than 30 days to keep cluster storage optimal
+          purgeExpiredNotifications(30).catch((err) => console.warn('[notifications] initial purge warning:', err.message));
         })
         .catch((err) => console.error('✗ MongoDB connection failed:', err.message));
+
+      // Periodic 24-hour maintenance safeguard for MongoDB free cluster
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      setInterval(() => {
+        purgeExpiredNotifications(30).catch((err) => console.warn('[notifications] periodic purge warning:', err.message));
+      }, DAY_MS).unref();
+
       // Never awaited: a missing or slow Redis must not hold up the API, which
       // serves fine from the in-memory fallback until this resolves.
       initCache().catch((err) => console.warn('[cache] init failed:', err.message));

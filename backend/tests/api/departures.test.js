@@ -10,9 +10,10 @@ const app = createApp();
 
 let trekSeq = 0;
 async function seedTrek() {
+  const seq = trekSeq++;
   return Trek.create({
-    _id: `inventory-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Inventory Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `inventory-trek-${Date.now()}-${seq}`,
+    title: `Inventory Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
 }

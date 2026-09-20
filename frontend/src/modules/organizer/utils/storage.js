@@ -116,7 +116,15 @@ export const saveOrgBookings = (bookings) => {
 export const loadOrgNotifications = () => {
   try {
     const val = localStorage.getItem(ORG_NOTIFICATIONS_KEY);
-    if (val) return JSON.parse(val);
+    if (val) {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) {
+        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        return parsed.filter(
+          (n) => !n.timestamp || new Date(n.timestamp).getTime() >= thirtyDaysAgo
+        );
+      }
+    }
   } catch (e) { console.error(e); }
   return [];
 };

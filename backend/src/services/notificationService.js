@@ -22,3 +22,14 @@ export const emitNotification = async (ownerType, ownerKey, { title, content, ty
 // Convenience wrappers for the two audiences.
 export const notifyCustomer = (email, payload) => emitNotification('customer', email, payload);
 export const notifyOrganizer = (email, payload) => emitNotification('organizer', email, payload);
+
+// Purges notifications older than specified days (default 30 days / 1 month)
+// Useful as an immediate boot cleanup and programmatic safeguard alongside MongoDB TTL index.
+export const purgeExpiredNotifications = async (days = 30) => {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const result = await Notification.deleteMany({ createdAt: { $lt: cutoff } });
+  if (result?.deletedCount > 0) {
+    console.log(`[notifications] Purged ${result.deletedCount} notification(s) older than ${days} days.`);
+  }
+  return result;
+};

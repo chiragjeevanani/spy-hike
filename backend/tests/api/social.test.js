@@ -4,6 +4,8 @@ import { createApp } from '../../src/app.js';
 import User from '../../src/models/User.js';
 import Admin from '../../src/models/Admin.js';
 import Trek from '../../src/models/Trek.js';
+import Notification from '../../src/models/Notification.js';
+import { purgeExpiredNotifications } from '../../src/services/notificationService.js';
 import { hashPassword } from '../../src/utils/password.js';
 
 const app = createApp();
@@ -187,6 +189,53 @@ describe('Notifications', () => {
     expect(noTitle.status).toBe(400);
     const noContent = await request(app).post('/api/v1/admin/broadcast').set('Authorization', `Bearer ${admin}`).send({ title: 'Monsoon Alert', content: '   ' });
     expect(noContent.status).toBe(400);
+  });
+
+  it('defines a 30-day TTL index on createdAt', () => {
+    const indexes = Notification.schema.indexes();
+    const ttlIndex = indexes.find(([fields, opts]) => fields.createdAt === 1 && opts?.expireAfterSeconds);
+    expect(ttlIndex).toBeTruthy();
+    expect(ttlIndex[1].expireAfterSeconds).toBe(30 * 24 * 60 * 60);
+  });
+
+  it('purges notifications older than 30 days and retains recent ones', async () => {
+    const { token, email } = await customerToken('retention@example.com');
+
+    // Create an old notification (40 days ago) and a recent one (2 days ago)
+    const fortyDaysAgo = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+    const oldNotif = await Notification.create({
+      ownerType: 'customer',
+      ownerKey: email,
+      title: 'Old Notification',
+      content: 'Should be purged',
+    });
+    // Use raw collection update so Mongoose timestamp immutability does not override the past date
+    await Notification.collection.updateOne({ _id: oldNotif._id }, { $set: { createdAt: fortyDaysAgo } });
+
+    const recentNotif = await Notification.create({
+      ownerType: 'customer',
+      ownerKey: email,
+      title: 'Recent Notification',
+      content: 'Should stay',
+    });
+    await Notification.collection.updateOne({ _id: recentNotif._id }, { $set: { createdAt: twoDaysAgo } });
+
+    // Endpoint query filter excludes the old notification
+    const res = await request(app).get('/api/v1/notifications').set('Authorization', `Bearer ${token}`);
+    expect(res.body.notifications.some((n) => n.title === 'Recent Notification')).toBe(true);
+    expect(res.body.notifications.some((n) => n.title === 'Old Notification')).toBe(false);
+
+    // Purge service physically removes expired records from database
+    const purgeRes = await purgeExpiredNotifications(30);
+    expect(purgeRes.deletedCount).toBeGreaterThanOrEqual(1);
+
+    const checkOld = await Notification.findById(oldNotif._id);
+    expect(checkOld).toBeNull();
+
+    const checkRecent = await Notification.findById(recentNotif._id);
+    expect(checkRecent).not.toBeNull();
   });
 });
 

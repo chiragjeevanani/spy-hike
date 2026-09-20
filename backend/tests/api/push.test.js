@@ -64,9 +64,10 @@ const registerDevice = (token, fcmToken) =>
   request(app).post(`${api}/auth/fcm-token`).set('Authorization', `Bearer ${token}`).send({ fcmToken });
 
 async function makeTrip(orgToken) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `push-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Push Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `push-trek-${Date.now()}-${seq}`,
+    title: `Push Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post(`${api}/organizer/trips`).set('Authorization', `Bearer ${orgToken}`).send({

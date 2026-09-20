@@ -18,9 +18,10 @@ async function approvedOrganizerToken(email = 'org@example.com') {
 }
 let trekSeq = 0;
 async function makeTrip(orgToken) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `checkin-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Checkin Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `checkin-trek-${Date.now()}-${seq}`,
+    title: `Checkin Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({

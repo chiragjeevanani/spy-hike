@@ -14,6 +14,13 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Automatically delete notifications older than 30 days (1 month) to keep storage minimal on MongoDB free tier.
+// 30 days * 24 hours * 60 minutes * 60 seconds = 2,592,000 seconds.
+notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+
+// Compound index for recipient queries sorted newest-first
+notificationSchema.index({ ownerType: 1, ownerKey: 1, createdAt: -1 });
+
 notificationSchema.methods.toPublicJSON = function toPublicJSON() {
   return {
     id: this._id.toString(),

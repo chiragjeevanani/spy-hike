@@ -24,9 +24,10 @@ async function adminToken() {
   return res.body.token;
 }
 async function makeTrip(orgToken, over = {}) {
+  const rand = Math.random().toString(36).slice(2, 7);
   const trek = await Trek.create({
-    _id: `analytics-trek-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    title: 'Analytics Trek', location: 'Manali', state: 'Himachal Pradesh', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `analytics-trek-${Date.now()}-${rand}`,
+    title: `Analytics Trek ${rand}`, location: 'Manali', state: 'Himachal Pradesh', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({

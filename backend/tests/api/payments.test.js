@@ -111,9 +111,10 @@ async function adminToken() {
 }
 
 async function makeTrip(orgToken, over) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `pay-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Payment Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `pay-trek-${Date.now()}-${seq}`,
+    title: `Payment Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(orgToken ? app : app)
