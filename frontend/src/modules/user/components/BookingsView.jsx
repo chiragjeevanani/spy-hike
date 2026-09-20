@@ -181,16 +181,23 @@ export default function BookingsView({
             setActiveChatSession(serverChat);
             if (onSaveChats) {
               const currentChats = chats || [];
-              const exists = currentChats.some((c) => c.tripId === serverChat.tripId);
+              const exists = currentChats.some(
+                (c) => c.tripId === serverChat.tripId,
+              );
               const next = exists
-                ? currentChats.map((c) => (c.tripId === serverChat.tripId ? serverChat : c))
+                ? currentChats.map((c) =>
+                    c.tripId === serverChat.tripId ? serverChat : c,
+                  )
                 : [...currentChats, serverChat];
               onSaveChats(next);
             }
           }
         })
         .catch((err) => {
-          console.warn("[chat] failed to fetch trip chat:", err?.message || err);
+          console.warn(
+            "[chat] failed to fetch trip chat:",
+            err?.message || err,
+          );
         });
     }
   };

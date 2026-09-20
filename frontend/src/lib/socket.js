@@ -73,3 +73,4 @@ export function leaveChatRoom(tripId, chatId) {
 }
 
 export default getSocket;
+

@@ -128,3 +128,4 @@ export function emitToUser(email, event, data) {
   const userRoom = `user:${String(email).toLowerCase().trim()}`;
   io.to(userRoom).emit(event, data);
 }
+

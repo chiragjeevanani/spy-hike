@@ -70,6 +70,14 @@ async function start() {
     });
   }
 
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[server] Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
+  process.on('uncaughtException', (err) => {
+    console.error('[server] Uncaught Exception:', err);
+  });
+
   listen();
 }
 
