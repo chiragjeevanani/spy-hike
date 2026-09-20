@@ -9,6 +9,7 @@ import { getWishlist, setWishlist } from '../controllers/wishlistController.js';
 import {
   listCustomerNotifications, markCustomerNotificationRead, markAllCustomerNotificationsRead,
 } from '../controllers/notificationController.js';
+import { listCustomerChats, sendCustomerMessage } from '../controllers/chatController.js';
 import { listCustomerChats, getCustomerTripChat, sendCustomerMessage } from '../controllers/chatController.js';
 
 // Customer-authenticated endpoints.

@@ -139,6 +139,7 @@ export default function BookingsView({
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F27D26&color=fff`;
   };
 
+  // Trigger chat drawer with real profile metadata
   // Trigger chat drawer with real profile metadata and immediate history fetch
   const handleContactOrganizer = (booking) => {
     const matchedTrip = trips?.find((t) => t.id === booking.tripId);
