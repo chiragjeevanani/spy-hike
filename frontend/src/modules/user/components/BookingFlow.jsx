@@ -32,6 +32,8 @@ import {
   Star,
   MapPin,
   Clock,
+  UserCheck,
+  Trash2,
 } from "lucide-react";
 import {
   getAvailableCustomerVoucher,
@@ -51,6 +53,13 @@ import {
 import { useToast } from "../../../components/ToastProvider";
 import TravelTicket from "./TravelTicket";
 import { downloadTicketPDF } from "../utils/ticketPdf";
+import {
+  loadSavedHikers,
+  mergeNewHikers,
+  removeSavedHiker,
+  loadUserState,
+  loadBookings,
+} from "../utils/storage";
 
 // Confetti Popper Animation component for successful coupon redeem
 const ConfettiPopper = () => {
@@ -616,6 +625,8 @@ const PaymentFailedScreen = ({
 
 export default function BookingFlow({
   trip,
+  currentUser,
+  existingBookings,
   onCancel,
   onConfirmBooking,
   // Leaves the booking flow for the home tab. Distinct from onCancel, which
@@ -626,6 +637,56 @@ export default function BookingFlow({
   const toast = useToast();
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  const resolvedUser = currentUser || loadUserState();
+  const resolvedBookings = existingBookings || loadBookings();
+  const [savedHikers, setSavedHikers] = useState(() =>
+    loadSavedHikers(resolvedUser?.email, resolvedBookings, resolvedUser)
+  );
+  const [activeHikerDropdownIdx, setActiveHikerDropdownIdx] = useState(null);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setActiveHikerDropdownIdx(null);
+      }
+    };
+    if (activeHikerDropdownIdx !== null) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [activeHikerDropdownIdx]);
+
+  const handleSelectSavedHiker = (travelerIdx, savedHiker) => {
+    const updated = [...travelersList];
+    updated[travelerIdx] = {
+      name: savedHiker.name,
+      age: savedHiker.age ? String(savedHiker.age) : "",
+      gender: savedHiker.gender || "Male",
+      emergencyContact: savedHiker.emergencyContact || "",
+    };
+    setTravelersList(updated);
+    setTravelerErrors((prev) => {
+      const next = { ...prev };
+      delete next[travelerIdx];
+      return next;
+    });
+    setActiveHikerDropdownIdx(null);
+    toast.success(`Autofilled ${savedHiker.name}'s details`);
+  };
+
+  const handleRemoveSavedHiker = (e, hikerName) => {
+    e.stopPropagation();
+    const email = resolvedUser?.email;
+    const remaining = removeSavedHiker(email, hikerName);
+    setSavedHikers(remaining);
+    toast.info(`Removed ${hikerName} from saved hikers`);
+  };
 
   // Single pickup boarding point this organizer supports. Legacy trips saved
   // before this existed (or with the older multi-location format) fall back
@@ -1281,6 +1342,17 @@ export default function BookingFlow({
         useLoyaltyReward,
       });
 
+      // Persist newly entered / confirmed hikers for future auto-fill
+      const validTravelers = travelersList.filter((t) => t.name?.trim());
+      if (validTravelers.length > 0) {
+        try {
+          const nextSaved = mergeNewHikers(resolvedUser?.email, validTravelers);
+          setSavedHikers(nextSaved);
+        } catch (e) {
+          console.error("[booking] failed to save hikers:", e);
+        }
+      }
+
       // Consume the client-side loyalty voucher (Phase 7 moves this server-side).
       if (useLoyaltyReward && availableVoucher) {
         markCustomerVoucherUsed(availableVoucher.id, booking.bookingId);
@@ -1859,26 +1931,207 @@ export default function BookingFlow({
                               </span>
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                {/* Name field */}
-                                <div className="space-y-1 sm:col-span-2">
-                                  <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">
-                                    Full Name *
-                                  </label>
+                                {/* Name field with Saved Hikers Auto-Fill */}
+                                <div className="space-y-1 sm:col-span-2 relative">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-60">
+                                      Full Name *
+                                    </label>
+                                    {savedHikers.length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setActiveHikerDropdownIdx(
+                                            activeHikerDropdownIdx === idx
+                                              ? null
+                                              : idx,
+                                          )
+                                        }
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-forest-500 hover:text-forest-400 transition-colors">
+                                        <UserCheck size={11} />
+                                        Saved Hikers ({savedHikers.length})
+                                      </button>
+                                    )}
+                                  </div>
+
                                   <input
                                     type="text"
                                     name="name"
                                     required
+                                    autoComplete="off"
                                     placeholder="e.g. Aman Verma"
                                     value={tr.name}
-                                    onChange={(e) =>
+                                    onFocus={() => {
+                                      if (savedHikers.length > 0)
+                                        setActiveHikerDropdownIdx(idx);
+                                    }}
+                                    onChange={(e) => {
                                       handleTravelerFieldChange(
                                         idx,
                                         "name",
                                         e.target.value,
-                                      )
-                                    }
+                                      );
+                                      if (
+                                        savedHikers.length > 0 &&
+                                        activeHikerDropdownIdx !== idx
+                                      ) {
+                                        setActiveHikerDropdownIdx(idx);
+                                      }
+                                    }}
                                     className={fieldCls("name")}
                                   />
+
+                                  {/* Quick fill chips */}
+                                  {savedHikers.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                      <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-medium">
+                                        Quick fill:
+                                      </span>
+                                      {savedHikers.slice(0, 3).map((sh, sIdx) => (
+                                        <button
+                                          key={sIdx}
+                                          type="button"
+                                          onClick={() =>
+                                            handleSelectSavedHiker(idx, sh)
+                                          }
+                                          className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition-all inline-flex items-center gap-1 ${
+                                            darkMode
+                                              ? "bg-zinc-800/90 text-zinc-300 hover:bg-forest-900/60 hover:text-forest-300 border border-white/5"
+                                              : "bg-gray-150 text-gray-700 hover:bg-forest-50 hover:text-forest-700 border border-gray-200"
+                                          }`}>
+                                          <span className="text-forest-500 font-bold">
+                                            +
+                                          </span>
+                                          {sh.name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Saved Hikers Suggestions Dropdown Popover */}
+                                  {activeHikerDropdownIdx === idx &&
+                                    savedHikers.length > 0 && (
+                                      <div
+                                        ref={dropdownRef}
+                                        className={`absolute left-0 right-0 top-[calc(100%-8px)] mt-2 z-40 rounded-xl shadow-2xl border overflow-hidden max-h-56 overflow-y-auto ${
+                                          darkMode
+                                            ? "bg-zinc-900 border-zinc-700 divide-zinc-800"
+                                            : "bg-white border-gray-200 divide-gray-100"
+                                        }`}>
+                                        <div
+                                          className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between border-b ${
+                                            darkMode
+                                              ? "bg-zinc-950/80 text-zinc-400 border-zinc-800"
+                                              : "bg-gray-50 text-gray-500 border-gray-150"
+                                          }`}>
+                                          <span className="inline-flex items-center gap-1">
+                                            <UserCheck
+                                              size={11}
+                                              className="text-forest-500"
+                                            />
+                                            Click to Autofill All Details
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setActiveHikerDropdownIdx(null)
+                                            }
+                                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+
+                                        {(() => {
+                                          const query = (tr.name || "")
+                                            .trim()
+                                            .toLowerCase();
+                                          const matches = query
+                                            ? savedHikers.filter(
+                                                (sh) =>
+                                                  sh.name
+                                                    .toLowerCase()
+                                                    .includes(query) ||
+                                                  (sh.emergencyContact &&
+                                                    sh.emergencyContact.includes(
+                                                      query,
+                                                    )),
+                                              )
+                                            : savedHikers;
+
+                                          if (matches.length === 0) {
+                                            return (
+                                              <div className="p-3 text-center text-xs opacity-60">
+                                                No saved hiker matches "{tr.name}". Fill out the fields to save this hiker for next time.
+                                              </div>
+                                            );
+                                          }
+
+                                          return matches.map((sh, shIdx) => (
+                                            <div
+                                              key={shIdx}
+                                              onClick={() =>
+                                                handleSelectSavedHiker(idx, sh)
+                                              }
+                                              className={`px-3 py-2.5 flex items-center justify-between cursor-pointer transition-colors border-b last:border-b-0 ${
+                                                darkMode
+                                                  ? "hover:bg-forest-950/40 border-zinc-800/60"
+                                                  : "hover:bg-forest-50/70 border-gray-100"
+                                              }`}>
+                                              <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-7 h-7 rounded-full bg-forest-600/20 text-forest-500 font-bold flex items-center justify-center text-xs shrink-0">
+                                                  {sh.name
+                                                    .charAt(0)
+                                                    .toUpperCase()}
+                                                </div>
+                                                <div className="min-w-0">
+                                                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                                                    {sh.name}
+                                                  </p>
+                                                  <p className="text-[10px] text-gray-500 dark:text-zinc-400 flex items-center gap-1.5 flex-wrap">
+                                                    {sh.age && (
+                                                      <span>{sh.age} yrs</span>
+                                                    )}
+                                                    {sh.age && sh.gender && (
+                                                      <span>•</span>
+                                                    )}
+                                                    {sh.gender && (
+                                                      <span>{sh.gender}</span>
+                                                    )}
+                                                    {sh.emergencyContact && (
+                                                      <>
+                                                        <span>•</span>
+                                                        <span>
+                                                          📞 {sh.emergencyContact}
+                                                        </span>
+                                                      </>
+                                                    )}
+                                                  </p>
+                                                </div>
+                                              </div>
+
+                                              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                <span className="text-[10px] font-bold text-forest-600 dark:text-forest-400 bg-forest-50 dark:bg-forest-950/60 px-2 py-0.5 rounded-full border border-forest-500/20">
+                                                  Autofill
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  title="Remove from saved"
+                                                  onClick={(e) =>
+                                                    handleRemoveSavedHiker(
+                                                      e,
+                                                      sh.name,
+                                                    )
+                                                  }
+                                                  className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors">
+                                                  <Trash2 size={12} />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ));
+                                        })()}
+                                      </div>
+                                    )}
+
                                   {err.name && (
                                     <p className="text-[10px] font-semibold text-red-500">
                                       {err.name}

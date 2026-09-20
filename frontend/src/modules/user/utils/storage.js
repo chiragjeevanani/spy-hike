@@ -165,3 +165,125 @@ export const saveDarkMode = (val) => {
   safeSetItem(DARK_MODE_KEY, val);
 };
 
+// ─── Saved Hikers / Frequent Travelers Auto-Fill ───────────────────────────
+
+const SAVED_HIKERS_KEY_PREFIX = 'ft_saved_hikers_';
+
+export const getSavedHikersStorageKey = (userEmail) => {
+  const normalized = userEmail ? String(userEmail).toLowerCase().trim() : 'guest';
+  return `${SAVED_HIKERS_KEY_PREFIX}${normalized}`;
+};
+
+export const loadSavedHikers = (userEmail, pastBookings = [], currentUser = null) => {
+  const key = getSavedHikersStorageKey(userEmail || currentUser?.email);
+  let saved = [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        saved = parsed;
+      }
+    }
+  } catch (e) {
+    console.error('[storage] loadSavedHikers failed:', e);
+  }
+
+  // Deduplicate and index by normalized name
+  const hikerMap = new Map();
+  saved.forEach((h) => {
+    if (h && h.name && h.name.trim()) {
+      hikerMap.set(h.name.trim().toLowerCase(), {
+        name: h.name.trim(),
+        age: h.age ? Number(h.age) : '',
+        gender: h.gender || 'Male',
+        emergencyContact: h.emergencyContact || '',
+      });
+    }
+  });
+
+  // Seed from current user account profile if present and not yet in list
+  if (currentUser && currentUser.name && currentUser.name.trim()) {
+    const userNorm = currentUser.name.trim().toLowerCase();
+    if (!hikerMap.has(userNorm)) {
+      hikerMap.set(userNorm, {
+        name: currentUser.name.trim(),
+        age: currentUser.age ? Number(currentUser.age) : 24,
+        gender: currentUser.gender || 'Male',
+        emergencyContact: currentUser.mobile || currentUser.emergencyContact || '',
+      });
+    }
+  }
+
+  // Seed from past bookings if present
+  if (Array.isArray(pastBookings) && pastBookings.length > 0) {
+    pastBookings.forEach((b) => {
+      const travelers = b?.travelers || [];
+      if (Array.isArray(travelers)) {
+        travelers.forEach((t) => {
+          if (t && t.name && t.name.trim()) {
+            const norm = t.name.trim().toLowerCase();
+            if (!hikerMap.has(norm)) {
+              hikerMap.set(norm, {
+                name: t.name.trim(),
+                age: t.age ? Number(t.age) : '',
+                gender: t.gender || 'Male',
+                emergencyContact: t.emergencyContact || '',
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  const list = Array.from(hikerMap.values());
+  // If we seeded new ones and had no stored entry, persist them
+  if (saved.length === 0 && list.length > 0) {
+    safeSetItem(key, list);
+  }
+  return list;
+};
+
+export const saveSavedHikers = (userEmail, hikers) => {
+  const key = getSavedHikersStorageKey(userEmail);
+  const cleanList = (Array.isArray(hikers) ? hikers : []).filter(
+    (h) => h && h.name && h.name.trim()
+  );
+  safeSetItem(key, cleanList);
+  return cleanList;
+};
+
+export const mergeNewHikers = (userEmail, newTravelers) => {
+  const existing = loadSavedHikers(userEmail);
+  const hikerMap = new Map();
+  existing.forEach((h) => {
+    if (h && h.name) hikerMap.set(h.name.trim().toLowerCase(), h);
+  });
+
+  (Array.isArray(newTravelers) ? newTravelers : []).forEach((t) => {
+    if (t && t.name && t.name.trim()) {
+      const norm = t.name.trim().toLowerCase();
+      hikerMap.set(norm, {
+        name: t.name.trim(),
+        age: t.age ? Number(t.age) : (hikerMap.get(norm)?.age || ''),
+        gender: t.gender || (hikerMap.get(norm)?.gender || 'Male'),
+        emergencyContact: t.emergencyContact || (hikerMap.get(norm)?.emergencyContact || ''),
+      });
+    }
+  });
+
+  const merged = Array.from(hikerMap.values());
+  saveSavedHikers(userEmail, merged);
+  return merged;
+};
+
+export const removeSavedHiker = (userEmail, nameToRemove) => {
+  if (!nameToRemove) return [];
+  const existing = loadSavedHikers(userEmail);
+  const target = String(nameToRemove).trim().toLowerCase();
+  const filtered = existing.filter((h) => h.name.trim().toLowerCase() !== target);
+  saveSavedHikers(userEmail, filtered);
+  return filtered;
+};
+

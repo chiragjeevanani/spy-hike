@@ -2038,6 +2038,8 @@ export default function App() {
                 className={`fixed inset-0 z-45 flex flex-col w-full h-full overflow-hidden ${darkMode ? "bg-zinc-950" : "bg-white"}`}>
                 <BookingFlow
                   trip={activeBookingTrip}
+                  currentUser={user}
+                  existingBookings={bookings}
                   onCancel={() =>
                     goBack(
                       selectedTrip ? `/trip/${selectedTrip.id}` : "/explore",
