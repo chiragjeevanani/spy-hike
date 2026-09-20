@@ -12,7 +12,7 @@ const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.locator('input[type="email"]');
+  const email = page.locator('input[placeholder*="Email address"], input[type="email"]');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
@@ -21,7 +21,7 @@ async function dismissOnboarding(page) {
 async function customerLogin(page) {
   await page.goto('/app/login');
   await dismissOnboarding(page);
-  await page.fill('input[type="email"]', DEMO_CUSTOMER.email);
+  await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
   await page.click('#btn-login-email-submit');
   await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
@@ -64,12 +64,14 @@ test.describe('Phase 2 — Customer catalog', () => {
   test('Explore lists seeded trips and trip details show batch pricing tiers', async ({ page }) => {
     await customerLogin(page);
     await page.goto('/app/explore');
-    // A seeded trek is visible in the grouped Explore list.
+    // Search narrows to the seeded trek even if earlier specs created trips that push it to page 2.
+    const search = page.locator('input[type="text"], input[type="search"]').first();
+    await search.fill('Valley of Flowers');
     await expect(page.getByText('Valley of Flowers Scenic Valley').first()).toBeVisible({ timeout: 10000 });
 
-    // Tapping the trek card opens the organizers list (offers for this trek),
-    // which already surfaces the per-tier prices from the API.
+    // Tapping the trek card opens trek details, then clicking View Organisers opens the organizers list
     await page.getByText('Valley of Flowers Scenic Valley').first().click();
+    await page.locator('#view-organisers-btn').click();
     await expect(page.getByText(/ORGANIZER OFFERING THIS TREK/i)).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/Solo:/i).first()).toBeVisible();
 
@@ -106,8 +108,9 @@ test.describe('Phase 2 — Organizer trip appears; admin pause removes it', () =
     await apage.goto('/admin/trips');
     await apage.locator('input[placeholder*="Search"]').first().fill('Spiti Expedition');
     await expect(apage.getByText(name).first()).toBeVisible({ timeout: 10000 });
-    // The trip card's Pause button.
+    // The trip card's Pause button triggers ConfirmDialog.
     await apage.getByRole('button', { name: /pause/i }).first().click();
+    await apage.getByRole('button', { name: 'Confirm' }).click();
     await apage.waitForTimeout(1000);
 
     // Customer reloads Explore → the paused trip is gone.

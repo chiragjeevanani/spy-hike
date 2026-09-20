@@ -1125,7 +1125,7 @@ export default function App() {
   // the offline fallback keep working); the saveBookings effect mirrors them
   // back to localStorage for the synchronous route-parser.
   useEffect(() => {
-    if (!user.isAuthenticated) {
+    if (!user.isAuthenticated || !getToken()) {
       setBookingsLoading(false);
       return undefined;
     }
@@ -1275,7 +1275,7 @@ export default function App() {
 
   useLivePoll(pollHikerUpdates, {
     intervalMs: 5000,
-    enabled: !!user.isAuthenticated,
+    enabled: !!user.isAuthenticated && !!getToken(),
   });
 
   // Public landing-page content — fetched once on mount (no auth) so the

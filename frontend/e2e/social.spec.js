@@ -38,6 +38,7 @@ async function makeFreshTrip(ctx) {
 async function seedSession(page, email, token) {
   await page.addInitScript((d) => {
     localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, name: 'Social Hiker', email: d.email }));
+    localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, profileSetupComplete: true, name: 'Social Hiker', email: d.email }));
     localStorage.setItem('trekigo_auth_token', d.token);
   }, { email, token });
 }
@@ -48,6 +49,15 @@ test('a booking notification surfaces in the customer bell drawer', async ({ pag
   const { ctx, email, token, auth } = await freshCustomerCtx();
   const trip = await makeFreshTrip(ctx);
   await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Social Hiker' }] } });
+  await ctx.post(`${API}/bookings`, {
+    ...auth,
+    data: {
+      tripId: trip.id,
+      selectedDate: '2026-11-05',
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Social Hiker', age: 24, gender: 'Male', emergencyContact: '9876543210' }],
+    },
+  });
   await ctx.dispose();
 
   await seedSession(page, email, token);
@@ -74,7 +84,15 @@ test('toggling a wishlist heart persists to the API', async ({ page }) => {
 test('submitting a review updates the trip rating on the server', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
   const trip = await makeFreshTrip(ctx);
-  const booking = (await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Social Hiker' }] } })).json()).booking;
+  const booking = (await (await ctx.post(`${API}/bookings`, {
+    ...auth,
+    data: {
+      tripId: trip.id,
+      selectedDate: '2026-11-05',
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Social Hiker', age: 24, gender: 'Male', emergencyContact: '9876543210' }],
+    },
+  })).json()).booking;
 
   // Review via the API (the UI path prompts via window.prompt, which is
   // awkward to drive; the frontend calls this same endpoint).

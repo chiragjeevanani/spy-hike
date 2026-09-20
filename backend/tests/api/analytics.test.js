@@ -8,18 +8,25 @@ import { hashPassword } from '../../src/utils/password.js';
 
 const app = createApp();
 
+let userSeq = 0;
 async function customerToken(email) {
-  const reg = await request(app).post('/api/v1/auth/register').send({ name: 'Hiker', email, password: 'pass1234' });
+  const e = email || `hiker-analytics-${Date.now()}-${userSeq++}@example.com`;
+  const reg = await request(app).post('/api/v1/auth/register').send({ name: 'Hiker', email: e, password: 'pass1234' });
   return reg.body.token;
 }
-async function approvedOrganizerToken(email = 'org@example.com') {
-  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Peak Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
+async function approvedOrganizerToken(email) {
+  const e = email || `org-analytics-${Date.now()}-${userSeq++}@example.com`;
+  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email: e, password: 'pass1234', agencyName: 'Peak Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
   await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
-  const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
+  const login = await request(app).post('/api/v1/auth/organizer/login').send({ email: e, password: 'pass1234' });
   return login.body.token;
 }
 async function adminToken() {
-  await Admin.create({ name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') });
+  await Admin.findOneAndUpdate(
+    { email: 'admin@findyourtrek.com' },
+    { name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') },
+    { upsert: true, new: true },
+  );
   const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@findyourtrek.com', password: 'admin123' });
   return res.body.token;
 }
@@ -41,7 +48,7 @@ async function makeTrip(orgToken, over = {}) {
 
 describe('Admin analytics', () => {
   it('requires an admin (403 for others)', async () => {
-    const cust = await customerToken('c@example.com');
+    const cust = await customerToken();
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${cust}`);
     expect(res.status).toBe(403);
   });
@@ -49,7 +56,7 @@ describe('Admin analytics', () => {
   it('reports GMV, commission and counts from real data', async () => {
     const admin = await adminToken();
     const org = await approvedOrganizerToken();
-    const cust = await customerToken('c@example.com');
+    const cust = await customerToken();
     const trip = await makeTrip(org);
     await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
 
@@ -67,7 +74,7 @@ describe('Admin analytics', () => {
   it('excludes cancelled bookings from GMV and reflects them in the status chart', async () => {
     const admin = await adminToken();
     const org = await approvedOrganizerToken();
-    const cust = await customerToken('c@example.com');
+    const cust = await customerToken();
     const trip = await makeTrip(org);
     const b = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     await request(app).post(`/api/v1/bookings/${b.body.booking.bookingId}/cancel`).set('Authorization', `Bearer ${cust}`);
@@ -80,7 +87,7 @@ describe('Admin analytics', () => {
 
   it('surfaces a pending organizer in the overview', async () => {
     const admin = await adminToken();
-    await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Pending', email: 'pending@example.com', password: 'pass1234', agencyName: 'Newbie', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
+    await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Pending', email: `pending-${Date.now()}@example.com`, password: 'pass1234', agencyName: 'Newbie', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.body.overview.pendingOrgs).toBe(1);
   });
@@ -88,7 +95,7 @@ describe('Admin analytics', () => {
   it('ranks top organizers by revenue and buckets trips by category', async () => {
     const admin = await adminToken();
     const org = await approvedOrganizerToken();
-    const cust = await customerToken('c@example.com');
+    const cust = await customerToken();
     const trip = await makeTrip(org, { category: 'Camping' });
     await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 

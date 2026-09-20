@@ -17,8 +17,10 @@ async function adminConsoleLogin(page) {
 
 test('a registered hiker shows in the Users roster and can be banned', async ({ page }) => {
   const email = `roster-hiker-${Date.now()}@example.com`;
+  const mobile = `9${String(Date.now()).slice(-9)}`;
   const ctx = await pwRequest.newContext();
   await ctx.post(`${API}/auth/register`, { data: { name: 'Roster Hiker', email, password: 'pass1234', mobile: '9876543210' } });
+  await ctx.post(`${API}/auth/register`, { data: { name: 'Roster Hiker', email, password: 'pass1234', mobile } });
   await ctx.dispose();
 
   await adminConsoleLogin(page);
@@ -40,6 +42,16 @@ test('a registered organizer shows in the Organizers roster', async ({ page }) =
   const email = `roster-org-${Date.now()}@example.com`;
   const ctx = await pwRequest.newContext();
   await ctx.post(`${API}/auth/organizer/register`, { data: { name: 'Roster Org', email, password: 'pass1234', agencyName: agency } });
+  await ctx.post(`${API}/auth/organizer/register`, {
+    data: {
+      name: 'Roster Org',
+      email,
+      password: 'pass1234',
+      agencyName: agency,
+      govtIdType: 'Aadhaar',
+      govtIdNumber: '123456789012',
+    },
+  });
   await ctx.dispose();
 
   await adminConsoleLogin(page);

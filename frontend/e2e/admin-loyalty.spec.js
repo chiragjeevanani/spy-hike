@@ -13,7 +13,20 @@ test.beforeEach(async () => {
   await ctx.patch(`${API}/admin/loyalty/config`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
-      customer: { enabled: true, thresholdPersons: 30, rewardTitle: 'Free Trek Booking', rewardDescription: 'Book 30 travelers cumulatively.', banner: { enabled: true, image: '', title: 'Trek 30, Get 1 Free!', subtitle: 'Every 30 travelers you book unlocks one free adventure.' } },
+      customer: { enabled: true, thresholdPersons: 30, maxDiscountAmount: 5000, rewardTitle: 'Free Trek Booking', rewardDescription: 'Book 30 travelers cumulatively.', banner: { enabled: true, image: '', title: 'Trek 30, Get 1 Free!', subtitle: 'Every 30 travelers you book unlocks one free adventure.' } },
+      organizer: { enabled: true, thresholdBookings: 1000, rewardTitle: 'Zero-Commission Booking', rewardDescription: 'Cross 1000 bookings.', banner: { enabled: true, image: '', title: '1000 Bookings Milestone', subtitle: 'Every 1000 trips hosted unlocks a free booking.' } },
+    },
+  });
+  await ctx.dispose();
+});
+
+test.afterAll(async () => {
+  const ctx = await pwRequest.newContext();
+  const token = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@findyourtrek.com', password: 'admin123' } })).json()).token;
+  await ctx.patch(`${API}/admin/loyalty/config`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      customer: { enabled: true, thresholdPersons: 30, maxDiscountAmount: 5000, rewardTitle: 'Free Trek Booking', rewardDescription: 'Book 30 travelers cumulatively.', banner: { enabled: true, image: '', title: 'Trek 30, Get 1 Free!', subtitle: 'Every 30 travelers you book unlocks one free adventure.' } },
       organizer: { enabled: true, thresholdBookings: 1000, rewardTitle: 'Zero-Commission Booking', rewardDescription: 'Cross 1000 bookings.', banner: { enabled: true, image: '', title: '1000 Bookings Milestone', subtitle: 'Every 1000 trips hosted unlocks a free booking.' } },
     },
   });
@@ -39,9 +52,10 @@ test.describe('Admin — Loyalty Program', () => {
 
     // Defaults from DEFAULT_LOYALTY_CONFIG in src/utils/loyalty.js
     const numberInputs = page.locator('input[type="number"]');
-    await expect(numberInputs).toHaveCount(2);
+    await expect(numberInputs).toHaveCount(3);
     await expect(numberInputs.nth(0)).toHaveValue('30');
-    await expect(numberInputs.nth(1)).toHaveValue('1000');
+    await expect(numberInputs.nth(1)).toHaveValue('5000');
+    await expect(numberInputs.nth(2)).toHaveValue('1000');
   });
 
   test('editing thresholds persists to localStorage and survives reload', async ({ page }) => {
@@ -50,19 +64,22 @@ test.describe('Admin — Loyalty Program', () => {
 
     const numberInputs = page.locator('input[type="number"]');
     await numberInputs.nth(0).fill('12');
-    await numberInputs.nth(1).fill('250');
+    await numberInputs.nth(1).fill('4000');
+    await numberInputs.nth(2).fill('250');
 
     await page.getByRole('button', { name: 'Save Loyalty Settings' }).click();
     await expect(page.getByRole('button', { name: 'Saved!' })).toBeVisible();
 
     const configAfterSave = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_config')));
     expect(configAfterSave.customer.thresholdPersons).toBe(12);
+    expect(configAfterSave.customer.maxDiscountAmount).toBe(4000);
     expect(configAfterSave.organizer.thresholdBookings).toBe(250);
 
     // Reload — the page should read the persisted config back, not the defaults.
     await page.reload();
     await expect(numberInputs.nth(0)).toHaveValue('12');
-    await expect(numberInputs.nth(1)).toHaveValue('250');
+    await expect(numberInputs.nth(1)).toHaveValue('4000');
+    await expect(numberInputs.nth(2)).toHaveValue('250');
   });
 
   test('disabling a reward banner reflects a "Hidden in app" preview state', async ({ page }) => {

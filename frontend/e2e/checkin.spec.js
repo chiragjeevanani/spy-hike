@@ -33,7 +33,12 @@ async function seedBookingAndOrgToken() {
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Booker', email: custEmail, password: 'pass1234' } })).json()).token;
   const booking = (await (await ctx.post(`${API}/bookings`, {
     headers: { Authorization: `Bearer ${custToken}` },
-    data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Booker' }] },
+    data: {
+      tripId: trip.id,
+      selectedDate: '2026-11-05',
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Booker', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    },
   })).json()).booking;
 
   await ctx.dispose();
@@ -50,7 +55,7 @@ test('organizer scans a ticket to check it in; a second scan shows already check
   }, { org: { ...ORG_USER, email: DEMO_ORG.email }, token: orgToken });
 
   await page.goto('/organizer');
-  await page.getByTitle('Scan ticket').click();
+  await page.locator('button[title*="Scan"]:visible, button:has-text("Verify Ticket QR"):visible').first().click();
 
   // Camera is unavailable headless → the manual-entry fallback is shown.
   const codeInput = page.locator('#scanner-manual-code');
@@ -61,10 +66,12 @@ test('organizer scans a ticket to check it in; a second scan shows already check
   await expect(page.getByText('Checked in ✓')).toBeVisible({ timeout: 10000 });
 
   // Scan again → idempotent "already checked in".
-  await page.getByRole('button', { name: /Scan Another Ticket/i }).click();
+  const scanAnotherBtn = page.getByRole('button', { name: /Scan Another Ticket/i });
+  await expect(scanAnotherBtn).toBeVisible({ timeout: 10000 });
+  await scanAnotherBtn.click({ force: true });
   const codeInput2 = page.locator('#scanner-manual-code');
   await expect(codeInput2).toBeVisible({ timeout: 10000 });
   await codeInput2.fill(bookingId);
-  await page.click('#scanner-manual-checkin');
+  await page.click('#scanner-manual-checkin', { force: true });
   await expect(page.getByText('Already checked in')).toBeVisible({ timeout: 10000 });
 });

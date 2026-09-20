@@ -12,7 +12,7 @@ const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 async function adminSetThresholds(ctx, { customer, organizer }) {
   const token = (await (await ctx.post(`${API}/auth/admin/login`, { data: DEMO_ADMIN })).json()).token;
   const data = {};
-  if (customer != null) data.customer = { enabled: true, thresholdPersons: customer };
+  if (customer != null) data.customer = { enabled: true, thresholdPersons: customer, maxDiscountAmount: 5000 };
   if (organizer != null) data.organizer = { enabled: true, thresholdBookings: organizer };
   await ctx.patch(`${API}/admin/loyalty/config`, { headers: { Authorization: `Bearer ${token}` }, data });
 }
@@ -42,17 +42,23 @@ test('customer earns a voucher and redeems a server-verified free booking', asyn
   const token = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Loy', email, password: 'pass1234' } })).json()).token;
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
+  const T1 = [{ name: 'Loy Traveler 1', age: 24, gender: 'Male', emergencyContact: '9876543210' }];
+  const T2 = [
+    { name: 'Loy Traveler 1', age: 24, gender: 'Male', emergencyContact: '9876543210' },
+    { name: 'Loy Traveler 2', age: 25, gender: 'Female', emergencyContact: '9876543211' },
+  ];
+
   // Redeeming with no voucher is rejected.
-  const noVoucher = await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{}], useLoyaltyReward: true } });
+  const noVoucher = await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: T1, useLoyaltyReward: true } });
   expect(noVoucher.status()).toBe(400);
 
   // A 2-traveler booking crosses threshold=2 → mints a voucher.
-  await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 2 }], travelers: [{}, {}] } });
+  await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 2 }], travelers: T2 } });
   const me = await (await ctx.get(`${API}/loyalty/me`, auth)).json();
   expect(me.vouchers.filter((v) => v.status === 'available')).toHaveLength(1);
 
   // Now the loyalty booking is accepted and fully comped.
-  const free = await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-19', selections: [{ label: 'Solo', count: 1 }], travelers: [{}], useLoyaltyReward: true } })).json();
+  const free = await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-19', selections: [{ label: 'Solo', count: 1 }], travelers: T1, useLoyaltyReward: true } })).json();
   expect(free.booking.finalAmount).toBe(0);
   expect(free.booking.loyaltyRewardApplied).toBe(true);
 
@@ -69,7 +75,7 @@ test('organizer earns and redeems a zero-commission voucher on a booking', async
   const email = `oloy-${Date.now()}@example.com`;
   const token = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email, password: 'pass1234' } })).json()).token;
 
-  const created = await (await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${token}` }, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{}] } })).json();
+  const created = await (await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${token}` }, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Solo Hiker', age: 24, gender: 'Male', emergencyContact: '9876543210' }] } })).json();
   expect(created.booking.commissionAmount).toBeGreaterThan(0);
 
   const redeem = await (await ctx.post(`${API}/organizer/bookings/${created.booking.bookingId}/redeem-reward`, { headers: { Authorization: `Bearer ${orgToken}` } })).json();

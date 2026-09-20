@@ -10,7 +10,7 @@ const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.locator('input[type="email"]');
+  const email = page.locator('input[placeholder*="Email address"], input[type="email"]');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
@@ -19,7 +19,7 @@ async function dismissOnboarding(page) {
 async function customerLogin(page) {
   await page.goto('/app/login');
   await dismissOnboarding(page);
-  await page.fill('input[type="email"]', DEMO_CUSTOMER.email);
+  await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
   await page.click('#btn-login-email-submit');
   await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });

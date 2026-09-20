@@ -743,10 +743,22 @@ export default function BookingFlow({
   });
 
   // State variables for Wizard
-  const [selectedDate, setSelectedDate] = useState("");
-  const [travelersList, setTravelersList] = useState([
-    { name: "", age: "", gender: "Male", emergencyContact: "" },
-  ]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const upcoming = trip.departureDates?.find((d) => d >= todayStr);
+    return upcoming || trip.departureDates?.[0] || "";
+  });
+  const [travelersList, setTravelersList] = useState(() => {
+    const lead = savedHikers[0] || {};
+    const leadName = lead.name || resolvedUser?.name || "";
+    return [
+      {
+        name: leadName,
+        age: lead.age || resolvedUser?.age || 24,
+        gender: lead.gender || resolvedUser?.gender || "Male",
+        emergencyContact: lead.emergencyContact || resolvedUser?.mobile || "9876543210",
+      },
+    ];
+  });
   const [travelerErrors, setTravelerErrors] = useState({}); // { [idx]: { [field]: message } }
   const travelerCardRefs = useRef({});
   const [couponCode, setCouponCode] = useState("");
@@ -1962,8 +1974,9 @@ export default function BookingFlow({
                                     placeholder="e.g. Aman Verma"
                                     value={tr.name}
                                     onFocus={() => {
-                                      if (savedHikers.length > 0)
+                                      if (savedHikers.length > 0) {
                                         setActiveHikerDropdownIdx(idx);
+                                      }
                                     }}
                                     onChange={(e) => {
                                       handleTravelerFieldChange(

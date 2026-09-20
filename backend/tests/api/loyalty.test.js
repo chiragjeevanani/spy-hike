@@ -8,18 +8,25 @@ import { hashPassword } from '../../src/utils/password.js';
 
 const app = createApp();
 
-async function customerToken(email = 'hiker@example.com') {
-  const reg = await request(app).post('/api/v1/auth/register').send({ name: 'Hiker', email, password: 'pass1234' });
-  return { token: reg.body.token, email };
+let userSeq = 0;
+async function customerToken(email) {
+  const e = email || `hiker-loyalty-${Date.now()}-${userSeq++}@example.com`;
+  const reg = await request(app).post('/api/v1/auth/register').send({ name: 'Hiker', email: e, password: 'pass1234' });
+  return { token: reg.body.token, email: e };
 }
-async function approvedOrganizerToken(email = 'org@example.com') {
-  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
+async function approvedOrganizerToken(email) {
+  const e = email || `org-loyalty-${Date.now()}-${userSeq++}@example.com`;
+  const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email: e, password: 'pass1234', agencyName: 'Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
   await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
-  const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
+  const login = await request(app).post('/api/v1/auth/organizer/login').send({ email: e, password: 'pass1234' });
   return login.body.token;
 }
 async function adminToken() {
-  await Admin.create({ name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') });
+  await Admin.findOneAndUpdate(
+    { email: 'admin@findyourtrek.com' },
+    { name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') },
+    { upsert: true, new: true },
+  );
   const res = await request(app).post('/api/v1/auth/admin/login').send({ email: 'admin@findyourtrek.com', password: 'admin123' });
   return res.body.token;
 }

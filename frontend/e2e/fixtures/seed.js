@@ -6,6 +6,7 @@
 export const CUSTOMER_USER = {
   isAuthenticated: true,
   isOnboarded: true,
+  profileSetupComplete: true,
   isOrganizer: true,
   name: 'Chirag Jeevanani',
   email: 'chiragjeevanani333@gmail.com',

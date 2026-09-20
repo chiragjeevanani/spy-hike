@@ -54,7 +54,7 @@ test.describe('Customer — Loyalty Rewards', () => {
       }), { timeout: 10000 })
       .toBeGreaterThan(0);
 
-    await page.getByText('Profile', { exact: true }).click();
+    await page.locator('#nav-tab-profile').click();
     await expect(page.getByText('Free booking unlocked')).toBeVisible();
 
     await page.click('#btn-open-loyalty-rewards');
@@ -68,18 +68,26 @@ test.describe('Customer — Loyalty Rewards', () => {
     // an API booking, then redeem it through the UI.
     const ctx = await pwRequest.newContext();
     const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@findyourtrek.com', password: 'admin123' } })).json()).token;
-    await ctx.patch(`${API}/admin/loyalty/config`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { customer: { enabled: true, thresholdPersons: 2 } } });
+    await ctx.patch(`${API}/admin/loyalty/config`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { customer: { enabled: true, thresholdPersons: 2, maxDiscountAmount: 5000 } } });
     const email = `loyalty-${Date.now()}@example.com`;
     const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Loyalty Hiker', email, password: 'pass1234' } })).json()).token;
     // A 2-traveler booking crosses threshold=2 → mints one server voucher.
     await ctx.post(`${API}/bookings`, {
       headers: { Authorization: `Bearer ${custToken}` },
-      data: { tripId: 'himalayan-ridge-pass-trek', selectedDate: '2026-07-20', selections: [{ label: 'Solo', count: 2 }], travelers: [{}, {}] },
+      data: {
+        tripId: 'himalayan-ridge-pass-trek',
+        selectedDate: '2026-07-20',
+        selections: [{ label: 'Solo', count: 2 }],
+        travelers: [
+          { name: 'Loyalty Hiker', age: 25, gender: 'Male', emergencyContact: '9876543210' },
+          { name: 'Friend Hiker', age: 26, gender: 'Female', emergencyContact: '9876543211' },
+        ],
+      },
     });
     await ctx.dispose();
 
     await page.addInitScript((data) => {
-      localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, name: 'Loyalty Hiker', email: data.email }));
+      localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, profileSetupComplete: true, name: 'Loyalty Hiker', email: data.email }));
       localStorage.setItem('trekigo_auth_token', data.token);
     }, { email, token: custToken });
 
@@ -99,14 +107,14 @@ test.describe('Customer — Loyalty Rewards', () => {
     await page.click('#btn-booking-step-1-continue', { force: true });
     await page.click('#btn-booking-step-2-continue', { force: true });
 
-    const rewardCard = page.getByText('Free Booking Reward Available!');
+    const rewardCard = page.getByText(/Loyalty Reward Available!/i);
     await expect(rewardCard).toBeVisible({ timeout: 10000 });
 
     await page.click('#btn-toggle-loyalty-reward', { force: true });
     await expect(page.locator('#btn-pay-and-confirm')).toHaveText(/Confirm Free Booking/);
 
     await page.click('#btn-pay-and-confirm', { force: true });
-    await expect(page.getByText('Booking Succeeded!')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#btn-booking-done-finish')).toBeVisible({ timeout: 10000 });
     await page.click('#btn-booking-done-finish', { force: true });
 
     // Poll until the consumed voucher + comped booking land in the cache

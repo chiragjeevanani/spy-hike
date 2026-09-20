@@ -27,6 +27,15 @@ test('admin dashboard shows real trip + revenue KPIs from the API', async ({ pag
   })).json()).trip;
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email: `an-${Date.now()}@example.com`, password: 'pass1234' } })).json()).token;
   await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{}] } });
+  await ctx.post(`${API}/bookings`, {
+    headers: { Authorization: `Bearer ${custToken}` },
+    data: {
+      tripId: trip.id,
+      selectedDate: '2026-11-05',
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Alex Doe', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    },
+  });
   await ctx.dispose();
 
   // Admin logs in and opens the dashboard.

@@ -87,3 +87,4 @@ describe('Saved Hikers Storage Utilities', () => {
     expect(afterRemove[0].name).toBe('Kavita Roy');
   });
 });
+

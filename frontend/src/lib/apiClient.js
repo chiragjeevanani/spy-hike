@@ -156,6 +156,7 @@ async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, inv
   if (auth) {
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
+    else throw new ApiClientError(401, 'No authorization token available');
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {

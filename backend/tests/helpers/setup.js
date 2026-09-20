@@ -51,10 +51,4 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closeCache();
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.connection.close();
-  }
-  if (globalThis.__MONGOD_INSTANCE__) {
-    await globalThis.__MONGOD_INSTANCE__.stop();
-  }
-}, 60000);
+});

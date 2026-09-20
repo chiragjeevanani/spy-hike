@@ -10,7 +10,9 @@ import { ApiError } from '../utils/ApiError.js';
 export function validateTripPayload(body) {
   const errors = {};
 
-  if (!body.trekId || !String(body.trekId).trim()) errors.trekId = 'Select a trek';
+  if ((!body.trekId || !String(body.trekId).trim()) && (!body.name || !String(body.name).trim())) {
+    errors.trekId = 'Select a trek';
+  }
 
   const tiers = Array.isArray(body.pricingTiers) ? body.pricingTiers : [];
   const validTiers = tiers.filter(

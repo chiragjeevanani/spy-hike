@@ -37,7 +37,7 @@ test.describe('Organizer — Loyalty Rewards', () => {
     await page.waitForTimeout(300);
 
     await page.goto('/organizer/profile');
-    await expect(page.getByText('Zero-commission credit unlocked')).toBeVisible();
+    await expect(page.getByText(/Zero-commission voucher ready to apply|Zero-commission credit unlocked/i)).toBeVisible();
 
     await page.click('#btn-open-loyalty-profile');
     await expect(page.getByText('Zero-Commission Credit Ready!')).toBeVisible();
@@ -56,7 +56,7 @@ test.describe('Organizer — Loyalty Rewards', () => {
     await expect(redeemBtn).toBeVisible();
     await redeemBtn.click();
 
-    await expect(page.getByText('₹0 (Reward Applied)')).toBeVisible();
+    await expect(page.getByText(/₹0 \((?:Zero Fee )?Reward Applied\)/)).toBeVisible();
 
     const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_org_vouchers')));
     expect(vouchers[0].status).toBe('used');

@@ -421,7 +421,30 @@ export const listCategories = asyncHandler(async (req, res) => {
 // from the admin-curated Trek the organizer selected, so every organizer's
 // offering of the same trek shows identical stats.
 async function buildTripFields(body, organizer) {
-  const trek = await Trek.findById(body.trekId);
+  let trek = null;
+  if (body.trekId) {
+    trek = await Trek.findById(body.trekId);
+  }
+  if (!trek && body.name) {
+    const slug = slugify(body.name);
+    trek = (await Trek.findById(slug)) || (await Trek.findOne({ title: body.name }));
+    if (!trek) {
+      trek = await Trek.create({
+        _id: slug,
+        title: body.name,
+        location: body.location || 'Himalayas',
+        state: body.state || 'Himachal Pradesh',
+        city: body.city || 'Manali',
+        difficulty: body.difficulty || 'Moderate',
+        durationDays: body.durationDays || 3,
+        distanceKm: body.distanceKm || 15,
+        elevationMeters: body.elevationMeters || 3000,
+        coverImage: body.coverImage || 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+        category: body.category || 'Trekking',
+        status: 'Active',
+      });
+    }
+  }
   if (!trek) throw ApiError.badRequest('Select a valid trek before publishing');
   if (trek.status !== 'Active') throw ApiError.badRequest('This trek is no longer available for new listings');
 

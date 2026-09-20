@@ -13,17 +13,17 @@ export const bookingsApi = {
   // ─── Customer ───
   // Reserving seats changes live availability on the trip and its departures.
   create: (payload) =>
-    api.post('/bookings', payload, { invalidates: ['/trips', '/departures'] }).then((r) => r.booking),
+    api.post('/bookings', payload, { invalidates: ['/trips', '/departures', '/loyalty'] }).then((r) => r.booking),
   // Same call, keeping the payment instructions: { booking, payment }. When
   // `payment.required` is true the booking is pending and `payment.checkout`
   // is the signed PayU form to redirect to (see lib/payu.js).
   checkout: (payload) =>
-    api.post('/bookings', payload, { invalidates: ['/trips', '/departures'] }),
+    api.post('/bookings', payload, { invalidates: ['/trips', '/departures', '/loyalty'] }),
   listMine: (opts) => api.get('/bookings', opts).then((r) => r.bookings),
   getMine: (id) => api.get(`/bookings/${encodeURIComponent(id)}`).then((r) => r.booking),
   // Cancelling releases the seats back to the trip and its departures.
   cancel: (id) =>
-    api.post(`/bookings/${encodeURIComponent(id)}/cancel`, undefined, { invalidates: ['/trips', '/departures'] })
+    api.post(`/bookings/${encodeURIComponent(id)}/cancel`, undefined, { invalidates: ['/trips', '/departures', '/loyalty'] })
       .then((r) => r.booking),
 
   // ─── Online payment (PayU) ───

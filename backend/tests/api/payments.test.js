@@ -87,11 +87,14 @@ const deliverReturn = (fields) => request(app).post(RETURN_URL).type('form').sen
 let trekSeq = 0;
 
 async function customerToken(email = 'payer@example.com') {
+  await User.deleteOne({ email });
   const reg = await request(app).post(`${api}/auth/register`).send({ name: 'Payer', email, password: 'pass1234' });
   return reg.body.token;
+  return reg.body?.token;
 }
 
 async function approvedOrganizerToken(email = 'payorg@example.com') {
+  await User.deleteOne({ email });
   const reg = await request(app).post(`${api}/auth/organizer/register`).send({
     name: 'Org', email, password: 'pass1234', agencyName: 'Guides',
     socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012',
@@ -99,15 +102,23 @@ async function approvedOrganizerToken(email = 'payorg@example.com') {
   await User.findByIdAndUpdate(reg.body.account.id, {
     'organizer.isApproved': true, 'organizer.isPendingApproval': false,
   });
+  if (reg.body?.account?.id) {
+    await User.findByIdAndUpdate(reg.body.account.id, {
+      'organizer.isApproved': true, 'organizer.isPendingApproval': false,
+    });
+  }
   const login = await request(app).post(`${api}/auth/organizer/login`).send({ email, password: 'pass1234' });
   return login.body.token;
+  return login.body?.token;
 }
 
 async function adminToken() {
   const { hashPassword } = await import('../../src/utils/password.js');
+  await Admin.deleteMany({ email: 'admin@findyourtrek.com' });
   await Admin.create({ name: 'Admin', email: 'admin@findyourtrek.com', passwordHash: await hashPassword('admin123') });
   const res = await request(app).post(`${api}/auth/admin/login`).send({ email: 'admin@findyourtrek.com', password: 'admin123' });
   return res.body.token;
+  return res.body?.token;
 }
 
 async function makeTrip(orgToken, over) {

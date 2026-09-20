@@ -104,6 +104,7 @@ const userSchema = new mongoose.Schema(
     notificationUpdates:  { type: Boolean, default: true },
     notificationPromo:    { type: Boolean, default: false },
     referralCode:  { type: String, unique: true },
+    referralCode:  { type: String, unique: true, sparse: true },
     referredBy:    { type: String, default: null },
     // Legacy single-device field, kept so older clients and existing rows keep
     // working; `fcmTokens` is the real list. One account can be signed in on a

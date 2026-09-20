@@ -7,14 +7,18 @@ import Trek from '../../src/models/Trek.js';
 const app = createApp();
 
 async function customerToken(email = 'hiker@example.com') {
+  await User.deleteOne({ email });
   const reg = await request(app).post('/api/v1/auth/register').send({ name: 'Hiker', email, password: 'pass1234' });
-  return reg.body.token;
+  return reg.body?.token;
 }
 async function approvedOrganizerToken(email = 'org@example.com') {
+  await User.deleteOne({ email });
   const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
-  await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
+  if (reg.body?.account?.id) {
+    await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
+  }
   const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
-  return login.body.token;
+  return login.body?.token;
 }
 let trekSeq = 0;
 async function makeTrip(orgToken) {
