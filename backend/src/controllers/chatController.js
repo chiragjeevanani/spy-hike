@@ -139,7 +139,6 @@ export const sendCustomerMessage = asyncHandler(async (req, res) => {
     },
   }).catch((err) => console.error('[chat] push to organizer failed:', err?.message || err));
 
-  res.status(201).json({ chat: chat.toPublicJSON() });
   res.status(201).json({ chat: publicChat });
 });
 
@@ -196,7 +195,6 @@ export const sendOrganizerMessage = asyncHandler(async (req, res) => {
     },
   }).catch((err) => console.error('[chat] push to customer failed:', err?.message || err));
 
-  res.json({ chat: chat.toPublicJSON() });
   res.json({ chat: publicChat });
 });
 
