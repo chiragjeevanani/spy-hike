@@ -2,6 +2,7 @@ import Chat from '../models/Chat.js';
 import Trip from '../models/Trip.js';
 import User from '../models/User.js';
 import { notifyCustomer, notifyOrganizer } from '../services/notificationService.js';
+import { emitToChat, emitToUser } from '../lib/socket.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 
@@ -76,6 +77,27 @@ export const listCustomerChats = asyncHandler(async (req, res) => {
   });
 });
 
+// GET /chats/:tripId — returns the chat session for this trip and customer,
+// finding or creating it with welcome greeting if not existing yet.
+export const getCustomerTripChat = asyncHandler(async (req, res) => {
+  const trip = await Trip.findById(req.params.tripId);
+  if (!trip) throw ApiError.notFound('Trip not found');
+  const user = await User.findById(req.user.sub);
+
+  const chat = await findOrCreateChat({
+    trip,
+    userEmail: req.user.email,
+    userName: user?.name,
+    userAvatar: user?.avatar,
+  });
+
+  const orgUser = await User.findOne({ email: chat.organizerEmail }).select('name avatar organizer.agencyName');
+  const organizerAvatar = chat.organizerAvatar || orgUser?.avatar || '';
+  const organizerName = chat.organizerName || orgUser?.organizer?.agencyName || orgUser?.name || 'Organizer';
+
+  res.json({ chat: chat.toPublicJSON({ organizerAvatar, organizerName }) });
+});
+
 // POST /chats/:tripId/messages { text } — customer sends a message (creating
 // the thread if needed).
 export const sendCustomerMessage = asyncHandler(async (req, res) => {
@@ -94,6 +116,14 @@ export const sendCustomerMessage = asyncHandler(async (req, res) => {
   chat.messages.push({ sender: 'user', text, timestamp: new Date() });
   await chat.save();
 
+  const publicChat = chat.toPublicJSON();
+  const newMsg = chat.messages[chat.messages.length - 1];
+
+  // Broadcast real-time WebSocket events immediately
+  emitToChat(chat.tripId, 'new_message', { tripId: chat.tripId, chatId: chat._id.toString(), chat: publicChat, message: newMsg });
+  emitToUser(chat.organizerEmail, 'chat_updated', { tripId: chat.tripId, chatId: chat._id.toString(), chat: publicChat });
+  emitToUser(chat.userEmail, 'chat_updated', { tripId: chat.tripId, chatId: chat._id.toString(), chat: publicChat });
+
   // Trigger push notification to organizer with deep link
   const senderName = user?.name || chat.userName || 'A hiker';
   notifyOrganizer(chat.organizerEmail, {
@@ -109,7 +139,7 @@ export const sendCustomerMessage = asyncHandler(async (req, res) => {
     },
   }).catch((err) => console.error('[chat] push to organizer failed:', err?.message || err));
 
-  res.status(201).json({ chat: chat.toPublicJSON() });
+  res.status(201).json({ chat: publicChat });
 });
 
 // ─── Organizer ───────────────────────────────────────────────────────────────
@@ -142,6 +172,14 @@ export const sendOrganizerMessage = asyncHandler(async (req, res) => {
   chat.messages.push({ sender: 'organizer', text, timestamp: new Date() });
   await chat.save();
 
+  const publicChat = chat.toPublicJSON();
+  const newMsg = chat.messages[chat.messages.length - 1];
+
+  // Broadcast real-time WebSocket events immediately
+  emitToChat(chat.tripId, 'new_message', { tripId: chat.tripId, chatId: chat._id.toString(), chat: publicChat, message: newMsg });
+  emitToUser(chat.userEmail, 'chat_updated', { tripId: chat.tripId, chatId: chat._id.toString(), chat: publicChat });
+  emitToUser(chat.organizerEmail, 'chat_updated', { tripId: chat.tripId, chatId: chat._id.toString(), chat: publicChat });
+
   // Trigger push notification to customer with deep link
   const orgName = chat.organizerName || 'Trek Organizer';
   notifyCustomer(chat.userEmail, {
@@ -157,7 +195,7 @@ export const sendOrganizerMessage = asyncHandler(async (req, res) => {
     },
   }).catch((err) => console.error('[chat] push to customer failed:', err?.message || err));
 
-  res.json({ chat: chat.toPublicJSON() });
+  res.json({ chat: publicChat });
 });
 
 export const markOrganizerChatRead = asyncHandler(async (req, res) => {
@@ -175,6 +213,7 @@ export const markOrganizerChatRead = asyncHandler(async (req, res) => {
   });
   if (modified) {
     await chat.save();
+    emitToChat(chat.tripId, 'chat_read', { tripId: chat.tripId, chatId: chat._id.toString() });
   }
   res.json({ chat: chat.toPublicJSON() });
 });
@@ -191,6 +230,7 @@ export const markCustomerChatRead = asyncHandler(async (req, res) => {
   });
   if (modified) {
     await chat.save();
+    emitToChat(chat.tripId, 'chat_read', { tripId: chat.tripId, chatId: chat._id.toString() });
   }
   res.json({ chat: chat.toPublicJSON() });
 });

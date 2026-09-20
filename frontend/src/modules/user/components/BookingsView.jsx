@@ -19,6 +19,8 @@ import {
   getComputedBookingStatus,
   getStatusBadgeStyle,
 } from "../../../utils/bookingStatus";
+import socialApi from "../../../lib/socialApi";
+import { getSocket, joinChatRoom, leaveChatRoom } from "../../../lib/socket";
 
 export default function BookingsView({
   bookings,
@@ -82,6 +84,34 @@ export default function BookingsView({
     }
   }, [activeChatSession?.tripId, onChatStateChange]);
 
+  // Real-time WebSocket room subscription for the active chat session
+  useEffect(() => {
+    if (!activeChatSession?.tripId) return;
+    const tripId = activeChatSession.tripId;
+    joinChatRoom(tripId);
+
+    const socket = getSocket();
+    const handleNewMessage = (data) => {
+      if (data?.tripId === tripId && data?.chat) {
+        setActiveChatSession(data.chat);
+        if (onSaveChats) {
+          const currentChats = chats || [];
+          const exists = currentChats.some((c) => c.tripId === tripId);
+          const next = exists
+            ? currentChats.map((c) => (c.tripId === tripId ? data.chat : c))
+            : [...currentChats, data.chat];
+          onSaveChats(next);
+        }
+      }
+    };
+
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      leaveChatRoom(tripId);
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [activeChatSession?.tripId, chats, onSaveChats]);
+
   const filteredBookings = bookings.filter((b) => {
     const computed = getComputedBookingStatus(b);
     if (activeTab === "Upcoming") {
@@ -109,7 +139,7 @@ export default function BookingsView({
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F27D26&color=fff`;
   };
 
-  // Trigger chat drawer with real profile metadata
+  // Trigger chat drawer with real profile metadata and immediate history fetch
   const handleContactOrganizer = (booking) => {
     const matchedTrip = trips?.find((t) => t.id === booking.tripId);
     const existing = chats.find((c) => c.tripId === booking.tripId);
@@ -140,6 +170,28 @@ export default function BookingsView({
       };
       onSaveChats([...chats, newSession]);
       setActiveChatSession(newSession);
+    }
+
+    // Immediately fetch authoritative chat history with all previous messages from server
+    if (booking?.tripId) {
+      socialApi
+        .getTripChat(booking.tripId)
+        .then((serverChat) => {
+          if (serverChat && Array.isArray(serverChat.messages)) {
+            setActiveChatSession(serverChat);
+            if (onSaveChats) {
+              const currentChats = chats || [];
+              const exists = currentChats.some((c) => c.tripId === serverChat.tripId);
+              const next = exists
+                ? currentChats.map((c) => (c.tripId === serverChat.tripId ? serverChat : c))
+                : [...currentChats, serverChat];
+              onSaveChats(next);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn("[chat] failed to fetch trip chat:", err?.message || err);
+        });
     }
   };
 

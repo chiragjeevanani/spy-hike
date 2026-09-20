@@ -1,8 +1,10 @@
+import http from 'http';
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
 import { upsertAdmin } from './seed.js';
 import { initCache, closeCache } from './lib/cache.js';
+import { initSocket } from './lib/socket.js';
 import mongoose from 'mongoose';
 
 import Notification from './models/Notification.js';
@@ -14,8 +16,11 @@ async function start() {
   const maxRetries = 10;
 
   function listen() {
-    const server = app.listen(env.port, () => {
-      console.log(`✓ Find Your Trek API listening on http://localhost:${env.port} (${env.nodeEnv})`);
+    const httpServer = http.createServer(app);
+    initSocket(httpServer);
+
+    const server = httpServer.listen(env.port, () => {
+      console.log(`✓ Find Your Trek API + WebSockets listening on http://localhost:${env.port} (${env.nodeEnv})`);
       connectDB()
         .then(async (conn) => {
           console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);

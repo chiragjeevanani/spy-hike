@@ -81,6 +81,7 @@ import authApi from "../../lib/authApi";
 import { loadLandingContentLocal } from "../landing/landingContent";
 import { initPushNotifications } from "../../utils/pushNotifications";
 import { useLivePoll, LIVE } from "../../utils/livePoll";
+import { getSocket, updateSocketAuth } from "../../lib/socket";
 import {
   requestPushPermission,
   HikerAlerts,
@@ -1150,6 +1151,59 @@ export default function App() {
   useEffect(() => {
     if (user.isAuthenticated && getToken()) requestPushPermission();
   }, [user.isAuthenticated]);
+
+  // Connect and authenticate Socket.IO
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      updateSocketAuth(token);
+    }
+  }, [user.isAuthenticated]);
+
+  // Real-time WebSocket listener for chats & instant messages
+  useEffect(() => {
+    const socket = getSocket();
+    const handleChatUpdated = (data) => {
+      if (data?.chat) {
+        setChats((prev) => {
+          const list = Array.isArray(prev) ? prev : [];
+          const exists = list.some(
+            (c) => c.tripId === data.chat.tripId || c.id === data.chat.id,
+          );
+          const next = exists
+            ? list.map((c) =>
+                c.tripId === data.chat.tripId || c.id === data.chat.id
+                  ? data.chat
+                  : c,
+              )
+            : [data.chat, ...list];
+          saveChats(next);
+          return next;
+        });
+      }
+    };
+
+    const handleNewMessage = (data) => {
+      if (data?.chat) {
+        handleChatUpdated(data);
+        const lastMsg = data.message;
+        if (lastMsg && lastMsg.sender === "organizer") {
+          HikerAlerts.newMessage(
+            data.chat.organizerName || data.chat.agencyName || "Organizer",
+            lastMsg.text,
+            toast,
+          );
+        }
+      }
+    };
+
+    socket.on("chat_updated", handleChatUpdated);
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      socket.off("chat_updated", handleChatUpdated);
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [toast]);
 
   // Live sync of notifications and organizer messages. Reads pass LIVE
   // (cache: false) so the poll isn't answered from apiClient's 60s GET cache,

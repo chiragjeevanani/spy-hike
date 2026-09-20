@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageCircle, Send, ArrowLeft } from "lucide-react";
+import { joinChatRoom, leaveChatRoom } from "../../../lib/socket";
 
 export default function OrgChatsView({
   chats,
@@ -57,6 +58,17 @@ export default function OrgChatsView({
       onMarkRead(selectedChat.id);
     }
   }, [selectedChat?.id, selectedChat?.messages?.length, onMarkRead]);
+
+  // Real-time WebSocket room subscription
+  useEffect(() => {
+    if (!selectedChat) return;
+    const tripId = selectedChat.tripId;
+    const chatId = selectedChat.id || selectedChat._id;
+    joinChatRoom(tripId, chatId);
+    return () => {
+      leaveChatRoom(tripId, chatId);
+    };
+  }, [selectedChat?.id, selectedChat?.tripId]);
 
   // Handle native hardware / gesture back button when viewing a chat thread
   useEffect(() => {

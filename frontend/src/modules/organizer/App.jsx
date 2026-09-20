@@ -30,6 +30,7 @@ import socialApi from "../../lib/socialApi";
 import { getToken } from "../../lib/apiClient";
 import { initPushNotifications } from "../../utils/pushNotifications";
 import { useLivePoll, LIVE } from "../../utils/livePoll";
+import { getSocket, updateSocketAuth } from "../../lib/socket";
 import {
   requestPushPermission,
   OrganizerAlerts,
@@ -185,6 +186,59 @@ export default function OrgApp() {
     if (organizer?.isAuthenticated && organizer?.isApproved)
       requestPushPermission();
   }, [organizer?.isAuthenticated, organizer?.isApproved]);
+
+  // Connect and authenticate Socket.IO for organizer
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      updateSocketAuth(token);
+    }
+  }, [organizer?.isAuthenticated]);
+
+  // Real-time WebSocket listener for organizer chats & messages
+  useEffect(() => {
+    const socket = getSocket();
+    const handleChatUpdated = (data) => {
+      if (data?.chat) {
+        setChats((prev) => {
+          const list = Array.isArray(prev) ? prev : [];
+          const exists = list.some(
+            (c) => c.id === data.chat.id || c.tripId === data.chat.tripId,
+          );
+          const next = exists
+            ? list.map((c) =>
+                c.id === data.chat.id || c.tripId === data.chat.tripId
+                  ? data.chat
+                  : c,
+              )
+            : [data.chat, ...list];
+          saveOrgChats(next);
+          return next;
+        });
+      }
+    };
+
+    const handleNewMessage = (data) => {
+      if (data?.chat) {
+        handleChatUpdated(data);
+        const lastMsg = data.message;
+        if (lastMsg && lastMsg.sender === "user") {
+          OrganizerAlerts.newMessage(
+            data.chat.userName || "Hiker",
+            lastMsg.text,
+            toast,
+          );
+        }
+      }
+    };
+
+    socket.on("chat_updated", handleChatUpdated);
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      socket.off("chat_updated", handleChatUpdated);
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [toast]);
 
   // Live sync of Bookings, Messages and Notifications.
   //

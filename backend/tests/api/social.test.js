@@ -295,4 +295,38 @@ describe('Chat', () => {
     const res = await request(app).post(`/api/v1/organizer/chats/${chatId}/messages`).set('Authorization', `Bearer ${orgB}`).send({ text: 'hi' });
     expect(res.status).toBe(403);
   });
+
+  it('customer can fetch historical trip chat via GET /api/v1/chats/:tripId upon opening chat drawer', async () => {
+    const org = await approvedOrganizerToken('host@example.com');
+    const { token } = await customerToken('hiker-chat@example.com');
+    const trip = await makeTrip(org);
+    await makeBooking(token, trip.id);
+
+    // Initial fetch without sending any message
+    const initialFetch = await request(app).get(`/api/v1/chats/${trip.id}`).set('Authorization', `Bearer ${token}`);
+    expect(initialFetch.status).toBe(200);
+    expect(initialFetch.body.chat).toBeDefined();
+    expect(initialFetch.body.chat.tripId).toBe(trip.id);
+    expect(initialFetch.body.chat.messages.length).toBeGreaterThanOrEqual(1);
+    expect(initialFetch.body.chat.messages[0].sender).toBe('organizer');
+
+    // Send a message and re-fetch via GET to verify history persists and is returned automatically
+    await request(app).post(`/api/v1/chats/${trip.id}/messages`).set('Authorization', `Bearer ${token}`).send({ text: 'Hello from hiker!' });
+
+    const refetch = await request(app).get(`/api/v1/chats/${trip.id}`).set('Authorization', `Bearer ${token}`);
+    expect(refetch.status).toBe(200);
+    expect(refetch.body.chat.messages.some((m) => m.sender === 'user' && m.text === 'Hello from hiker!')).toBe(true);
+    expect(refetch.body.chat.organizerName).toMatch(/Guides|Org/);
+  });
+
+  it('rejects GET /api/v1/chats/:tripId if trip does not exist (404)', async () => {
+    const { token } = await customerToken('stranger@example.com');
+    const res = await request(app).get('/api/v1/chats/nonexistent-trip-id').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects GET /api/v1/chats/:tripId if unauthenticated (401)', async () => {
+    const res = await request(app).get('/api/v1/chats/any-trip-id');
+    expect(res.status).toBe(401);
+  });
 });
