@@ -641,7 +641,7 @@ export default function BookingFlow({
   const resolvedUser = currentUser || loadUserState();
   const resolvedBookings = existingBookings || loadBookings();
   const [savedHikers, setSavedHikers] = useState(() =>
-    loadSavedHikers(resolvedUser?.email, resolvedBookings, resolvedUser)
+    loadSavedHikers(resolvedUser?.email, resolvedBookings, resolvedUser),
   );
   const [activeHikerDropdownIdx, setActiveHikerDropdownIdx] = useState(null);
   const dropdownRef = useRef(null);
@@ -755,7 +755,8 @@ export default function BookingFlow({
         name: leadName,
         age: lead.age || resolvedUser?.age || 24,
         gender: lead.gender || resolvedUser?.gender || "Male",
-        emergencyContact: lead.emergencyContact || resolvedUser?.mobile || "9876543210",
+        emergencyContact:
+          lead.emergencyContact || resolvedUser?.mobile || "9876543210",
       },
     ];
   });
@@ -1997,27 +1998,30 @@ export default function BookingFlow({
                                   {/* Quick fill chips */}
                                   {savedHikers.length > 0 && (
                                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                      <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-medium">
+                                      <span
+                                        className={`text-[9px] font-medium ${darkMode ? "text-zinc-400" : "text-zinc-500"}`}>
                                         Quick fill:
                                       </span>
-                                      {savedHikers.slice(0, 3).map((sh, sIdx) => (
-                                        <button
-                                          key={sIdx}
-                                          type="button"
-                                          onClick={() =>
-                                            handleSelectSavedHiker(idx, sh)
-                                          }
-                                          className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition-all inline-flex items-center gap-1 ${
-                                            darkMode
-                                              ? "bg-zinc-800/90 text-zinc-300 hover:bg-forest-900/60 hover:text-forest-300 border border-white/5"
-                                              : "bg-gray-150 text-gray-700 hover:bg-forest-50 hover:text-forest-700 border border-gray-200"
-                                          }`}>
-                                          <span className="text-forest-500 font-bold">
-                                            +
-                                          </span>
-                                          {sh.name}
-                                        </button>
-                                      ))}
+                                      {savedHikers
+                                        .slice(0, 3)
+                                        .map((sh, sIdx) => (
+                                          <button
+                                            key={sIdx}
+                                            type="button"
+                                            onClick={() =>
+                                              handleSelectSavedHiker(idx, sh)
+                                            }
+                                            className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition-all inline-flex items-center gap-1 ${
+                                              darkMode
+                                                ? "bg-zinc-800 text-zinc-200 hover:bg-forest-900/60 hover:text-forest-300 border border-white/10"
+                                                : "bg-gray-100 text-gray-700 hover:bg-forest-50 hover:text-forest-700 border border-gray-200"
+                                            }`}>
+                                            <span className="text-forest-500 font-bold">
+                                              +
+                                            </span>
+                                            {sh.name}
+                                          </button>
+                                        ))}
                                     </div>
                                   )}
 
@@ -2049,7 +2053,7 @@ export default function BookingFlow({
                                             onClick={() =>
                                               setActiveHikerDropdownIdx(null)
                                             }
-                                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                            className={`${darkMode ? "text-zinc-400 hover:text-zinc-200" : "text-gray-400 hover:text-gray-600"}`}>
                                             <X size={12} />
                                           </button>
                                         </div>
@@ -2073,8 +2077,12 @@ export default function BookingFlow({
 
                                           if (matches.length === 0) {
                                             return (
-                                              <div className="p-3 text-center text-xs opacity-60">
-                                                No saved hiker matches "{tr.name}". Fill out the fields to save this hiker for next time.
+                                              <div
+                                                className={`p-3 text-center text-xs ${darkMode ? "text-zinc-400" : "text-gray-500"}`}>
+                                                No saved hiker matches "
+                                                {tr.name}". Fill out the fields
+                                                to save this hiker for next
+                                                time.
                                               </div>
                                             );
                                           }
@@ -2091,16 +2099,31 @@ export default function BookingFlow({
                                                   : "hover:bg-forest-50/70 border-gray-100"
                                               }`}>
                                               <div className="flex items-center gap-2.5 min-w-0">
-                                                <div className="w-7 h-7 rounded-full bg-forest-600/20 text-forest-500 font-bold flex items-center justify-center text-xs shrink-0">
+                                                <div
+                                                  className={`w-7 h-7 rounded-full font-bold flex items-center justify-center text-xs shrink-0 ${
+                                                    darkMode
+                                                      ? "bg-forest-900/60 text-forest-300"
+                                                      : "bg-forest-600/20 text-forest-600"
+                                                  }`}>
                                                   {sh.name
                                                     .charAt(0)
                                                     .toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0">
-                                                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                                                  <p
+                                                    className={`text-xs font-bold truncate ${
+                                                      darkMode
+                                                        ? "text-white"
+                                                        : "text-gray-900"
+                                                    }`}>
                                                     {sh.name}
                                                   </p>
-                                                  <p className="text-[10px] text-gray-500 dark:text-zinc-400 flex items-center gap-1.5 flex-wrap">
+                                                  <p
+                                                    className={`text-[10px] flex items-center gap-1.5 flex-wrap ${
+                                                      darkMode
+                                                        ? "text-zinc-400"
+                                                        : "text-gray-500"
+                                                    }`}>
                                                     {sh.age && (
                                                       <span>{sh.age} yrs</span>
                                                     )}
@@ -2114,7 +2137,8 @@ export default function BookingFlow({
                                                       <>
                                                         <span>•</span>
                                                         <span>
-                                                          📞 {sh.emergencyContact}
+                                                          📞{" "}
+                                                          {sh.emergencyContact}
                                                         </span>
                                                       </>
                                                     )}
@@ -2123,7 +2147,12 @@ export default function BookingFlow({
                                               </div>
 
                                               <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                                <span className="text-[10px] font-bold text-forest-600 dark:text-forest-400 bg-forest-50 dark:bg-forest-950/60 px-2 py-0.5 rounded-full border border-forest-500/20">
+                                                <span
+                                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                    darkMode
+                                                      ? "text-forest-400 bg-forest-950/70 border-forest-500/30"
+                                                      : "text-forest-600 bg-forest-50 border-forest-500/20"
+                                                  }`}>
                                                   Autofill
                                                 </span>
                                                 <button
@@ -2135,7 +2164,11 @@ export default function BookingFlow({
                                                       sh.name,
                                                     )
                                                   }
-                                                  className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors">
+                                                  className={`p-1 rounded-md transition-colors ${
+                                                    darkMode
+                                                      ? "text-zinc-400 hover:text-red-400 hover:bg-red-950/40"
+                                                      : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                                                  }`}>
                                                   <Trash2 size={12} />
                                                 </button>
                                               </div>
