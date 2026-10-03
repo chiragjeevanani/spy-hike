@@ -34,6 +34,9 @@ const trekSchema = new mongoose.Schema(
     coverImage: { type: String, required: true },
     galleryImages: { type: [String], default: [] },
     category: { type: String, default: '' }, // optional activity-type tag
+    // Admin-curated homepage/navigation filters (Himalayas, South India, etc.).
+    // Separate from `category`, because a trek can appear in several filters.
+    homeFilterIds: { type: [String], default: [] },
     description: { type: String, default: '' },
     itinerary: { type: [itineraryDaySchema], default: [] },
     thingsToCarry: { type: [String], default: [] },
@@ -52,6 +55,7 @@ const trekSchema = new mongoose.Schema(
 // rather than an in-memory SORT stage.
 trekSchema.index({ status: 1, title: 1 });               // GET /treks
 trekSchema.index({ status: 1, trending: 1, title: 1 });  // GET /treks?trending=true
+trekSchema.index({ status: 1, homeFilterIds: 1, title: 1 });
 
 trekSchema.methods.toPublicJSON = function toPublicJSON() {
   const obj = this.toObject({ versionKey: false });

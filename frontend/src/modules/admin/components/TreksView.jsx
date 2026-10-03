@@ -13,13 +13,14 @@ import { compressImage } from '../../../utils/imageCompressor';
 import { POPULAR_TREK_STATES, resolveTrekState, groupTreksByState, extractStateFromLocation } from '../utils/stateUtils';
 import { INDIA_STATES, getCitiesForState, formatLocation } from '../../../data/indiaLocations';
 import { AdminSkeletonStateGroup, AdminSkeletonCard } from './AdminSkeleton';
+import HomeFiltersCms from './HomeFiltersCms';
 
 const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
 const emptyForm = () => ({
   title: '', location: '', startingPoint: '', state: '', city: '',
   difficulty: 'Moderate', durationDays: '', durationDaysMax: '', distanceKm: '', distanceKmMax: '', elevationMeters: '',
-  coverImage: '', category: '', description: '',
+  coverImage: '', category: '', homeFilterIds: [], description: '',
   itinerary: [{ day: 1, title: 'Arrival & Base Camp Assembly', description: 'Reach base camp, meet trek guides, and prepare gear.' }],
   thingsToCarry: [
     'Personal medication (if any)',
@@ -54,6 +55,7 @@ export default function TreksView({ darkMode }) {
   const [stateFilter, setStateFilter] = useState('All');
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' | 'grid'
   const [collapsedStates, setCollapsedStates] = useState({});
+  const [homeFilters, setHomeFilters] = useState([]);
 
   const [editingTrek, setEditingTrek] = useState(null); // null = closed, {} = new, {...} = edit
   const [form, setForm] = useState(emptyForm());
@@ -74,7 +76,10 @@ export default function TreksView({ darkMode }) {
       .catch(() => setTreks([]))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { refresh(); }, []);
+  const refreshHomeFilters = () => treksApi.listAllHomeFilters()
+    .then(setHomeFilters)
+    .catch(() => setHomeFilters([]));
+  useEffect(() => { refresh(); refreshHomeFilters(); }, []);
 
   const toggleCollapseState = (stateName) => {
     setCollapsedStates((prev) => ({
@@ -108,6 +113,7 @@ export default function TreksView({ darkMode }) {
       elevationMeters: trek.elevationMeters ? String(trek.elevationMeters) : '',
       coverImage: trek.coverImage || '',
       category: trek.category || '',
+      homeFilterIds: Array.isArray(trek.homeFilterIds) ? trek.homeFilterIds : [],
       description: trek.description || '',
       itinerary: trek.itinerary && trek.itinerary.length ? trek.itinerary : [{ day: 1, title: 'Day 1 Assembly', description: 'Reach base location.' }],
       thingsToCarry: trek.thingsToCarry && trek.thingsToCarry.length ? trek.thingsToCarry : ['Strong backpack', 'Shoes with good grip', 'Water bottles'],
@@ -193,6 +199,7 @@ export default function TreksView({ darkMode }) {
       elevationMeters: form.elevationMeters ? Number(form.elevationMeters) : 0,
       coverImage: form.coverImage,
       category: form.category.trim(),
+      homeFilterIds: form.homeFilterIds,
       description: form.description.trim(),
       itinerary: form.itinerary.filter(i => i.title.trim()),
       thingsToCarry: form.thingsToCarry.filter(t => t.trim()),
@@ -405,6 +412,12 @@ export default function TreksView({ darkMode }) {
           </button>
         </div>
       </div>
+
+      <HomeFiltersCms
+        filters={homeFilters}
+        onChange={refreshHomeFilters}
+        darkMode={darkMode}
+      />
 
       {/* State Quick Tabs / Summary Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
@@ -745,6 +758,37 @@ export default function TreksView({ darkMode }) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Homepage filters</label>
+                <p className="text-[10px] text-slate-400 -mt-1 mb-2">Choose every customer-facing collection where this trek should appear. “All” includes it automatically.</p>
+                {homeFilters.length === 0 ? (
+                  <div className={`rounded-xl border border-dashed p-3 text-[11px] ${darkMode ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'}`}>Create a homepage filter above before assigning this trek.</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {homeFilters.map((filter) => {
+                      const checked = form.homeFilterIds.includes(filter.id);
+                      return (
+                        <label key={filter.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold cursor-pointer transition ${checked ? 'border-[#F27D26] bg-[#F27D26]/10 text-[#F27D26]' : darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-600'}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setForm((current) => ({
+                              ...current,
+                              homeFilterIds: checked
+                                ? current.homeFilterIds.filter((id) => id !== filter.id)
+                                : [...current.homeFilterIds, filter.id],
+                            }))}
+                            className="accent-[#F27D26]"
+                          />
+                          <span className="truncate">{filter.label}</span>
+                          {!filter.active && <span className="ml-auto text-[8px] uppercase text-slate-400">Hidden</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Duration and distance are ranges — the "to" box is optional and

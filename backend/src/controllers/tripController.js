@@ -1,6 +1,7 @@
 import Trip from '../models/Trip.js';
 import Trek from '../models/Trek.js';
 import Category from '../models/Category.js';
+import Booking from '../models/Booking.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify, makeTripId } from '../utils/slug.js';
@@ -55,7 +56,7 @@ const GROUP_CARD_FIELDS = {
 export const listTrekGroups = asyncHandler(async (req, res) => {
   const {
     page = 1, limit = 12, search, category, difficulty, date, pickupCity,
-    city, state, maxPrice, maxDuration, minSeats, sort = 'Popular',
+    city, state, homeFilter, maxPrice, maxDuration, minSeats, sort = 'Popular',
   } = req.query;
 
   const pageNum = Math.max(1, Number(page) || 1);
@@ -63,6 +64,13 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
 
   // ── Filters on individual offers, applied before grouping ──
   const offerMatch = { status: 'Published' };
+  if (homeFilter) {
+    const trekIds = await Trek.distinct('_id', {
+      status: 'Active',
+      homeFilterIds: homeFilter,
+    });
+    offerMatch.trekId = { $in: trekIds };
+  }
   if (category && category !== 'All') offerMatch.category = category;
   if (difficulty && difficulty !== 'All') offerMatch.difficulty = difficulty;
   if (date) offerMatch.departureDates = date;
@@ -567,6 +575,37 @@ export const deleteOrganizerTrip = asyncHandler(async (req, res) => {
 export const listAllTrips = asyncHandler(async (req, res) => {
   const trips = await Trip.find().sort({ updatedAt: -1 });
   res.json({ trips: trips.map((t) => t.toPublicJSON()) });
+});
+
+// GET /admin/trips/:id — everything the admin trip detail page shows in one
+// call: the full listing (drafts and paused trips included, unlike the public
+// detail route), its dated departures, and a booking summary.
+export const adminGetTrip = asyncHandler(async (req, res) => {
+  const trip = await Trip.findById(req.params.id);
+  if (!trip) throw ApiError.notFound('Trip not found');
+
+  const [departures, bookings] = await Promise.all([
+    getDepartures(trip._id),
+    Booking.find({ tripId: trip._id })
+      .select('bookingId userName userEmail selectedDate travelersCount finalAmount status createdAt')
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  const active = bookings.filter((b) => b.status !== 'Cancelled');
+  const stats = {
+    totalBookings: bookings.length,
+    cancelledBookings: bookings.length - active.length,
+    travelers: active.reduce((sum, b) => sum + (b.travelersCount || 0), 0),
+    revenue: active.reduce((sum, b) => sum + (b.finalAmount || 0), 0),
+  };
+
+  res.json({
+    trip: trip.toPublicJSON(),
+    departures,
+    stats,
+    recentBookings: bookings.slice(0, 10).map(({ _id, ...b }) => b),
+  });
 });
 
 export const adminSetTripStatus = asyncHandler(async (req, res) => {

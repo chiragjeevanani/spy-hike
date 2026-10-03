@@ -10,7 +10,7 @@ import Review from '../models/Review.js';
 import Broadcast from '../models/Broadcast.js';
 import AdminConfig from '../models/AdminConfig.js';
 import { hashPassword } from '../utils/password.js';
-import { upsertCategories, upsertCoupons, upsertTrips } from '../seed.js';
+import { upsertCategories, upsertHomeFilters, upsertCoupons, upsertTrips } from '../seed.js';
 
 // GET /admin/config — current platform config (commission %, tax %, maintenanceMode).
 export const getAdminConfig = asyncHandler(async (req, res) => {
@@ -100,6 +100,7 @@ export const resetPlatformDatabase = asyncHandler(async (req, res) => {
 
   // 4. Restore categories, coupons, and trips
   await upsertCategories();
+  await upsertHomeFilters();
   await upsertCoupons();
   await upsertTrips();
 

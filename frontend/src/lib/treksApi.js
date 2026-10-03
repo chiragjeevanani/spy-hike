@@ -16,6 +16,7 @@ export const treksApi = {
   },
   getTrek: (id) => api.get(`/treks/${encodeURIComponent(id)}`, { auth: false }).then((r) => r.trek),
   getTrekOffers: (trekId) => api.get(`/treks/${encodeURIComponent(trekId)}/offers`, { auth: false }),
+  listHomeFilters: () => api.get('/home-filters', { auth: false }).then((r) => r.filters || []),
 
   // ─── Admin ───
   listAllTreks: () => api.get('/admin/treks').then((r) => r.treks),
@@ -25,6 +26,11 @@ export const treksApi = {
   updateTrek: (id, payload) =>
     api.put(`/admin/treks/${encodeURIComponent(id)}`, payload, { invalidates: ['/trips'] }).then((r) => r.trek),
   deleteTrek: (id) => api.del(`/admin/treks/${encodeURIComponent(id)}`),
+  listAllHomeFilters: () => api.get('/admin/home-filters').then((r) => r.filters || []),
+  createHomeFilter: (payload) => api.post('/admin/home-filters', payload).then((r) => r.filter),
+  updateHomeFilter: (id, payload) =>
+    api.put(`/admin/home-filters/${encodeURIComponent(id)}`, payload, { invalidates: ['/home-filters', '/treks', '/trek-groups'] }).then((r) => r.filter),
+  deleteHomeFilter: (id) => api.del(`/admin/home-filters/${encodeURIComponent(id)}`, { invalidates: ['/home-filters', '/treks', '/trek-groups'] }),
 };
 
 export default treksApi;

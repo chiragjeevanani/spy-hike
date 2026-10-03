@@ -2,7 +2,7 @@ import http from 'http';
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
-import { upsertAdmin } from './seed.js';
+import { upsertAdmin, upsertHomeFilters } from './seed.js';
 import { initCache, closeCache } from './lib/cache.js';
 import { initSocket } from './lib/socket.js';
 import mongoose from 'mongoose';
@@ -25,6 +25,10 @@ async function start() {
         .then(async (conn) => {
           console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);
           await upsertAdmin();
+          // Non-destructive reference-data migration: existing deployments get
+          // the four starter homepage filters without running the full seed,
+          // which intentionally resets demo trip data.
+          await upsertHomeFilters();
           // Register 30-day TTL index and compound query indexes on MongoDB
           Notification.syncIndexes().catch((err) => console.warn('[notifications] syncIndexes warning:', err.message));
           // Immediately purge any stale notifications older than 30 days to keep cluster storage optimal

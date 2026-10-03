@@ -138,7 +138,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
   return (
     <div 
       ref={scrollContainerRef}
-      className={`w-full h-screen overflow-y-auto overflow-x-hidden ${darkMode ? 'dark bg-elegant-bg text-elegant-text' : 'bg-[#F6F1E5] text-zinc-800'} transition-colors duration-500 font-sans`}
+      className={`w-full h-screen overflow-y-auto overflow-x-hidden ${darkMode ? 'dark bg-elegant-bg text-elegant-text' : 'bg-[#F7F3E9] text-[#1D2018]'} transition-colors duration-500 font-sans`}
     >
       {/* Extremely Smooth Scroll Progress Bar */}
       <motion.div 
@@ -177,7 +177,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
         />
 
         {/* 1. STICKY HEADER WITH INTERACTIVE NAVIGATION UNDERLINE */}
-        <header className="sticky top-0 w-full z-50 backdrop-blur-md bg-[#F6F1E5]/75 dark:bg-elegant-bg/75 border-b border-zinc-200/50 dark:border-elegant-border/80 transition-colors duration-300">
+        <header className="sticky top-0 w-full z-50 backdrop-blur-xl bg-[#F7F3E9]/85 dark:bg-elegant-bg/80 border-b border-[#0B5D3B]/10 dark:border-elegant-border/80 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             {/* Logo Group */}
             <motion.div 
@@ -297,14 +297,20 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
           </AnimatePresence>
         </header>
 
-        {/* 2. HERO SECTION WITH DRIFTING APP MOCKUP */}
-        <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-24 flex flex-col lg:flex-row items-center gap-16 z-10">
-          <div className="flex-1 text-center lg:text-left">
+        {/* 2. IMMERSIVE ALPINE HERO */}
+        <section
+          className="trek-hero-grain relative w-[calc(100%-2rem)] max-w-7xl mx-auto my-6 px-5 sm:px-10 lg:px-16 py-20 sm:py-28 min-h-[650px] rounded-[2rem] sm:rounded-[3rem] overflow-hidden flex items-center z-10 text-white shadow-[0_28px_80px_rgba(31,46,34,0.22)]"
+          style={{
+            backgroundImage: "linear-gradient(90deg, rgba(9,26,17,.84), rgba(9,26,17,.4) 58%, rgba(9,26,17,.12)), linear-gradient(0deg, rgba(7,20,13,.65), transparent 60%), url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1800&q=88')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}>
+          <div className="relative z-10 w-full max-w-3xl text-left">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", stiffness: 120, delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-forest-500/10 dark:bg-forest-500/15 border border-forest-500/20 text-forest-700 dark:text-[#6f9780] text-xs font-semibold uppercase tracking-wider mb-6"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-spy-orange text-white border border-white/20 text-xs font-semibold uppercase tracking-wider mb-7 shadow-lg"
             >
               <Flame className="w-3.5 h-3.5 text-spy-orange animate-pulse" />
               {C.hero.badge}
@@ -314,10 +320,10 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
               initial={{ opacity: 0, y: 35 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-              className="font-display font-bold text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none mb-6"
+              className="font-serif font-semibold text-5xl sm:text-6xl lg:text-8xl tracking-[-0.04em] leading-[0.95] mb-7"
             >
               {C.hero.titleLead}{" "}
-              <span className="relative inline-block bg-gradient-to-r from-spy-orange via-orange-500 to-forest-500 bg-clip-text text-transparent">
+              <span className="relative inline-block trek-script-accent">
                 {C.hero.titleHighlight}
               </span>
             </motion.h1>
@@ -326,7 +332,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
-              className="text-lg text-zinc-600 dark:text-elegant-text/70 max-w-2xl mx-auto lg:mx-0 mb-10 leading-relaxed font-normal"
+              className="text-lg text-white/75 max-w-xl mb-10 leading-relaxed font-normal"
             >
               {C.hero.subtitle}
             </motion.p>
@@ -335,7 +341,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
               initial={{ opacity: 0, y: 25 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.4 }}
-              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4"
+              className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start gap-4"
             >
               <motion.button 
                 onClick={onLaunchApp}
@@ -345,7 +351,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
                   y: -2
                 }}
                 whileTap={{ scale: 0.97 }}
-                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-forest-500 hover:bg-forest-600 text-white font-semibold flex items-center justify-center gap-3 shadow-xl shadow-forest-500/35 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-8 py-4 rounded-full bg-forest-600 hover:bg-forest-700 text-white font-semibold flex items-center justify-center gap-3 shadow-xl shadow-black/20 transition-all cursor-pointer"
               >
                 {C.hero.primaryCta}
                 <Compass className="w-5 h-5 animate-spin-slow" />
@@ -359,7 +365,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
                   y: -2
                 }}
                 whileTap={{ scale: 0.97 }}
-                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white dark:bg-elegant-card text-zinc-800 dark:text-white border border-zinc-200 dark:border-elegant-border hover:border-zinc-400 dark:hover:border-[#6f9780]/40 font-semibold flex items-center justify-center gap-3 shadow-lg shadow-zinc-200/20 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-8 py-4 rounded-full bg-white/12 text-white border border-white/30 hover:bg-white hover:text-forest-800 font-semibold flex items-center justify-center gap-3 backdrop-blur-md transition-all cursor-pointer"
               >
                 {C.hero.secondaryCta}
                 <ArrowUpRight className="w-5 h-5 text-zinc-400" />
@@ -371,7 +377,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.8 }}
-              className="mt-12 grid grid-cols-3 gap-6 border-t border-zinc-200 dark:border-elegant-border pt-8 max-w-lg mx-auto lg:mx-0"
+              className="mt-12 grid grid-cols-3 gap-6 border-t border-white/25 pt-8 max-w-lg"
             >
               {C.hero.metrics.map((metric, i) => (
                 <div key={i}>
@@ -379,11 +385,11 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
                     initial={{ scale: 0.95 }}
                     animate={{ scale: 1 }}
                     transition={{ type: "spring", delay: 0.7 + i * 0.1 }}
-                    className="font-display font-bold text-2xl text-forest-600 dark:text-elegant-orange"
+                    className="font-serif font-bold text-2xl text-white"
                   >
                     {metric.label}
                   </motion.h4>
-                  <p className="text-xs text-zinc-500 dark:text-elegant-text/50">{metric.sub}</p>
+                  <p className="text-xs text-white/55">{metric.sub}</p>
                 </div>
               ))}
             </motion.div>
@@ -406,7 +412,7 @@ export default function LandingView({ content, darkMode, onToggleDarkMode, onLau
                 ease: "easeInOut"
               }
             }}
-            className="flex-1 w-full max-w-[400px] flex justify-center relative z-10"
+            className="hidden"
           >
             {/* Phone Frame mockup */}
             <div className="relative w-[285px] h-[550px] rounded-[40px] border-[8px] border-zinc-800 dark:border-zinc-700 bg-zinc-950 shadow-2xl overflow-hidden flex flex-col">

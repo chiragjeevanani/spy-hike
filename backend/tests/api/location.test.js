@@ -23,3 +23,20 @@ describe('GET /api/v1/reverse-geocode', () => {
     expect(res.body).toHaveProperty('provider');
   });
 });
+
+describe('GET /api/v1/place-search', () => {
+  it('returns 400 for a missing or too-short query', async () => {
+    expect((await request(app).get('/api/v1/place-search')).status).toBe(400);
+    expect((await request(app).get('/api/v1/place-search?q=a')).status).toBe(400);
+  });
+
+  it('returns a list of candidate places with coordinates', async () => {
+    const res = await request(app).get('/api/v1/place-search?q=Sankri');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.results)).toBe(true);
+    expect(res.body).toHaveProperty('provider');
+    for (const r of res.body.results) {
+      expect(r).toEqual(expect.objectContaining({ name: expect.any(String), lat: expect.any(Number), lng: expect.any(Number) }));
+    }
+  });
+});

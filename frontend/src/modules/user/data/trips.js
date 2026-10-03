@@ -15,7 +15,7 @@ export const PROMOTIONAL_BANNERS = [
     tag: 'Trending Adventure',
     discount: 'Flat 20% Off',
     code: 'FYT20',
-    img: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80',
+    img: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=88',
     tripId: 'himalayan-ridge-pass-trek'
   },
   {

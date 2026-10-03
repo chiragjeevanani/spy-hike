@@ -23,7 +23,7 @@ html {
   height: 100%;
   overflow: hidden;
   /* Matches --theme-bg's light value; overridden for dark mode below. */
-  background-color: #fafafa;
+  background-color: #f7f3e9;
 }
 
 html.dark {
@@ -89,28 +89,28 @@ body {
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
   /* ── 1. PALETTE — Pure Minimalist Dark Neutral Gray (Apple/Linear style) ─ */
-  --palette-emerald-600: #10b981;
-  --palette-emerald-500: #34d399;
-  --palette-amber-500:   #f59e0b;
+  --palette-emerald-600: #0b5d3b;
+  --palette-emerald-500: #167a50;
+  --palette-amber-500:   #f2a516;
 
   /* ── 2. SEMANTIC TOKENS — roles → palette (LIGHT mode) ───────────────── */
-  --theme-primary:        #10b981;    /* main brand fills   */
-  --theme-primary-strong: #059669; /* hover / pressed    */
-  --theme-accent:         #f59e0b; /* secondary CTAs, links */
-  --theme-accent-strong:  #d97706;
-  --theme-text:           #09090b;                 /* body text on light */
-  --theme-text-muted:     #71717a;
-  --theme-surface:        #ffffff;                 /* cards on light     */
-  --theme-bg:             #fafafa;    /* app background     */
+  --theme-primary:        #0b5d3b;    /* alpine forest */
+  --theme-primary-strong: #07462d;
+  --theme-accent:         #f2a516;    /* sunrise amber */
+  --theme-accent-strong:  #d78b08;
+  --theme-text:           #1d2018;
+  --theme-text-muted:     #77766d;
+  --theme-surface:        #fffdf8;
+  --theme-bg:             #f7f3e9;
 
   /* Dark-mode surfaces (Pure Minimalist Dark Neutral Gray / Matte Zinc) */
-  --theme-dark-bg:     #09090b;
-  --theme-dark-app:    #121215;
-  --theme-dark-card:   #18181b;
-  --theme-dark-border: #27272a;
-  --theme-dark-text:   #f4f4f5;
-  --theme-dark-primary: #10b981;      /* brand on dark      */
-  --theme-dark-accent:  #fbbf24;       /* accent that pops on dark */
+  --theme-dark-bg:     #07150f;
+  --theme-dark-app:    #0b1c14;
+  --theme-dark-card:   #11261b;
+  --theme-dark-border: #254534;
+  --theme-dark-text:   #f8f3e8;
+  --theme-dark-primary: #63b487;
+  --theme-dark-accent:  #f5b82e;
 }
 
 @theme {
@@ -120,21 +120,21 @@ body {
   --font-mono: "JetBrains Mono", monospace;
 
   /* ── 3. Primary brand ramp ──── */
-  --color-forest-50:  #ecfdf5;
-  --color-forest-100: #d1fae5;
-  --color-forest-200: #a7f3d0;
-  --color-forest-300: #6ee7b7;
-  --color-forest-400: #34d399;
-  --color-forest-500: #10b981;
-  --color-forest-600: #059669;
-  --color-forest-700: #047857;
-  --color-forest-800: #065f46;
-  --color-forest-900: #064e3b;
-  --color-forest-950: #022c22;
+  --color-forest-50:  #eef6f1;
+  --color-forest-100: #d7eadf;
+  --color-forest-200: #aed4bd;
+  --color-forest-300: #7db894;
+  --color-forest-400: #4b986d;
+  --color-forest-500: #167a50;
+  --color-forest-600: #0b5d3b;
+  --color-forest-700: #074c30;
+  --color-forest-800: #073c29;
+  --color-forest-900: #062f21;
+  --color-forest-950: #031c14;
 
   /* Accent (spy-orange) */
-  --color-spy-orange: #f59e0b;
-  --color-spy-orange-hover: #d97706;
+  --color-spy-orange: #f2a516;
+  --color-spy-orange-hover: #d78b08;
 
   /* Dark-theme surfaces */
   --color-elegant-bg: var(--theme-dark-bg);
@@ -220,4 +220,287 @@ button, a {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Alpine editorial customer theme ────────────────────────────────────── */
+#findyourtrek-app-root {
+  --app-ivory: #f7f3e9;
+  --app-paper: #fffdf8;
+  --app-ink: #1d2018;
+  --app-forest: #0b5d3b;
+  --app-amber: #f2a516;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(242, 165, 22, 0.08), transparent 28rem),
+    var(--app-ivory);
+}
+
+#findyourtrek-app-root.dark,
+.dark #findyourtrek-app-root {
+  --app-ivory: #07150f;
+  --app-paper: #11261b;
+  --app-ink: #f8f3e8;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(242, 165, 22, 0.08), transparent 30rem),
+    #07150f;
+}
+
+#findyourtrek-app-viewport {
+  color: var(--app-ink);
+}
+
+#findyourtrek-app-viewport h1,
+#findyourtrek-app-viewport h2,
+#findyourtrek-app-viewport h3 {
+  text-wrap: balance;
+}
+
+#findyourtrek-app-viewport input,
+#findyourtrek-app-viewport textarea,
+#findyourtrek-app-viewport select {
+  caret-color: var(--app-forest);
+}
+
+#findyourtrek-app-root:not(.dark) .bg-white,
+#findyourtrek-app-root:not(.dark) .bg-gray-50,
+#findyourtrek-app-root:not(.dark) .bg-zinc-50 {
+  background-color: #fffdf8;
+}
+
+#findyourtrek-app-root:not(.dark) .border-gray-200,
+#findyourtrek-app-root:not(.dark) .border-zinc-200 {
+  border-color: rgba(11, 93, 59, 0.12);
+}
+
+#findyourtrek-app-root:not(.dark) .text-zinc-900,
+#findyourtrek-app-root:not(.dark) .text-zinc-800 {
+  color: #1d2018;
+}
+
+#findyourtrek-app-root:not(.dark) .text-zinc-500,
+#findyourtrek-app-root:not(.dark) .text-zinc-400 {
+  color: #77766d;
+}
+
+.trek-paper-card {
+  background: rgba(255, 253, 248, 0.94);
+  border: 1px solid rgba(63, 68, 54, 0.1);
+  box-shadow: 0 18px 45px rgba(38, 48, 35, 0.09);
+}
+
+.dark .trek-paper-card {
+  background: rgba(17, 38, 27, 0.94);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.3);
+}
+
+.trek-hero-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+}
+
+.trek-script-accent {
+  color: #8dd6a9;
+  font-style: italic;
+  letter-spacing: -0.035em;
+}
+
+@media (min-width: 768px) {
+  .trek-app-page {
+    padding-top: 1.5rem;
+  }
+}
+
+/* Responsive customer hero: portrait artwork on phones, landscape elsewhere. */
+.customer-home-hero {
+  min-height: 430px;
+  background-image:
+    linear-gradient(90deg, rgba(255, 248, 235, 0.66) 0%, rgba(255, 248, 235, 0.18) 58%, rgba(255, 248, 235, 0.02) 80%),
+    linear-gradient(0deg, rgba(8, 25, 16, 0.42) 0%, transparent 44%),
+    url('/images/home-hero-himalayas-mobile.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+.customer-home-brand-title {
+  font-size: 0.875rem;
+}
+
+.customer-home-brand-tagline {
+  font-size: 0.4375rem;
+}
+
+.customer-category-button {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.customer-category-icon {
+  width: clamp(18px, 5vw, 23px);
+  height: clamp(18px, 5vw, 23px);
+  flex-shrink: 0;
+}
+
+@media (max-width: 359px) {
+  .customer-home-hero {
+    min-height: 410px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    background-position: center 48%;
+  }
+
+  .customer-home-header {
+    gap: 0.25rem;
+  }
+
+  .customer-home-brand {
+    gap: 0.375rem;
+  }
+
+  .customer-home-brand > div {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 0.65rem;
+  }
+
+  .customer-home-brand > div img {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .customer-home-brand-title {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+  }
+
+  .customer-home-brand-tagline {
+    font-size: 0.36rem;
+    letter-spacing: 0.12em;
+  }
+
+  .customer-home-header > div {
+    gap: 0.35rem;
+  }
+
+  .customer-home-location {
+    padding: 0.52rem 0.55rem;
+  }
+
+  .customer-home-location-label {
+    max-width: 42px;
+    font-size: 0.68rem;
+  }
+
+  .customer-home-bell {
+    width: 36px;
+    height: 36px;
+  }
+
+  .customer-home-copy {
+    margin-top: 4.25rem;
+  }
+
+  .customer-home-copy h1 {
+    font-size: 2.05rem;
+  }
+
+  .customer-home-copy p:last-child {
+    max-width: 17rem;
+    font-size: 0.78rem;
+  }
+
+  #search-input-box {
+    padding-left: 2.65rem;
+    padding-right: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .customer-category-rail {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.25rem;
+  }
+
+  .customer-category-button {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 1rem;
+    gap: 0.25rem;
+  }
+
+  .customer-category-button span {
+    font-size: 0.42rem;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .customer-promo-overlay,
+  .customer-loyalty-overlay {
+    padding: 0.75rem;
+  }
+
+  .customer-promo-title {
+    font-size: 1.05rem;
+  }
+
+  .customer-promo-subtitle {
+    font-size: 0.625rem;
+  }
+
+  .customer-promo-price {
+    font-size: 1.05rem;
+  }
+
+  .customer-promo-action {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.625rem;
+  }
+
+  .customer-loyalty-title {
+    font-size: 0.75rem;
+  }
+
+  .customer-loyalty-subtitle {
+    font-size: 0.55rem;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 639px) {
+  .customer-home-hero {
+    min-height: 470px;
+  }
+}
+
+@media (min-width: 640px) {
+  .customer-home-hero {
+    min-height: 520px;
+    background-image:
+      linear-gradient(90deg, rgba(255, 248, 235, 0.62) 0%, rgba(255, 248, 235, 0.18) 52%, rgba(255, 248, 235, 0.02) 76%),
+      linear-gradient(0deg, rgba(8, 25, 16, 0.46) 0%, transparent 48%),
+      url('/images/home-hero-himalayas.png');
+    background-position: 68% center;
+  }
+
+  .customer-home-brand-title {
+    font-size: 1rem;
+  }
+
+  .customer-home-brand-tagline {
+    font-size: 0.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .customer-home-hero {
+    min-height: 590px;
+    background-position: center center;
+  }
 }

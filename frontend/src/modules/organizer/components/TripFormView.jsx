@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, DollarSign, Users, Calendar, Mountain, AlignLeft, List, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation, Search, Clock, Route } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation, Search, Clock, Route } from 'lucide-react';
 import OrgBatchDatePicker from './OrgBatchDatePicker';
 import OrgStartPointPicker from './OrgStartPointPicker';
 import PublishingProgressModal from './PublishingProgressModal';
@@ -15,6 +15,7 @@ const DIFFICULTY_OPTIONS = ['Easy', 'Moderate', 'Difficult'];
 
 const CATEGORY_OPTIONS = ['Trekking', 'Summit', 'Desert', 'Camping', 'Wildlife', 'Cultural'];
 const INCLUDED_DEFAULTS = ['Tents', 'Meals (Veg)', 'Certified Guide', 'Permits', 'First Aid Kit'];
+const NOT_INCLUDED_DEFAULTS = ['Personal equipment', 'Travel to base camp'];
 const ADDON_DEFAULTS = ['Porter Service', 'Photography Service', 'Gear Rental Kit', 'High-Altitude Health Pack'];
 
 // Compress photo before converting to base64 data URL to keep payload small & fast
@@ -95,14 +96,14 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     availableSeats: trip?.availableSeats || 15,
     category: trip?.category || 'Trekking',
     description: trip?.description || '',
-    highlights: trip?.highlights || [''],
+    highlights: trip?.highlights?.length ? trip.highlights : [''],
     included: trip?.included || [...INCLUDED_DEFAULTS],
-    notIncluded: trip?.notIncluded || ['Personal equipment', 'Travel to base camp'],
+    notIncluded: trip?.notIncluded || [...NOT_INCLUDED_DEFAULTS],
     addOns: trip?.addOns || [...ADDON_DEFAULTS],
-    safetyGuidelines: trip?.safetyGuidelines || [''],
+    safetyGuidelines: trip?.safetyGuidelines?.length ? trip.safetyGuidelines : [''],
     cancellationPolicy: trip?.cancellationPolicy || ['Full refund 7 days prior', '50% refund 3 days prior', 'No refund within 3 days'],
-    itinerary: trip?.itinerary || [{ day: 1, title: '', description: '' }],
-    faqs: trip?.faqs || [{ question: '', answer: '' }],
+    itinerary: trip?.itinerary?.length ? trip.itinerary : [{ day: 1, title: '', description: '' }],
+    faqs: trip?.faqs?.length ? trip.faqs : [{ question: '', answer: '' }],
     status: trip?.status || 'Draft',
     galleryImages: trip?.galleryImages || [],
   });
@@ -350,15 +351,85 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     set('trekId', trek.id);
     setPickingTrek(false);
     setErrors({});
+    prefillFromTrek(trek);
   };
 
+  // ─── Prefill from the admin-curated trek ───
+  // The trek already carries a description, highlights, itinerary, inclusions
+  // and a starting point. Re-typing all of that is what made posting a trip
+  // take 10+ minutes, so copy it in — but only into fields the organizer
+  // hasn't filled themselves, so switching treks never clobbers their work.
+  const [startPointStatus, setStartPointStatus] = useState(trip?.startPoint ? 'set' : 'idle'); // idle | locating | auto | set | failed
+
+  const prefillFromTrek = async (listTrek) => {
+    let trek = listTrek;
+    try {
+      trek = { ...listTrek, ...(await treksApi.getTrek(listTrek.id)) };
+    } catch { /* list fields are enough to keep going */ }
+
+    const blankText = (v) => !v || !String(v).trim();
+    const blankList = (arr) => !arr || arr.every(x => blankText(typeof x === 'string' ? x : x?.title || x?.question));
+    const clean = (arr) => (arr || []).filter(x => !blankText(x));
+
+    setForm(prev => {
+      const next = { ...prev };
+      if (blankText(prev.description) && trek.description) next.description = trek.description;
+      if (blankList(prev.highlights) && clean(trek.highlights).length) next.highlights = clean(trek.highlights);
+      if (blankList(prev.itinerary) && trek.itinerary?.length) {
+        next.itinerary = trek.itinerary.map((d, i) => ({ day: d.day || i + 1, title: d.title || '', description: d.description || '' }));
+      }
+      if (clean(trek.included).length && (blankList(prev.included) || prev.included.join() === INCLUDED_DEFAULTS.join())) next.included = clean(trek.included);
+      if (clean(trek.notIncluded).length && (blankList(prev.notIncluded) || prev.notIncluded.join() === NOT_INCLUDED_DEFAULTS.join())) next.notIncluded = clean(trek.notIncluded);
+      if (trek.category && CATEGORY_OPTIONS.includes(trek.category) && prev.category === 'Trekking') next.category = trek.category;
+      if (blankText(prev.pickup.location) && trek.city) next.pickup = { ...prev.pickup, location: trek.city };
+      return next;
+    });
+
+    if (!form.startPoint) autoLocateStartPoint(trek);
+  };
+
+  // Turns the trek's text starting point (set by the admin) into map
+  // coordinates, so the organizer doesn't have to drop the same pin by hand.
+  // Tries the most specific query first and widens until something matches.
+  const autoLocateStartPoint = async (trek) => {
+    const parts = (...xs) => xs.filter(Boolean).join(', ');
+    const queries = [...new Set([
+      trek.startingPoint && parts(trek.startingPoint, trek.city, trek.state),
+      trek.startingPoint && parts(trek.startingPoint, trek.state),
+      trek.location && !trek.location.includes(trek.state || '\u0000') ? parts(trek.location, trek.state) : trek.location,
+      parts(trek.city, trek.state),
+    ].filter(Boolean))];
+    const label = trek.startingPoint || trek.location || trek.city || 'Trek Start Point';
+
+    setStartPointStatus('locating');
+    for (const q of queries) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(q)}`);
+        const [hit] = await res.json();
+        if (hit) {
+          // Functional update: never overwrite a pin the organizer placed while this was in flight.
+          setForm(prev => prev.startPoint ? prev : { ...prev, startPoint: { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon), label } });
+          setStartPointStatus('auto');
+          return;
+        }
+      } catch { /* try the next, broader query */ }
+    }
+    setStartPointStatus('failed');
+  };
+
+  // Older listings saved before the pin existed: locate it from the trek as
+  // soon as the trek data arrives, instead of blocking the edit.
+  useEffect(() => {
+    if (isEdit && !form.startPoint && selectedTrek && startPointStatus === 'idle') {
+      autoLocateStartPoint(selectedTrek);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTrek?.id]);
+
   const sections = [
-    { id: 'basic', label: 'Basic Info' },
+    { id: 'basic', label: 'Choose Trek' },
+    { id: 'pickup', label: 'Pricing & Dates' },
     { id: 'details', label: 'Trip Details' },
-    { id: 'pickup', label: 'Pickup & Dates' },
-    { id: 'inclusions', label: 'Inclusions' },
-    { id: 'itinerary', label: 'Itinerary' },
-    { id: 'faqs', label: 'FAQs' },
   ];
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
@@ -450,7 +521,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       .filter(t => t.label && !isNaN(t.price));
 
     if (validTiers.length === 0) {
-      return failSave('details', 'Add at least one batch pricing tier with a label and price.');
+      return failSave('pickup', 'Add at least one batch pricing tier with a label and price.');
     }
 
     const pickupLocation = form.pickup.location.trim();
@@ -460,7 +531,20 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     }
 
     if (!form.startPoint) {
-      return failSave('pickup', 'Set the trek/travel start point on the map.');
+      return failSave('pickup', startPointStatus === 'locating'
+        ? 'Still locating the start point on the map — give it a second and try again.'
+        : 'Set the trek start point on the map.');
+    }
+
+    const seats = parseInt(form.availableSeats, 10);
+    if (!Number.isFinite(seats) || seats <= 0) {
+      return failSave('pickup', 'Enter how many seats are available (at least 1).');
+    }
+
+    // Photos still compressing would otherwise be saved as temporary blob: URLs
+    // that only work in this browser tab.
+    if (galleryItems.some(item => item.isUploading)) {
+      return failSave('details', 'Photos are still processing — wait a moment and try again.');
     }
 
     if (form.departureDates.length === 0) {
@@ -501,11 +585,23 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
         departureDates: form.departureDates,
         price: pricingTiers[0]?.price ?? pickup.price,
         trekId: form.trekId,
-        maxGroupSize: parseInt(form.availableSeats) || 15,
-        availableSeats: parseInt(form.availableSeats) || 15,
+        maxGroupSize: seats,
+        availableSeats: seats,
+        description: form.description.trim(),
         highlights: form.highlights.filter(h => h.trim()),
         safetyGuidelines: form.safetyGuidelines.filter(g => g.trim()),
-        galleryImages: form.galleryImages.length > 0 ? form.galleryImages : (selectedTrek?.coverImage ? [selectedTrek.coverImage] : []),
+        included: form.included.filter(x => x.trim()),
+        notIncluded: form.notIncluded.filter(x => x.trim()),
+        cancellationPolicy: form.cancellationPolicy.filter(x => x.trim()),
+        // Drop blank days and renumber so "Day 1, Day 3" can't happen.
+        itinerary: form.itinerary
+          .filter(d => d.title.trim() || d.description.trim())
+          .map((d, i) => ({ day: i + 1, title: d.title.trim(), description: d.description.trim() })),
+        faqs: form.faqs.filter(f => f.question.trim() && f.answer.trim()),
+        galleryImages: (() => {
+          const ready = form.galleryImages.filter(u => !u.startsWith('blob:'));
+          return ready.length > 0 ? ready : (selectedTrek?.coverImage ? [selectedTrek.coverImage] : []);
+        })(),
         status,
         rating: trip?.rating || 0,
         reviewsCount: trip?.reviewsCount || 0,
@@ -544,6 +640,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const inputClsFixedWidth = inputCls.replace('w-full ', '');
   const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`;
   const cardCls = `rounded-3xl p-5 sm:p-6 space-y-5 ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`;
+  const innerCardCls = `rounded-2xl p-4 space-y-3 ${darkMode ? 'bg-zinc-950/50 border border-white/5' : 'bg-zinc-50 border border-zinc-100'}`;
   const reqErrCls = (field) => (requestFieldErrors[field] ? 'border-red-500 focus:border-red-500' : '');
   const clearReqError = (field) => setRequestFieldErrors(er => ({ ...er, [field]: '' }));
 
@@ -558,7 +655,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
         <div>
           <label className={labelCls}>Trek *</label>
           <p className={`text-[10px] -mt-1 mb-2 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
-            Pick from the treks the admin has published. Its location, difficulty, duration, distance and cover image are locked to the trek — your batch pricing, dates and photos are your own.
+            Pick the trek you run. Its details, itinerary and starting point are filled in for you, so you only need to add your prices and dates.
           </p>
 
           {selectedTrek && !pickingTrek ? (
@@ -915,93 +1012,11 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
           )}
         </div>
 
-        {/* Gallery Images Manager */}
-        <div>
-          <label className={labelCls}>Gallery Images (Trip Details Slider)</label>
-          
-          <div className="grid grid-cols-4 gap-2 mb-3">
-            {galleryItems.map((item, idx) => (
-              <div key={item.id} className="relative aspect-video rounded-xl overflow-hidden group border border-zinc-250/60 dark:border-white/5">
-                <img src={item.url} alt={`gallery-${idx}`} className={`w-full h-full object-cover transition ${item.isUploading ? 'opacity-70 blur-[0.5px]' : ''}`} />
-                
-                {item.isUploading && (
-                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-[9px] font-bold gap-1 pointer-events-none">
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Processing...</span>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => handleRemoveGalleryItem(item.id)}
-                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer"
-                  title="Remove image"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-            
-            {/* Add new photo square button */}
-            <label className={`aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition ${
-              darkMode ? 'border-white/10 hover:border-spy-orange/40 bg-zinc-950/40' : 'border-zinc-200 hover:border-spy-orange/40 bg-zinc-55 hover:bg-zinc-100'
-            }`}>
-              <Plus size={16} className="text-spy-orange" />
-              <span className="text-[8px] font-bold mt-0.5 text-zinc-400">Add Photos</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleGalleryFileSelect}
-                className="hidden"
-              />
-            </label>
-          </div>
-          
-          {/* Paste URL inline helper */}
-          <div className="flex gap-2">
-            <input
-              type="url"
-              id="gallery-url-input"
-              placeholder="Or paste gallery image URL here..."
-              className={`${inputCls} text-xs py-2`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (e.target.value.trim()) {
-                    handleAddGalleryUrl(e.target.value.trim());
-                    e.target.value = '';
-                  }
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const input = document.getElementById('gallery-url-input');
-                if (input && input.value.trim()) {
-                  handleAddGalleryUrl(input.value.trim());
-                  input.value = '';
-                }
-              }}
-              className={`px-4 rounded-xl text-xs font-bold transition ${
-                darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
-              }`}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label className={labelCls}>Description</label>
-          <textarea className={`${inputCls} resize-none`} rows={4} placeholder="Describe the trek experience..." value={form.description} onChange={e => set('description', e.target.value)} />
-        </div>
       </div>
     </div>
   );
 
-  const renderDetails = () => (
+  const renderPickup = () => (
     <div className="space-y-4">
       {errors.basic && (
         <div className={`flex gap-2 items-center p-3 rounded-xl text-xs ${darkMode ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}>
@@ -1035,57 +1050,10 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
 
       <div className={cardCls}>
         <div>
-          <label className={labelCls}>Available Seats</label>
+          <label className={labelCls}>Available Seats per Batch *</label>
           <input type="number" min="0" className={inputCls} value={form.availableSeats} onChange={e => set('availableSeats', e.target.value)} />
         </div>
-        <div>
-          <label className={labelCls}>Category</label>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORY_OPTIONS.map(c => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => set('category', c)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                  form.category === c ? 'bg-spy-orange border-spy-orange text-white' : darkMode ? 'border-white/10 text-zinc-400' : 'border-zinc-200 text-zinc-500'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
-
-      {/* Highlights */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between">
-          <label className={labelCls}>Trip Highlights</label>
-          <button type="button" onClick={() => set('highlights', [...form.highlights, ''])} className="text-spy-orange">
-            <Plus size={16} />
-          </button>
-        </div>
-        {form.highlights.map((h, i) => (
-          <div key={i} className="flex gap-2">
-            <input type="text" className={`${inputCls} flex-1`} placeholder={`Highlight ${i + 1}`} value={h} onChange={e => setListItem('highlights', i, e.target.value)} />
-            {form.highlights.length > 1 && (
-              <button type="button" onClick={() => set('highlights', form.highlights.filter((_, ii) => ii !== i))} className="text-red-400 px-2">
-                <Minus size={14} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderPickup = () => (
-    <div className="space-y-4">
-      {errors.basic && (
-        <div className={`flex gap-2 items-center p-3 rounded-xl text-xs ${darkMode ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}>
-          <AlertCircle size={14} /> {errors.basic}
-        </div>
-      )}
 
       {/* Single pickup location + per-person price */}
       <div className={cardCls}>
@@ -1148,10 +1116,28 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       <div className={cardCls}>
         <label className={labelCls}>Start Point *</label>
         <p className={`text-[10px] -mt-2 ${darkMode ? 'text-zinc-550' : 'text-zinc-400'}`}>
-          Drop a pin at the exact spot the trek/travel begins. Travellers get a one-tap Google Maps link to reach it.
+          Where the trek begins. Travellers get a one-tap Google Maps link to reach it.
         </p>
 
-        {form.startPoint ? (
+        {startPointStatus === 'auto' && form.startPoint && (
+          <div className={`flex gap-2 items-start p-2.5 rounded-xl text-[11px] font-semibold ${darkMode ? 'bg-emerald-500/10 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
+            <Check size={13} className="shrink-0 mt-0.5" />
+            <span>Auto-detected from the trek's starting point. Tap edit only if you meet travellers somewhere more specific.</span>
+          </div>
+        )}
+        {startPointStatus === 'failed' && !form.startPoint && (
+          <div className={`flex gap-2 items-start p-2.5 rounded-xl text-[11px] font-semibold ${darkMode ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
+            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+            <span>We couldn't find this trek's starting point on the map automatically. Please drop the pin once.</span>
+          </div>
+        )}
+
+        {startPointStatus === 'locating' && !form.startPoint ? (
+          <div className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold ${darkMode ? 'bg-zinc-950/60 text-zinc-400' : 'bg-zinc-50 text-zinc-500'}`}>
+            <div className="w-3.5 h-3.5 border-2 border-spy-orange/30 border-t-spy-orange rounded-full animate-spin" />
+            Locating the trek's starting point...
+          </div>
+        ) : form.startPoint ? (
           <div className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-zinc-950/60 border border-white/5' : 'bg-zinc-50 border border-zinc-100'}`}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-spy-orange/15 text-spy-orange">
               <Navigation size={16} />
@@ -1159,7 +1145,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate">{form.startPoint.label}</p>
               <p className={`text-[10px] font-mono ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                {form.startPoint.lat.toFixed(5)}, {form.startPoint.lng.toFixed(5)}
+                {Number(form.startPoint.lat).toFixed(5)}, {Number(form.startPoint.lng).toFixed(5)}
               </p>
             </div>
             <button
@@ -1236,65 +1222,17 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       <OrgStartPointPicker
         open={showStartPointPicker}
         initialPoint={form.startPoint}
-        onConfirm={(pt) => { set('startPoint', pt); setShowStartPointPicker(false); }}
+        onConfirm={(pt) => { set('startPoint', pt); setStartPointStatus('set'); setShowStartPointPicker(false); }}
         onClose={() => setShowStartPointPicker(false)}
         darkMode={darkMode}
       />
     </div>
   );
 
-  const renderInclusions = () => (
-    <div className="space-y-4">
-      {/* Included */}
-      <div className={cardCls}>
-        <label className={`${labelCls} text-emerald-400`}>Included in Price</label>
-        {form.included.map((item, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Check size={13} className="text-emerald-400 shrink-0" />
-            <input type="text" className={`${inputCls} flex-1`} value={item} onChange={e => setListItem('included', i, e.target.value)} />
-            <button type="button" onClick={() => set('included', form.included.filter((_, ii) => ii !== i))} className="text-red-400"><Minus size={13} /></button>
-          </div>
-        ))}
-        <button type="button" onClick={() => set('included', [...form.included, ''])} className="text-xs text-spy-orange font-semibold flex items-center gap-1">
-          <Plus size={13} /> Add item
-        </button>
-      </div>
-
-      {/* Not included */}
-      <div className={cardCls}>
-        <label className={`${labelCls} text-red-400`}>Not Included</label>
-        {form.notIncluded.map((item, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Minus size={13} className="text-red-400 shrink-0" />
-            <input type="text" className={`${inputCls} flex-1`} value={item} onChange={e => setListItem('notIncluded', i, e.target.value)} />
-            <button type="button" onClick={() => set('notIncluded', form.notIncluded.filter((_, ii) => ii !== i))} className="text-red-400"><Minus size={13} /></button>
-          </div>
-        ))}
-        <button type="button" onClick={() => set('notIncluded', [...form.notIncluded, ''])} className="text-xs text-spy-orange font-semibold flex items-center gap-1">
-          <Plus size={13} /> Add item
-        </button>
-      </div>
-
-      {/* Cancellation policy */}
-      <div className={cardCls}>
-        <label className={labelCls}>Cancellation Policy</label>
-        {form.cancellationPolicy.map((item, i) => (
-          <div key={i} className="flex gap-2">
-            <input type="text" className={`${inputCls} flex-1`} value={item} onChange={e => setListItem('cancellationPolicy', i, e.target.value)} />
-            <button type="button" onClick={() => set('cancellationPolicy', form.cancellationPolicy.filter((_, ii) => ii !== i))} className="text-red-400"><Minus size={13} /></button>
-          </div>
-        ))}
-        <button type="button" onClick={() => set('cancellationPolicy', [...form.cancellationPolicy, ''])} className="text-xs text-spy-orange font-semibold flex items-center gap-1">
-          <Plus size={13} /> Add policy rule
-        </button>
-      </div>
-    </div>
-  );
-
   const renderItinerary = () => (
     <div className="space-y-3">
       {form.itinerary.map((day, i) => (
-        <div key={i} className={cardCls}>
+        <div key={i} className={innerCardCls}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-spy-orange">Day {day.day}</span>
             {form.itinerary.length > 1 && (
@@ -1320,7 +1258,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const renderFaqs = () => (
     <div className="space-y-3">
       {form.faqs.map((faq, i) => (
-        <div key={i} className={cardCls}>
+        <div key={i} className={innerCardCls}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-spy-orange">FAQ {i + 1}</span>
             {form.faqs.length > 1 && (
@@ -1343,14 +1281,239 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     </div>
   );
 
-  const sectionContent = { basic: renderBasic, details: renderDetails, pickup: renderPickup, inclusions: renderInclusions, itinerary: renderItinerary, faqs: renderFaqs };
+  // Everything here is optional and mostly pre-filled from the trek, so it's
+  // presented as collapsible cards the organizer can skim and publish past.
+  const [openPanels, setOpenPanels] = useState({ overview: true });
+  const togglePanel = (id) => setOpenPanels(p => ({ ...p, [id]: !p[id] }));
+  const panel = (id, title, summary, content) => (
+    <div className={`rounded-3xl overflow-hidden ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`}>
+      <button type="button" onClick={() => togglePanel(id)} className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left cursor-pointer">
+        <div className="min-w-0">
+          <p className="text-sm font-black">{title}</p>
+          <p className={`text-[11px] truncate ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{summary}</p>
+        </div>
+        {openPanels[id] ? <ChevronUp size={16} className="shrink-0 text-zinc-400" /> : <ChevronDown size={16} className="shrink-0 text-zinc-400" />}
+      </button>
+      {openPanels[id] && <div className="px-5 pb-5 space-y-4">{content}</div>}
+    </div>
+  );
+  const count = (arr, f = (x) => x.trim()) => arr.filter(f).length;
+
+  const renderDetails = () => (
+    <div className="space-y-3">
+      {errors.basic && (
+        <div className={`flex gap-2 items-center p-3 rounded-xl text-xs ${darkMode ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}>
+          <AlertCircle size={14} /> {errors.basic}
+        </div>
+      )}
+      <div className={`flex gap-2 items-start p-3 rounded-xl text-xs ${darkMode ? 'bg-emerald-500/10 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
+        <Info size={14} className="shrink-0 mt-0.5" />
+        <span>Everything on this step is optional and pre-filled from the trek where available. Review what you like, then publish.</span>
+      </div>
+
+      {panel('overview', 'Description & Photos',
+        `${form.description.trim() ? 'Description added' : 'No description'} · ${galleryItems.length} photo${galleryItems.length === 1 ? '' : 's'}`,
+        <>
+        {/* Gallery Images Manager */}
+          <div>
+            <label className={labelCls}>Gallery Images (Trip Details Slider)</label>
+            
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              {galleryItems.map((item, idx) => (
+                <div key={item.id} className="relative aspect-video rounded-xl overflow-hidden group border border-zinc-250/60 dark:border-white/5">
+                  <img src={item.url} alt={`gallery-${idx}`} className={`w-full h-full object-cover transition ${item.isUploading ? 'opacity-70 blur-[0.5px]' : ''}`} />
+                  
+                  {item.isUploading && (
+                    <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-[9px] font-bold gap-1 pointer-events-none">
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Processing...</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveGalleryItem(item.id)}
+                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer"
+                    title="Remove image"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              
+              {/* Add new photo square button */}
+              <label className={`aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition ${
+                darkMode ? 'border-white/10 hover:border-spy-orange/40 bg-zinc-950/40' : 'border-zinc-200 hover:border-spy-orange/40 bg-zinc-55 hover:bg-zinc-100'
+              }`}>
+                <Plus size={16} className="text-spy-orange" />
+                <span className="text-[8px] font-bold mt-0.5 text-zinc-400">Add Photos</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleGalleryFileSelect}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            
+            {/* Paste URL inline helper */}
+            <div className="flex gap-2">
+              <input
+                type="url"
+                id="gallery-url-input"
+                placeholder="Or paste gallery image URL here..."
+                className={`${inputCls} text-xs py-2`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.target.value.trim()) {
+                      handleAddGalleryUrl(e.target.value.trim());
+                      e.target.value = '';
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById('gallery-url-input');
+                  if (input && input.value.trim()) {
+                    handleAddGalleryUrl(input.value.trim());
+                    input.value = '';
+                  }
+                }}
+                className={`px-4 rounded-xl text-xs font-bold transition ${
+                  darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                }`}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea className={`${inputCls} resize-none`} rows={4} placeholder="Describe the trek experience..." value={form.description} onChange={e => set('description', e.target.value)} />
+          </div>
+        </>
+      )}
+
+      {panel('category', 'Category & Highlights', `${form.category} · ${count(form.highlights)} highlight${count(form.highlights) === 1 ? '' : 's'}`,
+        <>
+      <div className="space-y-4">
+        <div>
+          <label className={labelCls}>Category</label>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORY_OPTIONS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => set('category', c)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  form.category === c ? 'bg-spy-orange border-spy-orange text-white' : darkMode ? 'border-white/10 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Highlights */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className={labelCls}>Trip Highlights</label>
+          <button type="button" onClick={() => set('highlights', [...form.highlights, ''])} className="text-spy-orange">
+            <Plus size={16} />
+          </button>
+        </div>
+        {form.highlights.map((h, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" className={`${inputCls} flex-1`} placeholder={`Highlight ${i + 1}`} value={h} onChange={e => setListItem('highlights', i, e.target.value)} />
+            {form.highlights.length > 1 && (
+              <button type="button" onClick={() => set('highlights', form.highlights.filter((_, ii) => ii !== i))} className="text-red-400 px-2">
+                <Minus size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+        </>
+      )}
+
+      {panel('itinerary', 'Day-by-Day Itinerary', `${count(form.itinerary, d => d.title.trim() || d.description.trim())} day(s) planned`, renderItinerary())}
+
+      {panel('inclusions', 'Inclusions & Cancellation Policy', `${count(form.included)} included · ${count(form.notIncluded)} excluded · ${count(form.cancellationPolicy)} policy rules`,
+        <div className="space-y-4">
+      {/* Included */}
+      <div className="space-y-3">
+        <label className={`${labelCls} text-emerald-400`}>Included in Price</label>
+        {form.included.map((item, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <Check size={13} className="text-emerald-400 shrink-0" />
+            <input type="text" className={`${inputCls} flex-1`} value={item} onChange={e => setListItem('included', i, e.target.value)} />
+            <button type="button" onClick={() => set('included', form.included.filter((_, ii) => ii !== i))} className="text-red-400"><Minus size={13} /></button>
+          </div>
+        ))}
+        <button type="button" onClick={() => set('included', [...form.included, ''])} className="text-xs text-spy-orange font-semibold flex items-center gap-1">
+          <Plus size={13} /> Add item
+        </button>
+      </div>
+
+      {/* Not included */}
+      <div className="space-y-3">
+        <label className={`${labelCls} text-red-400`}>Not Included</label>
+        {form.notIncluded.map((item, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <Minus size={13} className="text-red-400 shrink-0" />
+            <input type="text" className={`${inputCls} flex-1`} value={item} onChange={e => setListItem('notIncluded', i, e.target.value)} />
+            <button type="button" onClick={() => set('notIncluded', form.notIncluded.filter((_, ii) => ii !== i))} className="text-red-400"><Minus size={13} /></button>
+          </div>
+        ))}
+        <button type="button" onClick={() => set('notIncluded', [...form.notIncluded, ''])} className="text-xs text-spy-orange font-semibold flex items-center gap-1">
+          <Plus size={13} /> Add item
+        </button>
+      </div>
+
+      {/* Cancellation policy */}
+      <div className="space-y-3">
+        <label className={labelCls}>Cancellation Policy</label>
+        {form.cancellationPolicy.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" className={`${inputCls} flex-1`} value={item} onChange={e => setListItem('cancellationPolicy', i, e.target.value)} />
+            <button type="button" onClick={() => set('cancellationPolicy', form.cancellationPolicy.filter((_, ii) => ii !== i))} className="text-red-400"><Minus size={13} /></button>
+          </div>
+        ))}
+        <button type="button" onClick={() => set('cancellationPolicy', [...form.cancellationPolicy, ''])} className="text-xs text-spy-orange font-semibold flex items-center gap-1">
+          <Plus size={13} /> Add policy rule
+        </button>
+      </div>
+</div>
+      )}
+
+      {panel('faqs', 'FAQs', `${count(form.faqs, f => f.question.trim())} FAQ(s)`, renderFaqs())}
+    </div>
+  );
+
+  const sectionContent = { basic: renderBasic, pickup: renderPickup, details: renderDetails };
 
   const currentIdx = sections.findIndex(s => s.id === section);
   const isLastStep = currentIdx === sections.length - 1;
 
+  // Publishing is possible from the Pricing & Dates step onward — the last
+  // step only holds optional, pre-filled extras.
+  const canPublishHere = section !== 'basic';
+
   const handleNextStep = () => {
+    if (section === 'basic' && !form.trekId) {
+      return failSave('basic', 'Select a trek to continue.');
+    }
     if (!isLastStep) {
+      setErrors({});
       setSection(sections[currentIdx + 1].id);
+      requestAnimationFrame(scrollFormToTop);
     }
   };
 
@@ -1372,7 +1535,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
             </button>
             <div>
               <h1 className="text-xl font-display font-black tracking-tight">{isEdit ? 'Edit Trip' : 'Post New Trip'}</h1>
-              <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{isEdit ? `Editing: ${trip.name}` : 'Fill in trip details below'}</p>
+              <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{isEdit ? `Editing: ${trip.name}` : '3 quick steps: trek, pricing & dates, then publish'}</p>
             </div>
           </div>
 
@@ -1429,7 +1592,19 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
           >
             Save Draft
           </button>
-          {isLastStep ? (
+          {canPublishHere && !isLastStep && (
+            <button
+              type="button"
+              onClick={handleNextStep}
+              disabled={saving}
+              className={`flex-1 py-3.5 rounded-2xl text-sm font-bold border transition-all cursor-pointer ${
+                darkMode ? 'border-white/10 text-zinc-300 hover:border-white/20' : 'border-zinc-200 text-zinc-600 hover:border-zinc-300'
+              }`}
+            >
+              Review Details
+            </button>
+          )}
+          {canPublishHere ? (
             <button
               type="button"
               onClick={() => handleSave('Published')}
