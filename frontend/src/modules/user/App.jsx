@@ -477,6 +477,7 @@ export default function App() {
   // 3. Search & Filter & Location dynamic bindings to propagate to Explore tab
   const [exploreSearchQuery, setExploreSearchQuery] = useState("");
   const [exploreCategory, setExploreCategory] = useState("All");
+  const [exploreHomeFilter, setExploreHomeFilter] = useState("");
   // Departure-date filter ('' = off) — set from the Home calendar, applied in Explore.
   const [exploreDate, setExploreDate] = useState("");
   const [userLocation, setUserLocation] = useState(() => {
@@ -1391,9 +1392,16 @@ export default function App() {
     setExploreSearchQuery(""); // clear main search query to prevent clash
   };
 
+  const handleApplyHomeFilterFromHome = (filterId) => {
+    setExploreHomeFilter(filterId || "");
+    setExploreCategory("All");
+    setExploreSearchQuery("");
+  };
+
   const handleApplySearchFromHome = (query) => {
     setExploreSearchQuery(query);
     setExploreCategory("All"); // clear category to prevent block
+    setExploreHomeFilter("");
   };
 
   // Complete Profile Setup setup helper
@@ -1734,6 +1742,7 @@ export default function App() {
               navigateTo(tab === "Home" ? "/" : `/${tab.toLowerCase()}`)
             }
             onApplyCategory={handleApplyCategoryFromHome}
+            onApplyHomeFilter={handleApplyHomeFilterFromHome}
             onApplySearch={handleApplySearchFromHome}
             onApplyDate={setExploreDate}
             onOpenLoyalty={() => navigateTo("/loyalty")}
@@ -1763,6 +1772,8 @@ export default function App() {
             onSetSearchQuery={setExploreSearchQuery}
             selectedCategory={exploreCategory}
             onSetCategory={setExploreCategory}
+            selectedHomeFilter={exploreHomeFilter}
+            onSetHomeFilter={setExploreHomeFilter}
             selectedDate={exploreDate}
             onSetDate={setExploreDate}
             userLocation={userLocation}
@@ -2203,7 +2214,7 @@ export default function App() {
               clear gap above the glassmorphic nav. Hides while the map is open
               (the map shows its own labelled "Map" pill). */}
           <AnimatePresence>
-            {(activeTab === "Home" || activeTab === "Explore") && !showMap && (
+            {activeTab === "Explore" && !showMap && (
               <motion.button
                 id="btn-open-map"
                 onClick={() => navigateTo("/map")}

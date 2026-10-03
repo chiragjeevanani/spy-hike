@@ -6,7 +6,7 @@ import {
   adminListPromotedOrganizers, adminUpdatePromotedOrganizersOrder,
 } from '../controllers/promotionController.js';
 import { listUsers, getUser, setUserStatus, deleteUser, createUser, updateUser } from '../controllers/adminUserController.js';
-import { listAllTrips, adminSetTripStatus, adminSetTripFeatured, adminSetTripPopular, adminDeleteTrip } from '../controllers/tripController.js';
+import { listAllTrips, adminGetTrip, adminSetTripStatus, adminSetTripFeatured, adminSetTripPopular, adminDeleteTrip } from '../controllers/tripController.js';
 import { adminListTreks, createTrek, updateTrek, deleteTrek } from '../controllers/trekController.js';
 import { adminListTrekRequests, adminUpdateTrekRequest, adminSetTrekRequestStatus } from '../controllers/trekRequestController.js';
 import {
@@ -27,6 +27,9 @@ import { createBroadcast, listBroadcasts } from '../controllers/broadcastControl
 import { listAllPayouts, settlePayout } from '../controllers/financialsController.js';
 import { getAnalytics } from '../controllers/analyticsController.js';
 import { updateAdminProfile } from '../controllers/authController.js';
+import {
+  adminListHomeFilters, createHomeFilter, updateHomeFilter, deleteHomeFilter,
+} from '../controllers/homeFilterController.js';
 
 // Everything under here requires an authenticated admin.
 const router = Router();
@@ -60,6 +63,7 @@ router.get('/admin/promoted-organizers', adminListPromotedOrganizers);
 router.put('/admin/promoted-organizers/order', adminUpdatePromotedOrganizersOrder);
 
 router.get('/admin/trips', listAllTrips);
+router.get('/admin/trips/:id', adminGetTrip);
 router.patch('/admin/trips/:id/status', adminSetTripStatus);
 router.patch('/admin/trips/:id/featured', adminSetTripFeatured);
 router.patch('/admin/trips/:id/popular', adminSetTripPopular);
@@ -69,6 +73,11 @@ router.get('/admin/treks', adminListTreks);
 router.post('/admin/treks', createTrek);
 router.put('/admin/treks/:id', updateTrek);
 router.delete('/admin/treks/:id', deleteTrek);
+
+router.get('/admin/home-filters', adminListHomeFilters);
+router.post('/admin/home-filters', createHomeFilter);
+router.put('/admin/home-filters/:id', updateHomeFilter);
+router.delete('/admin/home-filters/:id', deleteHomeFilter);
 
 router.get('/admin/trek-requests', adminListTrekRequests);
 router.put('/admin/trek-requests/:id', adminUpdateTrekRequest);

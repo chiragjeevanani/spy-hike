@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Compass, Pause, Play, Trash2, MapPin, Star, TrendingUp, Users, Clock, Eye, X } from 'lucide-react';
+import { Search, Pause, Play, Trash2, MapPin, Star, TrendingUp, Clock, Eye } from 'lucide-react';
 import tripsApi from '../../../lib/tripsApi';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useToast } from '../../../components/ToastProvider';
 import { AdminSkeletonCard } from './AdminSkeleton';
-import { durationRange, distanceRange } from '../../../utils/rangeFormat';
+import { durationRange } from '../../../utils/rangeFormat';
 
-export default function TripsView({ onOpenOrganizer, darkMode }) {
+export default function TripsView({ onOpenOrganizer, onOpenTrip, darkMode }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -14,7 +14,6 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
   const [diffFilter, setDiffFilter] = useState('All');
   const [featuredFilter, setFeaturedFilter] = useState('All');
   const [popularFilter, setPopularFilter] = useState('All');
-  const [selectedTrip, setSelectedTrip] = useState(null);
   const [statusTarget, setStatusTarget] = useState(null); // { id, nextStatus }
   const [deleteTarget, setDeleteTarget] = useState(null); // tripId
   const toast = useToast();
@@ -211,11 +210,11 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
             <div key={trip.id} className={`${cardCls} p-0 overflow-hidden flex flex-col`}>
               
               {/* Cover image wrapper */}
-              <div className="relative h-44 shrink-0">
+              <div className="relative h-44 shrink-0 cursor-pointer group" onClick={() => onOpenTrip?.(trip.id)}>
                 <img
                   src={trip.coverImage}
                   alt={trip.name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
                 
                 {/* Status indicator badge */}
@@ -258,7 +257,12 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
               {/* Body */}
               <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wide line-clamp-1">{trip.name}</h3>
+                  <h3
+                    onClick={() => onOpenTrip?.(trip.id)}
+                    className="text-sm font-black uppercase tracking-wide line-clamp-1 cursor-pointer hover:text-[#F27D26] transition-colors"
+                  >
+                    {trip.name}
+                  </h3>
                   <span className="text-[10px] text-slate-400 font-bold block mt-1">
                     Organizer:{' '}
                     {trip.organizerEmail ? (
@@ -310,11 +314,11 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
                 {/* Moderate buttons */}
                 <div className="flex gap-2.5 pt-1">
                   <button
-                    onClick={() => setSelectedTrip(trip)}
+                    onClick={() => onOpenTrip?.(trip.id)}
                     className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl border text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-500"
                   >
                     <Eye size={12} />
-                    <span>Itinerary</span>
+                    <span>View Details</span>
                   </button>
 
                   <button
@@ -367,93 +371,6 @@ export default function TripsView({ onOpenOrganizer, darkMode }) {
           ))
         )}
       </div>
-
-      {/* Trip Details Modal */}
-      {selectedTrip && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl relative max-h-[90vh] flex flex-col animate-scaleIn ${
-            darkMode ? 'bg-[#152243] border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-800'
-          }`}>
-            {/* Pinned close button */}
-            <button
-              onClick={() => setSelectedTrip(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 z-20 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Scrollable Modal Content */}
-            <div className="flex-1 overflow-y-auto no-scrollbar pr-1 mt-2">
-              {/* Header info */}
-              <div className="mb-5">
-                <span className="text-[10px] text-[#F27D26] font-black uppercase tracking-wider">{selectedTrip.category || 'Expedition'}</span>
-                <h3 className="font-display font-black text-xl leading-tight mt-1">{selectedTrip.name}</h3>
-                <p className="text-xs text-slate-400 mt-1 font-semibold flex items-center gap-1">
-                  <MapPin size={11} className="text-slate-400" />
-                  {selectedTrip.location} ({selectedTrip.state})
-                </p>
-              </div>
-
-              {/* Details content */}
-              <div className="space-y-5 text-xs leading-relaxed font-semibold">
-                
-                {/* Description */}
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Description</span>
-                  <p className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl text-slate-500 dark:text-slate-400">
-                    {selectedTrip.description}
-                  </p>
-                </div>
-
-                {/* Specs Grid */}
-                <div className="grid grid-cols-3 gap-4 py-3 border-y border-slate-100 dark:border-slate-800">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Price</span>
-                    <span className="text-sm font-black text-[#F27D26]">₹{selectedTrip.price}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Elevation</span>
-                    <span>{selectedTrip.elevationMeters || 'N/A'} meters</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Distance</span>
-                    <span>{distanceRange(selectedTrip) || 'N/A'} km</span>
-                  </div>
-                </div>
-
-                {/* Highlights */}
-                {selectedTrip.highlights && selectedTrip.highlights.length > 0 && (
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Highlights</span>
-                    <ul className="list-disc pl-4 space-y-1 text-slate-500 dark:text-slate-400">
-                      {selectedTrip.highlights.map((h, i) => (
-                        <li key={i}>{h}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Day-by-day Itinerary */}
-                {selectedTrip.itinerary && selectedTrip.itinerary.length > 0 && (
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Day-by-Day Itinerary</span>
-                    <div className="space-y-2">
-                      {selectedTrip.itinerary.map((day, idx) => (
-                        <div key={idx} className="p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                          <span className="text-[#F27D26] font-bold text-[10px] uppercase">Day {day.day || idx + 1}: {day.title}</span>
-                          <p className="text-[11px] text-slate-400 mt-1 leading-normal">{day.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       <ConfirmDialog
         open={!!statusTarget}

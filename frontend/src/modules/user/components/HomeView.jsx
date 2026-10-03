@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -13,6 +14,17 @@ import {
   ArrowUpRight,
   CalendarDays,
   Gift,
+  Mountain,
+  Trees,
+  Leaf,
+  Flame,
+  Grid2X2,
+  CloudRain,
+  Compass,
+  Tent,
+  Sun,
+  Map,
+  Snowflake,
 } from "lucide-react";
 import { PROMOTIONAL_BANNERS } from "../data/trips";
 import { groupTripsByTrekName } from "../utils/trekGroups";
@@ -36,6 +48,14 @@ const promoVariants = {
   exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
 };
 
+const HOME_FILTER_ICONS = { Mountain, Trees, Leaf, Flame, Compass, Tent, Sun, Map, Snowflake };
+const DEFAULT_HOME_FILTERS = [
+  { id: "himalayas", label: "Himalayas", icon: "Mountain" },
+  { id: "south-india", label: "South India", icon: "Trees" },
+  { id: "western-ghats", label: "Western Ghats", icon: "Leaf" },
+  { id: "popular", label: "Popular", icon: "Flame" },
+];
+
 // Persisted chosen location (city / GPS). Google Maps API will later power the
 // live search + reverse-geocoding inside LocationPicker.
 const loadLocation = () => {
@@ -55,6 +75,7 @@ export default function HomeView({
   onSelectTrek,
   onSwitchTab,
   onApplyCategory,
+  onApplyHomeFilter,
   onApplySearch,
   onApplyDate,
   onOpenLoyalty,
@@ -74,6 +95,8 @@ export default function HomeView({
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
+  const [homeFilters, setHomeFilters] = useState(DEFAULT_HOME_FILTERS);
+  const [showAllHomeFilters, setShowAllHomeFilters] = useState(false);
   // Bumped by a pull-to-refresh to re-run this screen's own fetches.
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -88,6 +111,13 @@ export default function HomeView({
       .listTreks()
       .then(setAllTreks)
       .catch(() => setAllTreks([]));
+  }, [reloadKey]);
+
+  useEffect(() => {
+    treksApi
+      .listHomeFilters()
+      .then((filters) => setHomeFilters(Array.isArray(filters) ? filters : []))
+      .catch(() => setHomeFilters(DEFAULT_HOME_FILTERS));
   }, [reloadKey]);
 
   const trendingTreks = useMemo(
@@ -214,6 +244,12 @@ export default function HomeView({
   // 5s countdown, so the banner never jumps a beat after the user moves it.
   const promoCount = activeBanners.length;
   const currentPromo = activeBanners[activePromoIdx] || activeBanners[0] || {};
+  const currentPromoTrip = trips.find(
+    (trip) =>
+      trip.id === currentPromo.tripId ||
+      trip.trekId === currentPromo.tripId ||
+      trip.name === currentPromo.title,
+  );
 
   const goToPromo = (idx, dir) => {
     if (promoCount === 0) return;
@@ -325,6 +361,23 @@ export default function HomeView({
         ? "bg-spy-orange text-white"
         : "bg-rose-500 text-white";
 
+  const openHomeFilter = (filterId = "") => {
+    if (onApplyHomeFilter) onApplyHomeFilter(filterId);
+    if (onApplyCategory) onApplyCategory("All");
+    setShowAllHomeFilters(false);
+    onSwitchTab("Explore");
+  };
+
+  const homeCategories = [
+    { id: "all", label: "All", icon: Mountain, active: true, action: () => openHomeFilter("") },
+    ...homeFilters.slice(0, 4).map((filter) => ({
+      ...filter,
+      icon: HOME_FILTER_ICONS[filter.icon] || Mountain,
+      action: () => openHomeFilter(filter.id),
+    })),
+    { id: "more", label: "More", icon: Grid2X2, action: () => setShowAllHomeFilters(true) },
+  ];
+
   return (
     <div
       className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
@@ -332,14 +385,17 @@ export default function HomeView({
           ? "bg-transparent text-elegant-text"
           : "bg-transparent text-zinc-900"
       }`}>
-      {/* 1. Brand header (Mobile only — Desktop uses DesktopNav) */}
-      <div className="flex items-center justify-between pt-5 pb-1 gap-2 md:hidden">
+      {/* Immersive alpine hero — mobile-first, with the desktop nav above it. */}
+      <section
+        className="customer-home-hero trek-hero-grain relative -mx-4 sm:-mx-6 lg:mx-0 lg:mt-7 lg:rounded-[2.5rem] overflow-visible px-4 sm:px-8 lg:px-12 pb-16 shadow-[0_24px_70px_rgba(31,46,34,0.18)]">
+      <div className="customer-home-header relative z-10 flex items-center justify-between pt-5 pb-1 gap-2 md:hidden text-[#201D17]">
         <button
           onClick={() => onSwitchTab("Profile")}
-          className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition min-w-0">
-          <AppLogo size={36} className="shrink-0" />
-          <span className="text-lg font-serif font-semibold tracking-tight truncate">
-            Find Your Trek
+          className="customer-home-brand flex items-center gap-2 cursor-pointer active:scale-95 transition min-w-0">
+          <AppLogo size={40} className="shrink-0 bg-white/92 shadow-lg" />
+          <span className="leading-none text-left">
+            <span className="customer-home-brand-title block font-bold tracking-[0.08em] uppercase whitespace-nowrap">Find Your Trek</span>
+            <span className="customer-home-brand-tagline block tracking-[0.18em] uppercase text-[#201D17]/55 mt-1 whitespace-nowrap">Your journey starts here</span>
           </span>
         </button>
 
@@ -348,13 +404,9 @@ export default function HomeView({
           <button
             id="btn-location"
             onClick={onOpenLocationPicker}
-            className={`flex items-center gap-1 pl-2.5 pr-2 py-2 rounded-full border relative active:scale-95 cursor-pointer shadow-sm ${
-              darkMode
-                ? "bg-elegant-card border-white/5"
-                : "bg-white border-gray-200"
-            }`}>
-            <MapPin size={14} className="text-spy-orange shrink-0" />
-            <span className="text-xs font-semibold truncate max-w-[120px]">
+            className="customer-home-location flex items-center gap-1 pl-3 pr-2.5 py-2.5 rounded-full border border-white/35 relative active:scale-95 cursor-pointer shadow-lg bg-white/92 text-[#1D2018] backdrop-blur-md">
+            <MapPin size={14} className="text-forest-700 shrink-0" />
+            <span className="customer-home-location-label text-xs font-semibold truncate max-w-[120px]">
               {(activeLocation?.label || "India").split(",")[0]}
             </span>
             <ChevronDown size={12} className="opacity-50 shrink-0" />
@@ -364,15 +416,8 @@ export default function HomeView({
           <button
             id="btn-bell-notifications"
             onClick={() => setShowNotificationDrawer(true)}
-            className={`w-10 h-10 rounded-full flex items-center justify-center border relative active:scale-90 cursor-pointer shadow-sm ${
-              darkMode
-                ? "bg-elegant-card border-white/5"
-                : "bg-white border-gray-200"
-            }`}>
-            <Bell
-              size={17}
-              className={darkMode ? "text-[#E0E5E2]/80" : "text-zinc-700"}
-            />
+            className="customer-home-bell w-10 h-10 rounded-full flex items-center justify-center border border-white/35 relative active:scale-90 cursor-pointer shadow-lg bg-white/92 text-[#1D2018] backdrop-blur-md">
+            <Bell size={17} />
             {unreadNotifications.length > 0 && (
               <span className="absolute top-1 right-1 w-4 h-4 bg-spy-orange text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white dark:border-elegant-app">
                 {unreadNotifications.length}
@@ -382,28 +427,27 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 2. Serif hero */}
-      <div className="mt-4 md:mt-8">
-        <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl leading-[1.05] font-medium tracking-tight">
+      <div className="customer-home-copy relative z-10 mt-20 sm:mt-28 lg:mt-24 max-w-3xl text-[#171A15]">
+        <p className="text-[10px] sm:text-xs font-bold tracking-[0.28em] uppercase text-[#171A15]/75 mb-3">
+          Explore&nbsp;&nbsp;•&nbsp;&nbsp;Trek&nbsp;&nbsp;•&nbsp;&nbsp;Discover
+        </p>
+        <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl leading-[0.98] font-semibold tracking-[-0.035em] drop-shadow-sm">
           Find your next
-          <br className="sm:hidden" />{" "}
-          <span
-            className={darkMode ? "text-elegant-orange" : "text-forest-500"}>
+          <br />
+          <span className="text-forest-700 italic tracking-[-0.04em]">
             raw adventure
           </span>
         </h1>
-        <p
-          className={`mt-3 text-sm sm:text-base leading-relaxed max-w-2xl ${darkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+        <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-md text-[#2D342C]/80">
           Handpicked Himalayan treks and wild trails across the country.
         </p>
       </div>
 
-      {/* 3. Search + departure-date calendar + desktop difficulty pills */}
-      <div className="mt-6 flex flex-col md:flex-row md:items-center gap-3 max-w-3xl">
+      <div className="absolute z-20 -bottom-7 left-4 right-4 sm:left-8 sm:right-8 lg:left-12 lg:right-auto lg:w-[760px] flex flex-col md:flex-row md:items-center gap-3">
         <div className="flex items-stretch gap-3 flex-1">
           <form onSubmit={handleSearchSubmit} className="relative flex-1">
             <Search
-              className={`absolute left-5 top-1/2 -translate-y-1/2 ${darkMode ? "text-white/40" : "text-zinc-400"}`}
+              className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1D2018]/65"
               size={18}
             />
             <input
@@ -412,11 +456,7 @@ export default function HomeView({
               placeholder="Search treks, peaks, valleys…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border transition-all shadow-sm ${
-                darkMode
-                  ? "bg-elegant-card border-white/5 focus:border-elegant-green text-white placeholder-white/35"
-                  : "bg-white border-gray-200/80 focus:border-forest-500 text-zinc-800 placeholder-zinc-400"
-              }`}
+              className="w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border border-white/70 transition-all shadow-xl bg-[#FFFDF8]/95 focus:border-forest-500 text-[#1D2018] placeholder-[#77766D] backdrop-blur-md"
             />
           </form>
 
@@ -426,35 +466,76 @@ export default function HomeView({
             onClick={() => setShowDatePicker(true)}
             aria-label="Filter treks by date"
             title="Filter by Departure Date"
-            className={`w-[52px] shrink-0 rounded-full border shadow-sm flex items-center justify-center active:scale-95 transition cursor-pointer ${
-              darkMode
-                ? "bg-elegant-card border-white/5 text-elegant-orange"
-                : "bg-white border-gray-200/80 text-forest-600"
-            }`}>
+            className="w-[52px] shrink-0 rounded-full border border-white/70 shadow-xl flex items-center justify-center active:scale-95 transition cursor-pointer bg-[#FFFDF8]/95 text-forest-700 backdrop-blur-md">
             <CalendarDays size={20} />
           </button>
         </div>
 
-        {/* Quick difficulty pills on tablet & desktop */}
-        <div className="hidden md:flex items-center gap-1.5 shrink-0">
-          {["All", "Easy", "Moderate", "Difficult"].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => onApplyCategory(cat)}
-              className={`px-3.5 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer border ${
-                darkMode
-                  ? "border-white/10 hover:border-white/20 bg-white/5 text-zinc-300 hover:text-white"
-                  : "border-zinc-200 hover:border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-              }`}>
-              {cat}
-            </button>
-          ))}
-        </div>
+      </div>
+      </section>
+
+      {/* Quick region/category rail from the reference home screen. */}
+      <div className="customer-category-rail mt-14 grid grid-cols-6 gap-2 sm:gap-3 no-scrollbar">
+        {homeCategories.map(({ label, icon: Icon, active, action }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={action}
+            className={`customer-category-button min-w-0 aspect-square rounded-[1.1rem] sm:rounded-[1.35rem] flex flex-col items-center justify-center gap-1 sm:gap-2 border shadow-[0_8px_22px_rgba(37,51,39,0.07)] active:scale-95 transition ${
+              active
+                ? "bg-forest-700 border-forest-700 text-white"
+                : darkMode
+                  ? "bg-elegant-card border-white/8 text-elegant-text"
+                  : "bg-[#FFFDF8] border-forest-700/8 text-forest-800"
+            }`}>
+            <Icon className="customer-category-icon" size={active ? 25 : 23} strokeWidth={1.8} />
+            <span className="text-[7px] min-[360px]:text-[8px] sm:text-[11px] font-semibold leading-tight whitespace-normal w-full px-0.5 text-center flex items-center justify-center">
+              {label}
+            </span>
+          </button>
+        ))}
       </div>
 
+      {createPortal(<AnimatePresence>
+        {showAllHomeFilters && (
+          <motion.div
+            className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowAllHomeFilters(false)}>
+            <motion.div
+              initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }}
+              onClick={(event) => event.stopPropagation()}
+              className={`w-full max-w-lg rounded-[2rem] p-5 shadow-2xl ${darkMode ? "bg-elegant-card text-white" : "bg-[#FFFDF8] text-zinc-900"}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-serif text-xl font-semibold">Explore every category</h3>
+                  <p className="text-xs opacity-55 mt-1">Choose a collection curated by the admin.</p>
+                </div>
+                <button type="button" aria-label="Close filters" onClick={() => setShowAllHomeFilters(false)} className="w-9 h-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
+                  <X size={17} />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[55vh] overflow-y-auto no-scrollbar">
+                <button type="button" onClick={() => openHomeFilter("")} className="aspect-square rounded-2xl bg-forest-700 text-white flex flex-col items-center justify-center gap-2 text-xs font-semibold">
+                  <Mountain size={24} /> All
+                </button>
+                {homeFilters.map((filter) => {
+                  const FilterIcon = HOME_FILTER_ICONS[filter.icon] || Mountain;
+                  return (
+                    <button key={filter.id} type="button" onClick={() => openHomeFilter(filter.id)} className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-2 px-1 text-xs font-semibold text-center ${darkMode ? "bg-elegant-app border-white/10" : "bg-white border-forest-700/10 text-forest-800"}`}>
+                      <FilterIcon size={24} /> {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>, document.body)}
+
       {/* 4. Promotional carousel */}
-      <div className="mt-6 md:mt-8 relative select-none">
-        <div className="overflow-hidden relative aspect-[7/3] sm:aspect-[16/6] md:aspect-[21/6] lg:h-52 rounded-3xl shadow-md">
+      <div className="mt-8 md:mt-10 relative select-none">
+        <div className="customer-promo-card overflow-hidden relative aspect-[2/1] sm:aspect-[16/7] md:aspect-[21/8] lg:h-64 rounded-[1.75rem] shadow-lg">
           <AnimatePresence initial={false} custom={promoDir}>
             <motion.div
               key={activePromoIdx}
@@ -490,20 +571,31 @@ export default function HomeView({
                 className="w-full h-full object-cover brightness-[0.7] pointer-events-none"
                 draggable={false}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 sm:p-6 flex flex-col justify-between">
-                <div>
-                  <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase">
-                    {currentPromo.tag}
+              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 sm:p-6 flex flex-col justify-between">
+                <div className="flex items-start justify-between">
+                  <span className="customer-promo-tag bg-spy-orange text-white text-[8px] sm:text-[9px] font-bold tracking-widest px-2.5 py-1.5 rounded-full uppercase flex items-center gap-1.5">
+                    <CloudRain size={12} /> {currentPromo.tag}
                   </span>
+                  <button
+                    type="button"
+                    aria-label="Save trek"
+                    className="w-9 h-9 rounded-full bg-black/30 border border-white/25 text-white flex items-center justify-center backdrop-blur-sm">
+                    <Heart size={17} />
+                  </button>
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-lg md:text-2xl font-serif font-semibold text-white leading-tight line-clamp-1">
+                  <h3 className="customer-promo-title text-xl sm:text-2xl md:text-3xl font-serif font-semibold text-white leading-tight line-clamp-1">
                     {currentPromo.title}
                   </h3>
-                  <div className="flex justify-between items-center gap-2 mt-1.5">
-                    <span className="text-[10px] font-bold text-emerald-300 font-mono truncate">
-                      {currentPromo.code} · {currentPromo.discount}
-                    </span>
+                  <div className="customer-promo-subtitle flex items-center gap-3 text-[11px] sm:text-xs text-white/85 mt-1">
+                    <span className="flex items-center gap-1"><MapPin size={13} /> {currentPromoTrip?.location || currentPromo.subtitle || "Himalayas"}</span>
+                    {currentPromoTrip?.difficulty && <span>▰ {currentPromoTrip.difficulty}</span>}
+                  </div>
+                  <div className="flex justify-between items-end gap-2 mt-3">
+                    <div className="text-white">
+                      <span className="customer-promo-price text-xl sm:text-2xl font-bold">₹{currentPromoTrip?.price || "4,500"}</span>
+                      <span className="text-[10px] sm:text-xs text-white/70 ml-1">/ person</span>
+                    </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -519,8 +611,8 @@ export default function HomeView({
                           onSelectTrek(currentPromo.tripId);
                         }
                       }}
-                      className="bg-white hover:bg-gray-100 text-forest-700 text-[10px] font-bold py-1 px-3 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto shrink-0">
-                      Claim
+                      className="customer-promo-action bg-white hover:bg-gray-100 text-forest-700 text-[11px] sm:text-xs font-bold py-2 px-3.5 sm:px-4 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto shrink-0 flex items-center gap-1">
+                      View Trek <ArrowUpRight size={14} />
                     </button>
                   </div>
                 </div>
@@ -552,7 +644,7 @@ export default function HomeView({
           type="button"
           id="btn-open-loyalty-home"
           onClick={onOpenLoyalty}
-          className="mt-5 relative w-full aspect-[3/1] shrink-0 rounded-3xl overflow-hidden shadow-lg text-left cursor-pointer active:scale-[0.99] transition-transform">
+          className="customer-loyalty-card mt-5 relative w-full aspect-[3/1] shrink-0 rounded-3xl overflow-hidden shadow-lg text-left cursor-pointer active:scale-[0.99] transition-transform">
           {loyaltyConfig.customer.banner.image ? (
             <img
               src={loyaltyConfig.customer.banner.image}
@@ -560,20 +652,24 @@ export default function HomeView({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-forest-600 to-forest-950" />
+            <img
+              src="/images/home-hero-himalayas.png"
+              alt=""
+              className="w-full h-full object-cover object-center"
+            />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
+          <div className="customer-loyalty-overlay absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase flex items-center gap-1">
+              <span className="customer-loyalty-tag bg-spy-orange text-white text-[8px] sm:text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase flex items-center gap-1">
                 <Gift size={10} /> Loyalty Reward
               </span>
               <ChevronRight size={16} className="text-white/70" />
             </div>
             <div>
-              <h3 className="font-serif text-base font-semibold text-white leading-tight">
+              <h3 className="customer-loyalty-title font-serif text-sm sm:text-base font-semibold text-white leading-tight">
                 {loyaltyConfig.customer.banner.title}
               </h3>
-              <p className="text-[11px] text-white/75 mt-0.5">
+              <p className="customer-loyalty-subtitle text-[10px] sm:text-[11px] text-white/75 mt-0.5 line-clamp-1">
                 {loyaltyConfig.customer.banner.subtitle}
               </p>
 

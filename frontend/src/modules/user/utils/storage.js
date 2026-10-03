@@ -158,7 +158,7 @@ export const loadDarkMode = () => {
   } catch (e) {
     console.error(e);
   }
-  return true; // Deep premium look as default, togglable!
+  return false; // The warm alpine paper theme is the default; dark mode remains togglable.
 };
 
 export const saveDarkMode = (val) => {
@@ -286,4 +286,3 @@ export const removeSavedHiker = (userEmail, nameToRemove) => {
   saveSavedHikers(userEmail, filtered);
   return filtered;
 };
-

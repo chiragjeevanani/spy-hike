@@ -1,10 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Search, Check, MapPin, Loader2, LocateFixed } from 'lucide-react';
+import { ArrowLeft, Search, Check, MapPin, Loader2, LocateFixed, X } from 'lucide-react';
+import { api } from '../../../lib/apiClient';
+import { reverseGeocode } from '../../../lib/geocoding';
 const L = window.L;
 
 const DEFAULT_CENTER = [22.9734, 78.6569]; // India centroid
 const DEFAULT_ZOOM = 5;
+const SEARCH_DEBOUNCE_MS = 350;
 
 // Hand-drawn on-brand pin rendered as a Leaflet divIcon — sidesteps the
 // classic bundler-broken-default-marker-image issue since we never touch
@@ -21,20 +25,44 @@ const pinIcon = L ? L.divIcon({
   iconAnchor: [17, 33],
 }) : null;
 
-// Full-screen Leaflet map (free OpenStreetMap tiles, no API key) letting the
-// organizer click/drag to drop a pin marking the trek/travel's real-world
-// starting point. The resulting lat/lng powers a plain Google Maps deep link
-// on the customer side — no Maps JS API key needed for that part either.
+// Full-screen Leaflet map letting the organizer search for a place or
+// click/drag to drop a pin marking the trek's real-world starting point.
+// The resulting lat/lng powers a plain Google Maps deep link on the
+// customer side.
+//
+// Rendered through a portal as a `fixed` layer: mounted inline it sat inside
+// the form's scrolling, transformed container, so `absolute inset-0` sized it
+// to the whole form instead of the screen — the map grew past the viewport
+// and pushed the label field and Confirm button out of reach.
 export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onClose, darkMode }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  // Whether the label was typed by the organizer. Until they type, tapping the
+  // map or picking a search result keeps filling it in for them.
+  const labelEditedRef = useRef(false);
+  const geocodeSeqRef = useRef(0);
   const [point, setPoint] = useState(initialPoint || null);
   const [label, setLabel] = useState(initialPoint?.label || '');
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState([]);
+  const [searchDone, setSearchDone] = useState(false);
   const [locating, setLocating] = useState(false);
+
+  // Fill the label from coordinates (tap / drag / current location), unless
+  // the organizer has typed their own. Sequenced so a slow lookup for an
+  // earlier tap can't overwrite the label for a later one.
+  const autoLabel = async (lat, lng) => {
+    if (labelEditedRef.current) return;
+    const seq = ++geocodeSeqRef.current;
+    try {
+      const r = await reverseGeocode(lat, lng);
+      if (seq !== geocodeSeqRef.current || labelEditedRef.current || !r) return;
+      const name = (r.formattedAddress || '').split(',').slice(0, 2).join(',').trim() || [r.city, r.state].filter(Boolean).join(', ');
+      if (name) setLabel(name);
+    } catch { /* label stays editable */ }
+  };
 
   const placeMarker = (map, lat, lng) => {
     if (markerRef.current) {
@@ -44,6 +72,7 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
       markerRef.current.on('dragend', () => {
         const pos = markerRef.current.getLatLng();
         setPoint({ lat: pos.lat, lng: pos.lng });
+        autoLabel(pos.lat, pos.lng);
       });
     }
     setPoint({ lat, lng });
@@ -56,6 +85,9 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
 
     setPoint(initialPoint || null);
     setLabel(initialPoint?.label || '');
+    setQuery('');
+    setResults([]);
+    labelEditedRef.current = false;
 
     const startCenter = initialPoint ? [initialPoint.lat, initialPoint.lng] : DEFAULT_CENTER;
     const startZoom = initialPoint ? 13 : DEFAULT_ZOOM;
@@ -70,54 +102,72 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
       placeMarker(map, initialPoint.lat, initialPoint.lng);
     }
 
-    map.on('click', (e) => placeMarker(map, e.latlng.lat, e.latlng.lng));
+    map.on('click', (e) => {
+      placeMarker(map, e.latlng.lat, e.latlng.lng);
+      autoLabel(e.latlng.lat, e.latlng.lng);
+      setResults([]);
+    });
 
     mapRef.current = map;
     // The overlay is still mid slide-in when this effect fires, so the
     // container can briefly report a stale size — force a recompute once
-    // the animation settles.
-    setTimeout(() => map.invalidateSize(), 200);
+    // the animation settles, and whenever the viewport changes.
+    const resize = () => map.invalidateSize();
+    const t = setTimeout(resize, 280);
+    window.addEventListener('resize', resize);
 
     return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', resize);
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const flyTo = (lat, lng, zoom = 14) => {
+  // Search as you type (debounced) — results list several matching places.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) { setResults([]); setSearchDone(false); return undefined; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const data = await api.get(`/place-search?q=${encodeURIComponent(q)}`, { auth: false });
+        if (!cancelled) setResults(data?.results || []);
+      } catch {
+        if (!cancelled) setResults([]);
+      } finally {
+        if (!cancelled) { setSearching(false); setSearchDone(true); }
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query]);
+
+  const flyTo = (lat, lng, zoom = 15) => {
     if (!mapRef.current) return;
     mapRef.current.setView([lat, lng], zoom);
     placeMarker(mapRef.current, lat, lng);
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim() || searching) return;
-    setSearching(true);
-    setResults([]);
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setResults(Array.isArray(data) ? data : []);
-    } catch {
-      setResults([]);
-    }
-    setSearching(false);
-  };
-
   const handlePickResult = (r) => {
-    flyTo(parseFloat(r.lat), parseFloat(r.lon), 14);
-    setLabel(r.display_name.split(',').slice(0, 2).join(',').trim());
+    flyTo(r.lat, r.lng, 15);
+    if (!labelEditedRef.current) setLabel(r.name);
     setResults([]);
     setQuery('');
+    setSearchDone(false);
   };
 
   const handleUseCurrentLocation = () => {
     if (!('geolocation' in navigator) || locating) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => { flyTo(pos.coords.latitude, pos.coords.longitude, 15); setLocating(false); },
+      (pos) => {
+        flyTo(pos.coords.latitude, pos.coords.longitude, 15);
+        autoLabel(pos.coords.latitude, pos.coords.longitude);
+        setLocating(false);
+      },
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -132,35 +182,37 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
     darkMode ? 'bg-zinc-950 border-white/10 text-white placeholder-white/30 focus:border-spy-orange/50' : 'bg-zinc-50 border-zinc-200 text-zinc-800 focus:border-spy-orange/50'
   }`;
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0, y: 28, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.98 }}
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-          className={`absolute inset-0 z-60 flex flex-col ${darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-800'}`}
+          className={`fixed inset-0 z-1100 h-dvh flex flex-col overflow-hidden ${darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-800'}`}
         >
           {/* Header */}
-          <div className={`px-5 py-4 shrink-0 flex items-center gap-3 border-b relative z-10 ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/80 shadow-xs'}`}>
+          <div className={`px-4 py-3 shrink-0 flex items-center gap-3 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200/80'}`}>
             <button
               type="button"
               id="btn-back-start-point-picker"
               onClick={onClose}
-              className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'}`}
+              className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition shrink-0 ${darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'}`}
             >
               <ArrowLeft size={16} />
             </button>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-sm font-display font-black tracking-tight">Set Trek Start Point</h2>
-              <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">Tap the map to drop a pin</p>
+              <p className="text-[10px] opacity-50 uppercase tracking-widest font-mono">Search or tap the map</p>
             </div>
           </div>
 
-          {/* Search bar */}
-          <div className={`px-4 py-3 shrink-0 relative z-10 border-b ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/80'}`}>
-            <form onSubmit={handleSearch} className="flex gap-2">
+          {/* Search bar — results float over the map instead of pushing it down */}
+          <div className={`px-4 py-3 shrink-0 relative border-b z-1001 ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200/80'}`}>
+            <div className="flex gap-2">
               <div className="relative flex-1 min-w-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <input
@@ -168,59 +220,71 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
                   id="input-start-point-search"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Search a place to jump to..."
-                  className={`${inputCls} pl-8 py-2.5`}
+                  placeholder="Search basecamp, village, landmark..."
+                  autoComplete="off"
+                  className={`${inputCls} pl-8 pr-8`}
                 />
+                {searching ? (
+                  <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-spy-orange" />
+                ) : query && (
+                  <button type="button" onClick={() => setQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+                    <X size={14} />
+                  </button>
+                )}
               </div>
-              <button type="submit" id="btn-start-point-search-go" disabled={searching} className="px-3.5 rounded-xl bg-spy-orange text-white text-xs font-bold shrink-0">
-                {searching ? <Loader2 size={14} className="animate-spin" /> : 'Go'}
-              </button>
               <button
                 type="button"
                 id="btn-start-point-use-current"
                 onClick={handleUseCurrentLocation}
                 disabled={locating}
+                title="Use my current location"
                 className={`px-3 rounded-xl border shrink-0 ${darkMode ? 'border-white/10 text-zinc-300' : 'border-zinc-200 text-zinc-600'}`}
               >
                 {locating ? <Loader2 size={14} className="animate-spin" /> : <LocateFixed size={14} />}
               </button>
-            </form>
-            {results.length > 0 && (
-              <div className={`mt-2 rounded-xl overflow-hidden border max-h-40 overflow-y-auto ${darkMode ? 'border-white/10 bg-zinc-950' : 'border-zinc-200 bg-white'}`}>
-                {results.map(r => (
+            </div>
+
+            {(results.length > 0 || (searchDone && !searching && query.trim().length >= 3)) && (
+              <div className={`absolute left-4 right-4 top-full mt-1 rounded-xl overflow-hidden border shadow-xl max-h-64 overflow-y-auto ${darkMode ? 'border-white/10 bg-zinc-900' : 'border-zinc-200 bg-white'}`}>
+                {results.length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-zinc-400">No places found. Try a nearby town or landmark, or tap the map.</p>
+                ) : results.map(r => (
                   <button
-                    key={r.place_id}
+                    key={r.id}
                     type="button"
                     onClick={() => handlePickResult(r)}
-                    className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 border-b last:border-b-0 ${darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'}`}
+                    className={`w-full text-left px-3 py-2.5 flex items-start gap-2 border-b last:border-b-0 ${darkMode ? 'border-white/5 hover:bg-white/5' : 'border-zinc-100 hover:bg-zinc-50'}`}
                   >
-                    <MapPin size={12} className="text-spy-orange shrink-0" />
-                    <span className="truncate">{r.display_name}</span>
+                    <MapPin size={13} className="text-spy-orange shrink-0 mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold truncate">{r.name}</span>
+                      {r.address && <span className={`block text-[10px] truncate ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{r.address}</span>}
+                    </span>
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Map fills remaining space */}
-          <div className="flex-1 relative">
+          {/* Map takes only the space left between the bars — min-h-0 lets it shrink */}
+          <div className="flex-1 min-h-0 relative z-0">
             <div ref={mapContainerRef} id="org-start-point-map" className="absolute inset-0" />
             {!point && (
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full pointer-events-none z-[400]">
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full pointer-events-none z-400 whitespace-nowrap">
                 Tap anywhere on the map to drop a pin
               </div>
             )}
           </div>
 
-          {/* Confirm bar */}
-          <div className={`shrink-0 px-5 py-4 border-t relative z-10 ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100 shadow-sm'}`}>
+          {/* Confirm bar — always visible */}
+          <div className={`shrink-0 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t ${darkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'}`}>
             {point && (
-              <div className="mb-3 space-y-1.5">
+              <div className="mb-3 space-y-1">
                 <input
                   type="text"
                   id="input-start-point-label"
                   value={label}
-                  onChange={e => setLabel(e.target.value)}
+                  onChange={e => { labelEditedRef.current = true; setLabel(e.target.value); }}
                   placeholder="Label this point, e.g. Sankri Basecamp"
                   className={inputCls}
                 />
@@ -238,11 +302,12 @@ export default function OrgStartPointPicker({ open, initialPoint, onConfirm, onC
                 point ? 'bg-spy-orange text-white shadow-lg shadow-spy-orange/20' : (darkMode ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-200 text-zinc-400')
               }`}
             >
-              <Check size={16} /> {point ? 'Confirm Start Point' : 'Tap the map first'}
+              <Check size={16} /> {point ? 'Confirm Start Point' : 'Search or tap the map first'}
             </button>
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown
+  Search, SlidersHorizontal, MapPin, Calendar, Clock, Users, X, Sparkles, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
@@ -20,6 +20,8 @@ export default function ExploreView({
   onSetSearchQuery,
   selectedCategory,
   onSetCategory,
+  selectedHomeFilter = '',
+  onSetHomeFilter = () => {},
   selectedDate,
   onSetDate,
   userLocation,
@@ -27,8 +29,8 @@ export default function ExploreView({
   onOpenLocationPicker,
   darkMode
 }) {
-  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
+  const [homeFilters, setHomeFilters] = useState([]);
   // Bumped by a pull-to-refresh to re-run this screen's own fetches.
   const [reloadKey, setReloadKey] = useState(0);
   useAppRefresh(() => setReloadKey((key) => key + 1));
@@ -38,6 +40,7 @@ export default function ExploreView({
   // (otherwise those treks are invisible anywhere in the customer app).
   useEffect(() => {
     treksApi.listTreks().then(setAllTreks).catch(() => setAllTreks([]));
+    treksApi.listHomeFilters().then(setHomeFilters).catch(() => setHomeFilters([]));
   }, [reloadKey]);
 
   // Pagination state
@@ -76,7 +79,7 @@ export default function ExploreView({
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategory, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption, userLocation]);
+  }, [searchQuery, selectedCategory, selectedHomeFilter, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption, userLocation]);
 
   // Categories quick toggles
   const categoriesList = ['All', 'Trekking', 'Hiking', 'Camping', 'Adventure Tours', 'Nature Walks', 'Weekend Trips'];
@@ -102,6 +105,7 @@ export default function ExploreView({
     limit: ITEMS_PER_PAGE,
     search: searchQuery.trim() || undefined,
     category: selectedCategory !== 'All' ? selectedCategory : undefined,
+    homeFilter: selectedHomeFilter || undefined,
     difficulty: filterDifficulty !== 'All' ? filterDifficulty : undefined,
     date: selectedDate || undefined,
     pickupCity: filterPickupCity !== 'All' ? filterPickupCity : undefined,
@@ -111,7 +115,7 @@ export default function ExploreView({
     minSeats: filterMinSeats > 1 ? filterMinSeats : undefined,
     sort: sortOption,
   }), [
-    currentPage, searchQuery, selectedCategory, filterDifficulty, selectedDate,
+    currentPage, searchQuery, selectedCategory, selectedHomeFilter, filterDifficulty, selectedDate,
     filterPickupCity, cityFilter, filterBudget, priceCeiling, filterDuration,
     filterMinSeats, sortOption,
   ]);
@@ -150,8 +154,11 @@ export default function ExploreView({
     if (searchQuery.trim()) {
       result = result.filter(t => matchesQuery(t, searchQuery));
     }
+    if (selectedHomeFilter) {
+      result = result.filter(t => (t.homeFilterIds || []).includes(selectedHomeFilter));
+    }
     return result;
-  }, [allTreks, trips, userLocation, searchQuery]);
+  }, [allTreks, userLocation, searchQuery, selectedHomeFilter]);
 
   // Bookable results are what Explore is for, so the coming-soon strip starts
   // collapsed to a short preview and expands on demand instead of adding an
@@ -171,6 +178,7 @@ export default function ExploreView({
     setSortOption('Popular');
     onSetSearchQuery('');
     onSetCategory('All');
+    onSetHomeFilter('');
     if (onSetDate) onSetDate('');
   };
 
@@ -183,9 +191,10 @@ export default function ExploreView({
     if (filterPickupCity !== 'All') count++;
     if (sortOption !== 'Popular') count++;
     if (selectedCategory !== 'All') count++;
+    if (selectedHomeFilter) count++;
     if (selectedDate) count++;
     return count;
-  }, [filterDifficulty, filterBudget, filterDuration, filterMinSeats, filterPickupCity, sortOption, selectedCategory, selectedDate, priceCeiling]);
+  }, [filterDifficulty, filterBudget, filterDuration, filterMinSeats, filterPickupCity, sortOption, selectedCategory, selectedHomeFilter, selectedDate, priceCeiling]);
 
   // "Sat, 20 Aug" style label for the active departure-date chip
   const selectedDateLabel = selectedDate
@@ -342,6 +351,28 @@ export default function ExploreView({
               </div>
 
               {/* 1. Category filter (difficulty lives in the primary pills above) */}
+              {homeFilters.length > 0 && (
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Region & collection</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSetHomeFilter('')}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition ${!selectedHomeFilter ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
+                    >All</button>
+                    {homeFilters.map((filter) => (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        onClick={() => onSetHomeFilter(filter.id)}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition ${selectedHomeFilter === filter.id ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
+                      >{filter.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity category is independent from the admin-managed home collections. */}
               <div>
                 <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Category</label>
                 <div className="flex flex-wrap gap-2">
@@ -559,15 +590,19 @@ export default function ExploreView({
                       className={`rounded-3xl overflow-hidden cursor-pointer shadow-md flex flex-col h-full ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
                     >
                       {/* Cover */}
-                      <div className="relative h-48 sm:h-52 overflow-hidden">
+                      <div className="relative h-44 sm:h-48 overflow-hidden">
                         <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
-                        <span className={`absolute top-3.5 left-3.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
+                        <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/55 to-transparent pointer-events-none" />
+                        <span className={`absolute top-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
                           {trip.difficulty}
+                        </span>
+                        <span className="absolute bottom-3 left-3 flex items-center gap-1 text-[11px] font-semibold text-white px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm">
+                          <Clock size={12} /> {durationRange(trip)} Days
                         </span>
                         <button
                           id={`btn-toggle-wishlist-explore-${trip.id}`}
                           onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
-                          className={`absolute top-3.5 right-3.5 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition z-20 ${
+                          className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition z-20 ${
                             isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
                           }`}
                         >
@@ -576,24 +611,30 @@ export default function ExploreView({
                       </div>
 
                       {/* Details */}
-                      <div className="p-5">
-                        <h3 className="font-serif text-xl font-semibold leading-tight">{trip.name}</h3>
+                      <div className="px-4 pt-3.5 pb-4 flex flex-col flex-1">
+                        <h3 className="font-serif text-lg font-semibold leading-snug line-clamp-1">{trip.name}</h3>
+                        <p className={`flex items-center gap-1 text-xs mt-1 truncate ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          <MapPin size={13} className="opacity-70 shrink-0" />
+                          <span className="truncate">{trip.location}</span>
+                        </p>
 
-                        <div className={`flex items-center gap-x-4 gap-y-1.5 flex-wrap text-xs mt-2.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          <span className="flex items-center gap-1"><MapPin size={13} className="opacity-70" /> {trip.location}</span>
-                          <span className="flex items-center gap-1"><Clock size={13} className="opacity-70" /> {durationRange(trip)} Days</span>
-                          <span className="flex items-center gap-1"><Users size={13} className="opacity-70" /> {trip.availableSeats} slots</span>
-                          {group.organizerCount > 1 && (
-                            <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
-                          )}
-                        </div>
-
-                        <div className="flex items-end justify-between mt-4">
-                          <div>
-                            <span className={`text-[11px] font-semibold block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Starting from</span>
-                            <span className={`font-serif text-2xl font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{group.minPrice}</span>
+                        <div className={`flex items-end justify-between gap-3 mt-auto pt-3 border-t ${darkMode ? 'border-white/10' : 'border-zinc-100'}`}>
+                          <div className={`flex flex-col gap-1 text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            <span className={`flex items-center gap-1 ${trip.availableSeats > 0 && trip.availableSeats <= 5 ? 'text-spy-orange font-semibold' : ''}`}>
+                              <Users size={13} className="opacity-70" />
+                              {trip.availableSeats > 0 && trip.availableSeats <= 5 ? `Only ${trip.availableSeats} left` : `${trip.availableSeats} slots`}
+                            </span>
+                            {group.organizerCount > 1 && (
+                              <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
+                            )}
                           </div>
-                          <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>per person</span>
+                          <div className="text-right leading-none shrink-0">
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>From</span>
+                            <div className="mt-1">
+                              <span className={`font-serif text-xl font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{Number(group.minPrice).toLocaleString('en-IN')}</span>
+                              <span className={`text-[11px] ml-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>/person</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </motion.div>

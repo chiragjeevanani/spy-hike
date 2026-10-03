@@ -11,7 +11,7 @@ export default function PhoneFrame({ children, darkMode, onToggleDarkMode }) {
       // turning this div into its own accidental scroll container that sat
       // outside #root's overscroll-behavior/background fixes entirely.
       className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative ${
-        darkMode ? 'bg-elegant-bg text-elegant-text' : 'bg-[#FAF8F2] text-zinc-900'
+        darkMode ? 'dark bg-elegant-bg text-elegant-text' : 'bg-[#F7F3E9] text-[#1D2018]'
       }`}
     >
       {/* Ambient background glows for rich aesthetic */}
@@ -26,7 +26,7 @@ export default function PhoneFrame({ children, darkMode, onToggleDarkMode }) {
       <div
         id="findyourtrek-app-viewport"
         className={`relative w-full flex-1 flex flex-col transition-all duration-300 z-10 ${
-          darkMode ? 'bg-elegant-app text-white' : 'bg-transparent text-zinc-900'
+          darkMode ? 'bg-elegant-app text-white' : 'bg-transparent text-[#1D2018]'
         }`}
       >
         <div className="flex-1 flex flex-col relative w-full">

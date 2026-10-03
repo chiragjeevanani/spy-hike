@@ -19,6 +19,7 @@ const INVALIDATION_MAP = [
   // Booking or cancelling moves seat counts, which ride along on trip records.
   [/\/bookings/, ['trips']],
   [/\/categories/, ['categories', 'trips']],
+  [/\/home-filters/, ['home-filters', 'treks', 'trips']],
   [/\/(landing|site|onboarding)-content|\/promotional-banners/, ['content']],
   // Promoting/unpromoting an organizer (directly or via a request approval)
   // rewrites the `organizer.promotedUntil` snapshot on every trip they've

@@ -9,6 +9,7 @@ import Admin from './models/Admin.js';
 import Trip from './models/Trip.js';
 import Trek from './models/Trek.js';
 import Category from './models/Category.js';
+import HomeFilter from './models/HomeFilter.js';
 import Coupon from './models/Coupon.js';
 import { hashPassword } from './utils/password.js';
 import { slugify } from './utils/slug.js';
@@ -41,6 +42,13 @@ const CANONICAL_CATEGORIES = [
   { _id: 'Cultural', label: 'Cultural', icon: 'Landmark', order: 10 },
 ];
 
+const DEFAULT_HOME_FILTERS = [
+  { _id: 'himalayas', label: 'Himalayas', icon: 'Mountain', order: 1, active: true },
+  { _id: 'south-india', label: 'South India', icon: 'Trees', order: 2, active: true },
+  { _id: 'western-ghats', label: 'Western Ghats', icon: 'Leaf', order: 3, active: true },
+  { _id: 'popular', label: 'Popular', icon: 'Flame', order: 4, active: true },
+];
+
 async function upsertAdmin() {
   const email = (env.adminEmail || process.env.ADMIN_EMAIL || 'superadmin@gmail.com').toLowerCase();
   const password = env.adminPassword || process.env.ADMIN_PASSWORD || 'password123';
@@ -70,6 +78,16 @@ async function upsertAdmin() {
 async function upsertCategories() {
   for (const c of CANONICAL_CATEGORIES) {
     await Category.updateOne({ _id: c._id }, { $set: c }, { upsert: true });
+  }
+}
+
+async function upsertHomeFilters() {
+  for (const filter of DEFAULT_HOME_FILTERS) {
+    await HomeFilter.updateOne(
+      { _id: filter._id },
+      { $setOnInsert: filter },
+      { upsert: true },
+    );
   }
 }
 
@@ -207,10 +225,11 @@ async function seed() {
   await connectDB();
   await upsertAdmin();
   await upsertCategories();
+  await upsertHomeFilters();
   await upsertCoupons();
   await upsertTreks();
   await upsertTrips();
-  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} catalog treks, ${HIKING_TRIPS.length} trips`);
+  console.log(`✓ Seeded ${CANONICAL_CATEGORIES.length} categories, ${DEFAULT_HOME_FILTERS.length} homepage filters, ${SEED_COUPONS.length} coupons, ${HIKING_TRIPS.length} catalog treks, ${HIKING_TRIPS.length} trips`);
   console.log('✓ Seed complete: admin account updated from ENV credentials.');
   await disconnectDB();
 }
@@ -225,4 +244,4 @@ if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
     });
 }
 
-export { seed, upsertAdmin, upsertCategories, upsertCoupons, upsertTrips };
+export { seed, upsertAdmin, upsertCategories, upsertHomeFilters, upsertCoupons, upsertTrips };

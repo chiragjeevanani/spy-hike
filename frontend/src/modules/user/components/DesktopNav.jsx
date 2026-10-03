@@ -35,7 +35,7 @@ export default function DesktopNav({
       className={`hidden md:block sticky top-0 z-40 border-b backdrop-blur-xl transition-colors duration-300 select-none ${
         darkMode
           ? 'bg-zinc-950/85 border-white/10 text-white shadow-sm'
-          : 'bg-white/90 border-zinc-200/80 text-zinc-900 shadow-xs'
+          : 'bg-[#F7F3E9]/90 border-forest-700/10 text-[#1D2018] shadow-xs'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -72,7 +72,7 @@ export default function DesktopNav({
                   isActive
                     ? darkMode
                       ? 'bg-white/10 text-elegant-orange shadow-xs'
-                      : 'bg-forest-50 text-forest-600 shadow-xs'
+                      : 'bg-forest-700 text-white shadow-xs'
                     : darkMode
                       ? 'text-zinc-300 hover:text-white hover:bg-white/5'
                       : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70'
