@@ -13,10 +13,14 @@ test.describe('Trek Categories and Explore Filters', () => {
     await page.goto('/app');
     await expect(page.locator('#search-input-box')).toBeVisible();
 
-    // Verify showcase category rail is no longer on Home
-    await expect(page.locator('#customer-category-rail')).toHaveCount(0);
+    // Verify category rail is present on Home
+    await expect(page.locator('#customer-category-rail')).toBeVisible();
 
-    // 2. Navigate to Explore
+    // 2. Click category or navigate to Explore
+    const allHomeCatBtn = page.locator('#btn-home-category-all');
+    await expect(allHomeCatBtn).toBeVisible();
+
+    // Navigate to Explore
     await page.goto('/app/explore');
     await expect(page.locator('#explore-search-input')).toBeVisible();
 

@@ -97,6 +97,7 @@ export default function HomeView({
   const [promoPaused, setPromoPaused] = useState(false); // held while a finger is down
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAllHomeFilters, setShowAllHomeFilters] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
   const [homeFilters, setHomeFilters] = useState(DEFAULT_HOME_FILTERS);
   // Bumped by a pull-to-refresh to re-run this screen's own fetches.
@@ -363,6 +364,23 @@ export default function HomeView({
         ? "bg-spy-orange text-white"
         : "bg-rose-500 text-white";
 
+  const openHomeFilter = (filterId = "") => {
+    if (onApplyHomeFilter) onApplyHomeFilter(filterId);
+    if (onApplyCategory) onApplyCategory("All");
+    setShowAllHomeFilters(false);
+    onSwitchTab("Explore");
+  };
+
+  const homeCategories = [
+    { id: "all", label: "All", icon: Mountain, active: true, action: () => openHomeFilter("") },
+    ...homeFilters.slice(0, 4).map((filter) => ({
+      ...filter,
+      icon: HOME_FILTER_ICONS[filter.icon] || Mountain,
+      action: () => openHomeFilter(filter.id),
+    })),
+    { id: "more", label: "More", icon: Grid2X2, action: () => setShowAllHomeFilters(true) },
+  ];
+
   return (
     <div
       className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 ${
@@ -477,8 +495,92 @@ export default function HomeView({
       </div>
       </section>
 
+      {/* Quick region/category rail from the reference home screen. */}
+      <div id="customer-category-rail" className="customer-category-rail mt-12 sm:mt-14 lg:mt-16 w-full grid grid-cols-6 gap-2 sm:gap-3.5 lg:gap-4 no-scrollbar">
+        {homeCategories.map(({ id, label, icon: Icon, active, action }) => (
+          <button
+            key={id || label}
+            id={`btn-home-category-${id || label.toLowerCase()}`}
+            type="button"
+            onClick={action}
+            className={`customer-category-button min-w-0 aspect-square rounded-[1.1rem] sm:rounded-[1.35rem] lg:rounded-2xl flex flex-col items-center justify-center gap-1 sm:gap-2 border shadow-[0_8px_22px_rgba(37,51,39,0.07)] active:scale-95 transition cursor-pointer ${
+              active
+                ? "bg-forest-700 border-forest-700 text-white"
+                : darkMode
+                  ? "bg-elegant-card border-white/8 text-elegant-text hover:border-white/20"
+                  : "bg-[#FFFDF8] border-forest-700/8 text-forest-800 hover:border-forest-700/20"
+            }`}>
+            <Icon className="customer-category-icon" size={active ? 25 : 23} strokeWidth={1.8} />
+            <span className="text-[7px] min-[360px]:text-[8px] sm:text-[11px] font-semibold leading-tight whitespace-normal w-full px-0.5 text-center flex items-center justify-center">
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {createPortal(
+        <AnimatePresence>
+          {showAllHomeFilters && (
+            <motion.div
+              className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAllHomeFilters(false)}>
+              <motion.div
+                initial={{ y: 28, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 28, opacity: 0 }}
+                onClick={(event) => event.stopPropagation()}
+                className={`w-full max-w-lg rounded-[2rem] p-5 shadow-2xl ${
+                  darkMode ? "bg-elegant-card text-white" : "bg-[#FFFDF8] text-zinc-900"
+                }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-serif text-xl font-semibold">Explore every category</h3>
+                    <p className="text-xs opacity-55 mt-1">Choose a collection curated by the admin.</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close filters"
+                    onClick={() => setShowAllHomeFilters(false)}
+                    className="w-9 h-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center cursor-pointer">
+                    <X size={17} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[55vh] overflow-y-auto no-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => openHomeFilter("")}
+                    className="aspect-square rounded-2xl bg-forest-700 text-white flex flex-col items-center justify-center gap-2 text-xs font-semibold cursor-pointer">
+                    <Mountain size={24} /> All
+                  </button>
+                  {homeFilters.map((filter) => {
+                    const FilterIcon = HOME_FILTER_ICONS[filter.icon] || Mountain;
+                    return (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        onClick={() => openHomeFilter(filter.id)}
+                        className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-2 px-1 text-xs font-semibold text-center cursor-pointer ${
+                          darkMode
+                            ? "bg-elegant-app border-white/10 text-white"
+                            : "bg-white border-forest-700/10 text-forest-800"
+                        }`}>
+                        <FilterIcon size={24} /> {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+
       {/* 4. Promotional carousel */}
-      <div className="w-full mt-10 sm:mt-12 lg:mt-14 relative select-none group">
+      <div className="w-full mt-8 sm:mt-10 lg:mt-12 relative select-none group">
         <div className="customer-promo-card w-full overflow-hidden relative aspect-[2/1] sm:aspect-[16/7] md:aspect-auto md:h-72 lg:h-80 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
           <AnimatePresence initial={false} custom={promoDir}>
             <motion.div
