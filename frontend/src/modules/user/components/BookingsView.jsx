@@ -321,7 +321,7 @@ export default function BookingsView({
 
   return (
     <div
-      className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+      className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 ${
         darkMode
           ? "bg-transparent text-elegant-text"
           : "bg-transparent text-zinc-900"

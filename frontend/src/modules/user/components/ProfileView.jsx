@@ -857,7 +857,7 @@ export default function ProfileView({
   };
 
   return (
-    <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-16 ${
+    <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 ${
       darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
@@ -1451,7 +1451,7 @@ export default function ProfileView({
             exit="exit"
             onSubmit={handleSavePersonalInfo}
             noValidate
-            className="flex-1 flex flex-col justify-between pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col justify-between pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16"
           >
           <div className="space-y-6">
             <div className={subHeaderCls}>
@@ -1953,7 +1953,7 @@ export default function ProfileView({
             animate="animate"
             exit="exit"
             onSubmit={handleSaveStatsInfo}
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16 max-w-2xl mx-auto lg:mx-0"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 max-w-2xl mx-auto lg:mx-0"
           >
             <div className={`rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-colors ${
               darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80 shadow-xs'
@@ -2056,7 +2056,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2109,7 +2109,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16 space-y-5"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 space-y-5"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2229,7 +2229,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>

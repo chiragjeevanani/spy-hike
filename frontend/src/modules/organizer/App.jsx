@@ -1167,10 +1167,10 @@ export default function OrgApp() {
             />
           )}
 
-        {/* pb clears the now-`fixed` OrgBottomNav on mobile so a page's last
-            bit of content never sits underneath it. */}
+        {/* pb clears the floating, `fixed` OrgBottomNav on mobile (plus Android's
+            on-screen nav buttons) so a page's last bit of content never sits underneath it. */}
         <div
-          className={`flex-1 relative overflow-y-auto flex flex-col ${showBottomNav ? "pb-20 md:pb-0" : ""}`}>
+          className={`flex-1 relative overflow-y-auto flex flex-col ${showBottomNav ? "pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}

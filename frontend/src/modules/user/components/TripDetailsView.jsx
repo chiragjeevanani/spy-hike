@@ -134,7 +134,7 @@ export default function TripDetailsView({
       </div>
 
       {/* Scrollable primary details container */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-28">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-[calc(7rem+env(safe-area-inset-bottom))]">
         <div className="max-w-5xl mx-auto w-full">
         
         {/* 1. HERO BAR & IMAGE SLIDER */}

@@ -121,7 +121,7 @@ export default function TrekDetailsView({
       </div>
 
       {/* 2. SCROLLABLE BODY CONTENT */}
-      <div className="flex-1 overflow-y-auto pb-28">
+      <div className="flex-1 overflow-y-auto pb-[calc(7rem+env(safe-area-inset-bottom))]">
         <div className="max-w-5xl mx-auto w-full px-0 sm:px-4">
         
         {/* Cover Hero Banner */}
