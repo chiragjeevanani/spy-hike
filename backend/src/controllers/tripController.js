@@ -1,6 +1,7 @@
 import Trip from '../models/Trip.js';
 import Trek from '../models/Trek.js';
 import Category from '../models/Category.js';
+import HomeFilter from '../models/HomeFilter.js';
 import Booking from '../models/Booking.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -64,12 +65,31 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
 
   // ── Filters on individual offers, applied before grouping ──
   const offerMatch = { status: 'Published' };
+  const andConditions = [];
+
   if (homeFilter) {
+    let filterDoc = await HomeFilter.findById(homeFilter).select('label');
+    if (!filterDoc) {
+      filterDoc = await HomeFilter.findOne({ label: new RegExp(`^${homeFilter}$`, 'i') }).select('label _id');
+    }
+    const filterId = filterDoc?._id || homeFilter;
+    const filterLabel = filterDoc?.label || homeFilter;
     const trekIds = await Trek.distinct('_id', {
       status: 'Active',
-      homeFilterIds: homeFilter,
+      $or: [
+        { homeFilterIds: filterId },
+        { homeFilterIds: homeFilter },
+        { category: new RegExp(`^${filterLabel}$`, 'i') },
+        { category: new RegExp(`^${homeFilter}$`, 'i') },
+      ],
     });
-    offerMatch.trekId = { $in: trekIds };
+    andConditions.push({
+      $or: [
+        { trekId: { $in: trekIds } },
+        { category: new RegExp(`^${filterLabel}$`, 'i') },
+        { category: new RegExp(`^${homeFilter}$`, 'i') },
+      ],
+    });
   }
   if (category && category !== 'All') offerMatch.category = category;
   if (difficulty && difficulty !== 'All') offerMatch.difficulty = difficulty;
@@ -81,21 +101,27 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
   }
   if (search) {
     const rx = safeRegex(search);
-    offerMatch.$or = [
-      { name: rx }, { location: rx }, { state: rx }, { city: rx },
-      { category: rx }, { 'startPoint.label': rx }, { 'pickup.location': rx },
-    ];
+    andConditions.push({
+      $or: [
+        { name: rx }, { location: rx }, { state: rx }, { city: rx },
+        { category: rx }, { 'startPoint.label': rx }, { 'pickup.location': rx },
+      ],
+    });
   }
   // A city/state selection matches any of the place fields, mirroring the
   // client's matchesLocation() which also accepted a pickup or start point.
   if (city || state) {
     const rx = safeRegex(city || state);
-    offerMatch.$and = [{
+    andConditions.push({
       $or: [
         { city: rx }, { state: rx }, { location: rx },
         { 'startPoint.label': rx }, { 'pickup.location': rx },
       ],
-    }];
+    });
+  }
+
+  if (andConditions.length > 0) {
+    offerMatch.$and = andConditions;
   }
 
   // ── Filters that only make sense once offers are grouped ──

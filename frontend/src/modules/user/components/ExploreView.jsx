@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, SlidersHorizontal, MapPin, Calendar, Clock, Users, X, Sparkles, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown
+  Search, SlidersHorizontal, MapPin, Calendar, Clock, Users, X, Sparkles, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown,
+  Mountain, Trees, Leaf, Flame, Compass, Tent, Sun, Map, Snowflake
 } from 'lucide-react';
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
@@ -9,6 +10,23 @@ import treksApi from '../../../lib/treksApi';
 import { useAppRefresh } from '../../../utils/refreshSignal';
 import tripsApi from '../../../lib/tripsApi';
 import { durationRange } from '../../../utils/rangeFormat';
+
+const HOME_FILTER_ICONS = {
+  Mountain,
+  Trees,
+  Leaf,
+  Flame,
+  Compass,
+  Tent,
+  Sun,
+  Map,
+  Snowflake,
+};
+
+const renderFilterIcon = (iconName, size = 14) => {
+  const IconComp = HOME_FILTER_ICONS[iconName] || Mountain;
+  return <IconComp size={size} className="shrink-0" />;
+};
 
 export default function ExploreView({
   trips,
@@ -155,10 +173,17 @@ export default function ExploreView({
       result = result.filter(t => matchesQuery(t, searchQuery));
     }
     if (selectedHomeFilter) {
-      result = result.filter(t => (t.homeFilterIds || []).includes(selectedHomeFilter));
+      const matchedFilter = homeFilters.find(f => f.id === selectedHomeFilter || f.label?.toLowerCase() === selectedHomeFilter?.toLowerCase());
+      const filterLabel = matchedFilter?.label?.toLowerCase();
+      result = result.filter(t =>
+        (t.homeFilterIds || []).includes(selectedHomeFilter) ||
+        (matchedFilter && (t.homeFilterIds || []).includes(matchedFilter.id)) ||
+        (filterLabel && t.category?.toLowerCase() === filterLabel) ||
+        t.category?.toLowerCase() === selectedHomeFilter.toLowerCase()
+      );
     }
     return result;
-  }, [allTreks, userLocation, searchQuery, selectedHomeFilter]);
+  }, [allTreks, userLocation, searchQuery, selectedHomeFilter, homeFilters]);
 
   // Bookable results are what Explore is for, so the coming-soon strip starts
   // collapsed to a short preview and expands on demand instead of adding an
@@ -271,38 +296,92 @@ export default function ExploreView({
           </button>
         </div>
 
-        {/* Active departure-date / pickup-city filter chips */}
-        {(selectedDate || filterPickupCity !== 'All') && (
-          <div className="flex items-center flex-wrap gap-2 mt-4">
-            {selectedDate && (
-              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
+        {/* Trek categories filter rail */}
+        {homeFilters.length > 0 && (
+          <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar pb-0.5">
+            <button
+              type="button"
+              id="filter-cat-all"
+              onClick={() => onSetHomeFilter('')}
+              className={`px-4 py-2 rounded-full text-xs font-semibold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
+                !selectedHomeFilter
+                  ? 'bg-forest-600 text-white shadow-sm'
+                  : (darkMode ? 'bg-elegant-card text-zinc-300 border border-white/5 hover:border-white/15' : 'bg-white text-zinc-600 border border-gray-200/80 hover:border-gray-300')
+              }`}
+            >
+              <span>All</span>
+            </button>
+            {homeFilters.map((filter) => {
+              const isSelected = selectedHomeFilter === filter.id || selectedHomeFilter === filter.label;
+              return (
+                <button
+                  key={filter.id}
+                  id={`filter-cat-${filter.id}`}
+                  type="button"
+                  onClick={() => onSetHomeFilter(isSelected ? '' : filter.id)}
+                  className={`px-4 py-2 rounded-full text-xs font-semibold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-forest-600 text-white shadow-sm'
+                      : (darkMode ? 'bg-elegant-card text-zinc-300 border border-white/5 hover:border-white/15' : 'bg-white text-zinc-600 border border-gray-200/80 hover:border-gray-300')
+                  }`}
+                >
+                  {renderFilterIcon(filter.icon, 13)}
+                  <span>{filter.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Active category / departure-date / pickup-city filter chips */}
+        {(selectedHomeFilter || selectedDate || filterPickupCity !== 'All') && (
+          <div className="flex items-center flex-wrap gap-2 mt-3">
+            {selectedHomeFilter && (
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
                 darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
               }`}>
-                <Calendar size={14} /> Departing {selectedDateLabel}
+                {renderFilterIcon(homeFilters.find(f => f.id === selectedHomeFilter || f.label === selectedHomeFilter)?.icon, 13)}
+                <span>{homeFilters.find(f => f.id === selectedHomeFilter || f.label === selectedHomeFilter)?.label || selectedHomeFilter}</span>
                 <button
-                  onClick={() => onSetDate && onSetDate('')}
-                  aria-label="Clear date filter"
-                  className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
+                  onClick={() => onSetHomeFilter('')}
+                  aria-label="Clear category filter"
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ml-0.5 cursor-pointer ${
                     darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
                   }`}
                 >
-                  <X size={12} />
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+            {selectedDate && (
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
+                darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
+              }`}>
+                <Calendar size={13} /> Departing {selectedDateLabel}
+                <button
+                  onClick={() => onSetDate && onSetDate('')}
+                  aria-label="Clear date filter"
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ml-0.5 cursor-pointer ${
+                    darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
+                  }`}
+                >
+                  <X size={11} />
                 </button>
               </span>
             )}
             {filterPickupCity !== 'All' && (
-              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
                 darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
               }`}>
-                <Bus size={14} /> Ex-{filterPickupCity}
+                <Bus size={13} /> Ex-{filterPickupCity}
                 <button
                   onClick={() => setFilterPickupCity('All')}
                   aria-label="Clear pickup city filter"
-                  className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ml-0.5 cursor-pointer ${
                     darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
                   }`}
                 >
-                  <X size={12} />
+                  <X size={11} />
                 </button>
               </span>
             )}
@@ -310,12 +389,12 @@ export default function ExploreView({
         )}
 
         {/* Difficulty pills */}
-        <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar pb-0.5">
+        <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar pb-0.5">
           {['All', 'Easy', 'Moderate', 'Difficult'].map(diff => (
             <button
               key={diff}
               onClick={() => setFilterDifficulty(diff)}
-              className={`px-5 py-2.5 rounded-full text-sm font-medium shrink-0 transition ${
+              className={`px-4 py-1.5 rounded-full text-xs font-medium shrink-0 transition cursor-pointer ${
                 filterDifficulty === diff
                   ? 'bg-spy-orange text-white shadow-sm'
                   : (darkMode ? 'bg-elegant-card text-zinc-300' : 'bg-white text-zinc-600 border border-gray-200/70')
@@ -353,21 +432,27 @@ export default function ExploreView({
               {/* 1. Category filter (difficulty lives in the primary pills above) */}
               {homeFilters.length > 0 && (
                 <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Region & collection</label>
+                  <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Trek Category & Region</label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => onSetHomeFilter('')}
                       className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition ${!selectedHomeFilter ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
                     >All</button>
-                    {homeFilters.map((filter) => (
-                      <button
-                        key={filter.id}
-                        type="button"
-                        onClick={() => onSetHomeFilter(filter.id)}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition ${selectedHomeFilter === filter.id ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
-                      >{filter.label}</button>
-                    ))}
+                    {homeFilters.map((filter) => {
+                      const isSelected = selectedHomeFilter === filter.id || selectedHomeFilter === filter.label;
+                      return (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          onClick={() => onSetHomeFilter(isSelected ? '' : filter.id)}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isSelected ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
+                        >
+                          {renderFilterIcon(filter.icon, 13)}
+                          <span>{filter.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

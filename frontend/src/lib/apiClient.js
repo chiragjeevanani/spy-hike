@@ -171,18 +171,17 @@ async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, inv
 
   if (!res.ok) {
     const message = data?.error?.message || `Request failed (${res.status})`;
-    if (res.status === 403 && message.toLowerCase().includes('deactivated')) {
+    const isAuthedCall = Boolean(auth && headers.Authorization);
+    if (isAuthedCall && res.status === 403 && message.toLowerCase().includes('deactivated')) {
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'deactivated' } }));
-    } else if (res.status === 403 && message.toLowerCase().includes('banned')) {
+    } else if (isAuthedCall && res.status === 403 && message.toLowerCase().includes('banned')) {
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'banned' } }));
-    } else if (res.status === 401 && message.toLowerCase().includes('deleted')) {
+    } else if (isAuthedCall && res.status === 401 && message.toLowerCase().includes('deleted')) {
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'deleted' } }));
-    } else if (res.status === 401) {
-      // Any other 401 means the stored JWT is absent, malformed, expired, or
-      // was signed with a different JWT_SECRET than the server now runs with.
-      // Drop it — otherwise the app keeps believing it's signed in (auth state
-      // lives in `trekigo_user`, separate from this token) and every authed
-      // call fails forever with no way back to a login screen.
+    } else if (isAuthedCall && res.status === 401) {
+      // Any other 401 on an authenticated call means the stored JWT is absent,
+      // malformed, expired, or was signed with a different JWT_SECRET than the
+      // server now runs with. Drop it so the active session can reset.
       clearToken();
       responseCache.clear();
       window.dispatchEvent(new CustomEvent('auth-session-expired'));

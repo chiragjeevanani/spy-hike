@@ -68,9 +68,9 @@ export default function HomeFiltersCms({ filters, onChange, darkMode }) {
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <h2 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
-            <SlidersHorizontal size={16} className="text-[#F27D26]" /> Homepage filters
+            <SlidersHorizontal size={16} className="text-[#F27D26]" /> Trek Categories & Filters
           </h2>
-          <p className="text-[11px] text-slate-400 mt-1">Create, order, publish, edit, or delete the collections shown below the homepage search bar.</p>
+          <p className="text-[11px] text-slate-400 mt-1">Create, order, publish, edit, or delete categories and filters used by organizers and hikers across Explore and Trek selection.</p>
         </div>
         <button type="button" onClick={openCreate} className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#F27D26] text-white">
           <Plus size={13} /> New filter
