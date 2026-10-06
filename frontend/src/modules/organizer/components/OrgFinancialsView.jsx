@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Wallet, Landmark, Smartphone, ShieldCheck, RefreshCw, Copy, CheckCircle2,
@@ -129,6 +130,25 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
     if (status === 'Processing') return { icon: Clock, cls: 'bg-amber-500/15 text-amber-400' };
     return { icon: XCircle, cls: 'bg-red-500/15 text-red-400' };
   };
+
+  // Lock body scroll and listen for Escape key when bottom sheet is open
+  useEffect(() => {
+    if (!editingBank) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setEditingBank(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [editingBank]);
 
   return (
     <div className={`h-full flex-1 overflow-y-auto font-sans ${darkMode ? 'text-white' : 'text-zinc-800'}`}>
@@ -554,134 +574,223 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
 
       </div>
 
-      {/* Edit bank details modal */}
-      <AnimatePresence>
-        {editingBank && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
-            onClick={() => setEditingBank(false)}
-          >
-            <div
-              className={`w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl border ${
-                darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-[#FAF8F2] border-zinc-200/80 text-zinc-900'
-              }`}
-              onClick={(e) => e.stopPropagation()}
+      {/* Edit bank details bottom sheet modal */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {editingBank && (
+            <motion.div
+              key="bank-modal-backdrop"
+              id="payout-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-xs cursor-pointer"
+              onClick={() => setEditingBank(false)}
             >
-              <div className={`px-5 pt-5 pb-4 shrink-0 flex items-center justify-between border-b ${
-                darkMode ? 'bg-zinc-900/80 border-white/10' : 'bg-white/80 backdrop-blur-md border-zinc-200/70'
-              }`}>
-                <h2 className="text-lg font-display font-black">Payout Details</h2>
-                <button
-                  type="button"
-                  onClick={() => setEditingBank(false)}
-                  className={`p-2 rounded-xl cursor-pointer transition ${darkMode ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
-                >
-                  <X size={17} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-                <div className={`rounded-2xl p-4 space-y-4 ${darkMode ? 'bg-zinc-900/80 border border-white/10 shadow-xs' : 'bg-white/90 border border-zinc-200/80 shadow-xs'}`}>
-                  <div>
-                    <label className={labelCls}>Account Holder Name *</label>
-                    <input
-                      ref={el => { bankFieldRefs.current.accountHolderName = { current: el }; }}
-                      type="text"
-                      className={`${inputCls} ${bankFieldErrors.accountHolderName ? 'border-red-500 focus:border-red-500' : ''}`}
-                      placeholder="As per bank records"
-                      value={bankForm.accountHolderName}
-                      onChange={e => { setBankForm(p => ({ ...p, accountHolderName: e.target.value })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, accountHolderName: '' })); }}
-                    />
-                    {bankFieldErrors.accountHolderName && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.accountHolderName}</p>}
-                  </div>
-                  <div>
-                    <label className={labelCls}>UPI ID</label>
-                    <input
-                      ref={el => { bankFieldRefs.current.upiId = { current: el }; }}
-                      type="text"
-                      className={`${inputCls} ${bankFieldErrors.upiId ? 'border-red-500 focus:border-red-500' : ''}`}
-                      placeholder="yourname@upi"
-                      value={bankForm.upiId}
-                      onChange={e => { setBankForm(p => ({ ...p, upiId: e.target.value })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, upiId: '', method: '' })); }}
-                    />
-                    {bankFieldErrors.upiId && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.upiId}</p>}
-                  </div>
-                  <div className={`text-center text-[10px] font-bold uppercase tracking-widest ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>— or bank account —</div>
-                  {bankFieldErrors.method && <p className="text-[11px] font-semibold text-red-500 text-center">{bankFieldErrors.method}</p>}
-                  <div>
-                    <label className={labelCls}>Bank Name</label>
-                    <input
-                      ref={el => { bankFieldRefs.current.bankName = { current: el }; }}
-                      type="text"
-                      className={`${inputCls} ${bankFieldErrors.bankName ? 'border-red-500 focus:border-red-500' : ''}`}
-                      placeholder="e.g. HDFC Bank"
-                      value={bankForm.bankName}
-                      onChange={e => { setBankForm(p => ({ ...p, bankName: e.target.value })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, bankName: '', method: '' })); }}
-                    />
-                    {bankFieldErrors.bankName && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.bankName}</p>}
-                  </div>
-                  <div>
-                    <label className={labelCls}>Account Number</label>
-                    <input
-                      ref={el => { bankFieldRefs.current.accountNumber = { current: el }; }}
-                      type="text"
-                      inputMode="numeric"
-                      className={`${inputCls} ${bankFieldErrors.accountNumber ? 'border-red-500 focus:border-red-500' : ''}`}
-                      placeholder="XXXXXXXXXXXX"
-                      value={bankForm.accountNumber}
-                      onChange={e => { setBankForm(p => ({ ...p, accountNumber: e.target.value.replace(/\D/g, '') })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, accountNumber: '', method: '' })); }}
-                    />
-                    {bankFieldErrors.accountNumber && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.accountNumber}</p>}
-                  </div>
-                  <div>
-                    <label className={labelCls}>IFSC Code</label>
-                    <input
-                      ref={el => { bankFieldRefs.current.ifsc = { current: el }; }}
-                      type="text"
-                      className={`${inputCls} ${bankFieldErrors.ifsc ? 'border-red-500 focus:border-red-500' : ''}`}
-                      placeholder="e.g. HDFC0001234"
-                      value={bankForm.ifsc}
-                      onChange={e => { setBankForm(p => ({ ...p, ifsc: e.target.value.toUpperCase() })); setBankFormError(''); setBankFieldErrors(er => ({ ...er, ifsc: '', method: '' })); }}
-                    />
-                    {bankFieldErrors.ifsc && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.ifsc}</p>}
-                  </div>
-                  <div>
-                    <label className={labelCls}>PAN Number (for tax records)</label>
-                    <input
-                      ref={el => { bankFieldRefs.current.panNumber = { current: el }; }}
-                      type="text"
-                      className={`${inputCls} ${bankFieldErrors.panNumber ? 'border-red-500 focus:border-red-500' : ''}`}
-                      placeholder="ABCDE1234F"
-                      value={bankForm.panNumber}
-                      onChange={e => { setBankForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() })); setBankFieldErrors(er => ({ ...er, panNumber: '' })); }}
-                    />
-                    {bankFieldErrors.panNumber && <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.panNumber}</p>}
-                  </div>
-                  {bankFormError && (
-                    <div className={`flex gap-2 items-center p-3 rounded-xl text-xs font-semibold ${
-                      darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'
-                    }`}>
-                      <AlertCircle size={14} className="shrink-0" /> {bankFormError}
-                    </div>
-                  )}
+              {/* Bottom sheet popup */}
+              <motion.div
+                key="bank-modal-sheet"
+                id="payout-modal-sheet"
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                className={`w-full max-w-lg mx-auto rounded-t-3xl sm:rounded-t-[32px] overflow-hidden flex flex-col max-h-[90vh] shadow-2xl border-t border-x cursor-default ${
+                  darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-[#FAF8F2] border-zinc-200/80 text-zinc-900'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Pull handle indicator */}
+                <div className="pt-3 pb-1 flex justify-center shrink-0">
+                  <div className={`w-12 h-1.5 rounded-full ${darkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`} />
                 </div>
-              </div>
-              <div className="px-5 py-4 shrink-0 border-t border-zinc-200/60 dark:border-white/5">
-                <button
-                  type="button"
-                  id="btn-save-bank-details"
-                  onClick={handleBankSave}
-                  className="w-full py-3.5 rounded-2xl bg-spy-orange text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer hover:bg-[#d96d1a]"
-                >
-                  <Save size={16} /> Save Payout Details
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+                {/* Header */}
+                <div className={`px-5 py-3.5 shrink-0 flex items-center justify-between border-b ${
+                  darkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/80 backdrop-blur-md border-zinc-200/70'
+                }`}>
+                  <div>
+                    <h2 className="text-lg font-display font-black">Payout Details</h2>
+                    <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Add your bank or UPI info for direct withdrawals
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-close-payout-modal"
+                    onClick={() => setEditingBank(false)}
+                    className={`p-2 rounded-xl cursor-pointer transition ${
+                      darkMode ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    }`}
+                    aria-label="Close"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+
+                {/* Form fields body */}
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5 overscroll-contain">
+                  <div className={`rounded-2xl p-4 space-y-3.5 ${
+                    darkMode ? 'bg-zinc-950/60 border border-white/10 shadow-xs' : 'bg-white border border-zinc-200/80 shadow-xs'
+                  }`}>
+                    <div>
+                      <label className={labelCls}>Account Holder Name *</label>
+                      <input
+                        ref={el => { bankFieldRefs.current.accountHolderName = { current: el }; }}
+                        type="text"
+                        className={`${inputCls} ${bankFieldErrors.accountHolderName ? 'border-red-500 focus:border-red-500' : ''}`}
+                        placeholder="As per bank records"
+                        value={bankForm.accountHolderName}
+                        onChange={e => {
+                          setBankForm(p => ({ ...p, accountHolderName: e.target.value }));
+                          setBankFormError('');
+                          setBankFieldErrors(er => ({ ...er, accountHolderName: '' }));
+                        }}
+                      />
+                      {bankFieldErrors.accountHolderName && (
+                        <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.accountHolderName}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>UPI ID</label>
+                      <input
+                        ref={el => { bankFieldRefs.current.upiId = { current: el }; }}
+                        type="text"
+                        className={`${inputCls} ${bankFieldErrors.upiId ? 'border-red-500 focus:border-red-500' : ''}`}
+                        placeholder="yourname@upi"
+                        value={bankForm.upiId}
+                        onChange={e => {
+                          setBankForm(p => ({ ...p, upiId: e.target.value }));
+                          setBankFormError('');
+                          setBankFieldErrors(er => ({ ...er, upiId: '', method: '' }));
+                        }}
+                      />
+                      {bankFieldErrors.upiId && (
+                        <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.upiId}</p>
+                      )}
+                    </div>
+
+                    <div className="relative flex py-1 items-center">
+                      <div className={`flex-grow border-t ${darkMode ? 'border-white/10' : 'border-zinc-200'}`} />
+                      <span className={`flex-shrink mx-3 text-[10px] font-bold uppercase tracking-widest ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                        or bank account
+                      </span>
+                      <div className={`flex-grow border-t ${darkMode ? 'border-white/10' : 'border-zinc-200'}`} />
+                    </div>
+
+                    {bankFieldErrors.method && (
+                      <p className="text-[11px] font-semibold text-red-500 text-center">{bankFieldErrors.method}</p>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Bank Name</label>
+                        <input
+                          ref={el => { bankFieldRefs.current.bankName = { current: el }; }}
+                          type="text"
+                          className={`${inputCls} ${bankFieldErrors.bankName ? 'border-red-500 focus:border-red-500' : ''}`}
+                          placeholder="e.g. HDFC Bank"
+                          value={bankForm.bankName}
+                          onChange={e => {
+                            setBankForm(p => ({ ...p, bankName: e.target.value }));
+                            setBankFormError('');
+                            setBankFieldErrors(er => ({ ...er, bankName: '', method: '' }));
+                          }}
+                        />
+                        {bankFieldErrors.bankName && (
+                          <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.bankName}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>IFSC Code</label>
+                        <input
+                          ref={el => { bankFieldRefs.current.ifsc = { current: el }; }}
+                          type="text"
+                          className={`${inputCls} ${bankFieldErrors.ifsc ? 'border-red-500 focus:border-red-500' : ''}`}
+                          placeholder="e.g. HDFC0001234"
+                          value={bankForm.ifsc}
+                          onChange={e => {
+                            setBankForm(p => ({ ...p, ifsc: e.target.value.toUpperCase() }));
+                            setBankFormError('');
+                            setBankFieldErrors(er => ({ ...er, ifsc: '', method: '' }));
+                          }}
+                        />
+                        {bankFieldErrors.ifsc && (
+                          <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.ifsc}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Account Number</label>
+                      <input
+                        ref={el => { bankFieldRefs.current.accountNumber = { current: el }; }}
+                        type="text"
+                        inputMode="numeric"
+                        className={`${inputCls} ${bankFieldErrors.accountNumber ? 'border-red-500 focus:border-red-500' : ''}`}
+                        placeholder="XXXXXXXXXXXX"
+                        value={bankForm.accountNumber}
+                        onChange={e => {
+                          setBankForm(p => ({ ...p, accountNumber: e.target.value.replace(/\D/g, '') }));
+                          setBankFormError('');
+                          setBankFieldErrors(er => ({ ...er, accountNumber: '', method: '' }));
+                        }}
+                      />
+                      {bankFieldErrors.accountNumber && (
+                        <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.accountNumber}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>PAN Number (for tax records)</label>
+                      <input
+                        ref={el => { bankFieldRefs.current.panNumber = { current: el }; }}
+                        type="text"
+                        className={`${inputCls} ${bankFieldErrors.panNumber ? 'border-red-500 focus:border-red-500' : ''}`}
+                        placeholder="ABCDE1234F"
+                        value={bankForm.panNumber}
+                        onChange={e => {
+                          setBankForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() }));
+                          setBankFieldErrors(er => ({ ...er, panNumber: '' }));
+                        }}
+                      />
+                      {bankFieldErrors.panNumber && (
+                        <p className="text-[11px] font-semibold text-red-500 mt-1">{bankFieldErrors.panNumber}</p>
+                      )}
+                    </div>
+
+                    {bankFormError && (
+                      <div className={`flex gap-2 items-center p-3 rounded-xl text-xs font-semibold ${
+                        darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'
+                      }`}>
+                        <AlertCircle size={14} className="shrink-0" /> {bankFormError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Save Button - pinned at bottom */}
+                <div className={`px-5 py-4 shrink-0 border-t ${
+                  darkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200/70'
+                }`}>
+                  <button
+                    type="button"
+                    id="btn-save-bank-details"
+                    onClick={handleBankSave}
+                    className="w-full py-3.5 rounded-2xl bg-spy-orange text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer hover:bg-[#d96d1a]"
+                  >
+                    <Save size={16} /> Save Payout Details
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
