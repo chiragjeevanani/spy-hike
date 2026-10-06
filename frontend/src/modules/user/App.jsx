@@ -2223,7 +2223,7 @@ export default function App() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.8, y: 8 }}
                 whileTap={{ scale: 0.9 }}
-                className="fixed right-5 bottom-20 md:bottom-8 z-40 w-12 h-12 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 hover:bg-forest-700 active:scale-95 transition cursor-pointer">
+                className="fixed right-5 bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 z-40 w-12 h-12 rounded-full bg-forest-600 text-white flex items-center justify-center shadow-xl shadow-forest-900/30 hover:bg-forest-700 active:scale-95 transition cursor-pointer">
                 <Map size={20} />
               </motion.button>
             )}
