@@ -11,7 +11,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { upsertAdmin, upsertCategories, upsertCoupons, upsertTrips } from './seed.js';
+import { upsertAdmin, upsertCategories, upsertHomeFilters, upsertCoupons, upsertTrips } from './seed.js';
 import Admin from './models/Admin.js';
 import User from './models/User.js';
 import Trek from './models/Trek.js';
@@ -35,6 +35,7 @@ async function seedCatalogTrips() {
       elevationMeters: 3658,
       coverImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80',
       category: 'Trekking',
+      homeFilterIds: ['himalayas', 'popular'],
       status: 'Active',
       trending: true,
     },
@@ -216,6 +217,7 @@ async function start() {
 
   await upsertAdmin();
   await upsertCategories();
+  await upsertHomeFilters();
   await upsertCoupons();
   await upsertTrips();
   await seedCatalogTrips();

@@ -6,7 +6,7 @@ import React, {
   useRef,
 } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Map, AlertTriangle } from "lucide-react";
+import { Map, AlertTriangle, LogIn } from "lucide-react";
 import {
   resetPageScroll,
   nextHistoryKey,
@@ -1064,9 +1064,10 @@ export default function App() {
 
   useEffect(() => {
     const handleStatusChangeEvent = (e) => {
+      if (!user.isAuthenticated) return;
+      clearToken();
       const reason = e.detail?.reason || "banned";
       setBannedReason(reason);
-      handleLogoutResets();
       setBannedAlert(true);
     };
     window.addEventListener("hiker-status-changed", handleStatusChangeEvent);
@@ -1075,23 +1076,33 @@ export default function App() {
         "hiker-status-changed",
         handleStatusChangeEvent,
       );
-  }, []);
+  }, [user.isAuthenticated]);
 
   // The stored JWT was rejected (expired, or signed with a different secret).
-  // apiClient has already dropped it; end the local session too so the user
-  // lands on login instead of a zombie "signed in" state where every authed
-  // call 401s.
+  // apiClient has already dropped it; prompt the session expired popup if the
+  // user was signed in so they can smoothly tap "Log In Again" to re-authenticate.
   useEffect(() => {
     const handleSessionExpired = () => {
-      if (!loadUserState().isAuthenticated) return;
+      if (!user.isAuthenticated || !getToken()) return;
+      clearToken();
       setBannedReason("expired");
-      handleLogoutResets();
       setBannedAlert(true);
     };
     window.addEventListener("auth-session-expired", handleSessionExpired);
     return () =>
       window.removeEventListener("auth-session-expired", handleSessionExpired);
-  }, []);
+  }, [user.isAuthenticated]);
+
+  // Prevent background scrolling while the session-expired / account status popup is open
+  useEffect(() => {
+    if (bannedAlert) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [bannedAlert]);
 
   useEffect(() => {
     saveChats(chats);
@@ -1434,6 +1445,8 @@ export default function App() {
 
   // Sign In success
   const handleAuthSuccess = (authenticatedUser) => {
+    setBannedAlert(false);
+    setBannedReason(null);
     setUser(authenticatedUser);
     if (redirectAfterAuth) {
       navigateTo(redirectAfterAuth, false, authenticatedUser);
@@ -1448,6 +1461,8 @@ export default function App() {
     // Drop the JWT too — leaving it behind means the next sign-in carries a
     // stale token, and any authed call made before re-login 401s.
     clearToken();
+    setBannedAlert(false);
+    setBannedReason(null);
     const resetUser = {
       isAuthenticated: false,
       isOnboarded: true, // Keep onboarding done — logout should land on the login screen, not the onboarding carousel
@@ -1465,6 +1480,7 @@ export default function App() {
       rememberMe: false,
     };
     setUser(resetUser);
+    saveUserState(resetUser);
     navigateTo("/login", true, resetUser);
   };
 
@@ -2263,67 +2279,119 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* 8. Hiker Banned Overlay Dialog */}
-          <AnimatePresence>
-            {bannedAlert && (
-              <div className="absolute inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-6">
-                <motion.div
-                  initial={{ scale: 0.95, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.95, opacity: 0 }}
-                  className="bg-white dark:bg-[#1C120C] border border-red-500/30 rounded-3xl p-6 w-full text-center space-y-4 shadow-xl z-[1000]">
-                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto text-red-500">
-                    <AlertTriangle size={24} />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
-                      {bannedReason === "expired"
-                        ? "Session Expired"
-                        : bannedReason === "deleted"
-                          ? "Account Deleted"
-                          : bannedReason === "deactivated"
-                            ? "Account Deactivated"
-                            : "Account Suspended"}
-                    </h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
-                      {bannedReason === "expired"
-                        ? "Your sign-in session has expired. Please sign in again to continue."
-                        : bannedReason === "deleted"
-                          ? "Your account has been deleted by the admin."
-                          : bannedReason === "deactivated"
-                            ? "Your account is deactivated. Kindly contact customer support for more details."
-                            : "You are banned by the admin."}
-                    </p>
-                  </div>
+        </div>
+      )}
 
-                  {bannedReason === "deactivated" && (
-                    <div className="bg-slate-50 dark:bg-[#2A1E17] border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">
-                        Customer Support Contacts
-                      </div>
-                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                        {supportContact.phone}
-                      </div>
-                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                        {supportContact.email}
-                      </div>
-                    </div>
-                  )}
+      {/* 8. Hiker Banned / Session Expired Overlay Dialog */}
+      <AnimatePresence>
+        {bannedAlert && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-hidden"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white dark:bg-[#1C120C] border border-red-500/30 rounded-3xl p-6 w-full max-w-sm mx-auto text-center space-y-4 shadow-2xl relative z-[10000]"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto text-red-500">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-serif text-base font-bold text-red-600 dark:text-red-500">
+                  {bannedReason === "expired"
+                    ? "Session Expired"
+                    : bannedReason === "deleted"
+                      ? "Account Deleted"
+                      : bannedReason === "deactivated"
+                        ? "Account Deactivated"
+                        : "Account Suspended"}
+                </h4>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
+                  {bannedReason === "expired"
+                    ? "Your sign-in session has expired. Please sign in again to continue."
+                    : bannedReason === "deleted"
+                      ? "Your account has been deleted by the admin."
+                      : bannedReason === "deactivated"
+                        ? "Your account is deactivated. Kindly contact customer support for more details."
+                        : "You are banned by the admin."}
+                </p>
+              </div>
 
+              {bannedReason === "deactivated" && (
+                <div className="bg-slate-50 dark:bg-[#2A1E17] border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2">
+                  <div className="text-[10px] uppercase font-bold text-slate-400">
+                    Customer Support Contacts
+                  </div>
+                  <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    {supportContact.phone}
+                  </div>
+                  <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    {supportContact.email}
+                  </div>
+                </div>
+              )}
+
+              {bannedReason === "expired" ? (
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleLogoutResets();
+                    }}
+                    className="w-full bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold py-3 px-4 rounded-full cursor-pointer active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <LogIn size={15} />
+                    Log In Again
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
                       setBannedAlert(false);
+                      setBannedReason(null);
+                      clearToken();
+                      const resetUser = {
+                        isAuthenticated: false,
+                        isOnboarded: true,
+                        isOrganizer: false,
+                        name: "",
+                        email: "",
+                        mobile: "",
+                        age: 24,
+                        gender: "",
+                        avatar:
+                          "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+                        hikingExperience: "Beginner",
+                        fitnessLevel: "Moderate",
+                        emergencyContact: "",
+                        rememberMe: false,
+                      };
+                      setUser(resetUser);
+                      saveUserState(resetUser);
                     }}
-                    className="w-full bg-red-650 hover:bg-red-750 text-white text-xs font-bold py-3 rounded-full cursor-pointer active:scale-95 transition-all">
-                    Okay
+                    className="w-full bg-transparent hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400 text-xs font-semibold py-2 rounded-full cursor-pointer transition-colors"
+                  >
+                    Continue as Guest
                   </button>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLogoutResets();
+                  }}
+                  className="w-full bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold py-3 rounded-full cursor-pointer active:scale-95 transition-all shadow-md"
+                >
+                  Okay
+                </button>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </PhoneFrame>
   );
 }

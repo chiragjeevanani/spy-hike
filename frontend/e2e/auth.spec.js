@@ -77,6 +77,43 @@ test.describe('Phase 1 — Customer auth', () => {
     const token = await page.evaluate(() => localStorage.getItem('trekigo_auth_token'));
     expect(token).toBeFalsy();
   });
+
+  test('session expiration shows compact popup with Log In Again button leading to login', async ({ page }) => {
+    await page.goto('/app/login');
+    await dismissOnboarding(page);
+    await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
+    await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
+    await page.click('#btn-login-email-submit');
+
+    await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
+    // Initially after login, session expired popup MUST NOT be visible
+    await expect(page.getByText('Session Expired')).toHaveCount(0);
+
+    // Simulate session expiry event while user is active in the app
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('auth-session-expired'));
+    });
+
+    // Session Expired popup should appear
+    const modalTitle = page.getByRole('heading', { name: 'Session Expired' });
+    await expect(modalTitle).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Your sign-in session has expired. Please sign in again to continue.')).toBeVisible();
+
+    const loginAgainBtn = page.getByRole('button', { name: /Log In Again/i });
+    await expect(loginAgainBtn).toBeVisible();
+
+    // Clicking "Log In Again" navigates to the login screen
+    await loginAgainBtn.click();
+    await expect(page.getByRole('heading', { name: 'Session Expired' })).toHaveCount(0);
+    await expect(page.locator('input[placeholder*="Email address"], input[type="email"]')).toBeVisible({ timeout: 10000 });
+
+    // Logging in again succeeds and does not show any stale session expired modal
+    await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
+    await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
+    await page.click('#btn-login-email-submit');
+    await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Session Expired' })).toHaveCount(0);
+  });
 });
 
 test.describe('Phase 1 — Admin auth', () => {

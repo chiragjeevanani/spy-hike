@@ -204,3 +204,68 @@ describe('apiClient live (uncached) reads', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('apiClient 401 session expiration handling', () => {
+  let dispatchedEvents;
+
+  beforeEach(() => {
+    dispatchedEvents = [];
+    const storage = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => storage[k] ?? null,
+      setItem: (k, v) => { storage[k] = String(v); },
+      removeItem: (k) => { delete storage[k]; },
+      clear: () => { Object.keys(storage).forEach((k) => delete storage[k]); },
+    });
+    vi.stubGlobal('window', {
+      dispatchEvent: vi.fn((evt) => dispatchedEvents.push(evt)),
+      location: { pathname: '/app' },
+    });
+    class MockCustomEvent {
+      constructor(type, init) {
+        this.type = type;
+        this.detail = init?.detail;
+      }
+    }
+    vi.stubGlobal('CustomEvent', MockCustomEvent);
+    clearApiCache();
+    setToken(null);
+  });
+
+  afterEach(() => {
+    clearApiCache();
+    vi.unstubAllGlobals();
+  });
+
+  it('does NOT dispatch auth-session-expired when an unauthenticated call (auth: false) returns 401', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      text: async () => JSON.stringify({ error: { message: 'Invalid credentials' } }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api.post('/auth/login', { email: 'a@b.com' }, { auth: false })).rejects.toThrow();
+
+    const expiredEvent = dispatchedEvents.find((e) => e.type === 'auth-session-expired');
+    expect(expiredEvent).toBeUndefined();
+  });
+
+  it('dispatches auth-session-expired and clears token when an authenticated call returns 401', async () => {
+    setToken('dummy-jwt-token');
+
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      text: async () => JSON.stringify({ error: { message: 'Token expired' } }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api.get('/bookings', { auth: true })).rejects.toThrow();
+
+    const expiredEvent = dispatchedEvents.find((e) => e.type === 'auth-session-expired');
+    expect(expiredEvent).toBeDefined();
+    expect(localStorage.getItem('trekigo_auth_token')).toBeNull();
+  });
+});
+

@@ -215,13 +215,27 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const [treksLoading, setTreksLoading] = useState(true);
   const [trekSearch, setTrekSearch] = useState('');
   const [pickingTrek, setPickingTrek] = useState(!trip?.trekId);
+  const [adminCategories, setAdminCategories] = useState([]);
+  const [selectedTrekCategory, setSelectedTrekCategory] = useState('All');
 
   useEffect(() => {
     treksApi.listTreks()
       .then(setTreks)
       .catch(() => setTreks([]))
       .finally(() => setTreksLoading(false));
+
+    treksApi.listHomeFilters()
+      .then(setAdminCategories)
+      .catch(() => setAdminCategories([]));
   }, []);
+
+  const availableCategoryOptions = useMemo(() => {
+    const list = [...CATEGORY_OPTIONS];
+    adminCategories.forEach(c => {
+      if (c.label && !list.includes(c.label)) list.push(c.label);
+    });
+    return list;
+  }, [adminCategories]);
 
   // If the trip's trek is no longer Active (admin disabled it), it won't be
   // in the fetched list — fall back to the trip's own snapshotted fields so
@@ -328,6 +342,15 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   // Fuzzy-matches against title and location, keeping whichever field
   // matches best, then ranks results so the tightest matches sort first.
   const filteredTreks = treks
+    .filter(t => {
+      if (selectedTrekCategory === 'All') return true;
+      const cat = adminCategories.find(c => c.id === selectedTrekCategory || c.label === selectedTrekCategory);
+      const catId = cat?.id || selectedTrekCategory;
+      const catLabel = cat?.label?.toLowerCase() || selectedTrekCategory.toLowerCase();
+      const inHomeFilters = (t.homeFilterIds || []).includes(catId) || (t.homeFilterIds || []).some(id => String(id).toLowerCase() === catLabel);
+      const inCategory = t.category?.toLowerCase() === catLabel || t.category?.toLowerCase() === catId.toLowerCase();
+      return inHomeFilters || inCategory;
+    })
     .map(t => {
       const titleScore = fuzzyScore(trekSearch, t.title);
       const locationScore = fuzzyScore(trekSearch, t.location);
@@ -380,7 +403,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       }
       if (clean(trek.included).length && (blankList(prev.included) || prev.included.join() === INCLUDED_DEFAULTS.join())) next.included = clean(trek.included);
       if (clean(trek.notIncluded).length && (blankList(prev.notIncluded) || prev.notIncluded.join() === NOT_INCLUDED_DEFAULTS.join())) next.notIncluded = clean(trek.notIncluded);
-      if (trek.category && CATEGORY_OPTIONS.includes(trek.category) && prev.category === 'Trekking') next.category = trek.category;
+      if (trek.category && availableCategoryOptions.includes(trek.category) && prev.category === 'Trekking') next.category = trek.category;
       if (blankText(prev.pickup.location) && trek.city) next.pickup = { ...prev.pickup, location: trek.city };
       return next;
     });
@@ -946,6 +969,35 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                   }`}
                 />
               </div>
+              {adminCategories.length > 0 && (
+                <div className={`p-2 border-b flex gap-1.5 overflow-x-auto no-scrollbar ${darkMode ? 'border-white/10 bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTrekCategory('All')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                      selectedTrekCategory === 'All'
+                        ? 'bg-spy-orange text-white'
+                        : darkMode ? 'bg-zinc-900 text-zinc-400 hover:text-white border border-white/5' : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {adminCategories.map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedTrekCategory(selectedTrekCategory === cat.id ? 'All' : cat.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                        selectedTrekCategory === cat.id
+                          ? 'bg-spy-orange text-white'
+                          : darkMode ? 'bg-zinc-900 text-zinc-400 hover:text-white border border-white/5' : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className={`max-h-72 overflow-y-auto no-scrollbar divide-y ${darkMode ? 'divide-white/10' : 'divide-zinc-100'}`}>
                 {treksLoading ? (
                   <p className="text-center text-xs font-bold py-6 text-zinc-400">Loading treks...</p>
@@ -1405,7 +1457,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
         <div>
           <label className={labelCls}>Category</label>
           <div className="flex flex-wrap gap-2">
-            {CATEGORY_OPTIONS.map(c => (
+            {availableCategoryOptions.map(c => (
               <button
                 key={c}
                 type="button"

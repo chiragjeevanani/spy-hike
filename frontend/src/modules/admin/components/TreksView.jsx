@@ -761,10 +761,10 @@ export default function TreksView({ darkMode }) {
               </div>
 
               <div>
-                <label className={labelCls}>Homepage filters</label>
-                <p className="text-[10px] text-slate-400 -mt-1 mb-2">Choose every customer-facing collection where this trek should appear. “All” includes it automatically.</p>
+                <label className={labelCls}>Trek Categories & Filters</label>
+                <p className="text-[10px] text-slate-400 -mt-1 mb-2">Choose every category and filter where this trek should appear. Hikers and organizers use these to filter treks.</p>
                 {homeFilters.length === 0 ? (
-                  <div className={`rounded-xl border border-dashed p-3 text-[11px] ${darkMode ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'}`}>Create a homepage filter above before assigning this trek.</div>
+                  <div className={`rounded-xl border border-dashed p-3 text-[11px] ${darkMode ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'}`}>Create a category / filter above before assigning this trek.</div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     {homeFilters.map((filter) => {
