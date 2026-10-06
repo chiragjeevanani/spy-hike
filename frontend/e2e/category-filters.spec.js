@@ -61,5 +61,32 @@ test.describe('Trek Categories and Explore Filters', () => {
     const allTrekPill = page.locator('button', { hasText: /^All$/ }).first();
     await expect(allTrekPill).toBeVisible();
   });
+
+  test('verifies desktop / laptop layout has balanced full-width search bar and promotional carousel', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await seedLocalStorage(page, {
+      trekigo_user: CUSTOMER_USER,
+    });
+
+    await page.goto('/app');
+    const searchInput = page.locator('#search-input-box');
+    await expect(searchInput).toBeVisible();
+
+    // Verify search input width is generous on desktop (substantially wider than previous constricted box)
+    const searchBox = await searchInput.boundingBox();
+    expect(searchBox).not.toBeNull();
+    expect(searchBox.width).toBeGreaterThan(700);
+
+    // Verify promotional banner card width is full width (> 1000px on 1280px screen)
+    const promoCard = page.locator('.customer-promo-card');
+    await expect(promoCard).toBeVisible();
+    const promoBox = await promoCard.boundingBox();
+    expect(promoBox).not.toBeNull();
+    expect(promoBox.width).toBeGreaterThan(1000);
+
+    // Verify desktop arrow controls are rendered on desktop viewport
+    const nextArrow = page.locator('button[aria-label="Next banner"]');
+    await expect(nextArrow).toBeVisible();
+  });
 });
 

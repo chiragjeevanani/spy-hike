@@ -7,6 +7,7 @@ import {
   Star,
   MapPin,
   Heart,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   X,
@@ -25,6 +26,8 @@ import {
   Sun,
   Map,
   Snowflake,
+  Sparkles,
+  Tag,
 } from "lucide-react";
 import { PROMOTIONAL_BANNERS } from "../data/trips";
 import { groupTripsByTrekName } from "../utils/trekGroups";
@@ -425,8 +428,8 @@ export default function HomeView({
         </p>
       </div>
 
-      <div className="absolute z-20 -bottom-7 left-4 right-4 sm:left-8 sm:right-8 lg:left-12 lg:right-auto lg:w-[760px] flex flex-col md:flex-row md:items-center gap-3">
-        <div className="flex items-stretch gap-3 flex-1">
+      <div className="absolute z-20 -bottom-7 sm:-bottom-8 left-4 right-4 sm:left-8 sm:right-8 lg:left-12 lg:right-12 flex items-center gap-3">
+        <div className="flex items-stretch gap-3 w-full">
           <form onSubmit={handleSearchSubmit} className="relative flex-1">
             <Search
               className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1D2018]/65"
@@ -438,8 +441,17 @@ export default function HomeView({
               placeholder="Search treks, peaks, valleys…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border border-white/70 transition-all shadow-xl bg-[#FFFDF8]/95 focus:border-forest-500 text-[#1D2018] placeholder-[#77766D] backdrop-blur-md"
+              className="w-full text-sm sm:text-base pl-13 pr-10 py-4 sm:py-4.5 rounded-full outline-hidden border border-white/70 transition-all shadow-xl bg-[#FFFDF8]/95 focus:border-forest-500 text-[#1D2018] placeholder-[#77766D] backdrop-blur-md"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-1 cursor-pointer">
+                <X size={16} />
+              </button>
+            )}
           </form>
 
           {/* Filter treks by departure date */}
@@ -448,17 +460,26 @@ export default function HomeView({
             onClick={() => setShowDatePicker(true)}
             aria-label="Filter treks by date"
             title="Filter by Departure Date"
-            className="w-[52px] shrink-0 rounded-full border border-white/70 shadow-xl flex items-center justify-center active:scale-95 transition cursor-pointer bg-[#FFFDF8]/95 text-forest-700 backdrop-blur-md">
+            className="w-[52px] sm:w-[58px] shrink-0 rounded-full border border-white/70 shadow-xl flex items-center justify-center active:scale-95 transition cursor-pointer bg-[#FFFDF8]/95 text-forest-700 hover:bg-white hover:text-forest-800 backdrop-blur-md">
             <CalendarDays size={20} />
           </button>
-        </div>
 
+          {/* Direct Search / Explore CTA on bigger screens */}
+          <button
+            type="button"
+            onClick={handleSearchSubmit}
+            aria-label="Search treks"
+            className="hidden md:flex items-center gap-2 px-6 py-4 rounded-full bg-forest-600 hover:bg-forest-700 text-white font-bold text-sm shadow-xl active:scale-95 transition cursor-pointer shrink-0">
+            <span>Explore</span>
+            <ArrowUpRight size={16} />
+          </button>
+        </div>
       </div>
       </section>
 
       {/* 4. Promotional carousel */}
-      <div className="mt-8 md:mt-10 relative select-none">
-        <div className="customer-promo-card overflow-hidden relative aspect-[2/1] sm:aspect-[16/7] md:aspect-[21/8] lg:h-64 rounded-[1.75rem] shadow-lg">
+      <div className="w-full mt-10 sm:mt-12 lg:mt-14 relative select-none group">
+        <div className="customer-promo-card w-full overflow-hidden relative aspect-[2/1] sm:aspect-[16/7] md:aspect-auto md:h-72 lg:h-80 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
           <AnimatePresence initial={false} custom={promoDir}>
             <motion.div
               key={activePromoIdx}
@@ -491,33 +512,79 @@ export default function HomeView({
                 key={`${currentPromo.id || activePromoIdx}-${currentPromo.img ? currentPromo.img.slice(0, 40) : ""}`}
                 src={currentPromo.img}
                 alt={currentPromo.title}
-                className="w-full h-full object-cover brightness-[0.7] pointer-events-none"
+                className="w-full h-full object-cover brightness-[0.72] pointer-events-none"
                 draggable={false}
               />
-              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 sm:p-6 flex flex-col justify-between">
-                <div className="flex items-start justify-between">
-                  <span className="customer-promo-tag bg-spy-orange text-white text-[8px] sm:text-[9px] font-bold tracking-widest px-2.5 py-1.5 rounded-full uppercase flex items-center gap-1.5">
-                    <CloudRain size={12} /> {currentPromo.tag}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Save trek"
-                    className="w-9 h-9 rounded-full bg-black/30 border border-white/25 text-white flex items-center justify-center backdrop-blur-sm">
-                    <Heart size={17} />
-                  </button>
-                </div>
-                <div>
-                  <h3 className="customer-promo-title text-xl sm:text-2xl md:text-3xl font-serif font-semibold text-white leading-tight line-clamp-1">
-                    {currentPromo.title}
-                  </h3>
-                  <div className="customer-promo-subtitle flex items-center gap-3 text-[11px] sm:text-xs text-white/85 mt-1">
-                    <span className="flex items-center gap-1"><MapPin size={13} /> {currentPromoTrip?.location || currentPromo.subtitle || "Himalayas"}</span>
-                    {currentPromoTrip?.difficulty && <span>▰ {currentPromoTrip.difficulty}</span>}
+              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent p-5 sm:p-7 lg:p-9 flex flex-col justify-between">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <span className="customer-promo-tag bg-spy-orange text-white text-[9px] sm:text-xs font-bold tracking-wider px-3 py-1.5 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
+                      <Sparkles size={13} /> {currentPromo.tag}
+                    </span>
+                    {currentPromo.discount && (
+                      <span className="hidden sm:inline-flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/25 text-white text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full">
+                        <Tag size={12} /> {currentPromo.discount}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex justify-between items-end gap-2 mt-3">
-                    <div className="text-white">
-                      <span className="customer-promo-price text-xl sm:text-2xl font-bold">₹{currentPromoTrip?.price || "4,500"}</span>
-                      <span className="text-[10px] sm:text-xs text-white/70 ml-1">/ person</span>
+                  <div className="flex items-center gap-2">
+                    {promoCount > 1 && (
+                      <span className="hidden md:inline-flex text-xs font-mono font-bold text-white/80 bg-black/35 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
+                        {String(activePromoIdx + 1).padStart(2, "0")} / {String(promoCount).padStart(2, "0")}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Save trek"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentPromoTrip?.id) onToggleWishlist(currentPromoTrip.id);
+                      }}
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/25 flex items-center justify-center backdrop-blur-sm transition active:scale-90 cursor-pointer ${
+                        currentPromoTrip && wishlist?.includes(currentPromoTrip.id)
+                          ? "bg-rose-500/80 text-white border-rose-400"
+                          : "bg-black/35 text-white hover:bg-black/55"
+                      }`}>
+                      <Heart size={18} fill={currentPromoTrip && wishlist?.includes(currentPromoTrip.id) ? "currentColor" : "none"} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-auto">
+                  <div className="max-w-xl lg:max-w-2xl min-w-0">
+                    <h3 className="customer-promo-title text-xl sm:text-3xl lg:text-4xl font-serif font-semibold text-white leading-tight drop-shadow-md">
+                      {currentPromo.title}
+                    </h3>
+                    <p className="text-white/85 text-xs sm:text-sm font-medium mt-1 line-clamp-1 drop-shadow-xs">
+                      {currentPromo.subtitle}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-white/90 mt-2 sm:mt-3">
+                      <span className="flex items-center gap-1.5 bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15">
+                        <MapPin size={13} className="text-spy-orange shrink-0" />
+                        <span className="truncate max-w-[200px]">{currentPromoTrip?.location || currentPromo.subtitle || "Himalayas"}</span>
+                      </span>
+                      {currentPromoTrip?.difficulty && (
+                        <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${difficultyPill(currentPromoTrip.difficulty)}`}>
+                          {currentPromoTrip.difficulty}
+                        </span>
+                      )}
+                      {currentPromoTrip?.durationDays && (
+                        <span className="bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[11px] font-semibold">
+                          ⏱ {durationRange(currentPromoTrip)} Days
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center md:items-end justify-between md:justify-end gap-4 shrink-0 bg-black/40 md:bg-transparent backdrop-blur-xs md:backdrop-blur-none p-3 md:p-0 rounded-2xl border border-white/10 md:border-none">
+                    <div className="text-left md:text-right">
+                      <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white/70">Starting at</p>
+                      <div className="flex items-baseline md:justify-end">
+                        <span className="customer-promo-price text-2xl sm:text-3xl lg:text-4xl font-black text-white drop-shadow-sm">
+                          ₹{(currentPromoTrip?.price || 4500).toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-[11px] sm:text-xs text-white/70 ml-1 font-medium">/ person</span>
+                      </div>
                     </div>
                     <button
                       onClick={(e) => {
@@ -534,27 +601,54 @@ export default function HomeView({
                           onSelectTrek(currentPromo.tripId);
                         }
                       }}
-                      className="customer-promo-action bg-white hover:bg-gray-100 text-forest-700 text-[11px] sm:text-xs font-bold py-2 px-3.5 sm:px-4 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto shrink-0 flex items-center gap-1">
-                      View Trek <ArrowUpRight size={14} />
+                      className="customer-promo-action bg-white hover:bg-forest-50 text-forest-800 text-xs sm:text-sm font-bold py-2.5 sm:py-3 px-5 sm:px-6 rounded-full active:scale-95 transition-all shadow-lg hover:shadow-xl cursor-pointer shrink-0 flex items-center gap-1.5 group">
+                      <span>View Trek</span>
+                      <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </button>
                   </div>
                 </div>
               </div>
             </motion.div>
           </AnimatePresence>
+
+          {/* Desktop Next/Prev Arrow Controls */}
+          {promoCount > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPromo(activePromoIdx - 1, -1);
+                }}
+                aria-label="Previous banner"
+                className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white border border-white/20 items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg opacity-80 hover:opacity-100 cursor-pointer">
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPromo(activePromoIdx + 1, 1);
+                }}
+                aria-label="Next banner"
+                className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white border border-white/20 items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg opacity-80 hover:opacity-100 cursor-pointer">
+                <ChevronRight size={20} />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-1.5 mt-2">
+        <div className="flex justify-center gap-1.5 mt-3">
           {activeBanners.map((_, idx) => (
             <button
               key={idx}
               onClick={() => goToPromo(idx, idx > activePromoIdx ? 1 : -1)}
               aria-label={`Show promotion ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all ${
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
                 idx === activePromoIdx
-                  ? "w-5 bg-forest-500"
-                  : `w-1.5 ${darkMode ? "bg-white/25" : "bg-zinc-300"}`
+                  ? "w-6 bg-forest-500"
+                  : `w-1.5 ${darkMode ? "bg-white/25 hover:bg-white/40" : "bg-zinc-300 hover:bg-zinc-400"}`
               }`}
             />
           ))}

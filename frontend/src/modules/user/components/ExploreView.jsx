@@ -260,7 +260,7 @@ export default function ExploreView({
         </div>
 
         {/* Search + filter */}
-        <div className="flex gap-3 mt-5 max-w-4xl">
+        <div className="flex gap-3 mt-5 w-full max-w-5xl">
           <div className="relative flex-1">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${darkMode ? 'text-white/40' : 'text-zinc-400'}`} size={17} />
             <input
