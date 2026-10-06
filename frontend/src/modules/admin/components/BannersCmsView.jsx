@@ -30,6 +30,7 @@ import {
   compressAndConvertToWebP,
 } from "../../../utils/imageCompressor";
 import { useToast } from "../../../components/ToastProvider";
+import ConfirmDialog from "../../../components/ConfirmDialog";
 
 const PRESET_IMAGES = [
   {
@@ -60,6 +61,8 @@ export default function BannersCmsView({ darkMode }) {
   const [originalBanners, setOriginalBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [uploadState, setUploadState] = useState({}); // index -> 'compressing' | 'uploading' | null
   const [previewIdx, setPreviewIdx] = useState(0);
   const [availableTreks, setAvailableTreks] = useState([]);
@@ -217,21 +220,36 @@ export default function BannersCmsView({ darkMode }) {
     }
   };
 
-  const handleReset = async () => {
-    if (!window.confirm("Reset all promotional banners to platform defaults?"))
-      return;
-    setSaving(true);
+  const handleConfirmReset = async () => {
+    setShowResetConfirm(false);
+    setResetting(true);
     try {
       const res = await bannersApi.adminResetBanners();
-      const updated = res.banners || PROMOTIONAL_BANNERS;
+      const updated = JSON.parse(
+        JSON.stringify(res?.banners || PROMOTIONAL_BANNERS),
+      );
       setBanners(updated);
       setOriginalBanners(JSON.stringify(updated));
       setPreviewIdx(0);
-      toast.success("Restored default promotional banners.");
+      setUploadState({});
+      if (res?.synced) {
+        toast.success("Restored default promotional banners.");
+      } else {
+        toast.info(
+          res?.error
+            ? `Restored default promotional banners locally (${res.error}).`
+            : "Restored default promotional banners locally.",
+        );
+      }
     } catch (err) {
-      toast.error("Failed to reset: " + err.message);
+      console.error("Failed to reset banners:", err);
+      const fallback = JSON.parse(JSON.stringify(PROMOTIONAL_BANNERS));
+      setBanners(fallback);
+      setOriginalBanners(JSON.stringify(fallback));
+      setPreviewIdx(0);
+      toast.warning("Restored default promotional banners locally.");
     } finally {
-      setSaving(false);
+      setResetting(false);
     }
   };
 
@@ -269,14 +287,21 @@ export default function BannersCmsView({ darkMode }) {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={handleReset}
-            disabled={saving}
+            onClick={() => setShowResetConfirm(true)}
+            disabled={saving || resetting}
+            aria-label="Reset Defaults"
+            title="Reset promotional banners to platform defaults"
             className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               darkMode
                 ? "bg-slate-800 hover:bg-slate-700 text-slate-300"
                 : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-            }`}>
-            <RotateCcw size={14} /> Reset Defaults
+            } ${saving || resetting ? "opacity-60 cursor-not-allowed" : ""}`}>
+            {resetting ? (
+              <Loader2 size={14} className="animate-spin text-[#F27D26]" />
+            ) : (
+              <RotateCcw size={14} />
+            )}
+            <span>{resetting ? "Resetting..." : "Reset Defaults"}</span>
           </button>
 
           <button
@@ -868,6 +893,18 @@ export default function BannersCmsView({ darkMode }) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showResetConfirm}
+        title="Reset to Platform Defaults?"
+        message="This will discard all current banner customizations and restore all promotional banners to the platform defaults."
+        confirmLabel="Reset Defaults"
+        cancelLabel="Cancel"
+        tone="danger"
+        darkMode={darkMode}
+        onConfirm={handleConfirmReset}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 }

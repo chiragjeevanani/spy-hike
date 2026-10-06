@@ -69,7 +69,7 @@ export const env = {
   paymentPendingTtlMinutes: Number(process.env.PAYMENT_PENDING_TTL_MINUTES) || 20,
   // Comma-separated list of allowed browser origins for CORS. Defaults cover
   // the Vite dev server on its usual ports.
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174')
+  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174,http://localhost:5183')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean),

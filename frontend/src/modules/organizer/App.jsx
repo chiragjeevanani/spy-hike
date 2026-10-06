@@ -1124,7 +1124,12 @@ export default function OrgApp() {
       return tabContent[activeTab] || tabContent["Dashboard"];
     };
 
-    const showBottomNav = BOTTOM_NAV_TABS.includes(activeTab) && !navHidden;
+    const showBottomNav =
+      BOTTOM_NAV_TABS.includes(activeTab) &&
+      !navHidden &&
+      !showOrgFinancials &&
+      !showOrgCoupons &&
+      !showOrgNotifications;
     const unreadNotifs = notifications.filter((n) => !n.read).length;
     const unreadChats = chats.reduce(
       (s, c) =>

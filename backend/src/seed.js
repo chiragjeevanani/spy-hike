@@ -54,25 +54,30 @@ async function upsertAdmin() {
   const password = env.adminPassword || process.env.ADMIN_PASSWORD || 'password123';
   const passwordHash = await hashPassword(password);
 
-  let admin = await Admin.findOne({ email });
-  if (!admin) {
-    admin = await Admin.findOne();
-  }
-
-  if (admin) {
-    admin.email = email;
-    admin.passwordHash = passwordHash;
-    admin.name = admin.name || 'System Administrator';
-    admin.displayRole = 'Super Admin';
-    await admin.save();
-  } else {
-    await Admin.create({
+  await Admin.findOneAndUpdate(
+    { email },
+    {
       name: 'System Administrator',
       email,
       passwordHash,
       displayRole: 'Super Admin',
-    });
-  }
+    },
+    { upsert: true, new: true },
+  );
+
+  // Also seed demo admin for e2e tests
+  const demoEmail = 'admin@findyourtrek.com';
+  const demoHash = await hashPassword('admin123');
+  await Admin.findOneAndUpdate(
+    { email: demoEmail },
+    {
+      name: 'System Administrator',
+      email: demoEmail,
+      passwordHash: demoHash,
+      displayRole: 'Super Admin',
+    },
+    { upsert: true, new: true },
+  );
 }
 
 async function upsertCategories() {
