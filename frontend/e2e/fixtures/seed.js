@@ -40,6 +40,14 @@ export const ORG_USER = {
   totalBookings: 0,
   rememberMe: true,
   coreCapabilities: ['Certified Trek Leader'],
+  bankDetails: {
+    accountHolderName: 'Himalayan Sherpa Guides',
+    bankName: 'HDFC Bank',
+    accountNumber: '987654321012',
+    ifsc: 'HDFC0001234',
+    upiId: '',
+    panNumber: '',
+  },
 };
 
 // Builds a loyalty config override — mirrors DEFAULT_LOYALTY_CONFIG's shape

@@ -5,7 +5,7 @@ const ORG_TRIPS_KEY = 'trekigo_org_trips';
 const ORG_BOOKINGS_KEY = 'trekigo_org_bookings';
 const ORG_NOTIFICATIONS_KEY = 'trekigo_org_notifications';
 const ORG_CHATS_KEY = 'trekigo_org_chats';
-const ORG_DARK_MODE_KEY = 'trekigo_org_darkmode';
+const ORG_DARK_MODE_KEY = 'trekigo_org_darkmode_v2';
 const ORG_PAYOUTS_KEY = 'trekigo_org_payouts';
 
 export const DEFAULT_ORG_USER = {
@@ -150,7 +150,7 @@ export const loadOrgDarkMode = () => {
     const val = localStorage.getItem(ORG_DARK_MODE_KEY);
     if (val !== null) return JSON.parse(val);
   } catch (e) { console.error(e); }
-  return true;
+  return false; // Light mode by default
 };
 
 export const saveOrgDarkMode = (val) => {

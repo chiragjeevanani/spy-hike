@@ -84,6 +84,22 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Initial theme setup (all apps default to light theme)
+try {
+  let isDark = false;
+  if (isAdminPath) {
+    const v = localStorage.getItem('trekigo_admin_darkmode_v2');
+    isDark = v !== null ? JSON.parse(v) : false;
+  } else if (isOrganizerPath) {
+    const v = localStorage.getItem('trekigo_org_darkmode_v2');
+    isDark = v !== null ? JSON.parse(v) : false;
+  } else {
+    const v = localStorage.getItem('trekigo_darkmode_v2');
+    isDark = v !== null ? JSON.parse(v) : false;
+  }
+  document.documentElement.classList.toggle('dark', !!isDark);
+} catch (e) {}
+
 async function bootstrap() {
   let AppComponent;
   if (isAdminPath) {

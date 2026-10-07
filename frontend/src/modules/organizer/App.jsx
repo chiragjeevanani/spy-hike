@@ -53,9 +53,11 @@ import OrgProfileView from "./components/OrgProfileView";
 import OrgLoyaltyView from "./components/OrgLoyaltyView";
 import OrgNotificationsView from "./components/OrgNotificationsView";
 import OrgFinancialsView from "./components/OrgFinancialsView";
+import OrgPayoutSetupView from "./components/OrgPayoutSetupView";
 import OrgCouponsView from "./components/OrgCouponsView";
 import OrgScannerView from "./components/OrgScannerView";
 import OrgChatsView from "./components/OrgChatsView";
+import { hasCompletePayoutDetails } from "./utils/payoutDetails";
 
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
@@ -118,7 +120,19 @@ export default function OrgApp() {
   const toast = useToast();
   const [chats, setChats] = useState([]);
   const [payouts, setPayouts] = useState(loadOrgPayouts());
+  const [commissionRate, setCommissionRate] = useState(10);
   const [navHidden, setNavHidden] = useState(false);
+  const payoutSetupComplete = hasCompletePayoutDetails(organizer?.bankDetails);
+
+  useEffect(() => {
+    bookingsApi.getConfig()
+      .then(cfg => {
+        if (cfg && typeof cfg.commissionRate === 'number') {
+          setCommissionRate(cfg.commissionRate);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Load organizer-specific data. Trips + bookings come from the API for a
   // real (token-backed) session; both fall back to localStorage so the
@@ -129,7 +143,7 @@ export default function OrgApp() {
   // Initial load for organizer data
   useEffect(() => {
     if (organizer?.isAuthenticated && organizer?.email) {
-      if (organizer.isApproved) {
+      if (organizer.isApproved && payoutSetupComplete) {
         tripsApi
           .listOrganizerTrips()
           .then(setTrips)
@@ -149,14 +163,14 @@ export default function OrgApp() {
             .catch(() => {});
         }
       }
-      const orgBookings = loadOrgBookings(organizer.email);
+      const orgBookings = payoutSetupComplete ? loadOrgBookings(organizer.email) : [];
       setBookings(orgBookings);
 
       const lifetimeBookings = Math.max(
         organizer.totalBookings || 0,
         orgBookings.length,
       );
-      if (getToken()) {
+      if (getToken() && payoutSetupComplete) {
         hydrateOrganizerLoyalty();
         socialApi
           .getOrganizerNotifications()
@@ -179,13 +193,13 @@ export default function OrgApp() {
         setOrganizer(updated);
       }
     }
-  }, [organizer?.email, organizer?.isAuthenticated]);
+  }, [organizer?.email, organizer?.isAuthenticated, organizer?.isApproved, payoutSetupComplete]);
 
   // Request browser push notification permission if supported
   useEffect(() => {
-    if (organizer?.isAuthenticated && organizer?.isApproved)
+    if (organizer?.isAuthenticated && organizer?.isApproved && payoutSetupComplete)
       requestPushPermission();
-  }, [organizer?.isAuthenticated, organizer?.isApproved]);
+  }, [organizer?.isAuthenticated, organizer?.isApproved, payoutSetupComplete]);
 
   // Connect and authenticate Socket.IO for organizer
   useEffect(() => {
@@ -326,7 +340,7 @@ export default function OrgApp() {
 
   useLivePoll(pollLiveUpdates, {
     intervalMs: 5000,
-    enabled: !!organizer?.isAuthenticated && !!organizer?.isApproved,
+    enabled: !!organizer?.isAuthenticated && !!organizer?.isApproved && payoutSetupComplete,
   });
 
   // History popstate — handle native hardware back button / swipe gestures for all overlays & modals
@@ -477,11 +491,13 @@ export default function OrgApp() {
     if (!orgUser.isApproved && orgUser.isPendingApproval) {
       navigateTo("Pending", true);
     } else {
-      tripsApi
-        .listOrganizerTrips()
-        .then(setTrips)
-        .catch(() => setTrips(loadOrgTrips(orgUser.email)));
-      setBookings(loadOrgBookings(orgUser.email));
+      if (hasCompletePayoutDetails(orgUser.bankDetails)) {
+        tripsApi
+          .listOrganizerTrips()
+          .then(setTrips)
+          .catch(() => setTrips(loadOrgTrips(orgUser.email)));
+        setBookings(loadOrgBookings(orgUser.email));
+      }
       navigateTo("Dashboard", true);
     }
   };
@@ -557,16 +573,7 @@ export default function OrgApp() {
 
         if (isNowApproved && !wasApproved && !announced) {
           announced = true;
-          toast.success(
-            "🎉 Your application has been approved! Welcome to Find Your Trek.",
-          );
-          tripsApi
-            .listOrganizerTrips()
-            .then((list) => {
-              if (!cancelled) setTrips(list);
-            })
-            .catch(() => {});
-          setBookings(loadOrgBookings(fresh.email || organizer.email));
+          toast.success("🎉 Your application is approved! Add payout details to finish setup.");
           navigateTo("Dashboard", true);
         }
       } catch (err) {
@@ -628,14 +635,7 @@ export default function OrgApp() {
       setOrganizer(updated);
 
       if (isNowApproved) {
-        toast.success(
-          "🎉 Your application has been approved! Welcome to Find Your Trek.",
-        );
-        tripsApi
-          .listOrganizerTrips()
-          .then(setTrips)
-          .catch(() => {});
-        setBookings(loadOrgBookings(updated.email));
+        toast.success("🎉 Your application is approved! Add payout details to finish setup.");
         navigateTo("Dashboard", true);
       } else {
         toast.info(
@@ -860,12 +860,14 @@ export default function OrgApp() {
     });
   };
 
-  const handleSaveBankDetails = (bankDetails) => {
-    const updated = { ...organizer, bankDetails };
+  const handleSaveBankDetails = async (bankDetails) => {
+    const savedOrganizer = getToken()
+      ? await bookingsApi.saveBankDetails(bankDetails)
+      : null;
+    const updated = { ...organizer, ...savedOrganizer, bankDetails: savedOrganizer?.bankDetails || bankDetails };
     saveOrgUser(updated);
     setOrganizer(updated);
-    // Persist to the API for a real session.
-    if (getToken()) bookingsApi.saveBankDetails(bankDetails).catch(() => {});
+    return updated;
   };
 
   // Requests a payout. A real session records it server-side (validated against
@@ -944,16 +946,6 @@ export default function OrgApp() {
       return null;
     }
 
-    if (activeTab === "NotFound") {
-      return (
-        <NotFoundPage
-          homePath="/organizer/dashboard"
-          homeLabel="Return to Organizer Dashboard"
-          darkMode={darkMode}
-        />
-      );
-    }
-
     // 3. Pending approval
     if (organizer.isPendingApproval && !organizer.isApproved) {
       return (
@@ -965,7 +957,30 @@ export default function OrgApp() {
       );
     }
 
-    // 4. Authenticated + approved — main app
+    // 4. Payout setup — approval unlocks this step, and completing it unlocks
+    // the dashboard and every other organizer feature.
+    if (organizer.isApproved && !payoutSetupComplete) {
+      return (
+        <OrgPayoutSetupView
+          organizer={organizer}
+          onSave={handleSaveBankDetails}
+          onLogout={handleLogout}
+          darkMode={darkMode}
+        />
+      );
+    }
+
+    if (activeTab === "NotFound") {
+      return (
+        <NotFoundPage
+          homePath="/organizer/dashboard"
+          homeLabel="Return to Organizer Dashboard"
+          darkMode={darkMode}
+        />
+      );
+    }
+
+    // 5. Authenticated + approved + payout-ready — main app
     const mainContent = () => {
       if (showOrgFinancials) {
         return (
@@ -977,6 +992,7 @@ export default function OrgApp() {
             onRequestPayout={handleRequestPayout}
             onBack={() => closeCurrentOverlay(setShowOrgFinancials)}
             darkMode={darkMode}
+            commissionRate={commissionRate}
           />
         );
       }
@@ -1086,6 +1102,7 @@ export default function OrgApp() {
             onOpenChats={openChats}
             chats={chats}
             darkMode={darkMode}
+            commissionRate={commissionRate}
           />
         ),
         Trips: (
@@ -1103,6 +1120,7 @@ export default function OrgApp() {
             bookings={bookings}
             onApplyLoyaltyReward={handleApplyLoyaltyReward}
             darkMode={darkMode}
+            commissionRate={commissionRate}
           />
         ),
         Profile: (

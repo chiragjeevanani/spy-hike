@@ -9,9 +9,9 @@ import {
 import { downloadFinancialReportPDF } from '../utils/financePdf';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
+import bookingsApi from '../../../lib/bookingsApi';
 
 const SECTIONS = ['Overview', 'Statement', 'Payouts'];
-const COMMISSION_RATE = 0.1;
 // Same format rules the backend enforces — this data drives where real money
 // gets sent, so it's validated for real rather than trusted as-is.
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
@@ -19,14 +19,37 @@ const ACCOUNT_NUMBER_REGEX = /^\d{9,18}$/;
 const UPI_REGEX = /^[\w.-]{2,256}@[a-zA-Z]{2,64}$/;
 const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]{1}$/;
 
-const commissionOf = (b) => b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount || 0) * COMMISSION_RATE;
-const netOf = (b) => (b.finalAmount || 0) - commissionOf(b);
 const inr = (n) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
 const maskAccount = (num) => num && num.length > 4 ? `•••• •••• ${num.slice(-4)}` : (num || '—');
 
-export default function OrgFinancialsView({ organizer, bookings, payouts, onSaveBankDetails, onRequestPayout, onBack, darkMode }) {
+export default function OrgFinancialsView({ organizer, bookings, payouts, onSaveBankDetails, onRequestPayout, onBack, darkMode, commissionRate: propCommissionRate }) {
+  const [commissionRate, setCommissionRate] = useState(propCommissionRate !== undefined ? propCommissionRate : 10);
+
+  useEffect(() => {
+    if (propCommissionRate !== undefined) {
+      setCommissionRate(propCommissionRate);
+      return;
+    }
+    let isMounted = true;
+    bookingsApi.getConfig()
+      .then(cfg => {
+        if (isMounted && cfg && typeof cfg.commissionRate === 'number') {
+          setCommissionRate(cfg.commissionRate);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, [propCommissionRate]);
+
+  const commissionOf = (b) => {
+    if (b.commissionAmount !== undefined) return b.commissionAmount;
+    const rate = (typeof commissionRate === 'number' ? commissionRate : 10) / 100;
+    return (b.finalAmount || 0) * rate;
+  };
+  const netOf = (b) => (b.finalAmount || 0) - commissionOf(b);
   const [section, setSection] = useState('Overview');
   const [editingBank, setEditingBank] = useState(false);
+  const [savingBank, setSavingBank] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [copiedId, setCopiedId] = useState('');
   const [bankForm, setBankForm] = useState({
@@ -67,7 +90,7 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
   const labelCls = `text-xs font-semibold tracking-wide uppercase mb-1.5 block ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`;
   const cardCls = `rounded-2xl ${darkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-sm'}`;
 
-  const handleBankSave = () => {
+  const handleBankSave = async () => {
     const errors = {};
     if (!bankForm.accountHolderName.trim()) errors.accountHolderName = 'Account holder name is required.';
 
@@ -103,9 +126,18 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
     }
     setBankFieldErrors({});
     setBankFormError('');
-    onSaveBankDetails(bankForm);
-    setEditingBank(false);
-    toast.success('Payout details saved.');
+    setSavingBank(true);
+    try {
+      await onSaveBankDetails(bankForm);
+      setEditingBank(false);
+      toast.success('Payout details saved.');
+    } catch (error) {
+      const message = error?.message || 'Could not save payout details. Please try again.';
+      setBankFormError(message);
+      toast.error(message);
+    } finally {
+      setSavingBank(false);
+    }
   };
 
   const handleRequestPayout = () => {
@@ -122,7 +154,7 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
   };
 
   const handleDownloadReport = () => {
-    downloadFinancialReportPDF({ organizer, bookings, payouts });
+    downloadFinancialReportPDF({ organizer, bookings, payouts, commissionRate });
   };
 
   const payoutStatusMeta = (status) => {
@@ -349,7 +381,7 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
                 }`}>
                   <FileText size={15} className="text-spy-orange shrink-0 mt-0.5" />
                   <span>
-                    Platform commission is {(COMMISSION_RATE * 100).toFixed(0)}%. Funds unlock for withdrawal 3 business days following trek completion.
+                    Platform commission is {commissionRate}%. Funds unlock for withdrawal 3 business days following trek completion.
                   </span>
                 </div>
               </div>
@@ -780,9 +812,11 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
                     type="button"
                     id="btn-save-bank-details"
                     onClick={handleBankSave}
-                    className="w-full py-3.5 rounded-2xl bg-spy-orange text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer hover:bg-[#d96d1a]"
+                    disabled={savingBank}
+                    className="w-full py-3.5 rounded-2xl bg-spy-orange text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer hover:bg-[#d96d1a] disabled:cursor-wait disabled:opacity-70"
                   >
-                    <Save size={16} /> Save Payout Details
+                    {savingBank ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                    {savingBank ? 'Saving…' : 'Save Payout Details'}
                   </button>
                 </div>
               </motion.div>

@@ -6,10 +6,7 @@ test.use({ viewport: { width: 425, height: 865 } });
 test.describe('Organizer — Payout Details Bottom Sheet', () => {
   test('opens as a bottom sheet modal, saves UPI payout details, and closes cleanly', async ({ page }) => {
     await seedLocalStorage(page, {
-      trekigo_org_user: {
-        ...ORG_USER,
-        bankDetails: {},
-      },
+      trekigo_org_user: ORG_USER,
     });
 
     await page.goto('/organizer/profile');
@@ -49,10 +46,7 @@ test.describe('Organizer — Payout Details Bottom Sheet', () => {
 
   test('saves bank account details (Bank, Account, IFSC, PAN) and closes via close button', async ({ page }) => {
     await seedLocalStorage(page, {
-      trekigo_org_user: {
-        ...ORG_USER,
-        bankDetails: {},
-      },
+      trekigo_org_user: ORG_USER,
     });
 
     await page.goto('/organizer/profile');
@@ -87,10 +81,7 @@ test.describe('Organizer — Payout Details Bottom Sheet', () => {
 
   test('validates required fields and renders in dark mode cleanly', async ({ page }) => {
     await seedLocalStorage(page, {
-      trekigo_org_user: {
-        ...ORG_USER,
-        bankDetails: {},
-      },
+      trekigo_org_user: ORG_USER,
       trekigo_theme: 'dark',
     });
 
@@ -101,6 +92,11 @@ test.describe('Organizer — Payout Details Bottom Sheet', () => {
 
     await page.locator('#btn-edit-bank-details').click();
     await expect(page.locator('h2', { hasText: 'Payout Details' })).toBeVisible();
+
+    await page.getByPlaceholder('As per bank records').fill('');
+    await page.getByPlaceholder('e.g. HDFC Bank').fill('');
+    await page.getByPlaceholder('XXXXXXXXXXXX').fill('');
+    await page.getByPlaceholder('e.g. HDFC0001234').fill('');
 
     // Click save without inputs
     await page.locator('#btn-save-bank-details').click();

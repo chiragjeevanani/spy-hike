@@ -62,8 +62,8 @@ export const bookingsApi = {
   adminSetStatus: (id, status) =>
     api.patch(`/admin/bookings/${encodeURIComponent(id)}/status`, { status }).then((r) => r.booking),
 
-  // ─── Admin platform config (commission / tax) ───
-  getConfig: () => api.get('/admin/config').then((r) => r.config),
+  // ─── Platform config (commission / tax) ───
+  getConfig: () => api.get('/config').catch(() => api.get('/admin/config')).then((r) => r.config),
   updateConfig: (payload) => api.patch('/admin/config', payload).then((r) => r.config),
 
   // ─── Admin analytics ───

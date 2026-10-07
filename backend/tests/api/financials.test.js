@@ -274,4 +274,15 @@ describe('Organizer financials & payouts', () => {
       .send({ accountHolderName: 'Guides Ltd', panNumber: 'invalid' });
     expect(res.status).toBe(400);
   });
+
+  it('exposes platform commissionRate on GET /config publicly and in organizer financials', async () => {
+    const configRes = await request(app).get('/api/v1/config');
+    expect(configRes.status).toBe(200);
+    expect(typeof configRes.body.config.commissionRate).toBe('number');
+
+    const org = await approvedOrganizerToken();
+    const finRes = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
+    expect(finRes.status).toBe(200);
+    expect(typeof finRes.body.commissionRate).toBe('number');
+  });
 });
