@@ -9,7 +9,7 @@ import { getAvailableOrganizerVoucher } from '../../../utils/loyalty';
 
 const STATUS_FILTERS = ['All', 'Upcoming', 'Ongoing', 'Completed', 'Missed', 'Cancelled'];
 
-export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMode }) {
+export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMode, commissionRate = 10 }) {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -252,8 +252,8 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                       </div>
                     ) : (
                       <div className="flex justify-between text-xs sm:text-sm text-rose-400">
-                        <span>Platform Commission ({selectedBooking.commissionRate || 10}%)</span>
-                        <span className="font-bold">-₹{(selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1)).toLocaleString('en-IN')}</span>
+                        <span>Platform Commission ({selectedBooking.commissionRate || commissionRate || 10}%)</span>
+                        <span className="font-bold">-₹{(selectedBooking.commissionAmount !== undefined ? selectedBooking.commissionAmount : (selectedBooking.finalAmount * ((selectedBooking.commissionRate || commissionRate || 10) / 100))).toLocaleString('en-IN')}</span>
                       </div>
                     )}
 
@@ -262,7 +262,7 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                       <span className="font-black text-emerald-400 text-base font-mono">
                         ₹{(selectedBooking.loyaltyRewardApplied
                           ? selectedBooking.finalAmount
-                          : selectedBooking.finalAmount - (selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1))
+                          : selectedBooking.finalAmount - (selectedBooking.commissionAmount !== undefined ? selectedBooking.commissionAmount : (selectedBooking.finalAmount * ((selectedBooking.commissionRate || commissionRate || 10) / 100)))
                         ).toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -277,7 +277,7 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                         <p className="text-xs font-bold text-spy-orange flex items-center gap-1">
                           <Sparkles size={13} /> Milestone Reward Ready
                         </p>
-                        <p className="text-[11px] opacity-75 mt-0.5">Waive the 10% platform commission on this booking.</p>
+                        <p className="text-[11px] opacity-75 mt-0.5">Waive the {selectedBooking.commissionRate || commissionRate || 10}% platform commission on this booking.</p>
                       </div>
                       <button
                         type="button"

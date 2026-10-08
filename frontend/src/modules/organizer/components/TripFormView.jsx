@@ -1554,13 +1554,42 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
   const currentIdx = sections.findIndex(s => s.id === section);
   const isLastStep = currentIdx === sections.length - 1;
 
-  // Publishing is possible from the Pricing & Dates step onward — the last
-  // step only holds optional, pre-filled extras.
-  const canPublishHere = section !== 'basic';
+  const handlePrevStep = () => {
+    if (currentIdx > 0) {
+      setErrors({});
+      setSection(sections[currentIdx - 1].id);
+      requestAnimationFrame(scrollFormToTop);
+    }
+  };
 
   const handleNextStep = () => {
     if (section === 'basic' && !form.trekId) {
       return failSave('basic', 'Select a trek to continue.');
+    }
+    if (section === 'pickup') {
+      const validTiers = form.pricingTiers
+        .map(t => ({ label: t.label.trim(), price: parseFloat(t.price) }))
+        .filter(t => t.label && !isNaN(t.price));
+      if (validTiers.length === 0) {
+        return failSave('pickup', 'Add at least one batch pricing tier with a label and price.');
+      }
+      const pickupLocation = form.pickup.location.trim();
+      const pickupPrice = parseFloat(form.pickup.price);
+      if (!pickupLocation || isNaN(pickupPrice)) {
+        return failSave('pickup', 'Add a pickup location with a valid per-person price.');
+      }
+      if (!form.startPoint) {
+        return failSave('pickup', startPointStatus === 'locating'
+          ? 'Still locating the start point on the map — give it a second and try again.'
+          : 'Set the trek start point on the map.');
+      }
+      const seats = parseInt(form.availableSeats, 10);
+      if (!Number.isFinite(seats) || seats <= 0) {
+        return failSave('pickup', 'Enter how many seats are available (at least 1).');
+      }
+      if (form.departureDates.length === 0) {
+        return failSave('pickup', 'Select at least one future batch departure date.');
+      }
     }
     if (!isLastStep) {
       setErrors({});
@@ -1634,6 +1663,18 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       {/* Action buttons */}
       <div className={`shrink-0 border-t ${darkMode ? 'bg-zinc-900/80 border-white/5' : 'bg-white/80 backdrop-blur-md border-zinc-200/70 shadow-xs'}`}>
         <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex gap-3">
+          {currentIdx > 0 && (
+            <button
+              type="button"
+              onClick={handlePrevStep}
+              disabled={saving}
+              className={`px-5 py-3.5 rounded-2xl text-sm font-bold border transition-all cursor-pointer ${
+                darkMode ? 'border-white/10 text-zinc-300 hover:border-white/20' : 'border-zinc-200 text-zinc-600 hover:border-zinc-300'
+              }`}
+            >
+              Back
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleSave('Draft')}
@@ -1644,19 +1685,16 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
           >
             Save Draft
           </button>
-          {canPublishHere && !isLastStep && (
+          {!isLastStep ? (
             <button
               type="button"
               onClick={handleNextStep}
               disabled={saving}
-              className={`flex-1 py-3.5 rounded-2xl text-sm font-bold border transition-all cursor-pointer ${
-                darkMode ? 'border-white/10 text-zinc-300 hover:border-white/20' : 'border-zinc-200 text-zinc-600 hover:border-zinc-300'
-              }`}
+              className="flex-1 py-3.5 rounded-2xl text-sm font-bold bg-spy-orange hover:bg-[#d96d1a] text-white shadow-lg shadow-spy-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              Review Details
+              Next Step
             </button>
-          )}
-          {canPublishHere ? (
+          ) : (
             <button
               type="button"
               onClick={() => handleSave('Published')}
@@ -1666,14 +1704,6 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
               {saving ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (isEdit ? 'Update & Publish' : 'Publish Trip')}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleNextStep}
-              className="flex-1 py-3.5 rounded-2xl text-sm font-bold bg-spy-orange hover:bg-[#d96d1a] text-white shadow-lg shadow-spy-orange/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              Next Step
             </button>
           )}
         </div>

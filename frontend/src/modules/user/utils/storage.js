@@ -7,7 +7,7 @@ const BOOKINGS_STORAGE_KEY = 'trekigo_bookings';
 const NOTIFICATIONS_STORAGE_KEY = 'trekigo_notifications';
 const CHAT_STORAGE_KEY = 'trekigo_chats';
 const TRIPS_STORAGE_KEY = 'trekigo_trips';
-const DARK_MODE_KEY = 'trekigo_darkmode';
+const DARK_MODE_KEY = 'trekigo_darkmode_v2';
 
 const DEFAULT_USER = {
   isAuthenticated: false,

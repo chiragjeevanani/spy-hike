@@ -1,6 +1,7 @@
 import Payout from '../models/Payout.js';
 import Booking, { SETTLED_BOOKING_FILTER } from '../models/Booking.js';
 import User from '../models/User.js';
+import { getConfig } from '../models/AdminConfig.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notifyOrganizer } from '../services/notificationService.js';
@@ -35,12 +36,14 @@ async function computeAvailable(organizerEmail) {
 // GET /organizer/financials — balance summary + payout history.
 export const getOrganizerFinancials = asyncHandler(async (req, res) => {
   const email = req.organizer.email;
+  const cfg = await getConfig();
   const { earned, committed, available } = await computeAvailable(email);
   const payouts = await Payout.find({ organizerEmail: email }).sort({ createdAt: -1 });
   const paidOut = payouts.filter((p) => p.status === 'Paid').reduce((s, p) => s + p.amount, 0);
   res.json({
     financials: { totalEarned: earned, totalCommitted: committed, available, totalPaidOut: paidOut },
     payouts: payouts.map((p) => p.toPublicJSON()),
+    commissionRate: cfg.commissionRate,
   });
 });
 
@@ -100,7 +103,7 @@ export const updateBankDetails = asyncHandler(async (req, res) => {
   if (!user || !user.isOrganizer) throw ApiError.notFound('Organizer not found');
   const { accountHolderName, bankName, accountNumber, ifsc, upiId, panNumber } = req.body;
 
-  if (accountHolderName !== undefined && !accountHolderName.trim()) {
+  if (!accountHolderName?.trim()) {
     throw ApiError.badRequest('Account holder name is required');
   }
   if (upiId !== undefined && upiId.trim() && !UPI_REGEX.test(upiId.trim())) {
@@ -118,12 +121,30 @@ export const updateBankDetails = asyncHandler(async (req, res) => {
       throw ApiError.badRequest('Enter a valid IFSC code (e.g. HDFC0001234)');
     }
   }
+  const hasValidUpi = Boolean(upiId?.trim() && UPI_REGEX.test(upiId.trim()));
+  const hasValidBank = Boolean(
+    bankName?.trim()
+      && accountNumber?.trim()
+      && ACCOUNT_NUMBER_REGEX.test(accountNumber.trim())
+      && ifsc?.trim()
+      && IFSC_REGEX.test(ifsc.trim().toUpperCase()),
+  );
+  if (!hasValidUpi && !hasValidBank) {
+    throw ApiError.badRequest('Add either a UPI ID or full bank account details');
+  }
   if (panNumber !== undefined && panNumber.trim() && !PAN_REGEX.test(panNumber.trim().toUpperCase())) {
     throw ApiError.badRequest('Enter a valid PAN number (e.g. ABCDE1234F)');
   }
 
   const org = user.organizer || {};
-  org.bankDetails = { ...(org.bankDetails?.toObject?.() ?? org.bankDetails ?? {}), ...req.body };
+  org.bankDetails = {
+    accountHolderName: accountHolderName.trim(),
+    bankName: bankName?.trim() || '',
+    accountNumber: accountNumber?.trim() || '',
+    ifsc: ifsc?.trim().toUpperCase() || '',
+    upiId: upiId?.trim() || '',
+    panNumber: panNumber?.trim().toUpperCase() || '',
+  };
   user.organizer = org;
   await user.save();
   res.json({ organizer: user.toOrganizerJSON() });

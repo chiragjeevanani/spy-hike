@@ -42,6 +42,17 @@ async function createApprovedOrganizer(ctx, adminTok, label) {
 
   const login = await ctx.post(`${API}/auth/organizer/login`, { data: { email, password: PASSWORD } });
   const body = await login.json();
+  const payoutSetup = await ctx.patch(`${API}/organizer/bank-details`, {
+    headers: { Authorization: `Bearer ${body.token}` },
+    data: {
+      accountHolderName: agencyName,
+      bankName: 'HDFC Bank',
+      accountNumber: '987654321012',
+      ifsc: 'HDFC0001234',
+    },
+  });
+  expect(payoutSetup.ok(), `payout setup failed: ${await payoutSetup.text()}`).toBeTruthy();
+  body.account = (await payoutSetup.json()).organizer;
   return { email, agencyName, id, token: body.token, account: body.account };
 }
 

@@ -1320,6 +1320,7 @@ export default function App() {
 
   useEffect(() => {
     saveDarkMode(darkMode);
+    document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
   // Pull-to-refresh. Deliberately NOT a page reload: this is a standalone

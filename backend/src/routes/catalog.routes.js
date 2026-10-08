@@ -8,10 +8,14 @@ import { listHomeFilters } from '../controllers/homeFilterController.js';
 import { listActiveCoupons, validateCouponEndpoint } from '../controllers/couponController.js';
 import { listTripReviews } from '../controllers/reviewController.js';
 import { reverseGeocodeLocation, searchPlaces } from '../controllers/locationController.js';
+import { getAdminConfig } from '../controllers/configController.js';
 import { cached, TTL } from '../lib/cache.js';
 
 // Public, unauthenticated catalog endpoints consumed by the customer app.
 const router = Router();
+
+// Public platform config (commission rate, tax rate, maintenance status)
+router.get('/config', getAdminConfig);
 
 // Cached: read constantly, written only by an admin or organizer, and every
 // write path explicitly invalidates the affected prefix (see cacheInvalidate

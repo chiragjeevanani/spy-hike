@@ -1,7 +1,7 @@
 import { safeSetItem } from '../../../utils/safeStorage';
 
 const ADMIN_USER_KEY = 'trekigo_admin_user';
-const ADMIN_DARK_MODE_KEY = 'trekigo_admin_darkmode';
+const ADMIN_DARK_MODE_KEY = 'trekigo_admin_darkmode_v2';
 const ADMIN_USER_OVERRIDES_KEY = 'trekigo_admin_user_overrides';
 const ADMIN_CREATED_USERS_KEY = 'trekigo_admin_created_users';
 const ADMIN_DELETED_USERS_KEY = 'trekigo_admin_deleted_users';
