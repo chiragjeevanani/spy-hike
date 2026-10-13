@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   loadOrgUser,
   saveOrgUser,
+  DEFAULT_ORG_USER,
   loadOrgTrips,
   loadOrgBookings,
   saveOrgBookings,
@@ -27,7 +28,7 @@ import tripsApi from "../../lib/tripsApi";
 import bookingsApi from "../../lib/bookingsApi";
 import loyaltyApi from "../../lib/loyaltyApi";
 import socialApi from "../../lib/socialApi";
-import { getToken } from "../../lib/apiClient";
+import { getToken, clearToken } from "../../lib/apiClient";
 import { initPushNotifications } from "../../utils/pushNotifications";
 import { useLivePoll, LIVE } from "../../utils/livePoll";
 import { getSocket, updateSocketAuth } from "../../lib/socket";
@@ -74,7 +75,7 @@ function getOrgTab(pathname) {
   if (p === "bookings") return "Bookings";
   if (p === "profile") return "Profile";
   if (p === "profile/edit") return "EditProfile";
-  if (p === "register") return "Register";
+  if (p === "register" || p === "apply") return "Register";
   if (p === "pending") return "Pending";
   if (p === "onboarding") return "Onboarding";
   return "NotFound";
@@ -584,9 +585,22 @@ export default function OrgApp() {
       try {
         if (!getToken()) return;
         const status = await authApi.getLinkedOrganizerStatus();
-        // No organizer profile on this account (or an unreadable answer) —
-        // leave the local session alone rather than corrupting it.
-        if (cancelled || !status?.isOrganizer) return;
+        if (cancelled) return;
+
+        // Account is not an organizer (revoked or deleted by admin)
+        if (!status?.isOrganizer) {
+          const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+          setOrganizer(reset);
+          saveOrgUser(reset);
+          try {
+            if (localStorage.getItem("trekigo_active_role") === "organizer") {
+              localStorage.removeItem("trekigo_active_role");
+            }
+          } catch (e) {}
+          toast.info("Organizer access has been revoked or removed.");
+          navigateTo("Register", true);
+          return;
+        }
 
         const isNowApproved = Boolean(status.isApproved);
         const fresh = status.organizer || {};
@@ -609,7 +623,22 @@ export default function OrgApp() {
           navigateTo("Dashboard", true);
         }
       } catch (err) {
-        /* Ignore background network errors */
+        if (cancelled) return;
+        const status = err?.status;
+        const msg = String(err?.message || "").toLowerCase();
+        if (status === 401 || status === 403 || status === 404 || msg.includes("deleted") || msg.includes("not found")) {
+          clearToken();
+          const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+          setOrganizer(reset);
+          saveOrgUser(reset);
+          try {
+            if (localStorage.getItem("trekigo_active_role") === "organizer") {
+              localStorage.removeItem("trekigo_active_role");
+            }
+          } catch (e) {}
+          toast.error("Your organizer account has been removed.");
+          navigateTo("Register", true);
+        }
       }
     };
 
@@ -644,6 +673,32 @@ export default function OrgApp() {
     organizer?.isApproved,
     navigateTo,
   ]);
+
+  // Handle cross-tab or interceptor session expiration and revocation events
+  useEffect(() => {
+    const handleRevokedOrExpired = () => {
+      clearToken();
+      const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+      setOrganizer(reset);
+      saveOrgUser(reset);
+      try {
+        if (localStorage.getItem("trekigo_active_role") === "organizer") {
+          localStorage.removeItem("trekigo_active_role");
+        }
+      } catch (e) {}
+      navigateTo("Register", true);
+    };
+
+    window.addEventListener("organizer-status-revoked", handleRevokedOrExpired);
+    window.addEventListener("auth-session-expired", handleRevokedOrExpired);
+    window.addEventListener("hiker-status-changed", handleRevokedOrExpired);
+
+    return () => {
+      window.removeEventListener("organizer-status-revoked", handleRevokedOrExpired);
+      window.removeEventListener("auth-session-expired", handleRevokedOrExpired);
+      window.removeEventListener("hiker-status-changed", handleRevokedOrExpired);
+    };
+  }, [navigateTo]);
 
   const handleToggleDarkMode = () => setDarkMode((p) => !p);
 

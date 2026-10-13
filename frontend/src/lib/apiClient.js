@@ -177,6 +177,9 @@ async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, inv
     } else if (isAuthedCall && res.status === 403 && message.toLowerCase().includes('banned')) {
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'banned' } }));
     } else if (isAuthedCall && res.status === 401 && message.toLowerCase().includes('deleted')) {
+      clearToken();
+      responseCache.clear();
+      window.dispatchEvent(new CustomEvent('auth-session-expired', { detail: { reason: 'deleted' } }));
       window.dispatchEvent(new CustomEvent('hiker-status-changed', { detail: { reason: 'deleted' } }));
     } else if (isAuthedCall && res.status === 401) {
       // Any other 401 on an authenticated call means the stored JWT is absent,
@@ -185,6 +188,8 @@ async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, inv
       clearToken();
       responseCache.clear();
       window.dispatchEvent(new CustomEvent('auth-session-expired'));
+    } else if (isAuthedCall && (res.status === 403 || res.status === 404) && (message.toLowerCase().includes('access to this resource') || message.toLowerCase().includes('organizer not found'))) {
+      window.dispatchEvent(new CustomEvent('organizer-status-revoked', { detail: { message } }));
     }
     throw new ApiClientError(res.status, message, data?.error?.details);
   }
