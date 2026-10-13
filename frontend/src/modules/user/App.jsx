@@ -1066,6 +1066,9 @@ export default function App() {
     const handleStatusChangeEvent = (e) => {
       if (!user.isAuthenticated) return;
       clearToken();
+      const updatedUser = { ...user, isAuthenticated: false };
+      setUser(updatedUser);
+      saveUserState(updatedUser);
       const reason = e.detail?.reason || "banned";
       setBannedReason(reason);
       setBannedAlert(true);
@@ -1076,22 +1079,25 @@ export default function App() {
         "hiker-status-changed",
         handleStatusChangeEvent,
       );
-  }, [user.isAuthenticated]);
+  }, [user]);
 
   // The stored JWT was rejected (expired, or signed with a different secret).
   // apiClient has already dropped it; prompt the session expired popup if the
   // user was signed in so they can smoothly tap "Log In Again" to re-authenticate.
   useEffect(() => {
     const handleSessionExpired = () => {
-      if (!user.isAuthenticated || !getToken()) return;
+      if (!user.isAuthenticated) return;
       clearToken();
+      const updatedUser = { ...user, isAuthenticated: false };
+      setUser(updatedUser);
+      saveUserState(updatedUser);
       setBannedReason("expired");
       setBannedAlert(true);
     };
     window.addEventListener("auth-session-expired", handleSessionExpired);
     return () =>
       window.removeEventListener("auth-session-expired", handleSessionExpired);
-  }, [user.isAuthenticated]);
+  }, [user]);
 
   // Prevent background scrolling while the session-expired / account status popup is open
   useEffect(() => {
@@ -1126,6 +1132,44 @@ export default function App() {
       .catch(() => {})
       .finally(() => {
         if (!cancelled) setTripsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Verify active user session on backend on mount. If token is invalid or user was deleted,
+  // revoke local authenticated state cleanly.
+  useEffect(() => {
+    if (!user.isAuthenticated) return;
+    if (!getToken()) {
+      const resetUser = { ...user, isAuthenticated: false };
+      setUser(resetUser);
+      saveUserState(resetUser);
+      return;
+    }
+    let cancelled = false;
+    authApi
+      .fetchMe()
+      .then((me) => {
+        if (cancelled) return;
+        if (!me) {
+          clearToken();
+          const resetUser = { ...user, isAuthenticated: false };
+          setUser(resetUser);
+          saveUserState(resetUser);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const status = err?.status;
+        const msg = String(err?.message || "").toLowerCase();
+        if (status === 401 || status === 404 || msg.includes("deleted") || msg.includes("not found")) {
+          clearToken();
+          const resetUser = { ...user, isAuthenticated: false };
+          setUser(resetUser);
+          saveUserState(resetUser);
+        }
       });
     return () => {
       cancelled = true;

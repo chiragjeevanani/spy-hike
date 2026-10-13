@@ -295,8 +295,8 @@ export default function ProfileView({
       const raw = localStorage.getItem(ORG_USER_STORAGE_KEY);
       if (!raw) return false;
       const org = JSON.parse(raw);
-      // Must at least be onboarded — covers both approved and pending-approval states
-      return !!(org?.isOnboarded && (org?.email === user?.email || org?.isAuthenticated));
+      // Must be authenticated, onboarded, and belong to the active hiker email
+      return !!(org?.isAuthenticated && org?.isOnboarded && org?.email && org.email.toLowerCase() === (user?.email || '').toLowerCase());
     } catch { return false; }
   })();
 
@@ -701,6 +701,12 @@ export default function ProfileView({
             window.location.href = '/organizer';
           }, 1400);
         } else {
+          try {
+            localStorage.removeItem(ORG_USER_STORAGE_KEY);
+            if (localStorage.getItem('trekigo_active_role') === 'organizer') {
+              localStorage.removeItem('trekigo_active_role');
+            }
+          } catch (e) {}
           setOrgSwitching(false);
           goSub('BECOME_ORGANIZER');
         }

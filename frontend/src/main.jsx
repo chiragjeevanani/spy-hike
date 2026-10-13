@@ -18,7 +18,8 @@ if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/ap
     const rawOrgUser = localStorage.getItem('trekigo_org_user');
     const rawUser = localStorage.getItem('trekigo_user');
 
-    if (activeRole === 'organizer' && rawOrgUser) {
+    const token = localStorage.getItem('trekigo_token');
+    if (activeRole === 'organizer' && rawOrgUser && token) {
       const orgUser = JSON.parse(rawOrgUser);
       if (orgUser?.isAuthenticated) {
         isOrganizerPath = true;
@@ -26,7 +27,7 @@ if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/ap
         window.history.replaceState(null, '', target);
         routePath = target;
       }
-    } else if (rawUser) {
+    } else if (rawUser && token) {
       const hikerUser = JSON.parse(rawUser);
       if (hikerUser?.isAuthenticated) {
         // '/app' IS the home route (see APP_PREFIX in modules/user/App.jsx);

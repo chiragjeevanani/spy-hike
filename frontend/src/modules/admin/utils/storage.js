@@ -180,6 +180,21 @@ export const deleteUser = (email) => {
   const deleted = new Set(loadJSON(ADMIN_DELETED_USERS_KEY, []));
   deleted.add(email);
   safeSetItem(ADMIN_DELETED_USERS_KEY, [...deleted]);
+
+  try {
+    const rawUser = localStorage.getItem('trekigo_user');
+    if (rawUser) {
+      const u = JSON.parse(rawUser);
+      if (u?.email && u.email.toLowerCase() === email.toLowerCase()) {
+        safeSetItem('trekigo_user', { ...u, isAuthenticated: false });
+        if (localStorage.getItem('trekigo_active_role') === 'hiker') {
+          localStorage.removeItem('trekigo_active_role');
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error clearing local user session on admin delete:', e);
+  }
 };
 
 // ─── Organizers storage ──────────────────────────────────────────────────────
@@ -281,6 +296,21 @@ export const createOrganizer = (fields) => {
 export const deleteOrganizerAccount = (email) => {
   const accounts = loadAllOrganizers().filter(a => a.email !== email);
   safeSetItem('trekigo_org_accounts', accounts);
+
+  try {
+    const rawOrg = localStorage.getItem('trekigo_org_user');
+    if (rawOrg) {
+      const o = JSON.parse(rawOrg);
+      if (o?.email && o.email.toLowerCase() === email.toLowerCase()) {
+        safeSetItem('trekigo_org_user', { ...o, isAuthenticated: false, isApproved: false, isPendingApproval: false });
+        if (localStorage.getItem('trekigo_active_role') === 'organizer') {
+          localStorage.removeItem('trekigo_active_role');
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error clearing local organizer session on admin delete:', e);
+  }
 };
 
 // ─── Trips storage ───────────────────────────────────────────────────────────
