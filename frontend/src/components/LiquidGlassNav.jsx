@@ -156,7 +156,7 @@ export default function LiquidGlassNav({ tabs: TABS, activeTab, onChangeTab, dar
   const labelShadow = darkMode ? '0 1px 2px rgba(0,0,0,0.55)' : 'none';
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 max-w-xl mx-auto w-full px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 z-40 shrink-0 pointer-events-none">
+    <div data-bottom-nav className="md:hidden fixed bottom-0 left-0 right-0 max-w-xl mx-auto w-full px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 z-40 shrink-0 pointer-events-none">
       {/* Displacement map that warps whatever is behind the lens — the "light bending". */}
       <svg width="0" height="0" className="absolute" aria-hidden="true">
         <filter id="liquid-glass-refract" x="0%" y="0%" width="100%" height="100%">

@@ -6,6 +6,7 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
+import OverlayPortal from './OverlayPortal';
 
 // Shared confirmation modal used across the user, organizer and admin apps —
 // a themed replacement for window.confirm() so destructive/session actions
@@ -24,6 +25,7 @@ export default function ConfirmDialog({
   return (
     <AnimatePresence>
       {open && (
+        <OverlayPortal>
         <div className="fixed inset-0 z-100 flex items-center justify-center p-6">
           <motion.div
             initial={{ opacity: 0 }}
@@ -34,11 +36,14 @@ export default function ConfirmDialog({
           />
 
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
             initial={{ opacity: 0, scale: 0.92, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 6 }}
             transition={{ type: 'spring', damping: 24, stiffness: 300 }}
-            className={`relative w-full max-w-xs rounded-3xl p-6 text-center shadow-2xl ${
+            className={`relative w-full max-w-xs max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain rounded-3xl p-6 text-center shadow-2xl ${
               darkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'
             }`}
           >
@@ -75,6 +80,7 @@ export default function ConfirmDialog({
             </div>
           </motion.div>
         </div>
+        </OverlayPortal>
       )}
     </AnimatePresence>
   );

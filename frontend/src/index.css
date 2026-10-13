@@ -16,6 +16,11 @@
    respected everywhere, so this actually disables the bounce and PTR instead
    of just hiding their symptom. Any code resetting scroll position must
    target #root now, not window/document (see navigateTo() in App.jsx). */
+body[data-overlay-open] [data-bottom-nav] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 html {
   margin: 0;
   padding: 0;

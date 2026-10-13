@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
@@ -18,8 +19,8 @@ export function RescheduleModal({ booking, availableDates = [], onClose, onSubmi
   const organizerName = booking.organizer?.name || booking.organizerName || 'the organizer';
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-55 flex items-center justify-center p-4">
-      <div className={`p-6 rounded-3xl max-w-sm w-full border relative ${
+    <OverlayPortal><div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-55 flex items-center justify-center p-4">
+      <div className={`p-6 rounded-3xl max-w-sm w-full max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain border relative ${
         darkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'
       }`}>
         <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded-full hover:bg-zinc-800/50">
@@ -91,7 +92,7 @@ export function RescheduleModal({ booking, availableDates = [], onClose, onSubmi
           )}
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }
 
@@ -503,11 +504,11 @@ export default function BookingDetailsView({
       )}
 
       {showReviewModal && (
-        <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
+        <OverlayPortal><div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
           <form
             onSubmit={handleSubmitReview}
             noValidate
-            className={`p-6 rounded-3xl max-w-sm w-full border relative ${
+            className={`p-6 rounded-3xl max-w-sm w-full max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain border relative ${
               darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-gray-100'
             }`}
           >
@@ -572,7 +573,7 @@ export default function BookingDetailsView({
               <X size={15} />
             </button>
           </form>
-        </div>
+        </div></OverlayPortal>
       )}
 
       <ConfirmDialog

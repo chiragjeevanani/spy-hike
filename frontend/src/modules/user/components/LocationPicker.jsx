@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -248,7 +249,7 @@ export default function LocationPicker({ open, current, onSelect, onClose, darkM
   return (
     <AnimatePresence>
       {open && (
-        <div className="absolute inset-0 z-60 flex items-end justify-center">
+        <OverlayPortal><div className="fixed inset-0 z-60 flex items-end justify-center">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -437,7 +438,7 @@ export default function LocationPicker({ open, current, onSelect, onClose, darkM
               )}
             </div>
           </motion.div>
-        </div>
+        </div></OverlayPortal>
       )}
     </AnimatePresence>
   );

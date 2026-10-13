@@ -73,6 +73,7 @@ function getOrgTab(pathname) {
   if (p.startsWith("trips/") && p !== "trips/new") return "EditTrip";
   if (p === "bookings") return "Bookings";
   if (p === "profile") return "Profile";
+  if (p === "profile/edit") return "EditProfile";
   if (p === "register") return "Register";
   if (p === "pending") return "Pending";
   if (p === "onboarding") return "Onboarding";
@@ -86,6 +87,7 @@ function tabToPath(tab, tripId = null) {
   if (tab === "EditTrip" && tripId) return `${PATH_PREFIX}/trips/${tripId}`;
   if (tab === "Bookings") return `${PATH_PREFIX}/bookings`;
   if (tab === "Profile") return `${PATH_PREFIX}/profile`;
+  if (tab === "EditProfile") return `${PATH_PREFIX}/profile/edit`;
   if (tab === "Register") return `${PATH_PREFIX}/register`;
   if (tab === "Pending") return `${PATH_PREFIX}/pending`;
   if (tab === "Onboarding") return `${PATH_PREFIX}/onboarding`;
@@ -123,6 +125,26 @@ export default function OrgApp() {
   const [commissionRate, setCommissionRate] = useState(10);
   const [navHidden, setNavHidden] = useState(false);
   const payoutSetupComplete = hasCompletePayoutDetails(organizer?.bankDetails);
+  const requiresPayoutSetup = organizer?.isAuthenticated && organizer?.isApproved && !payoutSetupComplete;
+  const [showPayoutExitConfirm, setShowPayoutExitConfirm] = useState(false);
+  const payoutSetupPathRef = useRef(null);
+
+  // Keep hardware/browser Back in this document until the user confirms.
+  // A same-document entry also prevents restoring the hiker's cached switch overlay.
+  useEffect(() => {
+    if (!requiresPayoutSetup) return;
+    const path = window.location.pathname + window.location.search + window.location.hash;
+    payoutSetupPathRef.current = path;
+    if (!window.history.state?.payoutSetupGuard) {
+      window.history.pushState({ ...window.history.state, payoutSetupGuard: true }, "", path);
+    }
+  }, [requiresPayoutSetup]);
+
+  const handleReturnToHiker = () => {
+    localStorage.setItem("trekigo_active_role", "hiker");
+    // Load the hiker module afresh instead of restoring the pre-switch page.
+    window.location.replace("/app");
+  };
 
   useEffect(() => {
     bookingsApi.getConfig()
@@ -346,6 +368,15 @@ export default function OrgApp() {
   // History popstate — handle native hardware back button / swipe gestures for all overlays & modals
   useEffect(() => {
     const handlePop = () => {
+      if (requiresPayoutSetup) {
+        window.history.pushState(
+          { ...window.history.state, payoutSetupGuard: true },
+          "",
+          payoutSetupPathRef.current,
+        );
+        setShowPayoutExitConfirm(true);
+        return;
+      }
       if (showOrgChats) {
         setShowOrgChats(false);
         return;
@@ -397,6 +428,7 @@ export default function OrgApp() {
     deleteTripTarget,
     editingTrip,
     activeTab,
+    requiresPayoutSetup,
   ]);
 
   // Dark mode
@@ -778,8 +810,6 @@ export default function OrgApp() {
     saveOrgBookings(updated);
   };
 
-  const [autoEditProfile, setAutoEditProfile] = useState(false);
-
   const handleBottomNavChange = (tab) => navigateTo(tab);
 
   const handleDashboardNavigate = (tab, opts) => {
@@ -792,8 +822,7 @@ export default function OrgApp() {
       return;
     }
     if (opts?.edit || tab === "EditProfile") {
-      setAutoEditProfile(true);
-      navigateTo("Profile");
+      navigateTo("EditProfile");
       return;
     }
     navigateTo(tab);
@@ -965,6 +994,7 @@ export default function OrgApp() {
           organizer={organizer}
           onSave={handleSaveBankDetails}
           onLogout={handleLogout}
+          onBack={() => setShowPayoutExitConfirm(true)}
           darkMode={darkMode}
         />
       );
@@ -1058,6 +1088,19 @@ export default function OrgApp() {
         );
       }
 
+      if (activeTab === "EditProfile") {
+        return (
+          <OrgProfileView
+            organizer={organizer}
+            editingPage
+            darkMode={darkMode}
+            onBack={() => navigateTo("Profile", true)}
+            onSaved={setOrganizer}
+            onFullscreenChange={setNavHidden}
+          />
+        );
+      }
+
       const tabContent = {
         Dashboard: (
           <OrgDashboardView
@@ -1133,8 +1176,7 @@ export default function OrgApp() {
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onFullscreenChange={setNavHidden}
-            autoEditProfile={autoEditProfile}
-            onClearAutoEdit={() => setAutoEditProfile(false)}
+            onEditProfile={() => navigateTo("EditProfile")}
           />
         ),
       };
@@ -1342,6 +1384,18 @@ export default function OrgApp() {
           {renderContent()}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showPayoutExitConfirm && requiresPayoutSetup}
+        title="Go back to the hiker app?"
+        message="Do you really want to go back? Any unsaved payout details will be lost. You can complete setup when you return to the organizer app."
+        confirmLabel="Go back"
+        cancelLabel="Stay here"
+        tone="neutral"
+        onConfirm={handleReturnToHiker}
+        onCancel={() => setShowPayoutExitConfirm(false)}
+        darkMode={darkMode}
+      />
 
       <ConfirmDialog
         open={!!deleteTripTarget}

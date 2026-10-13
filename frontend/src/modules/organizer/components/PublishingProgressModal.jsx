@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -36,7 +37,7 @@ export default function PublishingProgressModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <OverlayPortal><div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
         {/* Backdrop overlay */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -260,7 +261,7 @@ export default function PublishingProgressModal({
             </div>
           )}
         </motion.div>
-      </div>
+      </div></OverlayPortal>
     </AnimatePresence>
   );
 }

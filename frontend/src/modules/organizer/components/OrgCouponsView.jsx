@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, TicketPercent, Plus, Search, Pencil, Trash2, Pause, Play, X, Percent, IndianRupee, Sparkles,
@@ -382,7 +383,7 @@ export default function OrgCouponsView({ onBack, darkMode }) {
 
       {/* Create / Edit modal */}
       {editingCoupon && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
+        <OverlayPortal><div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
           <div className={`w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl border p-5 shadow-2xl relative max-h-[90vh] overflow-y-auto no-scrollbar ${
             darkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-[#FAF8F2] border-zinc-200 text-zinc-900'
           }`}>
@@ -585,7 +586,7 @@ export default function OrgCouponsView({ onBack, darkMode }) {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       <ConfirmDialog

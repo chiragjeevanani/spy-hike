@@ -1,5 +1,5 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -518,10 +518,9 @@ export default function HomeView({
         ))}
       </div>
 
-      {createPortal(
-        <AnimatePresence>
+      {<AnimatePresence>
           {showAllHomeFilters && (
-            <motion.div
+            <OverlayPortal><motion.div
               className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -573,11 +572,9 @@ export default function HomeView({
                   })}
                 </div>
               </motion.div>
-            </motion.div>
+            </motion.div></OverlayPortal>
           )}
-        </AnimatePresence>,
-        document.body,
-      )}
+        </AnimatePresence>}
 
       {/* 4. Promotional carousel */}
       <div className="w-full mt-8 sm:mt-10 lg:mt-12 relative select-none group">

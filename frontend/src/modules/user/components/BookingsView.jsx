@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, attachFollow } from "motion/react";
 import {
@@ -503,7 +504,7 @@ export default function BookingsView({
             ];
 
             return (
-              <div
+              <OverlayPortal><div
                 className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-end items-stretch md:p-4 lg:p-6 transition-all"
                 onClick={() => setActiveChatSession(null)}>
                 <motion.div
@@ -712,7 +713,7 @@ export default function BookingsView({
                     </div>
                   </div>
                 </motion.div>
-              </div>
+              </div></OverlayPortal>
             );
           })()}
       </AnimatePresence>
@@ -722,7 +723,7 @@ export default function BookingsView({
       {/* ============================================== */}
       <AnimatePresence>
         {reviewBooking && (
-          <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
+          <OverlayPortal><div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
             <motion.form
               onSubmit={handleSubmitReview}
               noValidate
@@ -730,7 +731,7 @@ export default function BookingsView({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className={`p-6 rounded-3xl max-w-sm w-full border relative ${
+              className={`p-6 rounded-3xl max-w-sm w-full max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain border relative ${
                 darkMode
                   ? "bg-zinc-900 border-zinc-800"
                   : "bg-white border-gray-100"
@@ -812,7 +813,7 @@ export default function BookingsView({
                 <X size={15} />
               </button>
             </motion.form>
-          </div>
+          </div></OverlayPortal>
         )}
       </AnimatePresence>
 
@@ -821,7 +822,7 @@ export default function BookingsView({
       {/* ===================================== */}
       <AnimatePresence>
         {showInvoiceBooking && (
-          <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
+          <OverlayPortal><div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -882,7 +883,7 @@ export default function BookingsView({
                 <X size={15} />
               </button>
             </motion.div>
-          </div>
+          </div></OverlayPortal>
         )}
       </AnimatePresence>
     </div>
