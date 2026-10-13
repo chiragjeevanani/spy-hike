@@ -578,7 +578,7 @@ export default function HomeView({
 
       {/* 4. Promotional carousel */}
       <div className="w-full mt-8 sm:mt-10 lg:mt-12 relative select-none group">
-        <div className="customer-promo-card w-full overflow-hidden relative aspect-[2/1] sm:aspect-[16/7] md:aspect-auto md:h-72 lg:h-80 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
+        <div className="customer-promo-card w-full overflow-hidden relative min-h-[320px] sm:min-h-[290px] md:min-h-0 md:h-72 lg:h-80 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
           <AnimatePresence initial={false} custom={promoDir}>
             <motion.div
               key={activePromoIdx}
@@ -614,15 +614,15 @@ export default function HomeView({
                 className="w-full h-full object-cover brightness-[0.72] pointer-events-none"
                 draggable={false}
               />
-              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent p-5 sm:p-7 lg:p-9 flex flex-col justify-between">
-                <div className="flex items-start justify-between gap-3">
+              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent p-4 sm:p-6 lg:p-8 flex flex-col justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="customer-promo-tag bg-spy-orange text-white text-[9px] sm:text-xs font-bold tracking-wider px-3 py-1.5 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
                       <Sparkles size={13} /> {currentPromo.tag}
                     </span>
                     {currentPromo.discount && (
-                      <span className="hidden sm:inline-flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/25 text-white text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full">
-                        <Tag size={12} /> {currentPromo.discount}
+                      <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/25 text-white text-[9px] sm:text-xs font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
+                        <Tag size={11} /> {currentPromo.discount}
                       </span>
                     )}
                   </div>
@@ -649,40 +649,40 @@ export default function HomeView({
                   </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-auto">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 mt-auto">
                   <div className="max-w-xl lg:max-w-2xl min-w-0">
-                    <h3 className="customer-promo-title text-xl sm:text-3xl lg:text-4xl font-serif font-semibold text-white leading-tight drop-shadow-md">
+                    <h3 className="customer-promo-title text-lg sm:text-2xl lg:text-3xl font-serif font-semibold text-white leading-tight drop-shadow-md">
                       {currentPromo.title}
                     </h3>
-                    <p className="text-white/85 text-xs sm:text-sm font-medium mt-1 line-clamp-1 drop-shadow-xs">
+                    <p className="customer-promo-subtitle text-white/85 text-xs sm:text-sm font-medium mt-0.5 sm:mt-1 line-clamp-1 drop-shadow-xs">
                       {currentPromo.subtitle}
                     </p>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-white/90 mt-2 sm:mt-3">
-                      <span className="flex items-center gap-1.5 bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15">
-                        <MapPin size={13} className="text-spy-orange shrink-0" />
-                        <span className="truncate max-w-[200px]">{currentPromoTrip?.location || currentPromo.subtitle || "Himalayas"}</span>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 text-xs text-white/90 mt-1.5 sm:mt-2.5">
+                      <span className="flex items-center gap-1.5 bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[11px] sm:text-xs">
+                        <MapPin size={12} className="text-spy-orange shrink-0" />
+                        <span className="truncate max-w-[160px] sm:max-w-[200px]">{currentPromoTrip?.location || currentPromo.subtitle || "Himalayas"}</span>
                       </span>
                       {currentPromoTrip?.difficulty && (
-                        <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${difficultyPill(currentPromoTrip.difficulty)}`}>
+                        <span className={`px-2.5 py-1 rounded-lg font-bold text-[10px] sm:text-[11px] ${difficultyPill(currentPromoTrip.difficulty)}`}>
                           {currentPromoTrip.difficulty}
                         </span>
                       )}
                       {currentPromoTrip?.durationDays && (
-                        <span className="bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[11px] font-semibold">
+                        <span className="bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[10px] sm:text-[11px] font-semibold">
                           ⏱ {durationRange(currentPromoTrip)} Days
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center md:items-end justify-between md:justify-end gap-4 shrink-0 bg-black/40 md:bg-transparent backdrop-blur-xs md:backdrop-blur-none p-3 md:p-0 rounded-2xl border border-white/10 md:border-none">
+                  <div className="flex items-center md:items-end justify-between md:justify-end gap-3 shrink-0 bg-black/50 md:bg-transparent backdrop-blur-md md:backdrop-blur-none px-3.5 py-2 sm:p-3 md:p-0 rounded-2xl border border-white/15 md:border-none">
                     <div className="text-left md:text-right">
-                      <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white/70">Starting at</p>
+                      <p className="text-[9px] sm:text-xs font-bold uppercase tracking-wider text-white/70">Starting at</p>
                       <div className="flex items-baseline md:justify-end">
-                        <span className="customer-promo-price text-2xl sm:text-3xl lg:text-4xl font-black text-white drop-shadow-sm">
+                        <span className="customer-promo-price text-xl sm:text-2xl lg:text-3xl font-black text-white drop-shadow-sm">
                           ₹{(currentPromoTrip?.price || 4500).toLocaleString("en-IN")}
                         </span>
-                        <span className="text-[11px] sm:text-xs text-white/70 ml-1 font-medium">/ person</span>
+                        <span className="text-[10px] sm:text-xs text-white/70 ml-1 font-medium">/ person</span>
                       </div>
                     </div>
                     <button
@@ -700,9 +700,9 @@ export default function HomeView({
                           onSelectTrek(currentPromo.tripId);
                         }
                       }}
-                      className="customer-promo-action bg-white hover:bg-forest-50 text-forest-800 text-xs sm:text-sm font-bold py-2.5 sm:py-3 px-5 sm:px-6 rounded-full active:scale-95 transition-all shadow-lg hover:shadow-xl cursor-pointer shrink-0 flex items-center gap-1.5 group">
+                      className="customer-promo-action bg-white hover:bg-forest-50 text-forest-800 text-xs sm:text-sm font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-full active:scale-95 transition-all shadow-lg hover:shadow-xl cursor-pointer shrink-0 flex items-center gap-1.5 group">
                       <span>View Trek</span>
-                      <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      <ArrowUpRight size={15} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </button>
                   </div>
                 </div>

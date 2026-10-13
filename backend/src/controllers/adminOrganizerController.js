@@ -1,4 +1,6 @@
 import User from '../models/User.js';
+import Trip from '../models/Trip.js';
+import Coupon from '../models/Coupon.js';
 import { hashPassword } from '../utils/password.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -170,5 +172,14 @@ export const deleteOrganizer = asyncHandler(async (req, res) => {
     { new: true }
   );
   if (!user) throw ApiError.notFound('Organizer not found');
+
+  // Unpublish or archive any trips posted under this organizer
+  if (user.email) {
+    await Promise.all([
+      Trip.updateMany({ organizerEmail: user.email }, { $set: { status: 'Draft' } }),
+      Coupon.deleteMany({ organizerEmail: user.email }),
+    ]);
+  }
+
   res.json({ ok: true, id: req.params.id });
 });

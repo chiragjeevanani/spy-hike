@@ -449,24 +449,25 @@ button, a {
 
   .customer-promo-overlay,
   .customer-loyalty-overlay {
-    padding: 0.75rem;
+    padding: 0.85rem;
   }
 
   .customer-promo-title {
-    font-size: 1.05rem;
+    font-size: 1.15rem;
+    line-height: 1.25;
   }
 
   .customer-promo-subtitle {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
 
   .customer-promo-price {
-    font-size: 1.05rem;
+    font-size: 1.15rem;
   }
 
   .customer-promo-action {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.625rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.7rem;
   }
 
   .customer-loyalty-title {

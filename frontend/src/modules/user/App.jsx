@@ -1183,6 +1183,8 @@ export default function App() {
   useEffect(() => {
     if (!user.isAuthenticated || !getToken()) {
       setBookingsLoading(false);
+      setBookings([]);
+      saveBookings([]);
       return undefined;
     }
     setBookingsLoading(true);
@@ -1190,7 +1192,10 @@ export default function App() {
     bookingsApi
       .listMine()
       .then((list) => {
-        if (!cancelled && Array.isArray(list) && list.length) setBookings(list);
+        if (!cancelled && Array.isArray(list)) {
+          setBookings(list);
+          saveBookings(list);
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -1524,6 +1529,15 @@ export default function App() {
       emergencyContact: "",
       rememberMe: false,
     };
+    // Clear user-specific data from local state and storage on logout
+    setBookings([]);
+    saveBookings([]);
+    setChats([]);
+    saveChats([]);
+    setNotifications([]);
+    saveNotifications([]);
+    localStorage.removeItem("trekigo_saved_hikers");
+
     setUser(resetUser);
     saveUserState(resetUser);
     navigateTo("/login", true, resetUser);

@@ -1,4 +1,9 @@
 import User from '../models/User.js';
+import Booking from '../models/Booking.js';
+import Voucher from '../models/Voucher.js';
+import Review from '../models/Review.js';
+import Notification from '../models/Notification.js';
+import Chat from '../models/Chat.js';
 import { hashPassword } from '../utils/password.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -67,9 +72,26 @@ export const setUserStatus = asyncHandler(async (req, res) => {
 
 // DELETE /admin/users/:id — remove a customer account.
 export const deleteUser = asyncHandler(async (req, res) => {
-  const user = await User.findByIdAndDelete(req.params.id);
+  const { id } = req.params;
+  const user = /^[0-9a-f]{24}$/i.test(id)
+    ? await User.findById(id)
+    : await User.findOne({ email: id.toLowerCase() });
+
   if (!user) throw ApiError.notFound('User not found');
-  res.json({ ok: true, id: req.params.id });
+
+  const userEmail = user.email;
+
+  // Clean up all related records tied to this user account
+  await Promise.all([
+    User.deleteOne({ _id: user._id }),
+    Booking.deleteMany({ userEmail }),
+    Voucher.deleteMany({ ownerKey: userEmail }),
+    Review.deleteMany({ userEmail }),
+    Notification.deleteMany({ ownerKey: userEmail }),
+    Chat.deleteMany({ userEmail }),
+  ]);
+
+  res.json({ ok: true, id: String(user._id) });
 });
 
 // PATCH /admin/users/:id — admin edits a hiker's profile fields.
