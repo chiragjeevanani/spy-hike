@@ -1,5 +1,5 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useMemo, useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronLeft, ChevronRight, CalendarDays, Check } from 'lucide-react';
 
@@ -79,10 +79,9 @@ export default function OrgBatchDatePicker({ open, selectedDates, onToggleDate, 
   }, [view]);
 
   return (
-    typeof document !== 'undefined' && createPortal(
-      <AnimatePresence>
+    typeof document !== 'undefined' && <AnimatePresence>
         {open && (
-          <div
+          <OverlayPortal><div
             id="org-batch-date-picker-overlay"
             className="fixed inset-0 z-[80] flex flex-col justify-end"
             onClick={onClose}
@@ -197,10 +196,8 @@ export default function OrgBatchDatePicker({ open, selectedDates, onToggleDate, 
                 Done — {selectedDates.length} date{selectedDates.length !== 1 ? 's' : ''} selected
               </button>
             </motion.div>
-          </div>
+          </div></OverlayPortal>
         )}
-      </AnimatePresence>,
-      document.body
-    )
+      </AnimatePresence>
   );
 }

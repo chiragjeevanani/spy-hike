@@ -1,12 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Landmark, LoaderCircle, LogOut, Save, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Landmark, LoaderCircle, LogOut, Save, ShieldCheck } from 'lucide-react';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
 import { normalizePayoutDetails, validatePayoutDetails } from '../utils/payoutDetails';
 
 const FIELD_ORDER = ['accountHolderName', 'upiId', 'bankName', 'accountNumber', 'ifsc', 'panNumber', 'method'];
 
-export default function OrgPayoutSetupView({ organizer, onSave, onLogout, darkMode }) {
+export default function OrgPayoutSetupView({ organizer, onSave, onLogout, onBack, darkMode }) {
   const [form, setForm] = useState(() => normalizePayoutDetails(organizer?.bankDetails));
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
@@ -56,6 +56,9 @@ export default function OrgPayoutSetupView({ organizer, onSave, onLogout, darkMo
   return (
     <div className={`min-h-full overflow-y-auto px-4 py-6 sm:py-10 ${darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-900'}`}>
       <div className="mx-auto w-full max-w-2xl">
+        <button type="button" onClick={onBack} className={`mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition ${darkMode ? 'text-zinc-300 hover:bg-white/5' : 'text-zinc-600 hover:bg-zinc-100'}`}>
+          <ArrowLeft size={18} /> Back to hiker app
+        </button>
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">

@@ -1,5 +1,5 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   CalendarCheck, Users, IndianRupee, ChevronRight, Search, Filter,
@@ -178,10 +178,9 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
       </div>
 
       {/* Booking Detail Modal / Drawer */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
+      {typeof document !== 'undefined' && <AnimatePresence>
           {selectedBooking && (
-            <div
+            <OverlayPortal><div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6"
               onClick={() => setSelectedBooking(null)}
             >
@@ -291,11 +290,9 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                   )}
                 </div>
               </motion.div>
-            </div>
+            </div></OverlayPortal>
           )}
-        </AnimatePresence>,
-        document.body
-      )}
+        </AnimatePresence>}
     </div>
   );
 }

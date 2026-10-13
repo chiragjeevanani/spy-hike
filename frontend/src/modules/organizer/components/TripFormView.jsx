@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, ImagePlus, Check, Info, MapPin, AlertCircle, Trash2, Bus, CalendarDays, X, Edit3, Navigation, Search, Clock, Route } from 'lucide-react';
@@ -1730,7 +1731,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
       {/* Duplicate Trek Category Modal */}
       <AnimatePresence>
         {duplicateModalTrip && (
-          <motion.div
+          <OverlayPortal><motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1784,7 +1785,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </motion.div></OverlayPortal>
         )}
       </AnimatePresence>
     </div>

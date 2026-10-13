@@ -1,5 +1,5 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Wallet, Landmark, Smartphone, ShieldCheck, RefreshCw, Copy, CheckCircle2,
@@ -607,10 +607,9 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
       </div>
 
       {/* Edit bank details bottom sheet modal */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
+      {typeof document !== 'undefined' && <AnimatePresence>
           {editingBank && (
-            <motion.div
+            <OverlayPortal><motion.div
               key="bank-modal-backdrop"
               id="payout-modal-backdrop"
               initial={{ opacity: 0 }}
@@ -820,11 +819,9 @@ export default function OrgFinancialsView({ organizer, bookings, payouts, onSave
                   </button>
                 </div>
               </motion.div>
-            </motion.div>
+            </motion.div></OverlayPortal>
           )}
-        </AnimatePresence>,
-        document.body
-      )}
+        </AnimatePresence>}
     </div>
   );
 }

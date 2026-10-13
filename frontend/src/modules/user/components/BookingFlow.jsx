@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   motion,
@@ -2908,12 +2909,12 @@ export default function BookingFlow({
       {/* Ticket preview — the same boarding pass the Bookings tab shows, so
           what you see here is what the PDF contains. */}
       {showTicketModal && createdBooking && (
-        <div className="fixed inset-0 bg-black/80 z-55 flex items-center justify-center p-5 overflow-y-auto">
+        <OverlayPortal><div className="fixed inset-0 bg-black/80 z-55 flex items-center justify-center p-5 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className={`rounded-3xl relative w-full max-w-sm my-auto ${
+            className={`rounded-3xl relative w-full max-w-sm max-h-[calc(100dvh-2.5rem)] overflow-y-auto overscroll-contain my-auto ${
               darkMode ? "bg-zinc-900" : "bg-white shadow-xl"
             }`}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -2965,7 +2966,7 @@ export default function BookingFlow({
               </button>
             </div>
           </motion.div>
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

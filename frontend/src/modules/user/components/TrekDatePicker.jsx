@@ -1,10 +1,10 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 
@@ -91,10 +91,9 @@ export default function TrekDatePicker({ open, current, availableDates, onSelect
   }, [view]);
 
   return (
-    typeof document !== 'undefined' && createPortal(
-      <AnimatePresence>
+    typeof document !== 'undefined' && <AnimatePresence>
         {open && (
-          <div
+          <OverlayPortal><div
             id="trek-date-picker-overlay"
             className="fixed inset-0 z-[80] flex flex-col justify-end"
             onClick={onClose}
@@ -224,10 +223,8 @@ export default function TrekDatePicker({ open, current, availableDates, onSelect
                 </button>
               )}
             </motion.div>
-          </div>
+          </div></OverlayPortal>
         )}
-      </AnimatePresence>,
-      document.body
-    )
+      </AnimatePresence>
   );
 }
