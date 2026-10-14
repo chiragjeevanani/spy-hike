@@ -1,5 +1,6 @@
 import { completeOrganizerRetirement } from '../services/organizerRetirementService.js';
 import crypto from 'crypto';
+import { notifyOrganizerApplication } from '../services/notificationService.js';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import User from '../models/User.js';
@@ -432,6 +433,7 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
     isRejected: false,
   };
   await user.save();
+  await notifyOrganizerApplication(user);
   res.status(201).json(organizerAuthResponse(user));
 });
 
@@ -479,6 +481,7 @@ export const applyAsOrganizer = asyncHandler(async (req, res) => {
     isRejected: false,
   };
   await user.save();
+  await notifyOrganizerApplication(user);
   res.status(201).json(organizerAuthResponse(user));
 });
 
@@ -716,10 +719,24 @@ export const updateFcmToken = asyncHandler(async (req, res) => {
   const { fcmToken } = req.body;
   if (fcmToken === undefined) throw ApiError.badRequest('fcmToken is required');
 
-  const user = await User.findById(sub);
+  const Model = req.user.role === 'admin' ? Admin : User;
+  const user = await Model.findById(sub);
   if (!user) throw ApiError.notFound('Account not found');
 
   const token = String(fcmToken).trim();
+  if (req.body.remove) {
+    await Model.updateOne({ _id: user._id }, { $pull: { fcmTokens: token }, ...(user.fcmToken === token ? { $set: { fcmToken: '' } } : {}) });
+    return res.json({ ok: true, message: 'Device unregistered' });
+  }
+  // A browser device belongs to the account currently signed in, including
+  // when switching between the separate admin and traveler identities.
+  if (token) {
+    for (const OtherModel of [User, Admin]) {
+      const other = OtherModel === Model ? { _id: { $ne: user._id } } : {};
+      await OtherModel.updateMany(other, { $pull: { fcmTokens: token } });
+      await OtherModel.updateMany({ ...other, fcmToken: token }, { $set: { fcmToken: '' } });
+    }
+  }
   // Registering a second device must not evict the first: keep the newest token
   // in the legacy field and accumulate all of them in the list, newest first,
   // capped so an account can't grow an unbounded token collection.

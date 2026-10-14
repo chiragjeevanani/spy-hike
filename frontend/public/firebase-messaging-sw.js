@@ -10,6 +10,32 @@
 // own documented pattern for this exact situation), read here via
 // self.location.search, so there's a single source of truth in .env.production.
 
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.stopImmediatePropagation();
+  const metadata = event.notification.data || {};
+  const data = metadata.FCM_MSG?.data || metadata;
+  const destination = data.url || data.link || '/';
+  const targetUrl = new URL(destination, self.location.origin);
+  if (targetUrl.origin !== self.location.origin) return;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          if ('navigate' in client) {
+            client.navigate(targetUrl.href);
+          }
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl.href);
+      }
+    })
+  );
+});
+
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
 
@@ -28,6 +54,8 @@ if (firebaseConfig.apiKey) {
   const messaging = firebase.messaging();
 
   messaging.onBackgroundMessage((payload) => {
+    // Firebase displays notification payloads itself; avoid a duplicate.
+    if (payload.notification) return;
     const title = payload.notification?.title || payload.data?.title || 'Find Your Trek';
     const body = payload.notification?.body || payload.data?.content || '';
     self.registration.showNotification(title, {
@@ -37,25 +65,3 @@ if (firebaseConfig.apiKey) {
     });
   });
 }
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const data = event.notification.data || {};
-  let targetUrl = data.url || data.link || '/';
-
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ('focus' in client) {
-          if ('navigate' in client) {
-            client.navigate(targetUrl);
-          }
-          return client.focus();
-        }
-      }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
-      }
-    })
-  );
-});

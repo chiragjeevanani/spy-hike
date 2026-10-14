@@ -10,12 +10,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Organizer browser data ownership', () => {
-  it('keeps the current account cache but clears it for a recreated organizer with the same email', () => {
+  it('never persists private bookings or chats, including for the same organizer', () => {
     saveOrgUser(user);
     saveOrgBookings([{ organizerEmail: user.email, bookingId: 'old-booking' }]);
     saveOrgChats([{ id: 'private-chat' }]);
     saveOrgUser(user);
-    expect(loadOrgBookings(user.email)).toHaveLength(1);
+    expect(loadOrgBookings(user.email)).toEqual([]);
     saveOrgUser({ ...user, sessionVersion: 1 });
     expect(loadOrgBookings(user.email)).toEqual([]);
     expect(loadOrgChats()).toEqual([]);
@@ -24,7 +24,7 @@ describe('Organizer browser data ownership', () => {
   it('clears an unscoped legacy cache on initial load', () => {
     localStorage.setItem('trekigo_org_user', JSON.stringify(user));
     localStorage.setItem('trekigo_org_chats', JSON.stringify([{ id: 'legacy-private-chat' }]));
-    expect(loadOrgUser().id).toBe(user.id);
+    expect(loadOrgUser().isAuthenticated).toBe(false);
     expect(loadOrgChats()).toEqual([]);
   });
 

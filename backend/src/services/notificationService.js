@@ -1,5 +1,6 @@
 import Notification from '../models/Notification.js';
-import { pushToUser } from './pushService.js';
+import Admin from '../models/Admin.js';
+import { pushToUser, pushToAdmin } from './pushService.js';
 
 // Emits one notification to a specific recipient.
 //
@@ -8,16 +9,44 @@ import { pushToUser } from './pushService.js';
 // awaited — it involves a network round trip to FCM, and the booking, payment
 // or message that raised the notification must not wait on it, nor fail if a
 // device token has gone stale.
-export const emitNotification = async (ownerType, ownerKey, { title, content, type = 'System', data = {} }) => {
-  const notification = await Notification.create({ ownerType, ownerKey, title, content, type });
-
-  // Admins are a separate collection with no devices registered; pushToUser
-  // resolves to a no-op for them rather than needing a branch here.
-  pushToUser(ownerKey, { title, content, type }, { ownerType, ...data })
+export const emitNotification = async (ownerType, ownerKey, { title, content, type = 'System', data = {}, eventKey }) => {
+  let notification;
+  const key = eventKey ? `${eventKey}:${ownerType}:${ownerKey}` : undefined;
+  try {
+    notification = await Notification.create({ ownerType, ownerKey, title, content, type, data, ...(key ? { eventKey: key } : {}) });
+  } catch (error) {
+    if (key && error.code === 11000) return Notification.findOne({ eventKey: key });
+    throw error;
+  }
+  const deliver = ownerType === 'admin' ? pushToAdmin : pushToUser;
+  deliver(ownerKey, { title, content, type }, { ownerType, ...data })
     .catch((err) => console.error('[notifications] push failed:', err?.message || err));
-
   return notification;
 };
+
+export async function notifyOrganizerApplication(user) {
+  try {
+    const admins = await Admin.find().select('email').lean();
+    await Promise.all(admins.map((admin) => emitNotification('admin', admin.email, {
+      title: 'New organizer application pending approval',
+      content: `${user.organizer.agencyName} has applied to become an organizer. Click to review the application.`,
+      type: 'OrganizerApplication',
+      data: { url: '/admin/organizers', organizerId: user._id.toString() },
+      eventKey: `organizer-application:${user._id}:${user.sessionVersion || 0}`,
+    })));
+  } catch (error) { console.error('[notifications] application alert failed:', error.message); }
+}
+
+export async function notifyOrganizerApproved(user) {
+  try {
+    await emitNotification('organizer', user.email, {
+      title: 'Congratulations! Your application is approved',
+      content: 'Click here to continue your organizer onboarding journey and add your payout details.',
+      type: 'OrganizerApproval', data: { url: '/organizer/dashboard' },
+      eventKey: `organizer-approval:${user._id}:${user.sessionVersion || 0}`,
+    });
+  } catch (error) { console.error('[notifications] approval alert failed:', error.message); }
+}
 
 // Convenience wrappers for the two audiences.
 export const notifyCustomer = (email, payload) => emitNotification('customer', email, payload);

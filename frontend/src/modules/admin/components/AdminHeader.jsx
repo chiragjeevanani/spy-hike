@@ -3,7 +3,8 @@ import {
   Sun, Moon, Bell, Search, ChevronRight, Check, Menu, X, Shield,
   Building2, Users, Mountain, Compass, Ticket, ClipboardList, Loader2, ArrowRight
 } from 'lucide-react';
-import { loadBroadcastHistory } from '../utils/storage';
+import api from '../../../lib/apiClient';
+import { initPushNotifications } from '../../../utils/pushNotifications';
 import { performGlobalAdminSearch } from '../utils/adminSearch';
 
 export default function AdminHeader({
@@ -17,7 +18,9 @@ export default function AdminHeader({
   onOpenOrganizerProfile,
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(1);
+  const [recentAlerts, setRecentAlerts] = useState([]);
+  const [pushMessage, setPushMessage] = useState('');
+  const unreadCount = recentAlerts.filter((alert) => !alert.read).length;
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -25,7 +28,26 @@ export default function AdminHeader({
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = useRef(null);
 
-  const recentAlerts = loadBroadcastHistory().slice(0, 4);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => api.get('/admin/notifications').then((result) => {
+      if (!cancelled) setRecentAlerts(result.notifications || []);
+    }).catch(() => {});
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    window.addEventListener('push-notification-received', refresh);
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('push-notification-received', refresh); };
+  }, [showNotifications]);
+
+  const enablePush = async () => {
+    const result = await initPushNotifications({ requestPermission: true });
+    setPushMessage(result.enabled ? 'Admin notifications enabled on this device.' : result.reason);
+  };
+  const openNotification = async (alert) => {
+    await api.patch(`/admin/notifications/${alert.id}/read`, {}).catch(() => {});
+    const url = alert.data?.url;
+    if (url?.startsWith('/admin/')) window.location.assign(url);
+  };
 
   // Debounce search query input (300ms delay)
   useEffect(() => {
@@ -344,13 +366,13 @@ export default function AdminHeader({
         {/* Notifications */}
         <div className="relative">
           <button
-            onClick={() => { setShowNotifications(!showNotifications); setUnreadCount(0); }}
+            onClick={() => setShowNotifications(!showNotifications)}
             className={`p-2 rounded-lg border transition-colors relative hover:scale-105 active:scale-95 ${
               darkMode
                 ? 'border-slate-800 bg-slate-900 text-slate-400'
                 : 'border-slate-200 bg-slate-50 text-slate-500'
             }`}
-            title="System Broadcasts & Notifications"
+            title="Admin notifications" aria-label="Admin notifications"
           >
             <Bell size={15} />
             {unreadCount > 0 && (
@@ -374,7 +396,7 @@ export default function AdminHeader({
               >
                 <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-xs font-black tracking-wider uppercase flex items-center gap-1.5">
-                    <Bell size={13} className="text-[#F27D26]" /> System Broadcasts
+                    <Bell size={13} className="text-[#F27D26]" /> Notifications
                   </span>
                   <button
                     onClick={() => {
@@ -386,14 +408,18 @@ export default function AdminHeader({
                     View Feed →
                   </button>
                 </div>
+                <button onClick={enablePush} className="w-full mb-3 rounded-xl py-2 bg-spy-orange text-white text-xs font-bold">Enable admin push notifications</button>
+                {pushMessage && <p role="status" className="text-xs mb-3">{pushMessage}</p>}
                 <div className="space-y-2.5 max-h-72 overflow-y-auto no-scrollbar">
                   {recentAlerts.length === 0 ? (
-                    <p className="text-xs text-slate-400 py-4 text-center">No system broadcasts yet.</p>
+                    <p className="text-xs text-slate-400 py-4 text-center">No notifications yet.</p>
                   ) : (
                     recentAlerts.map((alert, i) => (
-                      <div
+                      <button
+                        type="button"
+                        onClick={() => openNotification(alert)}
                         key={alert.id || i}
-                        className={`p-2.5 rounded-xl text-xs leading-relaxed ${
+                        className={`w-full text-left p-2.5 rounded-xl text-xs leading-relaxed ${
                           darkMode ? 'bg-slate-900/60 border border-slate-800' : 'bg-slate-50 border border-slate-100'
                         }`}
                       >
@@ -404,7 +430,7 @@ export default function AdminHeader({
                           </span>
                         </div>
                         <p className="text-slate-500 dark:text-slate-400 text-[11px]">{alert.content}</p>
-                      </div>
+                      </button>
                     ))
                   )}
                 </div>

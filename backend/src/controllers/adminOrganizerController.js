@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { notifyOrganizerApproved } from '../services/notificationService.js';
 import { retireOrganizer, completeOrganizerRetirement } from '../services/organizerRetirementService.js';
 import { hashPassword } from '../utils/password.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -15,6 +16,7 @@ export const setOrganizerStatus = asyncHandler(async (req, res) => {
   if (!user) throw ApiError.notFound('Organizer not found');
 
   const org = user.organizer || {};
+  const wasApproved = Boolean(org.isApproved);
 
   switch (action) {
     case 'approve':
@@ -37,6 +39,7 @@ export const setOrganizerStatus = asyncHandler(async (req, res) => {
 
   user.organizer = org;
   await user.save();
+  if (action === 'approve' && !wasApproved) await notifyOrganizerApproved(user);
   res.json({ organizer: user.toOrganizerJSON() });
 });
 

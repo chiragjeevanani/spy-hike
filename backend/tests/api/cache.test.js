@@ -26,9 +26,9 @@ describe('Response cache primitives', () => {
     await cacheInvalidate('');
   });
 
-  it('stores and returns a value', async () => {
+  it('does not retain responses without Redis', async () => {
     await cacheSet('unit:a', { hello: 'world' }, 60);
-    expect(await cacheGet('unit:a')).toEqual({ hello: 'world' });
+    expect(await cacheGet('unit:a')).toBeNull();
   });
 
   it('misses for an unknown key', async () => {
@@ -49,7 +49,7 @@ describe('Response cache primitives', () => {
 
     expect(await cacheGet('trips:list:a')).toBeNull();
     expect(await cacheGet('trips:list:b')).toBeNull();
-    expect(await cacheGet('treks:list:all')).toEqual({ v: 3 });
+    expect(await cacheGet('treks:list:all')).toBeNull();
   });
 });
 
@@ -58,14 +58,14 @@ describe('Cached catalog endpoints', () => {
     await cacheInvalidate('');
   });
 
-  it('serves a MISS then a HIT, and returns identical bodies', async () => {
+  it('reads the server on every request without Redis', async () => {
     await Trek.create({ _id: 'cache-trek-1', ...trekPayload() });
 
     const first = await request(app).get(`${api}/treks`);
     expect(first.headers['x-cache']).toBe('MISS');
 
     const second = await request(app).get(`${api}/treks`);
-    expect(second.headers['x-cache']).toBe('HIT');
+    expect(second.headers['x-cache']).toBe('MISS');
     expect(second.body).toEqual(first.body);
   });
 
@@ -104,7 +104,7 @@ describe('Cached catalog endpoints', () => {
       location: 'Manali', status: 'Published' });
     const before = await request(app).get(`${api}/treks`);
     expect(before.body.treks[0].tripCount).toBe(1);
-    expect((await request(app).get(`${api}/treks`)).headers['x-cache']).toBe('HIT');
+    expect((await request(app).get(`${api}/treks`)).headers['x-cache']).toBe('MISS');
 
     const paused = await request(app).patch(`${api}/admin/trips/cache-count-trip/status`)
       .set('Authorization', `Bearer ${token}`).send({ status: 'Paused' });
@@ -119,7 +119,7 @@ describe('Cached catalog endpoints', () => {
     expect(a.headers['x-cache']).toBe('MISS');
 
     const b = await request(app).get(`${api}/trips?limit=5&page=1`);
-    expect(b.headers['x-cache']).toBe('HIT');
+    expect(b.headers['x-cache']).toBe('MISS');
   });
 
   it('does not cache live seat availability', async () => {
@@ -138,7 +138,7 @@ describe('Cached catalog endpoints', () => {
     expect(denied.status).toBeGreaterThanOrEqual(400);
 
     const after = await request(app).get(`${api}/treks`);
-    expect(after.headers['x-cache']).toBe('HIT');
+    expect(after.headers['x-cache']).toBe('MISS');
   });
 });
 

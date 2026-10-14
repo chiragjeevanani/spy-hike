@@ -7,6 +7,7 @@ import {
   loadAdminDarkMode,
   saveAdminDarkMode,
 } from "./utils/storage";
+import { initPushNotifications, unregisterPushNotifications } from '../../utils/pushNotifications';
 import api, { clearToken } from "../../lib/apiClient";
 import { useToast } from "../../components/ToastProvider";
 
@@ -125,6 +126,7 @@ export default function AdminApp() {
     getProfileParam(window.location.pathname),
   );
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => { if (admin.isAuthenticated) initPushNotifications(); }, [admin.isAuthenticated, admin.email]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Sync back-button routing
@@ -172,6 +174,7 @@ export default function AdminApp() {
   };
 
   const handleLogout = () => {
+    unregisterPushNotifications();
     // Drop the JWT with the session — leaving it behind means the next sign-in
     // carries a stale token.
     clearToken();

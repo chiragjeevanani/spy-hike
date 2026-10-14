@@ -90,7 +90,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
     Booking.deleteMany({ userEmail }),
     Voucher.deleteMany({ ownerKey: userEmail }),
     Review.deleteMany({ userEmail }),
-    Notification.deleteMany({ ownerKey: userEmail }),
+    Notification.deleteMany({ ownerKey: userEmail, ownerType: { $ne: 'admin' } }),
     Chat.deleteMany({ userEmail }),
   ]);
 

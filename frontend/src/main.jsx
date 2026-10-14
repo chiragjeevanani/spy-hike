@@ -18,7 +18,8 @@ if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/ap
     const rawOrgUser = localStorage.getItem('trekigo_org_user');
     const rawUser = localStorage.getItem('trekigo_user');
 
-    const token = localStorage.getItem('trekigo_token');
+    const token = localStorage.getItem('trekigo_auth_token');
+    localStorage.removeItem('trekigo_token');
     if (activeRole === 'organizer' && rawOrgUser && token) {
       const orgUser = JSON.parse(rawOrgUser);
       if (orgUser?.isAuthenticated) {

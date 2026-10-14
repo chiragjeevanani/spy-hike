@@ -50,3 +50,7 @@ export const markAllCustomerNotificationsRead = markAllReadFor('customer', custo
 export const listOrganizerNotifications = listFor('organizer', organizerKey);
 export const markOrganizerNotificationRead = markReadFor('organizer', organizerKey);
 export const markAllOrganizerNotificationsRead = markAllReadFor('organizer', organizerKey);
+
+export const listAdminNotifications = listFor('admin', (req) => req.user.email);
+export const markAdminNotificationRead = markReadFor('admin', (req) => req.user.email);
+export const markAllAdminNotificationsRead = markAllReadFor('admin', (req) => req.user.email);

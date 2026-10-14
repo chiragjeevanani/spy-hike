@@ -1,86 +1,91 @@
 import { test, expect } from '@playwright/test';
-import { ORG_USER, makeLoyaltyConfig, makeOrgBooking, seedLocalStorage } from './fixtures/seed.js';
 
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
+const auth = (token) => ({ Authorization: `Bearer ${token}` });
 test.use({ viewport: { width: 480, height: 900 } });
 
-// Threshold=1 with a single received booking lands exactly on a milestone,
-// so a zero-commission voucher should already be minted once data loads.
-async function seedAtMilestone(page) {
-  await seedLocalStorage(page, {
-    trekigo_loyalty_config: makeLoyaltyConfig({ organizerThreshold: 1 }),
-    trekigo_org_user: ORG_USER,
-    trekigo_org_bookings: [makeOrgBooking({ hikersCount: 2 })],
-  });
+async function data(response) {
+  const body = await response.json();
+  expect(response.ok(), JSON.stringify(body)).toBeTruthy();
+  return body;
 }
 
-test.describe('Organizer — Loyalty Rewards', () => {
-  test('a received booking crossing the threshold mints a voucher and shows the Dashboard banner', async ({ page }) => {
-    await seedAtMilestone(page);
-    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
+async function earnedReward(page, request, threshold = 1) {
+  const stamp = crypto.randomUUID();
+  const admin = await data(await request.post(`${API}/auth/admin/login`, { data: { email: 'admin@findyourtrek.com', password: 'admin123' } }));
+  await data(await request.patch(`${API}/admin/loyalty/config`, { headers: auth(admin.token), data: {
+    organizer: { enabled: true, thresholdBookings: threshold },
+  } }));
+  const organizer = await data(await request.post(`${API}/auth/organizer/register`, { data: {
+    name: 'Reward Guide', agencyName: `Reward Guides ${stamp}`, email: `reward-guide-${stamp}@example.com`,
+    mobile: `9${Date.now().toString().slice(-9)}`, password: 'pass1234', govtIdType: 'Aadhaar', govtIdNumber: '123456789012',
+  } }));
+  await data(await request.patch(`${API}/admin/organizers/${organizer.account.id}/status`, { headers: auth(admin.token), data: { action: 'approve' } }));
+  await data(await request.patch(`${API}/organizer/bank-details`, { headers: auth(organizer.token), data: { accountHolderName: 'Reward Guide', upiId: 'guide@okhdfcbank' } }));
+  const date = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const { trip } = await data(await request.post(`${API}/organizer/trips`, { headers: auth(organizer.token), data: {
+    name: `Reward Trek ${stamp}`, location: 'Manali', city: 'Manali', state: 'Himachal Pradesh',
+    pricingTiers: [{ label: 'Solo', price: 1000 }], pickup: { location: 'Manali', price: 0 },
+    startPoint: { lat: 32.24, lng: 77.18, label: 'Base' }, departureDates: [date],
+    difficulty: 'Easy', durationDays: 3, maxGroupSize: 20, availableSeats: 20, category: 'Trekking',
+    description: 'Server-earned organizer reward test', coverImage: 'https://example.com/trek.jpg', status: 'Published',
+  } }));
+  const customer = await data(await request.post(`${API}/auth/register`, { data: { name: 'Reward Hiker', email: `reward-hiker-${stamp}@example.com`, password: 'pass1234' } }));
+  const { booking } = await data(await request.post(`${API}/bookings`, { headers: auth(customer.token), data: {
+    tripId: trip.id, selectedDate: date, selections: [{ label: 'Solo', count: 1 }],
+    travelers: [{ name: 'Reward Hiker', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+  } }));
+  await page.addInitScript((token) => localStorage.setItem('trekigo_auth_token', token), organizer.token);
+  return { organizer, booking };
+}
 
-    await expect(page.locator('#btn-open-loyalty-dashboard')).toBeVisible();
-    await expect(page.getByText('1/1')).toBeVisible();
+test('a server-earned organizer voucher appears on the dashboard', async ({ page, request }) => {
+  await earnedReward(page, request);
+  await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#btn-open-loyalty-dashboard')).toBeVisible();
+  await expect(page.getByText('1/1')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_org_vouchers') || '[]').filter((voucher) => voucher.status === 'available').length)).toBe(1);
+});
 
-    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_org_vouchers')));
-    expect(vouchers).toHaveLength(1);
-    expect(vouchers[0].status).toBe('available');
+test('profile opens the server-earned organizer reward', async ({ page, request }) => {
+  await earnedReward(page, request);
+  await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
+  await page.locator('#btn-open-loyalty-profile').click();
+  await expect(page.getByText('Zero-Commission Credit Ready!')).toBeVisible();
+  await expect(page.getByText('Milestone #1 Reward')).toBeVisible();
+});
 
-    // totalBookings on the organizer profile should be kept in sync with
-    // their actual booking roster, since the loyalty progress depends on it.
-    const orgUser = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_org_user')));
-    expect(orgUser.totalBookings).toBe(1);
-  });
+test('redeeming in the organizer UI zeroes commission on the server', async ({ page, request }) => {
+  const { organizer, booking } = await earnedReward(page, request);
+  await page.goto('/organizer/bookings', { waitUntil: 'domcontentloaded' });
+  await page.locator(`#org-booking-row-${booking.id}`).click();
+  await page.locator('#btn-apply-org-loyalty-reward').click();
+  await expect(page.getByText(/₹0 \((?:Zero Fee )?Reward Applied\)/)).toBeVisible();
+  const result = await data(await request.get(`${API}/organizer/bookings`, { headers: auth(organizer.token) }));
+  const redeemed = result.bookings.find((item) => item.bookingId === booking.bookingId);
+  expect(redeemed.commissionAmount).toBe(0);
+  expect(redeemed.organizerRewardApplied).toBe(true);
+});
 
-  test('Profile menu shows unlocked messaging and opens the Loyalty Rewards overlay', async ({ page }) => {
-    await seedAtMilestone(page);
-    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' }); // let the sync effect mint the voucher first
-    await page.waitForTimeout(300);
+test('below-threshold server progress does not mint an organizer voucher', async ({ page, request }) => {
+  const { organizer } = await earnedReward(page, request, 1000);
+  await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('1/1000')).toBeVisible();
+  const result = await data(await request.get(`${API}/organizer/loyalty`, { headers: auth(organizer.token) }));
+  expect(result.vouchers).toEqual([]);
+});
 
-    await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(/Zero-commission voucher ready to apply|Zero-commission credit unlocked/i)).toBeVisible();
-
-    await page.click('#btn-open-loyalty-profile');
-    await expect(page.getByText('Zero-Commission Credit Ready!')).toBeVisible();
-    await expect(page.getByText('Milestone #1 Reward')).toBeVisible();
-  });
-
-  test('redeeming the reward on a booking zeroes its commission and marks the voucher used', async ({ page }) => {
-    await seedAtMilestone(page);
-    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' }); // mint the voucher
-    await page.waitForTimeout(300);
-
-    await page.goto('/organizer/bookings', { waitUntil: 'domcontentloaded' });
-    await page.click('#org-booking-row-ob-e2e-1', { force: true });
-
-    const redeemBtn = page.locator('#btn-apply-org-loyalty-reward');
-    await expect(redeemBtn).toBeVisible();
-    await redeemBtn.click();
-
-    await expect(page.getByText(/₹0 \((?:Zero Fee )?Reward Applied\)/)).toBeVisible();
-
-    const vouchers = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_loyalty_org_vouchers')));
-    expect(vouchers[0].status).toBe('used');
-    expect(vouchers[0].usedRef).toBe('TG-ORGE2E-1');
-
-    const bookings = await page.evaluate(() => JSON.parse(localStorage.getItem('trekigo_org_bookings')));
-    const redeemed = bookings.find(b => b.bookingId === 'TG-ORGE2E-1');
-    expect(redeemed.commissionAmount).toBe(0);
-    expect(redeemed.loyaltyRewardApplied).toBe(true);
-  });
-
-  test('below-threshold progress shows remaining count, not a false reward', async ({ page }) => {
-    await seedLocalStorage(page, {
-      trekigo_loyalty_config: makeLoyaltyConfig({ organizerThreshold: 1000 }),
-      trekigo_org_user: ORG_USER,
-      trekigo_org_bookings: [makeOrgBooking({ hikersCount: 2 })],
-    });
-    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
-
-    await expect(page.getByText('1/1000')).toBeVisible();
-    const vouchers = await page.evaluate(() => {
-      const raw = localStorage.getItem('trekigo_loyalty_org_vouchers');
-      return raw ? JSON.parse(raw) : [];
-    });
-    expect(vouchers).toHaveLength(0);
-  });
+test('a rejected redemption cannot mark commission waived in the browser', async ({ page, request }) => {
+  const { organizer, booking } = await earnedReward(page, request);
+  await page.route('**/redeem-reward', (route) => route.fulfill({ status: 503,
+    json: { error: { message: 'Reward service unavailable' } } }));
+  await page.goto('/organizer/bookings', { waitUntil: 'domcontentloaded' });
+  await page.locator(`#org-booking-row-${booking.id}`).click();
+  await page.locator('#btn-apply-org-loyalty-reward').click();
+  await expect(page.getByText('Reward service unavailable')).toBeVisible();
+  await expect(page.getByText(/₹0 \((?:Zero Fee )?Reward Applied\)/)).toHaveCount(0);
+  const result = await data(await request.get(`${API}/organizer/bookings`, { headers: auth(organizer.token) }));
+  const unchanged = result.bookings.find((item) => item.bookingId === booking.bookingId);
+  expect(unchanged.commissionAmount).toBeGreaterThan(0);
+  expect(unchanged.organizerRewardApplied).toBe(false);
 });

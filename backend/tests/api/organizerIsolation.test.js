@@ -11,7 +11,7 @@ import Notification from '../../src/models/Notification.js';
 import Voucher from '../../src/models/Voucher.js';
 import PromotionRequest from '../../src/models/PromotionRequest.js';
 import TrekRequest from '../../src/models/TrekRequest.js';
-import { signToken } from '../../src/utils/jwt.js';
+import { signToken, verifyToken } from '../../src/utils/jwt.js';
 
 const app = createApp();
 const api = '/api/v1';
@@ -52,7 +52,16 @@ async function assertFreshAccount(token) {
     ['payouts', 'payouts'], ['notifications', 'notifications'], ['promotion-requests', 'requests'], ['trek-requests', 'requests']]) {
     const res = await request(app).get(`${api}/organizer/${path}`).set(bearer(token));
     expect(res.status, path).toBe(200);
-    expect(res.body[field], path).toEqual([]);
+    if (field === 'notifications') {
+      // A newly approved account gets its own congratulations, never the old
+      // lifecycle's private notifications or approval event.
+      expect(res.body.notifications).toHaveLength(1);
+      expect(res.body.notifications[0]).toMatchObject({ type: 'OrganizerApproval',
+        title: 'Congratulations! Your application is approved', data: { url: '/organizer/dashboard' } });
+      const principal = verifyToken(token);
+      const notification = await Notification.findById(res.body.notifications[0].id);
+      expect(notification.eventKey).toBe(`organizer-approval:${principal.sub}:${principal.sessionVersion || 0}:organizer:${details.email}`);
+    } else expect(res.body[field], path).toEqual([]);
   }
   const financials = await request(app).get(`${api}/organizer/financials`).set(bearer(token));
   expect(financials.body.financials.available).toBe(0);

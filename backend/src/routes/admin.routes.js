@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { listAdminNotifications, markAdminNotificationRead, markAllAdminNotificationsRead } from '../controllers/notificationController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { setOrganizerStatus, listOrganizers, createOrganizer, updateOrganizer, deleteOrganizer } from '../controllers/adminOrganizerController.js';
 import {
@@ -35,6 +36,9 @@ import {
 const router = Router();
 
 router.use('/admin', requireAuth, requireRole('admin'));
+router.get('/admin/notifications', listAdminNotifications);
+router.patch('/admin/notifications/read-all', markAllAdminNotificationsRead);
+router.patch('/admin/notifications/:id/read', markAdminNotificationRead);
 
 router.patch('/admin/profile', updateAdminProfile);
 

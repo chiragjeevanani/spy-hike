@@ -62,20 +62,10 @@ export const DEFAULT_ORG_USER = {
   },
 };
 
-const DEMO_ORG_TRIPS = [];
-
-const DEMO_ORG_BOOKINGS = [];
-
+// Saved display profiles must never authenticate an organizer on startup.
 export const loadOrgUser = () => {
-  try {
-    const val = localStorage.getItem(ORG_USER_KEY);
-    if (val) {
-      const user = JSON.parse(val);
-      ensureOrgDataOwner(user);
-      return user;
-    }
-  } catch (e) { console.error(e); }
-  return DEFAULT_ORG_USER;
+  clearOrgData();
+  return { ...DEFAULT_ORG_USER, isOnboarded: true };
 };
 
 export const saveOrgUser = (state) => {
@@ -110,68 +100,22 @@ export const saveOrgUser = (state) => {
   }
 };
 
-export const loadOrgTrips = (orgEmail) => {
-  try {
-    const val = localStorage.getItem(ORG_TRIPS_KEY);
-    if (val) {
-      const all = JSON.parse(val);
-      return orgEmail ? all.filter(t => t.organizerEmail === orgEmail) : all;
-    }
-  } catch (e) { console.error(e); }
-  return [];
+export const loadOrgTrips = () => [];
+export const saveOrgTrips = () => {
+  try { localStorage.removeItem(ORG_TRIPS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const saveOrgTrips = (trips) => {
-  safeSetItem(ORG_TRIPS_KEY, trips);
+export const loadOrgBookings = () => [];
+export const saveOrgBookings = () => {
+  try { localStorage.removeItem(ORG_BOOKINGS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const loadOrgBookings = (orgEmail) => {
-  try {
-    const val = localStorage.getItem(ORG_BOOKINGS_KEY);
-    if (val) {
-      const all = JSON.parse(val);
-      return orgEmail ? all.filter(b => b.organizerEmail === orgEmail) : all;
-    }
-  } catch (e) { console.error(e); }
-  return [];
+export const loadOrgNotifications = () => [];
+export const saveOrgNotifications = () => {
+  try { localStorage.removeItem(ORG_NOTIFICATIONS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const saveOrgBookings = (bookings) => {
-  safeSetItem(ORG_BOOKINGS_KEY, bookings);
+export const loadOrgChats = () => [];
+export const saveOrgChats = () => {
+  try { localStorage.removeItem(ORG_CHATS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const loadOrgNotifications = () => {
-  try {
-    const val = localStorage.getItem(ORG_NOTIFICATIONS_KEY);
-    if (val) {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) {
-        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-        return parsed.filter(
-          (n) => !n.timestamp || new Date(n.timestamp).getTime() >= thirtyDaysAgo
-        );
-      }
-    }
-  } catch (e) { console.error(e); }
-  return [];
-};
-
-export const saveOrgNotifications = (val) => {
-  safeSetItem(ORG_NOTIFICATIONS_KEY, val);
-};
-
-export const loadOrgChats = () => {
-  try {
-    const val = localStorage.getItem(ORG_CHATS_KEY);
-    if (val) return JSON.parse(val);
-  } catch (e) { console.error(e); }
-  return [];
-};
-
-export const saveOrgChats = (val) => {
-  safeSetItem(ORG_CHATS_KEY, val);
-};
-
 export const loadOrgDarkMode = () => {
   try {
     const val = localStorage.getItem(ORG_DARK_MODE_KEY);
@@ -184,15 +128,7 @@ export const saveOrgDarkMode = (val) => {
   safeSetItem(ORG_DARK_MODE_KEY, val);
 };
 
-export const loadOrgPayouts = () => {
-  try {
-    const val = localStorage.getItem(ORG_PAYOUTS_KEY);
-    if (val) return JSON.parse(val);
-  } catch (e) { console.error(e); }
-  return [];
+export const loadOrgPayouts = () => [];
+export const saveOrgPayouts = () => {
+  try { localStorage.removeItem(ORG_PAYOUTS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const saveOrgPayouts = (val) => {
-  safeSetItem(ORG_PAYOUTS_KEY, val);
-};
-

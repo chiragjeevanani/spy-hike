@@ -2,27 +2,19 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import {
-  loadOrgUser,
   clearOrgData,
   organizerCacheIdentity,
   saveOrgUser,
   DEFAULT_ORG_USER,
-  loadOrgTrips,
   saveOrgTrips,
-  loadOrgBookings,
   saveOrgBookings,
-  loadOrgNotifications,
   saveOrgNotifications,
   loadOrgDarkMode,
   saveOrgDarkMode,
-  loadOrgPayouts,
   saveOrgPayouts,
-  loadOrgChats,
   saveOrgChats,
 } from "./utils/storage";
 import {
-  syncOrganizerVouchers,
-  markOrganizerVoucherUsed,
   hydrateOrganizerLoyalty,
 } from "../../utils/loyalty";
 import { resetPageScroll } from "../../utils/scroll";
@@ -31,8 +23,8 @@ import tripsApi from "../../lib/tripsApi";
 import bookingsApi from "../../lib/bookingsApi";
 import loyaltyApi from "../../lib/loyaltyApi";
 import socialApi from "../../lib/socialApi";
-import { getToken, clearToken } from "../../lib/apiClient";
-import { initPushNotifications } from "../../utils/pushNotifications";
+import { getToken, clearToken, sessionIdentity } from "../../lib/apiClient";
+import { initPushNotifications, unregisterPushNotifications } from "../../utils/pushNotifications";
 import { useLivePoll, LIVE } from "../../utils/livePoll";
 import { getSocket, updateSocketAuth } from "../../lib/socket";
 import {
@@ -100,9 +92,22 @@ function tabToPath(tab, tripId = null) {
 
 // ─── Main organizer App ───────────────────────────────────────────────────────
 
+const discardAccountSession = () => {
+  clearToken();
+  clearOrgData();
+  for (const key of ['trekigo_user', 'trekigo_bookings', 'trekigo_notifications',
+    'trekigo_chats', 'trekigo_wishlist', 'trekigo_loyalty_customer_vouchers',
+    'trekigo_loyalty_customer_progress', 'trekigo_active_role', 'trekigo_last_route', 'trekigo_token']) {
+    try { localStorage.removeItem(key); } catch { /* Storage unavailable. */ }
+  }
+};
+
 export default function OrgApp() {
   const [darkMode, setDarkMode] = useState(loadOrgDarkMode());
-  const [organizer, setOrganizer] = useState(loadOrgUser());
+  const [organizer, setOrganizer] = useState({ ...DEFAULT_ORG_USER, isOnboarded: true });
+  const [sessionState, setSessionState] = useState('checking');
+  const [walkthroughComplete, setWalkthroughComplete] = useState(() => localStorage.getItem('trekigo_org_walkthrough_completed') === 'true');
+  const [sessionCheckAttempt, setSessionCheckAttempt] = useState(0);
   const [activeTab, setActiveTab] = useState(() =>
     getOrgTab(window.location.pathname),
   );
@@ -127,19 +132,6 @@ export default function OrgApp() {
   const [chats, setChats] = useState([]);
   const [payouts, setPayouts] = useState([]);
   const [commissionRate, setCommissionRate] = useState(10);
-
-  // Offline/demo sessions derive rewards from their own cached booking roster.
-  // Authenticated API sessions hydrate server-issued rewards instead.
-  useEffect(() => {
-    if (getToken() || !organizer?.isAuthenticated) return;
-    const totalBookings = bookings.filter((booking) => booking.status !== "Cancelled").length;
-    syncOrganizerVouchers(totalBookings);
-    if (organizer.totalBookings !== totalBookings) {
-      const updated = { ...organizer, totalBookings };
-      setOrganizer(updated);
-      saveOrgUser(updated);
-    }
-  }, [bookings, organizer]);
 
   const [navHidden, setNavHidden] = useState(false);
   const payoutSetupComplete = hasCompletePayoutDetails(organizer?.bankDetails);
@@ -174,9 +166,7 @@ export default function OrgApp() {
       .catch(() => {});
   }, []);
 
-  // Load organizer-specific data. Trips + bookings come from the API for a
-  // real (token-backed) session; both fall back to localStorage so the
-  // seeded/offline paths keep working.
+  // Organizer data always comes from the verified API session.
   const knownBookingIdsRef = useRef(null);
   const knownChatMsgCountRef = useRef(null);
 
@@ -199,13 +189,7 @@ export default function OrgApp() {
     if (!organizer?.isAuthenticated || !organizer?.isApproved || !payoutSetupComplete) {
       return () => { cancelled = true; };
     }
-    if (!getToken()) {
-      setTrips(loadOrgTrips(organizer.email));
-      setBookings(loadOrgBookings(organizer.email));
-      setChats(loadOrgChats());
-      setNotifications(loadOrgNotifications());
-      setPayouts(loadOrgPayouts());
-    } else {
+    if (getToken()) {
       saveOrgTrips([]);
       saveOrgBookings([]);
       saveOrgChats([]);
@@ -460,13 +444,14 @@ export default function OrgApp() {
   // the "Apply as Organizer" registration flow which still lives in this module.
   useEffect(() => {
     if (
+      sessionState === 'ready' &&
       organizer.isOnboarded &&
       !organizer.isAuthenticated &&
-      activeTab !== "Register"
+      activeTab !== "Register" && activeTab !== "Onboarding"
     ) {
       window.location.href = SHARED_LOGIN_PATH;
     }
-  }, [organizer.isOnboarded, organizer.isAuthenticated, activeTab]);
+  }, [sessionState, organizer.isOnboarded, organizer.isAuthenticated, activeTab]);
 
   // Opt into web push once signed in — no-ops silently if unsupported/denied.
   useEffect(() => {
@@ -528,15 +513,15 @@ export default function OrgApp() {
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  const handleOnboardingComplete = () => {
-    const updated = { ...organizer, isOnboarded: true };
-    saveOrgUser(updated);
-    setOrganizer(updated);
-    window.location.href = SHARED_LOGIN_PATH;
-  };
+  const handleOnboardingComplete = useCallback(() => {
+    localStorage.setItem('trekigo_org_walkthrough_completed', 'true');
+    setWalkthroughComplete(true);
+    navigateTo('Register', true);
+  }, [navigateTo]);
 
   const handleAuthSuccess = (orgUser) => {
     setOrganizer(orgUser);
+    setSessionState('ready');
     if (!orgUser.isApproved && orgUser.isPendingApproval) {
       navigateTo("Pending", true);
     } else {
@@ -545,6 +530,7 @@ export default function OrgApp() {
   };
 
   const handleLogout = () => {
+    unregisterPushNotifications();
     clearToken();
     clearOrgData();
     setChats([]);
@@ -575,6 +561,57 @@ export default function OrgApp() {
 
     window.location.href = SHARED_LOGIN_PATH;
   };
+
+  // Browser profiles are display snapshots, never proof that an account exists.
+  // Resolve the live account before allowing registration, payout setup or data reads.
+  useEffect(() => {
+    let cancelled = false;
+    setSessionState('checking');
+    clearOrgData();
+    const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+    const verify = async () => {
+      if (!getToken()) {
+        discardAccountSession();
+        saveOrgUser(reset);
+        setOrganizer(reset);
+        setSessionState('ready');
+        return;
+      }
+      try {
+        const status = await authApi.getLinkedOrganizerStatus();
+        if (cancelled) return;
+        if (!status?.isOrganizer) {
+          saveOrgUser(reset);
+          setOrganizer(reset);
+        } else {
+          const verified = { ...DEFAULT_ORG_USER, ...status.organizer,
+            isAuthenticated: true, isOnboarded: true,
+            isApproved: Boolean(status.isApproved), isPendingApproval: !status.isApproved };
+          saveOrgUser(verified);
+          setOrganizer(verified);
+          if (['Register', 'Pending'].includes(getOrgTab(window.location.pathname))) {
+            navigateTo(verified.isApproved ? 'Dashboard' : 'Pending', true);
+          }
+        }
+        setSessionState('ready');
+      } catch (error) {
+        if (cancelled) return;
+        if ([401, 403, 404].includes(error?.status)) {
+          discardAccountSession();
+          saveOrgUser(reset);
+          setOrganizer(reset);
+          navigateTo('Register', true);
+          setSessionState('ready');
+        } else {
+          // A network outage must never restore a cached approved profile.
+          setOrganizer(reset);
+          setSessionState('error');
+        }
+      }
+    };
+    verify();
+    return () => { cancelled = true; };
+  }, [sessionCheckAttempt, navigateTo]);
 
   // Auto-verify approval status from server on page load / refresh & poll if
   // pending, so an admin approval lands the organizer on their dashboard on its
@@ -659,11 +696,6 @@ export default function OrgApp() {
     // Run immediately on page load / mount
     checkStatus();
 
-    if (organizer.isApproved)
-      return () => {
-        cancelled = true;
-      };
-
     // Poll every 8 seconds while waiting for admin approval, and re-check the
     // moment the app comes back to the foreground — reopening the app should
     // reflect an approval that happened while it was closed, without waiting
@@ -691,7 +723,7 @@ export default function OrgApp() {
   // Handle cross-tab or interceptor session expiration and revocation events
   useEffect(() => {
     const handleRevokedOrExpired = () => {
-      clearToken();
+      discardAccountSession();
       const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
       setOrganizer(reset);
       saveOrgUser(reset);
@@ -703,11 +735,20 @@ export default function OrgApp() {
       navigateTo("Register", true);
     };
 
+    const onStorage = (event) => {
+      if (event.key === 'trekigo_auth_token'
+        && sessionIdentity(event.oldValue) !== sessionIdentity(event.newValue)) {
+        if (!event.newValue) handleRevokedOrExpired();
+        else window.location.reload();
+      }
+    };
+    window.addEventListener('storage', onStorage);
     window.addEventListener("organizer-status-revoked", handleRevokedOrExpired);
     window.addEventListener("auth-session-expired", handleRevokedOrExpired);
     window.addEventListener("hiker-status-changed", handleRevokedOrExpired);
 
     return () => {
+      window.removeEventListener('storage', onStorage);
       window.removeEventListener("organizer-status-revoked", handleRevokedOrExpired);
       window.removeEventListener("auth-session-expired", handleRevokedOrExpired);
       window.removeEventListener("hiker-status-changed", handleRevokedOrExpired);
@@ -759,20 +800,11 @@ export default function OrgApp() {
 
   // Re-fetch this organizer's payouts from the API (source of truth).
   const refreshPayouts = useCallback(async () => {
-    if (!organizer.isAuthenticated) return;
+    if (!organizer.isAuthenticated || !getToken()) return;
     try {
-      if (getToken()) {
-        const list = await bookingsApi.listPayouts();
-        if (Array.isArray(list)) {
-          setPayouts(list);
-          saveOrgPayouts(list);
-        }
-      } else {
-        setPayouts(loadOrgPayouts());
-      }
-    } catch {
-      if (!getToken()) setPayouts(loadOrgPayouts());
-    }
+      const list = await bookingsApi.listPayouts();
+      if (Array.isArray(list)) setPayouts(list);
+    } catch { /* Never restore browser data after a failed live read. */ }
   }, [organizer.isAuthenticated]);
 
   useEffect(() => {
@@ -848,13 +880,11 @@ export default function OrgApp() {
   };
 
   // Applies an available zero-commission loyalty voucher to a specific
-  // booking — the organizer keeps 100% of that booking's payout. Real sessions
-  // redeem server-side (which verifies the voucher and zeroes commission);
-  // offline/seeded falls back to the local ledger.
+  // booking. Redemption always verifies the voucher on the server.
   const handleApplyLoyaltyReward = async (voucherId, bookingId) => {
     if (getToken()) {
       try {
-        await loyaltyApi.organizerRedeemReward(bookingId);
+        const redeemed = await loyaltyApi.organizerRedeemReward(bookingId);
         await refreshOrgTrips().catch(() => {});
         bookingsApi
           .listOrganizer()
@@ -863,20 +893,13 @@ export default function OrgApp() {
           })
           .catch(() => {});
         await hydrateOrganizerLoyalty();
-        return;
+        return redeemed;
       } catch (err) {
         toast.error(err?.message || "Could not apply reward.");
         return;
       }
     }
-    markOrganizerVoucherUsed(voucherId, bookingId);
-    const updated = bookings.map((b) =>
-      b.id === bookingId || b.bookingId === bookingId
-        ? { ...b, commissionAmount: 0, loyaltyRewardApplied: true }
-        : b,
-    );
-    setBookings(updated);
-    saveOrgBookings(updated);
+    toast.error('Please sign in again to apply a reward.');
   };
 
   const handleBottomNavChange = (tab) => navigateTo(tab);
@@ -959,18 +982,15 @@ export default function OrgApp() {
   };
 
   const handleSaveBankDetails = async (bankDetails) => {
-    const savedOrganizer = getToken()
-      ? await bookingsApi.saveBankDetails(bankDetails)
-      : null;
+    const savedOrganizer = await bookingsApi.saveBankDetails(bankDetails);
     const updated = { ...organizer, ...savedOrganizer, bankDetails: savedOrganizer?.bankDetails || bankDetails };
     saveOrgUser(updated);
     setOrganizer(updated);
+    if (['Register', 'Pending'].includes(activeTab)) navigateTo('Dashboard', true);
     return updated;
   };
 
-  // Requests a payout. A real session records it server-side (validated against
-  // the available balance) and awaits admin settlement; the offline/seeded path
-  // fakes the settlement delay.
+  // Payout requests always validate the available balance on the server.
   const handleRequestPayout = (amount) => {
     if (amount <= 0) return;
 
@@ -991,25 +1011,7 @@ export default function OrgApp() {
       return;
     }
 
-    const payoutId = `PO-${Date.now().toString().slice(-6)}`;
-    const method = organizer?.bankDetails?.upiId?.trim()
-      ? "UPI"
-      : "Bank Transfer";
-    const newPayout = {
-      id: payoutId,
-      amount,
-      method,
-      status: "Processing",
-      requestedAt: new Date().toISOString(),
-      completedAt: null,
-      utr: null,
-    };
-    setPayouts((prev) => {
-      const next = [...prev, newPayout];
-      saveOrgPayouts(next);
-      return next;
-    });
-    toast.success("Payout requested successfully!");
+    toast.error('Please sign in again to request a payout.');
   };
 
   // ─── Routing render ────────────────────────────────────────────────────────
@@ -1017,8 +1019,19 @@ export default function OrgApp() {
   const BOTTOM_NAV_TABS = ["Dashboard", "Trips", "Bookings", "Profile"];
 
   const renderContent = () => {
+    if (sessionState === 'checking') {
+      return <div role="status" className="p-8 text-center">Checking your organizer account…</div>;
+    }
+    if (sessionState === 'error') {
+      return <div role="alert" className="p-8 text-center space-y-4">
+        <p>We couldn’t verify your organizer account. Please retry to continue.</p>
+        <button onClick={() => setSessionCheckAttempt((attempt) => attempt + 1)} className="px-5 py-3 rounded-xl bg-forest-600 text-white">Retry verification</button>
+        <button onClick={handleLogout} className="block mx-auto">Back to sign in</button>
+      </div>;
+    }
     // 1. Onboarding gate
-    if (!organizer.isOnboarded) {
+    if (!organizer.isAuthenticated && !walkthroughComplete
+      && ["Register", "Onboarding"].includes(activeTab)) {
       return (
         <OrgOnboarding
           onComplete={handleOnboardingComplete}

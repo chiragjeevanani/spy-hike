@@ -4,12 +4,14 @@ import mongoose from 'mongoose';
 // admin broadcasts (context.md §7). `ownerKey` is the recipient's email.
 const notificationSchema = new mongoose.Schema(
   {
-    ownerType: { type: String, enum: ['customer', 'organizer'], required: true, index: true },
+    ownerType: { type: String, enum: ['customer', 'organizer', 'admin'], required: true, index: true },
     ownerKey: { type: String, required: true, index: true },
     title: { type: String, required: true },
     content: { type: String, default: '' },
     type: { type: String, default: 'System' }, // Booking|Payment|Promo|Updates|System
     read: { type: Boolean, default: false },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} },
+    eventKey: { type: String, unique: true, sparse: true },
   },
   { timestamps: true },
 );
@@ -28,6 +30,7 @@ notificationSchema.methods.toPublicJSON = function toPublicJSON() {
     content: this.content,
     type: this.type,
     read: this.read,
+    data: this.data,
     timestamp: this.createdAt,
   };
 };

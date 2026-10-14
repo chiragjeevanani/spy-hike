@@ -1,5 +1,9 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('trekigo_org_walkthrough_completed', 'true'));
+});
+
 // "Become an Organizer" application lifecycle, driven end-to-end against the
 // real API:
 //   1. An admin approval reaches the waiting applicant on its own — no manual

@@ -29,201 +29,48 @@ describe('apiClient account changes', () => {
   });
 });
 
-describe('apiClient request de-duplication', () => {
-  beforeEach(() => {
-    clearApiCache();
+describe('API reads without response caching', () => {
+  beforeEach(() => { setToken(null); vi.restoreAllMocks(); });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('fetches fresh data for repeated reads, including cache: true callers', async () => {
+    let version = 0;
+    const fetchMock = vi.fn(async () => jsonResponse({ version: ++version }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await api.get('/organizer/bookings', { auth: false })).toEqual({ version: 1 });
+    expect(await api.get('/organizer/bookings', { auth: false, cache: true })).toEqual({ version: 2 });
+    expect(fetchMock.mock.calls.every(([, options]) => options.cache === 'no-store')).toBe(true);
+  });
+
+  it('does not join a request started before the current server read', async () => {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    let calls = 0;
+    const fetchMock = vi.fn(async () => {
+      const call = ++calls;
+      if (call === 1) await gate;
+      return jsonResponse({ bookings: call === 1 ? ['deleted-booking'] : [] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const old = api.get('/bookings', { auth: false });
+    expect(await api.get('/bookings', { auth: false })).toEqual({ bookings: [] });
+    release();
+    await old;
+    expect(await api.get('/bookings', { auth: false })).toEqual({ bookings: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('rechecks authorization instead of serving previously successful private data', async () => {
+    const storage = new Map();
+    vi.stubGlobal('localStorage', { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) });
+    vi.stubGlobal('window', { location: { pathname: '/organizer' } });
+    setToken('session');
+    const fetchMock = vi.fn(async () => jsonResponse({ bookings: ['old'] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await api.get('/organizer/bookings');
     setToken(null);
-    vi.restoreAllMocks();
-  });
-
-  afterEach(() => {
-    clearApiCache();
-  });
-
-  it('collapses concurrent identical GETs into one network request', async () => {
-    let resolve;
-    const gate = new Promise((r) => { resolve = r; });
-    const fetchMock = vi.fn(async () => { await gate; return jsonResponse({ treks: [{ id: 'a' }] }); });
-    vi.stubGlobal('fetch', fetchMock);
-
-    // Four views mounting at once, exactly what Home/Explore/App did.
-    const all = Promise.all([
-      api.get('/treks', { auth: false }),
-      api.get('/treks', { auth: false }),
-      api.get('/treks', { auth: false }),
-      api.get('/treks', { auth: false }),
-    ]);
-    resolve();
-    const results = await all;
-
+    await expect(api.get('/organizer/bookings')).rejects.toMatchObject({ status: 401 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    results.forEach((r) => expect(r.treks).toEqual([{ id: 'a' }]));
-  });
-
-  it('gives each caller an independent copy', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ treks: [{ id: 'a' }] })));
-
-    const [first, second] = await Promise.all([
-      api.get('/treks', { auth: false }),
-      api.get('/treks', { auth: false }),
-    ]);
-    first.treks.push({ id: 'mutated' });
-
-    expect(second.treks).toHaveLength(1);
-  });
-
-  it('does not conflate different query strings', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ treks: [] }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await Promise.all([
-      api.get('/treks', { auth: false }),
-      api.get('/treks?trending=true', { auth: false }),
-    ]);
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('serves a second request from cache after the first settles', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/config', { auth: false });
-    await api.get('/config', { auth: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('propagates a failure to every joined caller and re-requests afterwards', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: false,
-      status: 500,
-      text: async () => JSON.stringify({ error: { message: 'boom' } }),
-    }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const results = await Promise.allSettled([
-      api.get('/treks', { auth: false }),
-      api.get('/treks', { auth: false }),
-    ]);
-    results.forEach((r) => expect(r.status).toBe('rejected'));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // A failure must not be cached — the next call tries again.
-    await api.get('/treks', { auth: false }).catch(() => {});
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('apiClient scoped invalidation', () => {
-  beforeEach(() => {
-    clearApiCache();
-    setToken(null);
-    vi.restoreAllMocks();
-  });
-
-  it('a write evicts only its own resource family', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/treks', { auth: false });
-    await api.get('/config', { auth: false });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    // Toggling a wishlist item used to flush the whole cache.
-    await api.post('/wishlist', { id: 'x' }, { auth: false });
-
-    await api.get('/treks', { auth: false });
-    await api.get('/config', { auth: false });
-    // 2 initial + 1 POST = 3; both GETs still cached.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('evicts the written resource itself', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/bookings', { auth: false });
-    await api.post('/bookings', { tripId: 't' }, { auth: false });
-    await api.get('/bookings', { auth: false });
-
-    // GET, POST, GET again — the write invalidated its own family.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('honours declared cross-resource invalidations', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/trips', { auth: false });
-    await api.post('/bookings', { tripId: 't' }, { auth: false, invalidates: ['/trips'] });
-    await api.get('/trips', { auth: false });
-
-    // Booking a seat changes trip availability, so /trips must refetch.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('scopes admin and organizer paths to their resource, not the prefix', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/treks', { auth: false });
-    await api.put('/admin/treks/kedarkantha', { title: 'x' }, { auth: false });
-    await api.get('/treks', { auth: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-});
-
-// Live polling — the organizer app polls bookings every 5s, and the 60s GET
-// cache was answering those polls with a stale list (a booking made elsewhere
-// only appeared after a reload cleared the cache). Polled calls pass
-// { cache: false }, which must reach the network every time.
-describe('apiClient live (uncached) reads', () => {
-  beforeEach(() => {
-    clearApiCache();
-    setToken(null);
-    vi.restoreAllMocks();
-  });
-
-  afterEach(() => {
-    clearApiCache();
-  });
-
-  it('serves a repeated default GET from the cache', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ bookings: [] }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/organizer/bookings', { auth: false });
-    await api.get('/organizer/bookings', { auth: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('hits the network on every poll when cache is disabled', async () => {
-    let call = 0;
-    const fetchMock = vi.fn(async () => jsonResponse({ bookings: [{ id: `b${++call}` }] }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const first = await api.get('/organizer/bookings', { auth: false, cache: false });
-    const second = await api.get('/organizer/bookings', { auth: false, cache: false });
-    const third = await api.get('/organizer/bookings', { auth: false, cache: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    // Each poll sees the current server state, not the first response.
-    expect(first.bookings[0].id).toBe('b1');
-    expect(second.bookings[0].id).toBe('b2');
-    expect(third.bookings[0].id).toBe('b3');
-  });
-
-  it('does not let an uncached read poison the cache for other callers', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ bookings: [{ id: 'live' }] }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await api.get('/organizer/bookings', { auth: false, cache: false });
-    await api.get('/organizer/bookings', { auth: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -288,6 +135,14 @@ describe('apiClient 401 session expiration handling', () => {
     const expiredEvent = dispatchedEvents.find((e) => e.type === 'auth-session-expired');
     expect(expiredEvent).toBeDefined();
     expect(localStorage.getItem('trekigo_auth_token')).toBeNull();
+  });
+
+  it('keeps concurrent deleted-session failures as 401 after the first clears the token', async () => {
+    setToken('deleted-session');
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401,
+      text: async () => JSON.stringify({ error: { message: 'Account deleted' } }) })));
+    const failures = await Promise.allSettled([api.get('/auth/organizer-status'), api.get('/auth/organizer-status')]);
+    expect(failures.map((result) => result.reason.status)).toEqual([401, 401]);
   });
 });
 

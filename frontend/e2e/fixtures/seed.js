@@ -103,6 +103,25 @@ export function makeOrgBooking({ id = 'ob-e2e-1', bookingId = 'TG-ORGE2E-1', hik
 // Seeds localStorage before the app's first script runs, so React mounts
 // straight into the desired state (no login-form/onboarding flow needed).
 export async function seedLocalStorage(page, entries) {
+  if (entries.trekigo_org_user) {
+    // UI fixtures emulate an authenticated server, never a tokenless offline
+    // account. Lifecycle tests use raw storage plus the real isolated API.
+    let organizer = entries.trekigo_org_user;
+    await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'ui-fixture-session'));
+    await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1/**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const method = route.request().method();
+      if (/\/api\/v1\/(treks|categories|home-filters)(\/|\?|$)/.test(path)) return route.continue();
+      let json = { trips: [], treks: [], bookings: [], payouts: [], chats: [], notifications: [], requests: [], vouchers: [] };
+      if (path.endsWith('/auth/organizer-status')) json = { isOrganizer: true, isApproved: organizer.isApproved, organizer };
+      else if (path.endsWith('/auth/me') || path.endsWith('/auth/customer-token')) json = { account: entries.trekigo_user || CUSTOMER_USER, role: 'customer', token: 'ui-fixture-session' };
+      else if (path.endsWith('/organizer/bank-details') && method === 'PATCH') {
+        organizer = { ...organizer, bankDetails: route.request().postDataJSON() };
+        json = { organizer };
+      } else if (path.endsWith('/auth/profile') && method === 'PATCH') json = { account: { ...CUSTOMER_USER, ...route.request().postDataJSON() } };
+      return route.fulfill({ json });
+    });
+  }
   await page.addInitScript((data) => {
     for (const [key, value] of Object.entries(data)) {
       window.localStorage.setItem(key, JSON.stringify(value));

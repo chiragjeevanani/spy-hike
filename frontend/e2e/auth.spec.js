@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('trekigo_org_walkthrough_completed', 'true'));
+});
+
 // Phase 1 — Auth & identity. Drives the real login/registration flows against
 // the backend API (started by playwright.config's webServer against an
 // in-memory Mongo seeded with the demo accounts).

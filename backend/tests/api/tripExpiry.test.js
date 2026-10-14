@@ -43,7 +43,7 @@ describe('Trip expiry and renewal', () => {
     expect(tripToday()).toBe('2026-10-14');
     expect((await request(app).get(`${api}/trips`)).body.trips).toHaveLength(1);
     expect((await request(app).get(`${api}/treks`)).body.treks[0].tripCount).toBe(1);
-    expect((await request(app).get(`${api}/trips`)).headers['x-cache']).toBe('HIT');
+    expect((await request(app).get(`${api}/trips`)).headers['x-cache']).toBe('MISS');
 
     vi.setSystemTime(new Date('2026-10-14T18:30:00Z'));
     const expired = await request(app).get(`${api}/trips`);

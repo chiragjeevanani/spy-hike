@@ -79,7 +79,7 @@ import contentApi from "../../lib/contentApi";
 import { getToken, clearToken, clearApiCache } from "../../lib/apiClient";
 import authApi from "../../lib/authApi";
 import { loadLandingContentLocal } from "../landing/landingContent";
-import { initPushNotifications } from "../../utils/pushNotifications";
+import { initPushNotifications, unregisterPushNotifications } from "../../utils/pushNotifications";
 import { useLivePoll, LIVE } from "../../utils/livePoll";
 import { getSocket, updateSocketAuth } from "../../lib/socket";
 import {
@@ -384,9 +384,9 @@ export default function App() {
   // 1. Core State registers loaded from local persistence
   const [user, setUser] = useState(() => loadUserState());
   const [wishlist, setWishlist] = useState(() => loadWishlist());
-  const [bookings, setBookings] = useState(() => loadBookings());
-  const [notifications, setNotifications] = useState(() => loadNotifications());
-  const [chats, setChats] = useState(() => loadChats());
+  const [bookings, setBookings] = useState(() => { saveBookings([]); return []; });
+  const [notifications, setNotifications] = useState(() => { saveNotifications([]); return []; });
+  const [chats, setChats] = useState(() => { saveChats([]); return []; });
   // Set when "Message" is tapped from BookingDetailsView, or arriving via
   // push notification deep link (?chatTripId=...), so navigating to
   // Bookings opens that trip's chat drawer immediately instead of just
@@ -1176,10 +1176,8 @@ export default function App() {
     };
   }, []);
 
-  // Hydrate this customer's bookings from the API once authenticated. Only
-  // replaces state when the API returns some (so localStorage-seeded specs and
-  // the offline fallback keep working); the saveBookings effect mirrors them
-  // back to localStorage for the synchronous route-parser.
+  // Read this customer's bookings from the API once authenticated, including
+  // empty results. Persisted records are never restored on startup.
   useEffect(() => {
     if (!user.isAuthenticated || !getToken()) {
       setBookingsLoading(false);
@@ -1508,6 +1506,7 @@ export default function App() {
 
   // Logout session resets
   const handleLogoutResets = () => {
+    unregisterPushNotifications();
     // Drop the JWT too — leaving it behind means the next sign-in carries a
     // stale token, and any authed call made before re-login 401s.
     clearToken();

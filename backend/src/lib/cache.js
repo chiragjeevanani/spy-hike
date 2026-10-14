@@ -1,8 +1,8 @@
 /**
  * Response cache for read-heavy public endpoints.
  *
- * Backed by Redis when REDIS_URL is set, and by an in-process Map otherwise, so
- * dev machines and the test suite need no Redis running. Both paths honour the
+ * Backed by Redis when REDIS_URL is set, and disabled otherwise. There is no in-process
+ * fallback that can outlive database changes. Both paths honour the
  * same TTL and prefix-invalidation contract.
  *
  * Every operation fails open: if Redis is down, unreachable, or slow to
@@ -27,10 +27,7 @@ let client = null;
 let connecting = null;
 let redisUsable = false;
 
-// Fallback store: value + absolute expiry, swept lazily on read.
-const memory = new Map();
 
-const now = () => Date.now();
 
 async function connect() {
   if (!env.redisUrl) return null;
@@ -42,14 +39,14 @@ async function connect() {
       url: env.redisUrl,
       socket: {
         connectTimeout: 3000,
-        // Give up reconnecting after a few tries; the memory fallback covers us.
+        // Give up reconnecting after a few tries; uncached reads cover us.
         reconnectStrategy: (retries) => (retries > 5 ? false : Math.min(retries * 200, 2000)),
       },
     });
     // Without a listener, a connection error is an unhandled 'error' event and
     // takes the process down.
     c.on('error', (err) => {
-      if (redisUsable) console.warn('[cache] redis error, falling back to memory:', err.message);
+      if (redisUsable) console.warn('[cache] redis error, disabling response caching:', err.message);
       redisUsable = false;
     });
     c.on('ready', () => { redisUsable = true; });
@@ -59,7 +56,7 @@ async function connect() {
       redisUsable = true;
       return c;
     } catch (err) {
-      console.warn('[cache] redis unavailable, using in-memory cache:', err.message);
+      console.warn('[cache] redis unavailable, response caching disabled:', err.message);
       redisUsable = false;
       return null;
     } finally {
@@ -73,15 +70,14 @@ async function connect() {
 /** Connects to Redis if configured. Safe to call when it is not. */
 export async function initCache() {
   if (!env.redisUrl) {
-    console.log('[cache] REDIS_URL not set — using in-memory response cache');
+    console.log('[cache] REDIS_URL not set — response caching disabled');
     return;
   }
   await connect();
-  console.log(redisUsable ? '[cache] redis connected' : '[cache] redis unreachable — using in-memory cache');
+  console.log(redisUsable ? '[cache] redis connected' : '[cache] redis unreachable — response caching disabled');
 }
 
 export async function closeCache() {
-  memory.clear();
   if (client) {
     try { await client.quit(); } catch { /* already gone */ }
     client = null;
@@ -103,10 +99,7 @@ export async function cacheGet(key) {
       return null;
     }
   }
-  const hit = memory.get(k);
-  if (!hit) return null;
-  if (hit.expiresAt <= now()) { memory.delete(k); return null; }
-  return hit.value;
+  return null;
 }
 
 /** Stores `value` under `key` for `ttlSeconds`. Never throws. */
@@ -121,7 +114,7 @@ export async function cacheSet(key, value, ttlSeconds) {
       return;
     }
   }
-  memory.set(k, { value, expiresAt: now() + ttlSeconds * 1000 });
+
 }
 
 /**
@@ -147,12 +140,7 @@ export async function cacheInvalidate(...prefixes) {
     }
   }
 
-  for (const prefix of prefixes) {
-    const full = fullKey(prefix);
-    for (const key of memory.keys()) {
-      if (key.startsWith(full)) memory.delete(key);
-    }
-  }
+
 }
 
 /**
