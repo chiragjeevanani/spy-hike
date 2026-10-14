@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "lsof -ti :5173 | xargs kill -9 2>/dev/null; tail -f /dev/null | vite",
-    "build": "vite build",
+    "dev": "node init && lsof -ti :5173 | xargs kill -9 2>/dev/null; tail -f /dev/null | vite",
+    "build": "node init && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "test": "vitest run",
