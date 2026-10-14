@@ -42,14 +42,7 @@ import { matchesLocation } from "../utils/locationFilter";
 import { durationRange } from "../../../utils/rangeFormat";
 import { useAppRefresh, REFRESH_EVENT } from "../../../utils/refreshSignal";
 
-// Promo slides travel in the direction the user is moving: the incoming slide
-// enters from the side being swiped away from, the outgoing one leaves the
-// opposite way. `custom` carries the sign through AnimatePresence.
-const promoVariants = {
-  enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
-};
+import usePromoCarousel from "./usePromoCarousel";
 
 const HOME_FILTER_ICONS = { Mountain, Trees, Leaf, Flame, Compass, Tent, Sun, Map, Snowflake };
 const DEFAULT_HOME_FILTERS = [
@@ -92,9 +85,7 @@ export default function HomeView({
   darkMode,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activePromoIdx, setActivePromoIdx] = useState(0);
-  const [promoDir, setPromoDir] = useState(1); // +1 = advancing, -1 = going back
-  const [promoPaused, setPromoPaused] = useState(false); // held while a finger is down
+
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showAllHomeFilters, setShowAllHomeFilters] = useState(false);
@@ -242,28 +233,11 @@ export default function HomeView({
     return filtered.length > 0 ? filtered : PROMOTIONAL_BANNERS;
   }, [promoBanners]);
 
-  // Promo carousel. A timeout keyed on the active slide (rather than one
-  // long-lived interval) means every manual swipe or dot tap restarts the
-  // 5s countdown, so the banner never jumps a beat after the user moves it.
   const promoCount = activeBanners.length;
-  const currentPromo = activeBanners[activePromoIdx] || activeBanners[0] || {};
-  const currentPromoTrip = trips.find(
-    (trip) =>
-      trip.id === currentPromo.tripId ||
-      trip.trekId === currentPromo.tripId ||
-      trip.name === currentPromo.title,
-  );
-
-  const goToPromo = (idx, dir) => {
-    if (promoCount === 0) return;
-    setPromoDir(dir);
-    setActivePromoIdx(((idx % promoCount) + promoCount) % promoCount);
-  };
-  useEffect(() => {
-    if (promoPaused || promoCount < 2) return undefined;
-    const timer = setTimeout(() => goToPromo(activePromoIdx + 1, 1), 5000);
-    return () => clearTimeout(timer);
-  }, [activePromoIdx, promoPaused, promoCount]);
+  const { ref: promoRef, activeIndex: activePromoIdx, goTo: goToPromo, handlers: promoHandlers } = usePromoCarousel(promoCount);
+  const promoSlides = promoCount > 1
+    ? [activeBanners[promoCount - 1], ...activeBanners, activeBanners[0]]
+    : activeBanners;
 
   // Dynamic greeting based on current local hours
   const getGreeting = () => {
@@ -578,43 +552,32 @@ export default function HomeView({
 
       {/* 4. Promotional carousel */}
       <div className="w-full mt-8 sm:mt-10 lg:mt-12 relative select-none group">
-        <div className="customer-promo-card w-full overflow-hidden relative min-h-[320px] sm:min-h-[290px] md:min-h-0 md:h-72 lg:h-80 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
-          <AnimatePresence initial={false} custom={promoDir}>
-            <motion.div
-              key={activePromoIdx}
-              custom={promoDir}
-              variants={promoVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{
-                x: { type: "spring", stiffness: 320, damping: 34, mass: 0.8 },
-                opacity: { duration: 0.18 },
-              }}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.15}
-              dragMomentum={false}
-              onDragStart={() => setPromoPaused(true)}
-              onDragEnd={(e, info) => {
-                setPromoPaused(false);
-                // Offset *or* a quick flick counts, so a short fast swipe still
-                // turns the page the way it does in a native carousel.
-                const { offset, velocity } = info;
-                if (offset.x < -40 || velocity.x < -400)
-                  goToPromo(activePromoIdx + 1, 1);
-                else if (offset.x > 40 || velocity.x > 400)
-                  goToPromo(activePromoIdx - 1, -1);
-              }}
-              className="absolute inset-0 cursor-grab active:cursor-grabbing">
+        <div className="customer-promo-card w-full overflow-hidden relative h-[200px] sm:h-56 md:h-52 lg:h-56 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
+          <div
+            ref={promoRef}
+            {...promoHandlers}
+            data-testid="promo-track"
+            className="flex h-full w-full overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing"
+          >
+            {promoSlides.map((currentPromo, slot) => {
+              const slideIndex = promoCount > 1 ? (slot - 1 + promoCount) % promoCount : 0;
+              const currentPromoTrip = trips.find((trip) =>
+                trip.id === currentPromo.tripId || trip.trekId === currentPromo.tripId || trip.name === currentPromo.title);
+              return <div
+                key={`${currentPromo.id || slideIndex}-${slot}`}
+                data-testid="promo-slide"
+                aria-hidden={slideIndex !== activePromoIdx || (promoCount > 1 && (slot === 0 || slot === promoCount + 1))}
+                inert={slideIndex !== activePromoIdx || (promoCount > 1 && (slot === 0 || slot === promoCount + 1))}
+                className="relative h-full w-full min-w-full shrink-0 snap-center overflow-hidden"
+              >
               <img
-                key={`${currentPromo.id || activePromoIdx}-${currentPromo.img ? currentPromo.img.slice(0, 40) : ""}`}
+                key={`${currentPromo.id || slideIndex}-${currentPromo.img ? currentPromo.img.slice(0, 40) : ""}`}
                 src={currentPromo.img}
                 alt={currentPromo.title}
                 className="w-full h-full object-cover brightness-[0.72] pointer-events-none"
                 draggable={false}
               />
-              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent p-4 sm:p-6 lg:p-8 flex flex-col justify-between">
+              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent p-3 sm:p-4 lg:p-5 flex flex-col justify-between">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="customer-promo-tag bg-spy-orange text-white text-[9px] sm:text-xs font-bold tracking-wider px-3 py-1.5 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
@@ -629,7 +592,7 @@ export default function HomeView({
                   <div className="flex items-center gap-2">
                     {promoCount > 1 && (
                       <span className="hidden md:inline-flex text-xs font-mono font-bold text-white/80 bg-black/35 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
-                        {String(activePromoIdx + 1).padStart(2, "0")} / {String(promoCount).padStart(2, "0")}
+                        {String(slideIndex + 1).padStart(2, "0")} / {String(promoCount).padStart(2, "0")}
                       </span>
                     )}
                     <button
@@ -649,12 +612,12 @@ export default function HomeView({
                   </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 mt-auto">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 sm:gap-3 mt-auto">
                   <div className="max-w-xl lg:max-w-2xl min-w-0">
-                    <h3 className="customer-promo-title text-lg sm:text-2xl lg:text-3xl font-serif font-semibold text-white leading-tight drop-shadow-md">
+                    <h3 className="customer-promo-title text-base sm:text-xl lg:text-2xl line-clamp-1 font-serif font-semibold text-white leading-tight drop-shadow-md">
                       {currentPromo.title}
                     </h3>
-                    <p className="customer-promo-subtitle text-white/85 text-xs sm:text-sm font-medium mt-0.5 sm:mt-1 line-clamp-1 drop-shadow-xs">
+                    <p className="customer-promo-subtitle text-white/85 text-[11px] sm:text-xs font-medium mt-0.5 sm:mt-1 line-clamp-1 drop-shadow-xs">
                       {currentPromo.subtitle}
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 text-xs text-white/90 mt-1.5 sm:mt-2.5">
@@ -675,11 +638,11 @@ export default function HomeView({
                     </div>
                   </div>
 
-                  <div className="flex items-center md:items-end justify-between md:justify-end gap-3 shrink-0 bg-black/50 md:bg-transparent backdrop-blur-md md:backdrop-blur-none px-3.5 py-2 sm:p-3 md:p-0 rounded-2xl border border-white/15 md:border-none">
+                  <div className="flex items-center md:items-end justify-between md:justify-end gap-3 shrink-0 px-3 py-1.5 sm:p-2 md:p-0">
                     <div className="text-left md:text-right">
                       <p className="text-[9px] sm:text-xs font-bold uppercase tracking-wider text-white/70">Starting at</p>
                       <div className="flex items-baseline md:justify-end">
-                        <span className="customer-promo-price text-xl sm:text-2xl lg:text-3xl font-black text-white drop-shadow-sm">
+                        <span className="customer-promo-price text-lg sm:text-xl lg:text-2xl font-black text-white drop-shadow-sm">
                           ₹{(currentPromoTrip?.price || 4500).toLocaleString("en-IN")}
                         </span>
                         <span className="text-[10px] sm:text-xs text-white/70 ml-1 font-medium">/ person</span>
@@ -707,8 +670,9 @@ export default function HomeView({
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            </div>;
+            })}
+          </div>
 
           {/* Desktop Next/Prev Arrow Controls */}
           {promoCount > 1 && (
@@ -717,7 +681,7 @@ export default function HomeView({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  goToPromo(activePromoIdx - 1, -1);
+                  goToPromo(activePromoIdx - 1);
                 }}
                 aria-label="Previous banner"
                 className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white border border-white/20 items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg opacity-80 hover:opacity-100 cursor-pointer">
@@ -727,7 +691,7 @@ export default function HomeView({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  goToPromo(activePromoIdx + 1, 1);
+                  goToPromo(activePromoIdx + 1);
                 }}
                 aria-label="Next banner"
                 className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white border border-white/20 items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg opacity-80 hover:opacity-100 cursor-pointer">
@@ -742,7 +706,7 @@ export default function HomeView({
           {activeBanners.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => goToPromo(idx, idx > activePromoIdx ? 1 : -1)}
+              onClick={() => goToPromo(idx)}
               aria-label={`Show promotion ${idx + 1}`}
               className={`h-1.5 rounded-full transition-all cursor-pointer ${
                 idx === activePromoIdx

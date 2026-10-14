@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Find Your Trek backend API — Node.js + Express + MongoDB serving the customer, organizer, and admin apps.",
+  "description": "Find Your Trek backend API \u2014 Node.js + Express + MongoDB serving the customer, organizer, and admin apps.",
   "main": "src/server.js",
   "scripts": {
-    "dev": "lsof -ti :4000 | xargs kill -9 2>/dev/null; tail -f /dev/null | nodemon --no-stdin --watch src src/server.js",
-    "dev:memory": "node src/dev-memory-server.js",
-    "start": "node src/server.js",
+    "dev": "node init && lsof -ti :4000 | xargs kill -9 2>/dev/null; tail -f /dev/null | nodemon --no-stdin --watch src src/server.js",
+    "dev:memory": "node init && node src/dev-memory-server.js",
+    "start": "node init && node src/server.js",
     "seed": "node src/seed.js",
     "test": "vitest run",
     "test:watch": "vitest"
