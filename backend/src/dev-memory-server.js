@@ -9,6 +9,9 @@
 // use `npm start` (server.js + Atlas) for that.
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
+import { createServer } from 'node:http';
+import { initSocket } from './lib/socket.js';
+import { startTripExpiryScheduler } from './services/tripExpiryService.js';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { upsertAdmin, upsertCategories, upsertHomeFilters, upsertCoupons, upsertTrips } from './seed.js';
@@ -237,7 +240,10 @@ async function start() {
   console.log('✓ Trip catalog + coupons seeded');
 
   const app = createApp();
-  const server = app.listen(env.port, () => {
+  startTripExpiryScheduler();
+  const server = createServer(app);
+  initSocket(server);
+  server.listen(env.port, () => {
     console.log(`✓ Find Your Trek API (in-memory) on http://localhost:${env.port}`);
   });
 

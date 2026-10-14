@@ -5,7 +5,7 @@ import { ORG_USER } from './fixtures/seed.js';
 // and checks a booking in via the manual-entry fallback (headless has no
 // camera); a second check-in reports the ticket as already checked in.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 test.use({ viewport: { width: 460, height: 950 } });
@@ -54,7 +54,7 @@ test('organizer scans a ticket to check it in; a second scan shows already check
     localStorage.setItem('trekigo_auth_token', data.token);
   }, { org: { ...ORG_USER, email: DEMO_ORG.email }, token: orgToken });
 
-  await page.goto('/organizer');
+  await page.goto('/organizer', { waitUntil: 'domcontentloaded' });
   await page.locator('button[title*="Scan"]:visible, button:has-text("Verify Ticket QR"):visible').first().click();
 
   // Camera is unavailable headless → the manual-entry fallback is shown.

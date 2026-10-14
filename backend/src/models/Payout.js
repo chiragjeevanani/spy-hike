@@ -12,6 +12,7 @@ const bankSnapshotSchema = new mongoose.Schema(
 
 const payoutSchema = new mongoose.Schema(
   {
+    archivedOrganizer: { type: mongoose.Schema.Types.Mixed, default: undefined },
     organizerEmail: { type: String, required: true, index: true },
     organizerName: String,
     agencyName: String,

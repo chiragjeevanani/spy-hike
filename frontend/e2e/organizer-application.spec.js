@@ -7,7 +7,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 //   2. An account that has already applied can never reach the application
 //      form again (menu tap or direct URL), so it can't file a duplicate.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 // Matches backend/.env (ADMIN_EMAIL/ADMIN_PASSWORD), falling back to the
 // defaults seed.js uses when neither is set.
 const DEMO_ADMIN = {
@@ -58,7 +58,7 @@ async function seedCustomerSession(page, { account, token }) {
 
 // Fills and submits the partner application from the traveller Profile tab.
 async function applyAsOrganizer(page) {
-  await page.goto('/app/profile');
+  await page.goto('/app/profile', { waitUntil: 'domcontentloaded' });
   await page.click('#btn-become-organizer');
 
   const agency = page.locator('input[placeholder="e.g. Himalayan Guides Ltd"]');
@@ -117,13 +117,13 @@ test.describe('Organizer application — no duplicate submissions', () => {
     await applyAsOrganizer(page);
 
     // Reopening the app: straight back to the traveller Profile tab.
-    await page.goto('/app/profile');
+    await page.goto('/app/profile', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#btn-become-organizer')).toContainText(/Organizer Application/i, { timeout: 15000 });
     await expect(page.getByText('Under Review', { exact: true })).toBeVisible();
 
     // ...and the deep link that renders the form directly is gated too — this
     // is the route that used to hand an applicant a fresh, submittable form.
-    await page.goto('/app/profile/become-organizer');
+    await page.goto('/app/profile/become-organizer', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/your details are under review/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /submit application/i })).toHaveCount(0);
     await expect(page.locator('input[placeholder="e.g. Himalayan Guides Ltd"]')).toHaveCount(0);

@@ -34,6 +34,7 @@ import { isPromotedNow } from "../../../utils/promotion";
 import PromotedBadge, {
   PROMOTED_RING_CLASS,
 } from "../../../components/PromotedBadge";
+import OrganizerComparison, { organizerIdentity } from "./OrganizerComparison";
 
 // Boarding cities this organizer picks travellers up from, each with its own
 // per-person price where the organizer has set one; older records without
@@ -64,6 +65,20 @@ export default function TrekOrganizersView({
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [sortOption, setSortOption] = useState("PriceLowToHigh");
   const [selectedFilterDate, setSelectedFilterDate] = useState("");
+  const [comparisonIds, setComparisonIds] = useState([]);
+  const [showComparison, setShowComparison] = useState(false);
+  const comparisonOffers = comparisonIds
+    .map((id) => offers.find((offer) => offer.id === id))
+    .filter(Boolean);
+  const toggleComparison = (offer) => {
+    if (comparisonIds.includes(offer.id)) {
+      setComparisonIds(comparisonIds.filter((id) => id !== offer.id));
+    } else if (comparisonOffers.length < 2 && !comparisonOffers.some(
+      (selected) => organizerIdentity(selected) === organizerIdentity(offer),
+    )) {
+      setComparisonIds([...comparisonOffers.map((selected) => selected.id), offer.id]);
+    }
+  };
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -554,6 +569,11 @@ export default function TrekOrganizersView({
 
           {/* 3. Search + filter row */}
           <div className="space-y-4">
+            <p className="text-xs opacity-70">
+              {offers.length > 1
+                ? "Select two different organizers to compare prices, trip details and policies."
+                : "Comparison will be available when another organizer offers this trek."}
+            </p>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
@@ -986,6 +1006,19 @@ export default function TrekOrganizersView({
                           View Details <Sparkles size={10} />
                         </button>
                       </div>
+                      <button
+                        type="button"
+                        aria-label={`Compare ${offer.organizer.name}`}
+                        aria-pressed={comparisonIds.includes(offer.id)}
+                        disabled={!comparisonIds.includes(offer.id) && (
+                          comparisonOffers.length >= 2 || comparisonOffers.some(
+                            (selected) => organizerIdentity(selected) === organizerIdentity(offer),
+                          )
+                        )}
+                        onClick={(event) => { event.stopPropagation(); toggleComparison(offer); }}
+                        className={`mt-3 w-full rounded-xl border px-3 py-2 text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${comparisonIds.includes(offer.id) ? "bg-forest-600 border-forest-600 text-white" : darkMode ? "border-white/20 text-zinc-200" : "border-zinc-200 text-forest-700"}`}>
+                        {comparisonIds.includes(offer.id) ? "Selected for comparison ✓" : "Add to comparison"}
+                      </button>
                     </motion.div>
                   );
                 })}
@@ -994,6 +1027,27 @@ export default function TrekOrganizersView({
           </div>
         </div>
       </div>
+      {comparisonOffers.length > 0 && (
+        <div aria-label="Comparison selection" className={`shrink-0 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] ${darkMode ? "bg-zinc-900 border-white/10" : "bg-white border-zinc-200"}`}>
+          <div className="max-w-5xl mx-auto space-y-2">
+            <p role="status" className="text-xs font-semibold">{comparisonOffers.length}/2 selected{comparisonOffers.length === 1 ? " · Choose a different organizer" : " · Ready to compare"}</p>
+            <div className="flex flex-wrap gap-2">
+              {comparisonOffers.map((offer) => (
+                <button key={offer.id} type="button" aria-label={`Remove ${offer.organizer.name} from comparison`} onClick={() => toggleComparison(offer)} className="flex items-center gap-2 text-xs rounded-lg border border-zinc-400/30 px-2 py-1.5">
+                  {offer.organizer.name} <X size={12} />
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" disabled={comparisonOffers.length !== 2} onClick={() => setShowComparison(true)} className="flex-1 bg-forest-600 text-white rounded-xl px-4 py-2.5 text-xs font-bold disabled:opacity-40 cursor-pointer">Compare organizers</button>
+              <button type="button" onClick={() => setComparisonIds([])} className="text-xs px-2">Clear comparison</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showComparison && comparisonOffers.length === 2 && (
+        <OrganizerComparison offers={comparisonOffers} trekName={trekName} darkMode={darkMode} onClose={() => setShowComparison(false)} onSelect={(offer) => { setShowComparison(false); onSelectOrganizerOffer(offer); }} />
+      )}
     </div>
   );
 }

@@ -40,7 +40,7 @@ async function makeTrip(orgToken, over = {}) {
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({
     trekId: trek._id,
     pricingTiers: [{ label: 'Solo', price: 1000 }], pickup: { location: 'Manali', price: 0 },
-    startPoint: { lat: 32.2, lng: 77.1, label: 'Base' }, departureDates: ['2026-08-01'],
+    startPoint: { lat: 32.2, lng: 77.1, label: 'Base' }, departureDates: ['2099-08-01'],
     maxGroupSize: 10, availableSeats: 10, category: 'Trekking', status: 'Published', ...over,
   });
   return res.body.trip;
@@ -58,7 +58,7 @@ describe('Admin analytics', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org);
-    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
+    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.status).toBe(200);
@@ -76,7 +76,7 @@ describe('Admin analytics', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org);
-    const b = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const b = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     await request(app).post(`/api/v1/bookings/${b.body.booking.bookingId}/cancel`).set('Authorization', `Bearer ${cust}`);
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
@@ -97,7 +97,7 @@ describe('Admin analytics', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org, { category: 'Camping' });
-    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${cust}`).send({ tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 
     const res = await request(app).get('/api/v1/admin/analytics').set('Authorization', `Bearer ${admin}`);
     expect(res.body.topOrganizers[0].revenue).toBeGreaterThan(0);

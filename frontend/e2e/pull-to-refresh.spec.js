@@ -31,7 +31,7 @@ async function openApp(page, counters) {
   });
   await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'e2e-token'));
 
-  await page.route('http://localhost:4000/**', (route) => {
+  await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/**`, (route) => {
     const url = route.request().url();
     if (counters) {
       if (url.includes('/treks')) counters.treks += 1;
@@ -49,7 +49,7 @@ async function openApp(page, counters) {
     return json({});
   });
 
-  await page.goto('/app');
+  await page.goto('/app', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('h5', { hasText: 'Test Trek 1' }).first()).toBeVisible();
 }
 

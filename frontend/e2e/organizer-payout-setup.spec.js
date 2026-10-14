@@ -8,11 +8,24 @@ test.describe('Organizer — required payout setup after approval', () => {
     test(`${backMethod} back asks before returning to a working hiker app`, async ({ page }) => {
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
+      // This transition check uses an approved organizer with missing payout
+      // details. Keep both role sessions authenticated in the UI fixture.
+      await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'payout-ui-session'));
+      await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/**`, (route) => {
+        const path = new URL(route.request().url()).pathname;
+        let body = { trips: [], treks: [], bookings: [], payouts: [], chats: [], notifications: [], requests: [], vouchers: [] };
+        if (path.endsWith('/auth/me') || path.endsWith('/auth/customer-token')) {
+          body = { account: CUSTOMER_USER, role: 'customer', token: 'payout-ui-session' };
+        } else if (path.endsWith('/auth/organizer-status')) {
+          body = { isOrganizer: true, isApproved: true, organizer: { ...ORG_USER, bankDetails: {} } };
+        }
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+      });
       await seedLocalStorage(page, {
         trekigo_user: CUSTOMER_USER,
         trekigo_org_user: { ...ORG_USER, bankDetails: {} },
       });
-      await page.goto('/app');
+      await page.goto('/app', { waitUntil: 'domcontentloaded' });
       await expect(page.locator('#nav-tab-profile')).toBeVisible();
       await page.evaluate(() => {
         localStorage.setItem('trekigo_active_role', 'organizer');
@@ -52,7 +65,7 @@ test.describe('Organizer — required payout setup after approval', () => {
       trekigo_org_user: { ...ORG_USER, bankDetails: {} },
     });
 
-    await page.goto('/organizer/trips/new');
+    await page.goto('/organizer/trips/new', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByRole('heading', { name: 'Add payout details to continue' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Post New Trip' })).toHaveCount(0);
@@ -74,7 +87,7 @@ test.describe('Organizer — required payout setup after approval', () => {
       trekigo_org_user: { ...ORG_USER, bankDetails: {} },
     });
 
-    await page.goto('/organizer/dashboard');
+    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
     await page.getByPlaceholder('As per bank records').fill('Himalayan Sherpa Guides');
     await page.locator('#btn-complete-payout-setup').click();
 

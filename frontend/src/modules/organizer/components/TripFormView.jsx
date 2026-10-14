@@ -574,6 +574,10 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
     if (form.departureDates.length === 0) {
       return failSave('pickup', 'Select at least one future batch departure date.');
     }
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    if (status === 'Published' && !form.departureDates.some((date) => date >= today)) {
+      return failSave('pickup', 'All departure dates have passed. Add a new date before publishing.');
+    }
 
     setSaving(true);
     setModalOpen(true);
@@ -1618,6 +1622,9 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
             <div>
               <h1 className="text-xl font-display font-black tracking-tight">{isEdit ? 'Edit Trip' : 'Post New Trip'}</h1>
               <p className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{isEdit ? `Editing: ${trip.name}` : '3 quick steps: trek, pricing & dates, then publish'}</p>
+              {trip?.autoPausedReason === 'departures_expired' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Your trip details are saved. Add upcoming dates, then save and reactivate this listing.</p>
+              )}
             </div>
           </div>
 
@@ -1704,7 +1711,7 @@ export default function TripFormView({ trip = null, existingTrips = [], onEditEx
             >
               {saving ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (isEdit ? 'Update & Publish' : 'Publish Trip')}
+              ) : (trip?.autoPausedReason === 'departures_expired' ? 'Save & Reactivate' : isEdit ? 'Update & Publish' : 'Publish Trip')}
             </button>
           )}
         </div>

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import Trek from '../../src/models/Trek.js';
+import Trip from '../../src/models/Trip.js';
 import { cacheGet, cacheSet, cacheInvalidate, closeCache } from '../../src/lib/cache.js';
 import { hashPassword } from '../../src/utils/password.js';
 import Admin from '../../src/models/Admin.js';
@@ -93,6 +94,24 @@ describe('Cached catalog endpoints', () => {
     expect(trending.headers['x-cache']).toBe('MISS'); // not served the full list
     expect(all.body.treks).toHaveLength(2);
     expect(trending.body.treks).toHaveLength(1);
+  });
+
+  it('pausing the last published trip refreshes the trek organizer count', async () => {
+    const token = await adminToken();
+    await Trek.create({ _id: 'cache-count-trek', ...trekPayload() });
+    await Trip.create({ _id: 'cache-count-trip', trekId: 'cache-count-trek',
+      organizerEmail: 'guide@example.com', name: 'Cache Trek',
+      location: 'Manali', status: 'Published' });
+    const before = await request(app).get(`${api}/treks`);
+    expect(before.body.treks[0].tripCount).toBe(1);
+    expect((await request(app).get(`${api}/treks`)).headers['x-cache']).toBe('HIT');
+
+    const paused = await request(app).patch(`${api}/admin/trips/cache-count-trip/status`)
+      .set('Authorization', `Bearer ${token}`).send({ status: 'Paused' });
+    expect(paused.status).toBe(200);
+    const after = await request(app).get(`${api}/treks`);
+    expect(after.headers['x-cache']).toBe('MISS');
+    expect(after.body.treks[0].tripCount).toBe(0);
   });
 
   it('treats differently-ordered query params as one entry', async () => {

@@ -7,7 +7,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // it. These specs assert the replacement is driven by the catalog — every city
 // offered has treks, and picking one shows them.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const ADMIN = {
   email: process.env.ADMIN_EMAIL || 'superadmin@gmail.com',
   password: process.env.ADMIN_PASSWORD || 'password123',

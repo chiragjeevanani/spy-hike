@@ -7,7 +7,7 @@ const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 async function adminConsoleLogin(page) {
   page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');
@@ -18,7 +18,7 @@ test('admin edits the hero headline in the CMS and it shows on the landing page'
   const highlight = `Legend Peaks ${Date.now().toString().slice(-5)}`;
   await adminConsoleLogin(page);
 
-  await page.goto('/admin/landing');
+  await page.goto('/admin/landing', { waitUntil: 'domcontentloaded' });
   // The Hero section is expanded by default.
   const highlightInput = page.locator('label', { hasText: 'Title (highlighted)' }).locator('input');
   await expect(highlightInput).toBeVisible({ timeout: 10000 });
@@ -30,13 +30,13 @@ test('admin edits the hero headline in the CMS and it shows on the landing page'
   await expect(page.getByRole('button', { name: /Saved/i })).toBeVisible({ timeout: 10000 });
 
   // Public landing page (root path) reflects the new headline.
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { level: 1 })).toContainText(highlight, { timeout: 10000 });
 });
 
 test('save degrades to local (no error dialog) when the backend is unreachable', async ({ page }) => {
   await adminConsoleLogin(page);
-  await page.goto('/admin/landing');
+  await page.goto('/admin/landing', { waitUntil: 'domcontentloaded' });
 
   // Any native alert (e.g. the old "Failed to fetch") should fail the test.
   let dialogShown = false;
@@ -59,7 +59,7 @@ test('save degrades to local (no error dialog) when the backend is unreachable',
 
 test('hiding a section in the CMS removes it from the landing page', async ({ page }) => {
   await adminConsoleLogin(page);
-  await page.goto('/admin/landing');
+  await page.goto('/admin/landing', { waitUntil: 'domcontentloaded' });
 
   // The FAQ section header carries a visibility (eye) toggle; turning it off
   // hides the whole section on the public page.
@@ -70,6 +70,6 @@ test('hiding a section in the CMS removes it from the landing page', async ({ pa
   await page.getByRole('button', { name: /Save Changes/i }).click();
   await expect(page.getByRole('button', { name: /Saved/i })).toBeVisible({ timeout: 10000 });
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Frequently Asked Questions' })).toHaveCount(0);
 });

@@ -74,6 +74,7 @@ const bookingSchema = new mongoose.Schema(
     tripName: String,
     tripImage: String,
     tripLocation: String,
+    archivedOrganizer: { type: mongoose.Schema.Types.Mixed, default: undefined },
     organizerEmail: { type: String, index: true },
     organizerName: String,
     userEmail: { type: String, index: true },

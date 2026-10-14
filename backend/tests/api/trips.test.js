@@ -38,7 +38,7 @@ const validTrip = (trekId, over = {}) => ({
   ],
   pickup: { location: 'Manali', price: 50 },
   startPoint: { lat: 32.24, lng: 77.18, label: 'Manali Base' },
-  departureDates: ['2026-08-01', '2026-08-15'],
+  departureDates: ['2099-08-01', '2099-08-15'],
   maxGroupSize: 15,
   availableSeats: 15,
   category: 'Trekking',

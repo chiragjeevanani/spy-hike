@@ -24,7 +24,7 @@ test.describe('Phase 1 — Customer auth', () => {
   test.use({ viewport: { width: 460, height: 950 } });
 
   test('demo customer logs in and lands on the home feed with a stored JWT', async ({ page }) => {
-    await page.goto('/app/login');
+    await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
     await dismissOnboarding(page);
     await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
     await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
@@ -43,7 +43,7 @@ test.describe('Phase 1 — Customer auth', () => {
     await page.addInitScript(() => {
       localStorage.setItem('trekigo_user', JSON.stringify({ isOnboarded: true, isAuthenticated: false }));
     });
-    await page.goto('/app/register');
+    await page.goto('/app/register', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Register Account')).toBeVisible({ timeout: 10000 });
 
     // Step 1: Profile details
@@ -67,7 +67,7 @@ test.describe('Phase 1 — Customer auth', () => {
   });
 
   test('wrong credentials show an error and do not authenticate', async ({ page }) => {
-    await page.goto('/app/login');
+    await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
     await dismissOnboarding(page);
     await page.fill('input[placeholder*="Email address"], input[type="email"]', 'nobody@example.com');
     await page.fill('input[type="password"]', 'wrongpass');
@@ -79,7 +79,7 @@ test.describe('Phase 1 — Customer auth', () => {
   });
 
   test('session expiration shows compact popup with Log In Again button leading to login', async ({ page }) => {
-    await page.goto('/app/login');
+    await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
     await dismissOnboarding(page);
     await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
     await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
@@ -120,7 +120,7 @@ test.describe('Phase 1 — Admin auth', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test('demo admin logs in and reaches the dashboard', async ({ page }) => {
-    await page.goto('/admin/login');
+    await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
     await page.fill('input[type="email"]', DEMO_ADMIN.email);
     await page.fill('input[type="password"]', DEMO_ADMIN.password);
     await page.click('button[type="submit"]');
@@ -131,7 +131,7 @@ test.describe('Phase 1 — Admin auth', () => {
   });
 
   test('bad admin credentials are rejected', async ({ page }) => {
-    await page.goto('/admin/login');
+    await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
     await page.fill('input[type="email"]', DEMO_ADMIN.email);
     await page.fill('input[type="password"]', 'nope');
     await page.click('button[type="submit"]');
@@ -156,7 +156,7 @@ test.describe('Phase 1 — Organizer registration → pending approval', () => {
         JSON.stringify({ isOnboarded: true, isAuthenticated: false, isApproved: false, isPendingApproval: false }),
       );
     });
-    await page.goto('/organizer/register');
+    await page.goto('/organizer/register', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[placeholder="Your full name"]')).toBeVisible({ timeout: 10000 });
 
     // Step 1 — personal info + mobile OTP verification (required to continue)

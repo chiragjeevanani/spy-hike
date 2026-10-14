@@ -4,7 +4,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // API aggregates, not localStorage mocks (which, for the admin app, would read
 // as zero). A booking's revenue is reflected in the analytics overview.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
@@ -39,7 +39,7 @@ test('admin dashboard shows real trip + revenue KPIs from the API', async ({ pag
   await ctx.dispose();
 
   // Admin logs in and opens the dashboard.
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');

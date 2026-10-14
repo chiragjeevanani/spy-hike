@@ -42,7 +42,7 @@ async function makeTrip(orgToken) {
     pricingTiers: [{ label: 'Solo', price: 1000 }],
     pickup: { location: 'Manali', price: 0 },
     startPoint: { lat: 32.2, lng: 77.1, label: 'Base' },
-    departureDates: ['2026-08-01', '2026-08-15', '2026-08-20'], maxGroupSize: 20, availableSeats: 20,
+    departureDates: ['2099-08-01', '2099-08-15', '2099-08-20'], maxGroupSize: 20, availableSeats: 20,
     category: 'Trekking', status: 'Published',
   });
   return res.body.trip;
@@ -80,7 +80,7 @@ describe('Customer voucher minting & redemption', () => {
     const { token, email } = await customerToken();
     const trip = await makeTrip(org);
 
-    await book(token, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
+    await book(token, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
 
     const me = await request(app).get('/api/v1/loyalty/me').set('Authorization', `Bearer ${token}`);
     expect(me.body.vouchers.filter((v) => v.status === 'available')).toHaveLength(1);
@@ -94,9 +94,9 @@ describe('Customer voucher minting & redemption', () => {
     const { token } = await customerToken();
     const trip = await makeTrip(org);
 
-    await book(token, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
+    await book(token, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
     const free = await book(token, {
-      tripId: trip.id, selectedDate: '2026-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+      tripId: trip.id, selectedDate: '2099-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
       useLoyaltyReward: true,
     });
     expect(free.status).toBe(201);
@@ -117,14 +117,14 @@ describe('Customer voucher minting & redemption', () => {
     const trip = await makeTrip(org);
 
     // Cross the threshold (2 travelers) → 1 voucher minted, progress at 2/2.
-    await book(token, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
+    await book(token, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
     const before = await request(app).get('/api/v1/loyalty/me').set('Authorization', `Bearer ${token}`);
     expect(before.body.progress.count).toBe(2);
     expect(before.body.progress.percent).toBe(100);
 
     // Claim it (1 traveler, comped) — this alone must NOT count toward the next cycle.
     const free = await book(token, {
-      tripId: trip.id, selectedDate: '2026-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+      tripId: trip.id, selectedDate: '2099-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
       useLoyaltyReward: true,
     });
     expect(free.body.booking.finalAmount).toBe(0);
@@ -137,7 +137,7 @@ describe('Customer voucher minting & redemption', () => {
 
     // One more (non-reward) booking of 1 traveler: cycle count should be 1 (not 4),
     // and still no new voucher until the *new* cycle itself crosses the threshold.
-    await book(token, { tripId: trip.id, selectedDate: '2026-08-20', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    await book(token, { tripId: trip.id, selectedDate: '2099-08-20', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     const after = await request(app).get('/api/v1/loyalty/me').set('Authorization', `Bearer ${token}`);
     expect(after.body.progress.count).toBe(1);
     expect(after.body.progress.lifetime).toBe(4);
@@ -149,7 +149,7 @@ describe('Customer voucher minting & redemption', () => {
     const { token } = await customerToken();
     const trip = await makeTrip(org);
     const res = await book(token, {
-      tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+      tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
       useLoyaltyReward: true,
     });
     expect(res.status).toBe(400);
@@ -164,7 +164,7 @@ describe('Organizer voucher minting & zero-commission redemption', () => {
     const { token } = await customerToken();
     const trip = await makeTrip(org);
 
-    const created = await book(token, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const created = await book(token, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     const bookingId = created.body.booking.bookingId;
     expect(created.body.booking.commissionAmount).toBeGreaterThan(0);
 
@@ -191,7 +191,7 @@ describe('Organizer voucher minting & zero-commission redemption', () => {
     const { token } = await customerToken();
     const trip = await makeTrip(org);
 
-    const created = await book(token, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const created = await book(token, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     const before = await request(app).get('/api/v1/organizer/loyalty').set('Authorization', `Bearer ${org}`);
     expect(before.body.progress.count).toBe(1);
 
@@ -204,7 +204,7 @@ describe('Organizer voucher minting & zero-commission redemption', () => {
     expect(rightAfterClaim.body.progress.lifetime).toBe(1);
     expect(rightAfterClaim.body.vouchers.filter((v) => v.status === 'available')).toHaveLength(0);
 
-    await book(token, { tripId: trip.id, selectedDate: '2026-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    await book(token, { tripId: trip.id, selectedDate: '2099-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     const after = await request(app).get('/api/v1/organizer/loyalty').set('Authorization', `Bearer ${org}`);
     expect(after.body.progress.count).toBe(1);
     expect(after.body.progress.lifetime).toBe(2);
@@ -217,7 +217,7 @@ describe('Organizer voucher minting & zero-commission redemption', () => {
     const org = await approvedOrganizerToken();
     const { token } = await customerToken();
     const trip = await makeTrip(org);
-    const created = await book(token, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const created = await book(token, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 
     const res = await request(app).post(`/api/v1/organizer/bookings/${created.body.booking.bookingId}/redeem-reward`).set('Authorization', `Bearer ${org}`);
     expect(res.status).toBe(400);

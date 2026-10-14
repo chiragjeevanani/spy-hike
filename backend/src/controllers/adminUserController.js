@@ -1,3 +1,4 @@
+import { retireOrganizer } from '../services/organizerRetirementService.js';
 import User from '../models/User.js';
 import Booking from '../models/Booking.js';
 import Voucher from '../models/Voucher.js';
@@ -79,6 +80,8 @@ export const deleteUser = asyncHandler(async (req, res) => {
 
   if (!user) throw ApiError.notFound('User not found');
 
+  // Also detach organizer history when deleting the unified user account.
+  await retireOrganizer(user);
   const userEmail = user.email;
 
   // Clean up all related records tied to this user account

@@ -7,6 +7,28 @@ const jsonResponse = (body) => ({
   text: async () => JSON.stringify(body),
 });
 
+describe('apiClient account changes', () => {
+  beforeEach(() => {
+    const data = new Map();
+    vi.stubGlobal('localStorage', { getItem: (key) => data.get(key) || null,
+      setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) });
+    vi.stubGlobal('window', { location: { pathname: '/organizer' } });
+    clearApiCache();
+  });
+  afterEach(() => { clearApiCache(); vi.unstubAllGlobals(); });
+
+  it('discards an old account response that arrives after login switches', async () => {
+    let release;
+    const pending = new Promise((resolve) => { release = resolve; });
+    vi.stubGlobal('fetch', vi.fn(async () => { await pending; return jsonResponse({ bookings: ['old-private-booking'] }); }));
+    setToken('old-account-token');
+    const response = api.get('/organizer/bookings');
+    setToken('new-account-token');
+    release();
+    await expect(response).rejects.toMatchObject({ status: 409 });
+  });
+});
+
 describe('apiClient request de-duplication', () => {
   beforeEach(() => {
     clearApiCache();

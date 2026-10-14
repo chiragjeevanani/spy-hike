@@ -3,14 +3,25 @@ import { CUSTOMER_USER, ORG_USER, seedLocalStorage } from './fixtures/seed.js';
 
 test.use({ viewport: { width: 425, height: 865 } });
 
+// These checks exercise the live API, so use a real session rather than an
+// unauthenticated localStorage profile that /auth/me correctly rejects.
+test.beforeEach(async ({ page, request }) => {
+  const response = await request.post(`http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1/auth/login`, {
+    data: { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' },
+  });
+  expect(response.ok()).toBeTruthy();
+  const { token } = await response.json();
+  await page.addInitScript((value) => localStorage.setItem('trekigo_auth_token', value), token);
+});
+
 test.describe('Trek Categories and Explore Filters', () => {
-  test('verifies category rail removed from home and category filters rail active on explore', async ({ page }) => {
+  test('verifies category rails on home and explore', async ({ page }) => {
     // 1. Seed customer login and navigate to Home
     await seedLocalStorage(page, {
       trekigo_user: CUSTOMER_USER,
     });
 
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#search-input-box')).toBeVisible();
 
     // Verify category rail is present on Home
@@ -21,7 +32,7 @@ test.describe('Trek Categories and Explore Filters', () => {
     await expect(allHomeCatBtn).toBeVisible();
 
     // Navigate to Explore
-    await page.goto('/app/explore');
+    await page.goto('/app/explore', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#explore-search-input')).toBeVisible();
 
     // Verify Category filter rail on Explore
@@ -55,7 +66,7 @@ test.describe('Trek Categories and Explore Filters', () => {
     });
 
     // Go to new trip page
-    await page.goto('/organizer/trips/new');
+    await page.goto('/organizer/trips/new', { waitUntil: 'domcontentloaded' });
 
     // Trek picker search input should be present
     const trekSearch = page.locator('input[placeholder="Search treks..."]');
@@ -72,7 +83,7 @@ test.describe('Trek Categories and Explore Filters', () => {
       trekigo_user: CUSTOMER_USER,
     });
 
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
     const searchInput = page.locator('#search-input-box');
     await expect(searchInput).toBeVisible();
 

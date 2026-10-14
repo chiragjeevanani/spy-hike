@@ -9,7 +9,7 @@ test.describe('Organizer — Payout Details Bottom Sheet', () => {
       trekigo_org_user: ORG_USER,
     });
 
-    await page.goto('/organizer/profile');
+    await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
     const openFinBtn = page.locator('#btn-open-financials-profile');
     await openFinBtn.scrollIntoViewIfNeeded();
     await openFinBtn.click();
@@ -49,7 +49,7 @@ test.describe('Organizer — Payout Details Bottom Sheet', () => {
       trekigo_org_user: ORG_USER,
     });
 
-    await page.goto('/organizer/profile');
+    await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
     const openFinBtn = page.locator('#btn-open-financials-profile');
     await openFinBtn.scrollIntoViewIfNeeded();
     await openFinBtn.click();
@@ -85,7 +85,7 @@ test.describe('Organizer — Payout Details Bottom Sheet', () => {
       trekigo_theme: 'dark',
     });
 
-    await page.goto('/organizer/profile');
+    await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
     const openFinBtn = page.locator('#btn-open-financials-profile');
     await openFinBtn.scrollIntoViewIfNeeded();
     await openFinBtn.click();

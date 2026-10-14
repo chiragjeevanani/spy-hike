@@ -5,7 +5,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // drawer, the wishlist persists to the API, and a review updates the trip's
 // rating. (Chat + broadcast fan-out are covered by the backend API tests.)
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const WISHLIST_TRIP = 'himalayan-ridge-pass-trek'; // seeded, resolvable in the UI
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
@@ -61,7 +61,7 @@ test('a booking notification surfaces in the customer bell drawer', async ({ pag
   await ctx.dispose();
 
   await seedSession(page, email, token);
-  await page.goto('/app');
+  await page.goto('/app', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#btn-bell-notifications')).toBeVisible({ timeout: 10000 });
   // Give the social hydration (keyed on the booking roster) a beat to land.
   await page.click('#btn-bell-notifications');
@@ -72,7 +72,7 @@ test('toggling a wishlist heart persists to the API', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
 
   await seedSession(page, email, token);
-  await page.goto(`/app/trip/${WISHLIST_TRIP}`);
+  await page.goto(`/app/trip/${WISHLIST_TRIP}`, { waitUntil: 'domcontentloaded' });
   await page.click('#btn-toggle-wishlist-details', { force: true });
 
   await expect

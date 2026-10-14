@@ -3,12 +3,12 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // Admin roster — the Users and Organizers consoles show real registered
 // accounts from the API (not localStorage seeds), and row actions hit the API.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 async function adminConsoleLogin(page) {
   page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');
@@ -24,7 +24,7 @@ test('a registered hiker shows in the Users roster and can be banned', async ({ 
   await ctx.dispose();
 
   await adminConsoleLogin(page);
-  await page.goto('/admin/users');
+  await page.goto('/admin/users', { waitUntil: 'domcontentloaded' });
 
   // Isolate the just-registered hiker via the client-side search.
   await page.getByPlaceholder(/Search by name or email/i).fill(email);
@@ -55,7 +55,7 @@ test('a registered organizer shows in the Organizers roster', async ({ page }) =
   await ctx.dispose();
 
   await adminConsoleLogin(page);
-  await page.goto('/admin/organizers');
+  await page.goto('/admin/organizers', { waitUntil: 'domcontentloaded' });
   // A freshly registered organizer is pending → shows in the default tab.
   await expect(page.getByText(agency).first()).toBeVisible({ timeout: 10000 });
 });

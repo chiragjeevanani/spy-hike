@@ -167,6 +167,11 @@ export default function OrgTripsView({ trips, onNewTrip, onEditTrip, onToggleSta
                       <span className={darkMode ? 'text-zinc-300' : 'text-zinc-600'}>{trip.availableSeats || 0}/{trip.maxGroupSize || 15} seats</span>
                     </div>
 
+                    {trip.autoPausedReason === 'departures_expired' && (
+                      <p className="px-4 sm:px-5 pt-3 text-xs text-amber-600 dark:text-amber-400">
+                        Automatically paused: all departure dates have passed. Edit this listing to add new dates and publish it again.
+                      </p>
+                    )}
                     {/* Action buttons */}
                     <div className="p-3 sm:p-4 flex items-center gap-2 mt-auto">
                       <button
@@ -181,14 +186,14 @@ export default function OrgTripsView({ trips, onNewTrip, onEditTrip, onToggleSta
 
                       <button
                         type="button"
-                        onClick={() => onToggleStatus(trip)}
+                        onClick={() => trip.autoPausedReason === 'departures_expired' ? onEditTrip(trip) : onToggleStatus(trip)}
                         className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2.5 rounded-xl transition flex-1 justify-center cursor-pointer active:scale-95 ${
                           trip.status === 'Published'
                             ? (darkMode ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30' : 'bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200')
                             : (darkMode ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200')
                         }`}
                       >
-                        {trip.status === 'Published' ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Publish</>}
+                        {trip.autoPausedReason === 'departures_expired' ? <><Pencil size={13} /> Add dates</> : trip.status === 'Published' ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Publish</>}
                       </button>
 
                       <button

@@ -1,6 +1,6 @@
 // Shared localStorage seeders for the loyalty e2e specs. All three apps
-// (/app, /organizer, /admin) are same-origin mini-SPAs that read/write plain
-// localStorage — no backend to fixture against, so tests seed state directly
+// (/app, /organizer, /admin) are same-origin mini-SPAs. Component-oriented
+// checks seed their cache directly; live API checks also supply real tokens
 // the same way a real session would accumulate it.
 
 export const CUSTOMER_USER = {
@@ -106,6 +106,12 @@ export async function seedLocalStorage(page, entries) {
   await page.addInitScript((data) => {
     for (const [key, value] of Object.entries(data)) {
       window.localStorage.setItem(key, JSON.stringify(value));
+    }
+    // Demo cache fixtures belong to this specific organizer session. Legacy
+    // ownerless caches are intentionally cleared by the account-isolation fix.
+    const organizer = data.trekigo_org_user;
+    if (organizer?.isAuthenticated && !('trekigo_org_data_owner' in data)) {
+      window.localStorage.setItem('trekigo_org_data_owner', `${organizer.id || organizer.email}:${organizer.sessionVersion || 0}`);
     }
   }, entries);
 }

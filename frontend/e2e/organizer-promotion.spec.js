@@ -6,7 +6,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // flips the organizer to "Promoted" everywhere. Also covers an admin
 // promoting an organizer directly, with no request on file.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = {
   email: process.env.ADMIN_EMAIL || 'superadmin@gmail.com',
   password: process.env.ADMIN_PASSWORD || 'password123',
@@ -88,7 +88,7 @@ test.describe('Organizer promotion — self-service request + admin approval', (
     const orgCtx = await browser.newContext({ viewport: { width: 480, height: 950 } });
     const orgPage = await orgCtx.newPage();
     await seedOrganizerSession(orgPage, org);
-    await orgPage.goto('/organizer/profile');
+    await orgPage.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
 
     const promoCard = orgPage.locator('#org-promote-yourself');
     await expect(promoCard).toBeVisible({ timeout: 15000 });
@@ -101,7 +101,7 @@ test.describe('Organizer promotion — self-service request + admin approval', (
     const adminCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const adminPage = await adminCtx.newPage();
     await seedAdminSession(adminPage, adminTok);
-    await adminPage.goto('/admin/dashboard');
+    await adminPage.goto('/admin/dashboard', { waitUntil: 'domcontentloaded' });
     const sidebarItem = adminPage.locator('button', { hasText: 'Promotion Requests' });
     await expect(sidebarItem).toBeVisible({ timeout: 15000 });
     await expect(sidebarItem.getByText(/^[1-9]\d*$/)).toBeVisible({ timeout: 15000 });
@@ -127,7 +127,7 @@ test.describe('Organizer promotion — self-service request + admin approval', (
     await expect(adminPage.locator(`#promo-request-${requestId}`)).toHaveCount(0, { timeout: 15000 });
 
     // 4. Back on the organizer's own profile, the boost is now visible.
-    await orgPage.reload();
+    await orgPage.reload({ waitUntil: 'domcontentloaded' });
     await expect(orgPage.getByText(/^Promoted$/).first()).toBeVisible({ timeout: 15000 });
     await expect(orgPage.getByText(/Promoted until/i)).toBeVisible({ timeout: 15000 });
 
@@ -146,7 +146,7 @@ test.describe('Organizer promotion — admin can promote directly', () => {
     await ctx.dispose();
 
     await seedAdminSession(page, adminTok);
-    await page.goto('/admin/organizers');
+    await page.goto('/admin/organizers', { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: /All Organizers/i }).click();
 
     const row = page.locator('tr', { hasText: org.email });

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { cacheInvalidate, closeCache } from '../../src/lib/cache.js';
 import { env } from '../../src/config/env.js';
+import { invalidateConfigCache } from '../../src/models/AdminConfig.js';
 
 /**
  * Single-instance in-memory MongoDB manager.
@@ -31,6 +32,7 @@ beforeAll(async () => {
 // suite opts into 'online' explicitly in its own beforeEach, which runs after
 // this one.
 beforeEach(() => {
+  invalidateConfigCache();
   env.paymentMode = 'arrival';
   env.payuMerchantKey = '';
   env.payuMerchantSalt = '';

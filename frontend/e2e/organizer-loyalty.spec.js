@@ -16,7 +16,7 @@ async function seedAtMilestone(page) {
 test.describe('Organizer — Loyalty Rewards', () => {
   test('a received booking crossing the threshold mints a voucher and shows the Dashboard banner', async ({ page }) => {
     await seedAtMilestone(page);
-    await page.goto('/organizer/dashboard');
+    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
 
     await expect(page.locator('#btn-open-loyalty-dashboard')).toBeVisible();
     await expect(page.getByText('1/1')).toBeVisible();
@@ -33,10 +33,10 @@ test.describe('Organizer — Loyalty Rewards', () => {
 
   test('Profile menu shows unlocked messaging and opens the Loyalty Rewards overlay', async ({ page }) => {
     await seedAtMilestone(page);
-    await page.goto('/organizer/dashboard'); // let the sync effect mint the voucher first
+    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' }); // let the sync effect mint the voucher first
     await page.waitForTimeout(300);
 
-    await page.goto('/organizer/profile');
+    await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/Zero-commission voucher ready to apply|Zero-commission credit unlocked/i)).toBeVisible();
 
     await page.click('#btn-open-loyalty-profile');
@@ -46,10 +46,10 @@ test.describe('Organizer — Loyalty Rewards', () => {
 
   test('redeeming the reward on a booking zeroes its commission and marks the voucher used', async ({ page }) => {
     await seedAtMilestone(page);
-    await page.goto('/organizer/dashboard'); // mint the voucher
+    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' }); // mint the voucher
     await page.waitForTimeout(300);
 
-    await page.goto('/organizer/bookings');
+    await page.goto('/organizer/bookings', { waitUntil: 'domcontentloaded' });
     await page.click('#org-booking-row-ob-e2e-1', { force: true });
 
     const redeemBtn = page.locator('#btn-apply-org-loyalty-reward');
@@ -74,7 +74,7 @@ test.describe('Organizer — Loyalty Rewards', () => {
       trekigo_org_user: ORG_USER,
       trekigo_org_bookings: [makeOrgBooking({ hikersCount: 2 })],
     });
-    await page.goto('/organizer/dashboard');
+    await page.goto('/organizer/dashboard', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByText('1/1000')).toBeVisible();
     const vouchers = await page.evaluate(() => {

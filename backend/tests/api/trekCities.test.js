@@ -41,7 +41,7 @@ async function seedTrip(over = {}) {
     price: 1000,
     pricingTiers: [{ id: 'solo', label: 'Solo', price: 1000 }],
     pickup: { location: 'Manali', price: 1000 },
-    departureDates: ['2026-09-01'],
+    departureDates: ['2099-09-01'],
     difficulty: 'Easy',
     durationDays: 3,
     distanceKm: 10,

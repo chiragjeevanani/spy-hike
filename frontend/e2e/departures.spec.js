@@ -4,7 +4,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // reflects real per-date availability: a near-full batch shows the remaining
 // seat count, and a sold-out trip blocks selection/booking.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
@@ -17,7 +17,7 @@ async function dismissOnboarding(page) {
 }
 
 async function customerLogin(page) {
-  await page.goto('/app/login');
+  await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
   await dismissOnboarding(page);
   await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
@@ -40,7 +40,7 @@ async function createTripWithSeats(name, availableSeats) {
       pricingTiers: [{ label: 'Solo', price: 700 }],
       pickup: { location: 'Manali', price: 80 },
       startPoint: { lat: 32.22, lng: 78.07, label: 'Kaza Base' },
-      departureDates: ['2026-09-10', '2026-09-24'],
+      departureDates: ['2099-09-10', '2099-09-24'],
       difficulty: 'Difficult',
       durationDays: 7,
       maxGroupSize: 12,
@@ -61,7 +61,7 @@ test.use({ viewport: { width: 460, height: 950 } });
 test('a near-full departure shows the remaining seat count in the booking flow', async ({ page }) => {
   const trip = await createTripWithSeats(`E2E Nearfull ${Date.now()}`, 2);
   await customerLogin(page);
-  await page.goto(`/app/book/${trip.id}`);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // Live per-date availability (2 seats) surfaces both as the selected-date
   // pill and the traveler-count capacity readout.
@@ -72,7 +72,7 @@ test('a near-full departure shows the remaining seat count in the booking flow',
 test('a sold-out trip disables date selection and blocks booking', async ({ page }) => {
   const trip = await createTripWithSeats(`E2E Soldout ${Date.now()}`, 0);
   await customerLogin(page);
-  await page.goto(`/app/book/${trip.id}`);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // No seats anywhere → capacity reads 0 and the traveler stepper can't add
   // anyone, so Continue stays disabled (can't proceed to book a sold-out batch).

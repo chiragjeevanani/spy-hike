@@ -9,6 +9,8 @@ import { slugify, makeTripId } from '../utils/slug.js';
 import { validateTripPayload } from '../services/tripService.js';
 import { provisionDepartures, getDepartures } from '../services/inventoryService.js';
 import { isPromotedNow } from '../utils/promotion.js';
+import { pauseExpiredListing, EXPIRED_DEPARTURES } from '../services/tripExpiryService.js';
+import { hasUpcomingDeparture } from '../utils/tripDate.js';
 
 // ─── Public catalog ────────────────────────────────────────────────────────
 
@@ -547,11 +549,11 @@ export const createTrip = asyncHandler(async (req, res) => {
     throw ApiError.badRequest(`You have already posted a trip for '${fields.name}'. Organizers cannot post multiple trips under the same trek category. You can edit your existing trip instead.`);
   }
 
-  const trip = await Trip.create({
+  const trip = await Trip.create(pauseExpiredListing({
     _id: makeTripId(fields.name),
     ...fields,
     status: req.body.status === 'Published' ? 'Published' : 'Draft',
-  });
+  }));
   await provisionDepartures(trip);
   res.status(201).json({ trip: trip.toPublicJSON() });
 });
@@ -564,8 +566,15 @@ export const updateTrip = asyncHandler(async (req, res) => {
   }
   validateTripPayload(req.body);
   const fields = await buildTripFields(req.body, req.organizer);
+  const wasAutoPaused = trip.status === 'Paused' && trip.autoPausedReason === EXPIRED_DEPARTURES;
   Object.assign(trip, fields);
   if (req.body.status) trip.status = req.body.status;
+  else if (wasAutoPaused && hasUpcomingDeparture(trip)) trip.status = 'Published';
+  if (req.body.status === 'Paused') {
+    trip.autoPausedReason = '';
+    trip.autoPausedAt = null;
+  }
+  pauseExpiredListing(trip);
   await trip.save();
   await provisionDepartures(trip);
   res.json({ trip: trip.toPublicJSON() });
@@ -582,6 +591,11 @@ export const setOrganizerTripStatus = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('status must be Draft, Published or Paused');
   }
   trip.status = status;
+  if (status === 'Published' && !hasUpcomingDeparture(trip)) {
+    throw ApiError.badRequest('Add an upcoming departure date before publishing this trip');
+  }
+  trip.autoPausedReason = '';
+  trip.autoPausedAt = null;
   await trip.save();
   res.json({ trip: trip.toPublicJSON() });
 });
@@ -639,8 +653,15 @@ export const adminSetTripStatus = asyncHandler(async (req, res) => {
   if (!['Draft', 'Published', 'Paused'].includes(status)) {
     throw ApiError.badRequest('status must be Draft, Published or Paused');
   }
-  const trip = await Trip.findByIdAndUpdate(req.params.id, { status }, { new: true });
+  const trip = await Trip.findById(req.params.id);
   if (!trip) throw ApiError.notFound('Trip not found');
+  if (status === 'Published' && !hasUpcomingDeparture(trip)) {
+    throw ApiError.badRequest('Add an upcoming departure date before publishing this trip');
+  }
+  trip.status = status;
+  trip.autoPausedReason = '';
+  trip.autoPausedAt = null;
+  await trip.save();
   res.json({ trip: trip.toPublicJSON() });
 });
 

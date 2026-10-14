@@ -18,6 +18,7 @@ const chatSchema = new mongoose.Schema(
     userEmail: { type: String, required: true, index: true },
     userName: String,
     userAvatar: String,
+    archivedOrganizer: { type: mongoose.Schema.Types.Mixed, default: undefined },
     organizerEmail: { type: String, required: true, index: true },
     organizerName: String,
     organizerAvatar: String,

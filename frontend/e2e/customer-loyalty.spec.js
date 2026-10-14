@@ -1,37 +1,49 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
-import { CUSTOMER_USER, makeLoyaltyConfig, makeCustomerBooking, seedLocalStorage } from './fixtures/seed.js';
+import { CUSTOMER_USER, seedLocalStorage } from './fixtures/seed.js';
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 
 test.use({ viewport: { width: 480, height: 900 } });
 
-// Registers a unique customer via the API and returns a { token, user } pair.
-// Booking now goes through the authenticated API, so the checkout test needs a
-// real session; a fresh user also keeps its server-side bookings isolated from
-// other specs sharing the in-memory backend.
-async function freshCustomer() {
+// Earn progress through the real API. Cached bookings alone must never grant
+// a server-verified reward or stand in for an authenticated account.
+async function seedCustomerProgress(page, threshold = 2) {
   const ctx = await pwRequest.newContext();
-  const email = `loyalty-${Date.now()}@example.com`;
-  const res = await ctx.post(`${API}/auth/register`, { data: { name: 'Loyalty Hiker', email, password: 'pass1234' } });
-  const body = await res.json();
-  await ctx.dispose();
-  return { token: body.token, user: { ...CUSTOMER_USER, email, name: 'Loyalty Hiker' } };
+  try {
+    const admin = await ctx.post(`${API}/auth/admin/login`, { data: { email: 'admin@findyourtrek.com', password: 'admin123' } });
+    expect(admin.ok()).toBeTruthy();
+    const { token: adminToken } = await admin.json();
+    const config = await ctx.patch(`${API}/admin/loyalty/config`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      data: { customer: { enabled: true, thresholdPersons: threshold, maxDiscountAmount: 5000 } },
+    });
+    expect(config.ok()).toBeTruthy();
+    const email = `loyalty-${crypto.randomUUID()}@example.com`;
+    const registration = await ctx.post(`${API}/auth/register`, { data: { name: 'Loyalty Hiker', email, password: 'pass1234' } });
+    expect(registration.ok()).toBeTruthy();
+    const { token } = await registration.json();
+    const booking = await ctx.post(`${API}/bookings`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { tripId: 'himalayan-ridge-pass-trek', selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 2 }],
+        travelers: [
+          { name: 'Loyalty Hiker', age: 25, gender: 'Male', emergencyContact: '9876543210' },
+          { name: 'Friend Hiker', age: 26, gender: 'Female', emergencyContact: '9876543211' },
+        ] },
+    });
+    expect(booking.ok()).toBeTruthy();
+    await seedLocalStorage(page, { trekigo_user: { ...CUSTOMER_USER, email, name: 'Loyalty Hiker' } });
+    await page.addInitScript((value) => localStorage.setItem('trekigo_auth_token', value), token);
+  } finally {
+    await ctx.dispose();
+  }
 }
 
-// Threshold=2 with a single 2-traveler booking lands exactly on a milestone,
-// so a voucher should already be minted the moment Home mounts.
-async function seedAtMilestone(page) {
-  await seedLocalStorage(page, {
-    trekigo_loyalty_config: makeLoyaltyConfig({ customerThreshold: 2 }),
-    trekigo_user: CUSTOMER_USER,
-    trekigo_bookings: [makeCustomerBooking({ travelersCount: 2 })],
-  });
-}
+const seedAtMilestone = (page) => seedCustomerProgress(page, 2);
 
 test.describe('Customer — Loyalty Rewards', () => {
   test('crossing the threshold mints an available voucher and shows it on Home', async ({ page }) => {
     await seedAtMilestone(page);
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
 
     await expect(page.locator('#btn-open-loyalty-home')).toBeVisible();
     await expect(page.getByText('2/2')).toBeVisible();
@@ -43,7 +55,7 @@ test.describe('Customer — Loyalty Rewards', () => {
 
   test('Profile menu shows unlocked messaging and opens the Loyalty Rewards page', async ({ page }) => {
     await seedAtMilestone(page);
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
 
     // Wait for the client-side mint to settle before navigating, so "unlocked"
     // is reliably present (the mint runs in a mount effect).
@@ -76,7 +88,7 @@ test.describe('Customer — Loyalty Rewards', () => {
       headers: { Authorization: `Bearer ${custToken}` },
       data: {
         tripId: 'himalayan-ridge-pass-trek',
-        selectedDate: '2026-07-20',
+        selectedDate: '2026-11-05',
         selections: [{ label: 'Solo', count: 2 }],
         travelers: [
           { name: 'Loyalty Hiker', age: 25, gender: 'Male', emergencyContact: '9876543210' },
@@ -92,7 +104,7 @@ test.describe('Customer — Loyalty Rewards', () => {
     }, { email, token: custToken });
 
     // Home first so the server voucher hydrates into the local cache.
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
     await expect
       .poll(async () => page.evaluate(() => {
         const raw = localStorage.getItem('trekigo_loyalty_customer_vouchers');
@@ -102,7 +114,7 @@ test.describe('Customer — Loyalty Rewards', () => {
 
     // Deep-link straight into the booking flow (more robust than the
     // details → Book-Now click chain under load).
-    await page.goto('/app/book/himalayan-ridge-pass-trek');
+    await page.goto('/app/book/himalayan-ridge-pass-trek', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#btn-booking-step-1-continue')).toBeVisible({ timeout: 15000 });
     await page.click('#btn-booking-step-1-continue', { force: true });
     await page.click('#btn-booking-step-2-continue', { force: true });
@@ -132,12 +144,8 @@ test.describe('Customer — Loyalty Rewards', () => {
   });
 
   test('below-threshold progress shows remaining count, not a false reward', async ({ page }) => {
-    await seedLocalStorage(page, {
-      trekigo_loyalty_config: makeLoyaltyConfig({ customerThreshold: 30 }),
-      trekigo_user: CUSTOMER_USER,
-      trekigo_bookings: [makeCustomerBooking({ travelersCount: 2 })],
-    });
-    await page.goto('/app');
+    await seedCustomerProgress(page, 30);
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByText('2/30')).toBeVisible();
     const vouchers = await page.evaluate(() => {

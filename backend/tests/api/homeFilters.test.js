@@ -27,7 +27,7 @@ async function seedTrip(trekId, name) {
     organizer: { name: 'Test Organizer', rating: 4.5, verified: true }, name,
     location: 'Manali, Himachal Pradesh', state: 'Himachal Pradesh', city: 'Manali',
     price: 1500, pricingTiers: [{ id: 'solo', label: 'Solo', price: 1500 }],
-    pickup: { location: 'Manali', price: 1500 }, departureDates: ['2026-10-10'],
+    pickup: { location: 'Manali', price: 1500 }, departureDates: ['2099-10-10'],
     difficulty: 'Moderate', durationDays: 4, distanceKm: 18, availableSeats: 10,
     maxGroupSize: 15, category: 'Trekking', coverImage: 'https://example.com/trek.jpg',
     status: 'Published', rating: 4.5, reviewsCount: 8,

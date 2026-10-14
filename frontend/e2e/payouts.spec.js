@@ -5,7 +5,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // (→ Rejected). Each test provisions an isolated approved organizer + a booking
 // so the balance is independent of the shared demo org.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 function dateInDays(n) {
@@ -56,7 +56,7 @@ async function seedProcessingPayout(amount = 500) {
 
 async function adminConsoleLogin(page) {
   page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');
@@ -67,7 +67,7 @@ test('admin approves a payout in the console and downloads its receipt', async (
   const { reference } = await seedProcessingPayout(500);
   await adminConsoleLogin(page);
 
-  await page.goto('/admin/payouts');
+  await page.goto('/admin/payouts', { waitUntil: 'domcontentloaded' });
   // Isolate the seeded payout via the search box (server-side filter).
   await page.getByPlaceholder(/Search organizer/i).fill(reference);
   const row = page.locator('tr', { hasText: reference });
@@ -91,7 +91,7 @@ test('admin rejects a payout with a reason and the balance is freed', async ({ p
   const { reference } = await seedProcessingPayout(400);
   await adminConsoleLogin(page);
 
-  await page.goto('/admin/payouts');
+  await page.goto('/admin/payouts', { waitUntil: 'domcontentloaded' });
   await page.getByPlaceholder(/Search organizer/i).fill(reference);
   const row = page.locator('tr', { hasText: reference });
   await expect(row).toBeVisible({ timeout: 10000 });

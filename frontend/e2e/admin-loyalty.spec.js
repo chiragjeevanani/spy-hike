@@ -1,6 +1,6 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 
 test.use({ viewport: { width: 1280, height: 900 } });
 
@@ -34,7 +34,7 @@ test.afterAll(async () => {
 });
 
 async function loginAsAdmin(page) {
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', 'admin@findyourtrek.com');
   await page.fill('input[type="password"]', 'admin123');
   await page.click('button[type="submit"]');
@@ -44,7 +44,7 @@ async function loginAsAdmin(page) {
 test.describe('Admin — Loyalty Program', () => {
   test('renders both reward cards with their defaults', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto('/admin/loyalty');
+    await page.goto('/admin/loyalty', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByRole('heading', { name: 'Loyalty Program' })).toBeVisible();
     await expect(page.getByText('Customer Rewards')).toBeVisible();
@@ -60,7 +60,7 @@ test.describe('Admin — Loyalty Program', () => {
 
   test('editing thresholds persists to localStorage and survives reload', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto('/admin/loyalty');
+    await page.goto('/admin/loyalty', { waitUntil: 'domcontentloaded' });
 
     const numberInputs = page.locator('input[type="number"]');
     await numberInputs.nth(0).fill('12');
@@ -76,7 +76,7 @@ test.describe('Admin — Loyalty Program', () => {
     expect(configAfterSave.organizer.thresholdBookings).toBe(250);
 
     // Reload — the page should read the persisted config back, not the defaults.
-    await page.reload();
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(numberInputs.nth(0)).toHaveValue('12');
     await expect(numberInputs.nth(1)).toHaveValue('4000');
     await expect(numberInputs.nth(2)).toHaveValue('250');
@@ -84,7 +84,7 @@ test.describe('Admin — Loyalty Program', () => {
 
   test('disabling a reward banner reflects a "Hidden in app" preview state', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto('/admin/loyalty');
+    await page.goto('/admin/loyalty', { waitUntil: 'domcontentloaded' });
 
     // The banner enable toggle is the small pill switch beside "Reward Banner".
     const customerCard = page.locator('.rounded-2xl', { hasText: 'Customer Rewards' }).first();
@@ -101,7 +101,7 @@ test.describe('Admin — Loyalty Program', () => {
       ]));
     });
     await loginAsAdmin(page);
-    await page.goto('/admin/loyalty');
+    await page.goto('/admin/loyalty', { waitUntil: 'domcontentloaded' });
 
     const issuedTile = page.locator('.rounded-2xl', { hasText: 'Customer Vouchers Issued' });
     await expect(issuedTile.locator('div').first()).toHaveText('2');

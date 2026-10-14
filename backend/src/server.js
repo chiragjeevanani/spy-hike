@@ -6,6 +6,7 @@ import { upsertAdmin, upsertHomeFilters } from './seed.js';
 import { initCache, closeCache } from './lib/cache.js';
 import { initSocket } from './lib/socket.js';
 import mongoose from 'mongoose';
+import { startTripExpiryScheduler } from './services/tripExpiryService.js';
 
 import Notification from './models/Notification.js';
 import { purgeExpiredNotifications } from './services/notificationService.js';
@@ -24,6 +25,7 @@ async function start() {
       connectDB()
         .then(async (conn) => {
           console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);
+          startTripExpiryScheduler();
           await upsertAdmin();
           // Non-destructive reference-data migration: existing deployments get
           // the four starter homepage filters without running the full seed,

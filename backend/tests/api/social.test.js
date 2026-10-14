@@ -42,13 +42,13 @@ async function makeTrip(orgToken) {
     pricingTiers: [{ label: 'Solo', price: 500 }],
     pickup: { location: 'Manali', price: 0 },
     startPoint: { lat: 32.2, lng: 77.1, label: 'Base' },
-    departureDates: ['2026-08-01'], maxGroupSize: 10, availableSeats: 10, category: 'Trekking', status: 'Published',
+    departureDates: ['2099-08-01'], maxGroupSize: 10, availableSeats: 10, category: 'Trekking', status: 'Published',
   });
   return res.body.trip;
 }
 async function makeBooking(custToken, tripId) {
   const res = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${custToken}`).send({
-    tripId, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    tripId, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
   });
   return res.body.booking;
 }

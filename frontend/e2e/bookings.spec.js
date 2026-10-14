@@ -5,7 +5,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // reservation, backend-owned bookingId) and confirms the booking surfaces to
 // the customer, its organizer, and admin with matching amounts.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
@@ -64,14 +64,14 @@ test('full booking flow: pay, then the booking shows for customer, organizer and
 
   // Land on Home first so the catalog hydrates from the API into localStorage;
   // the /book/:id route-parser then resolves the freshly-created trip on reload.
-  await page.goto('/app');
+  await page.goto('/app', { waitUntil: 'domcontentloaded' });
   await expect
     .poll(async () => page.evaluate((id) => {
       const raw = localStorage.getItem('trekigo_trips');
       return raw ? JSON.parse(raw).some((t) => t.id === id) : false;
     }, trip.id), { timeout: 10000 })
     .toBe(true);
-  await page.goto(`/app/book/${trip.id}`);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // Step 1 (date + default 1 Solo) → Step 2 → Step 3.
   await expect(page.locator('#btn-booking-step-1-continue')).toBeEnabled({ timeout: 10000 });

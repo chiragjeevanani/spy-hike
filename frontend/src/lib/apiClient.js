@@ -43,6 +43,7 @@ export const getToken = () => {
 };
 
 export const setToken = (token) => {
+  if (getToken() !== token) clearApiCache();
   try {
     if (token) localStorage.setItem(tokenKey(), token);
     else localStorage.removeItem(tokenKey());
@@ -52,6 +53,14 @@ export const setToken = (token) => {
 };
 
 export const clearToken = () => setToken(null);
+
+const sessionIdentity = (token) => {
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return `${payload.sub}:${payload.sessionVersion || 0}`;
+  } catch { return token; }
+};
 
 // In-Memory GET Response Cache Map
 const responseCache = new Map();
@@ -137,7 +146,7 @@ async function request(method, path, body, { auth = true, cache = true, forceRef
     if (pending) return pending.then(copy);
   }
 
-  const send = doRequest(method, path, body, { auth, isGet, cache, cacheKey, invalidates });
+  const send = doRequest(method, path, body, { auth, isGet, cache, cacheKey, invalidates, sessionToken: getToken() });
 
   if (isGet && cache) {
     inFlight.set(cacheKey, send);
@@ -151,7 +160,7 @@ async function request(method, path, body, { auth = true, cache = true, forceRef
   return send;
 }
 
-async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, invalidates }) {
+async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, invalidates, sessionToken }) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth) {
     const token = getToken();
@@ -167,6 +176,9 @@ async function doRequest(method, path, body, { auth, isGet, cache, cacheKey, inv
 
   // 204 No Content and empty bodies return null rather than throwing on parse.
   const text = await res.text();
+  if (auth && sessionIdentity(sessionToken) !== sessionIdentity(getToken())) {
+    throw new ApiClientError(409, 'The account changed while this request was loading');
+  }
   const data = text ? JSON.parse(text) : null;
 
   if (!res.ok) {

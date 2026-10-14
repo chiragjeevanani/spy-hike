@@ -5,6 +5,8 @@ import { env } from './config/env.js';
 import apiRoutes from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { cacheInvalidate } from './lib/cache.js';
+import { pauseExpiredTrips } from './services/tripExpiryService.js';
+import { asyncHandler } from './utils/asyncHandler.js';
 import { PAYU_WEBHOOK_PATH, PAYU_RETURN_PATH } from './integrations/payments.js';
 
 // Which cached prefixes a successful write can invalidate. Applied centrally
@@ -15,7 +17,9 @@ const INVALIDATION_MAP = [
   // Editing a trek syncs its identity fields into every trip beneath it, so
   // both families go.
   [/\/treks/, ['treks', 'trips']],
-  [/\/trips/, ['trips']],
+  // Publishing, pausing or deleting a trip also changes the organizer counts
+  // in the trek catalog and whether that trek appears as opening soon.
+  [/\/trips/, ['trips', 'treks']],
   // Booking or cancelling moves seat counts, which ride along on trip records.
   [/\/bookings/, ['trips']],
   [/\/categories/, ['categories', 'trips']],
@@ -91,6 +95,12 @@ export function createApp() {
     return next();
   });
 
+  app.use('/api/v1', asyncHandler(async (req, res, next) => {
+    if (/^\/(trips|treks|trek-groups|pickup-cities|trek-cities|organizer\/trips|admin\/trips|bookings)(\/|\?|$)/.test(req.path)) {
+      await pauseExpiredTrips();
+    }
+    next();
+  }));
   app.use('/api/v1', apiRoutes);
 
   app.use(notFoundHandler);

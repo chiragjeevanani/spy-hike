@@ -113,6 +113,9 @@ const userSchema = new mongoose.Schema(
     fcmTokens:     { type: [String], default: [] },
 
     // ── Organizer fields (only populated when isOrganizer: true) ──────────
+    sessionVersion: { type: Number, default: 0 },
+    organizerRetirementKey: { type: String, default: undefined },
+    organizerRetirementSnapshot: { type: mongoose.Schema.Types.Mixed, default: undefined },
     isOrganizer:   { type: Boolean, default: false },
     organizer:     { type: organizerSubSchema, default: null },
   },
@@ -164,6 +167,7 @@ userSchema.methods.toOrganizerJSON = function toOrganizerJSON() {
   return {
     id:    this._id.toString(),
     role:  'organizer',
+    sessionVersion: this.sessionVersion || 0,
     isAuthenticated: true,
     isOnboarded:     true,
     isOrganizer:     true,

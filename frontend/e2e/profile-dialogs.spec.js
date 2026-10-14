@@ -2,6 +2,16 @@ import { test, expect } from '@playwright/test';
 import { CUSTOMER_USER, ORG_USER, seedLocalStorage } from './fixtures/seed.js';
 
 async function seed(page) {
+  // These checks isolate dialog geometry and draft editing from API state.
+  await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'profile-ui-session'));
+  await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let json = { trips: [], bookings: [], payouts: [], chats: [], notifications: [], requests: [], vouchers: [] };
+    if (path.endsWith('/auth/me')) json = { account: CUSTOMER_USER, role: 'customer' };
+    else if (path.endsWith('/auth/organizer-status')) json = { isOrganizer: true, isApproved: true, organizer: ORG_USER };
+    else if (path.endsWith('/auth/profile')) json = { account: { ...CUSTOMER_USER, ...route.request().postDataJSON() } };
+    return route.fulfill({ json });
+  });
   await seedLocalStorage(page, {
     trekigo_user: { ...CUSTOMER_USER, mobile: '9876543210' },
     trekigo_org_user: ORG_USER,
@@ -30,7 +40,7 @@ for (const viewport of [{ width: 390, height: 664 }, { width: 1280, height: 900 
     for (const app of ['hiker', 'organizer']) {
       test(`${app} logout is centered over a scrolled page`, async ({ page }) => {
         await seed(page);
-        await page.goto(app === 'hiker' ? '/app/profile' : '/organizer/profile');
+        await page.goto(app === 'hiker' ? '/app/profile' : '/organizer/profile', { waitUntil: 'domcontentloaded' });
         const button = page.getByRole('button', { name: app === 'hiker' ? 'Log Out Session' : 'Sign Out Session', exact: true }).filter({ visible: true });
         await button.click();
         await expectViewportDialog(page, 'Log Out?');
@@ -42,7 +52,7 @@ for (const viewport of [{ width: 390, height: 664 }, { width: 1280, height: 900 
     }
     test('deactivation stays in the viewport and cancel restores the page', async ({ page }) => {
       await seed(page);
-      await page.goto('/app/profile/settings');
+      await page.goto('/app/profile/settings', { waitUntil: 'domcontentloaded' });
       await page.getByRole('button', { name: 'Delete / Deactivate Account', exact: true }).click();
       await expectViewportDialog(page, 'Deactivate Your Account?');
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -51,7 +61,7 @@ for (const viewport of [{ width: 390, height: 664 }, { width: 1280, height: 900 
     test('phone OTP uses the same viewport layer', async ({ page }) => {
       await seed(page);
       await page.route('**/auth/otp/request', route => route.fulfill({ json: { success: true } }));
-      await page.goto('/app/profile/personal-details');
+      await page.goto('/app/profile/personal-details', { waitUntil: 'domcontentloaded' });
       await page.locator('input[type="tel"]').first().fill('9876543211');
       await page.getByRole('button', { name: 'Save Account Details', exact: true }).click();
       await expectViewportDialog(page, 'Verify Identity Change');
@@ -65,7 +75,7 @@ test.describe('Profile editing', () => {
   test.use({ viewport: { width: 390, height: 664 } });
   test('athletics drafts are discarded on Back and persisted only on Save', async ({ page }) => {
     await seed(page);
-    await page.goto('/app/profile');
+    await page.goto('/app/profile', { waitUntil: 'domcontentloaded' });
     const openStats = () => page.getByRole('button', { name: 'Athletics & Experience', exact: true }).filter({ visible: true }).click();
     await openStats();
     await page.getByRole('radio', { name: 'Beginner', exact: true }).locator('..').click();
@@ -90,7 +100,7 @@ test.describe('Profile editing', () => {
     await seed(page);
     await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'profile-test-token'));
     let savedOrganizer = ORG_USER;
-    await page.route('http://localhost:4000/**', async route => {
+    await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/**`, async route => {
       const url = route.request().url();
       let json = { trips: [], bookings: [], payouts: [], chats: [], notifications: [], requests: [], vouchers: [] };
       if (url.endsWith('/auth/organizer/profile') && route.request().method() === 'PATCH') {
@@ -101,7 +111,7 @@ test.describe('Profile editing', () => {
       }
       await route.fulfill({ json, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS' } });
     });
-    await page.goto('/organizer/profile');
+    await page.goto('/organizer/profile', { waitUntil: 'domcontentloaded' });
     await page.locator('#btn-edit-org-profile').click();
     await expect(page).toHaveURL(/\/organizer\/profile\/edit$/);
     await expect(page.getByRole('heading', { name: 'Edit Agency Profile' })).toBeVisible();
@@ -116,7 +126,7 @@ test.describe('Profile editing', () => {
     await page.getByRole('button', { name: 'Save Profile Changes' }).click();
     await expect(page).toHaveURL(/\/organizer\/profile$/);
     await expect(page.getByRole('heading', { name: 'Summit Trail Guides', exact: true })).toBeVisible();
-    await page.goto('/organizer/profile/edit');
+    await page.goto('/organizer/profile/edit', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Edit Agency Profile' })).toBeVisible();
   });
 });

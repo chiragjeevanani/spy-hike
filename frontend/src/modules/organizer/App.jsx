@@ -3,9 +3,12 @@ import { AnimatePresence, motion } from "motion/react";
 
 import {
   loadOrgUser,
+  clearOrgData,
+  organizerCacheIdentity,
   saveOrgUser,
   DEFAULT_ORG_USER,
   loadOrgTrips,
+  saveOrgTrips,
   loadOrgBookings,
   saveOrgBookings,
   loadOrgNotifications,
@@ -105,7 +108,7 @@ export default function OrgApp() {
   );
   const [trips, setTrips] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [notifications, setNotifications] = useState(loadOrgNotifications());
+  const [notifications, setNotifications] = useState([]);
   const [editingTrip, setEditingTrip] = useState(null);
   const [showOrgLoyalty, setShowOrgLoyalty] = useState(false);
   const [showOrgNotifications, setShowOrgNotifications] = useState(false);
@@ -122,8 +125,22 @@ export default function OrgApp() {
   const [deleteTripTarget, setDeleteTripTarget] = useState(null);
   const toast = useToast();
   const [chats, setChats] = useState([]);
-  const [payouts, setPayouts] = useState(loadOrgPayouts());
+  const [payouts, setPayouts] = useState([]);
   const [commissionRate, setCommissionRate] = useState(10);
+
+  // Offline/demo sessions derive rewards from their own cached booking roster.
+  // Authenticated API sessions hydrate server-issued rewards instead.
+  useEffect(() => {
+    if (getToken() || !organizer?.isAuthenticated) return;
+    const totalBookings = bookings.filter((booking) => booking.status !== "Cancelled").length;
+    syncOrganizerVouchers(totalBookings);
+    if (organizer.totalBookings !== totalBookings) {
+      const updated = { ...organizer, totalBookings };
+      setOrganizer(updated);
+      saveOrgUser(updated);
+    }
+  }, [bookings, organizer]);
+
   const [navHidden, setNavHidden] = useState(false);
   const payoutSetupComplete = hasCompletePayoutDetails(organizer?.bankDetails);
   const requiresPayoutSetup = organizer?.isAuthenticated && organizer?.isApproved && !payoutSetupComplete;
@@ -163,60 +180,52 @@ export default function OrgApp() {
   const knownBookingIdsRef = useRef(null);
   const knownChatMsgCountRef = useRef(null);
 
-  // Initial load for organizer data
-  useEffect(() => {
-    if (organizer?.isAuthenticated && organizer?.email) {
-      if (organizer.isApproved && payoutSetupComplete) {
-        tripsApi
-          .listOrganizerTrips()
-          .then(setTrips)
-          .catch(() => setTrips(loadOrgTrips(organizer.email)));
-        bookingsApi
-          .listOrganizer()
-          .then((list) => {
-            if (Array.isArray(list) && list.length) setBookings(list);
-          })
-          .catch(() => {});
-        if (getToken()) {
-          bookingsApi
-            .listPayouts()
-            .then((list) => {
-              if (Array.isArray(list)) setPayouts(list);
-            })
-            .catch(() => {});
-        }
-      }
-      const orgBookings = payoutSetupComplete ? loadOrgBookings(organizer.email) : [];
-      setBookings(orgBookings);
+  const accountKey = organizerCacheIdentity(organizer);
+  const activeAccountRef = useRef(accountKey);
+  activeAccountRef.current = accountKey;
 
-      const lifetimeBookings = Math.max(
-        organizer.totalBookings || 0,
-        orgBookings.length,
-      );
-      if (getToken() && payoutSetupComplete) {
-        hydrateOrganizerLoyalty();
-        socialApi
-          .getOrganizerNotifications()
-          .then((list) => {
-            if (Array.isArray(list) && list.length) setNotifications(list);
-          })
-          .catch(() => {});
-        socialApi
-          .getOrganizerChats()
-          .then((list) => {
-            if (Array.isArray(list)) setChats(list);
-          })
-          .catch(() => {});
-      } else {
-        syncOrganizerVouchers(lifetimeBookings);
-      }
-      if (lifetimeBookings > (organizer.totalBookings || 0)) {
-        const updated = { ...organizer, totalBookings: lifetimeBookings };
-        saveOrgUser(updated);
-        setOrganizer(updated);
-      }
+  // A real session reads only the server's data, including empty lists. Never
+  // restore legacy local data after an error or an account lifecycle change.
+  useEffect(() => {
+    let cancelled = false;
+    const current = () => !cancelled && activeAccountRef.current === accountKey;
+    setTrips([]);
+    setBookings([]);
+    setChats([]);
+    setNotifications([]);
+    setPayouts([]);
+    knownBookingIdsRef.current = null;
+    knownChatMsgCountRef.current = null;
+    if (!organizer?.isAuthenticated || !organizer?.isApproved || !payoutSetupComplete) {
+      return () => { cancelled = true; };
     }
-  }, [organizer?.email, organizer?.isAuthenticated, organizer?.isApproved, payoutSetupComplete]);
+    if (!getToken()) {
+      setTrips(loadOrgTrips(organizer.email));
+      setBookings(loadOrgBookings(organizer.email));
+      setChats(loadOrgChats());
+      setNotifications(loadOrgNotifications());
+      setPayouts(loadOrgPayouts());
+    } else {
+      saveOrgTrips([]);
+      saveOrgBookings([]);
+      saveOrgChats([]);
+      saveOrgNotifications([]);
+      saveOrgPayouts([]);
+      const load = (promise, setter, save) => promise.then((list) => {
+        if (current() && Array.isArray(list)) {
+          setter(list);
+          save?.(list);
+        }
+      }).catch(() => {});
+      load(tripsApi.listOrganizerTrips(), setTrips);
+      load(bookingsApi.listOrganizer(), setBookings, saveOrgBookings);
+      load(bookingsApi.listPayouts(), setPayouts, saveOrgPayouts);
+      load(socialApi.getOrganizerNotifications(), setNotifications, saveOrgNotifications);
+      load(socialApi.getOrganizerChats(), setChats, saveOrgChats);
+      hydrateOrganizerLoyalty();
+    }
+    return () => { cancelled = true; };
+  }, [accountKey, organizer?.email, organizer?.isAuthenticated, organizer?.isApproved, payoutSetupComplete]);
 
   // Request browser push notification permission if supported
   useEffect(() => {
@@ -288,10 +297,15 @@ export default function OrgApp() {
   // suspended.
   const pollLiveUpdates = useCallback(async () => {
     if (!getToken()) return;
+    const current = () => activeAccountRef.current === accountKey && !!getToken();
 
     try {
       // 1. Live Sync Bookings
+      const freshTrips = await tripsApi.listOrganizerTrips(LIVE);
+      if (!current()) return;
+      if (Array.isArray(freshTrips)) setTrips(freshTrips);
       const freshBookings = await bookingsApi.listOrganizer(LIVE);
+      if (!current()) return;
       if (Array.isArray(freshBookings)) {
         if (knownBookingIdsRef.current !== null) {
           const newBookings = freshBookings.filter((b) => {
@@ -316,6 +330,7 @@ export default function OrgApp() {
 
       // 2. Live Sync Customer Chats & Messages
       const freshChats = await socialApi.getOrganizerChats(LIVE);
+      if (!current()) return;
       if (Array.isArray(freshChats)) {
         if (knownChatMsgCountRef.current !== null) {
           freshChats.forEach((chat) => {
@@ -352,6 +367,7 @@ export default function OrgApp() {
 
       // 3. Live Sync Notifications
       const freshNotifs = await socialApi.getOrganizerNotifications(LIVE);
+      if (!current()) return;
       if (Array.isArray(freshNotifs)) {
         setNotifications(freshNotifs);
         saveOrgNotifications(freshNotifs);
@@ -359,7 +375,7 @@ export default function OrgApp() {
     } catch (err) {
       /* Ignore transient background network errors */
     }
-  }, [organizer?.email, toast]);
+  }, [accountKey, toast]);
 
   useLivePoll(pollLiveUpdates, {
     intervalMs: 5000,
@@ -524,18 +540,16 @@ export default function OrgApp() {
     if (!orgUser.isApproved && orgUser.isPendingApproval) {
       navigateTo("Pending", true);
     } else {
-      if (hasCompletePayoutDetails(orgUser.bankDetails)) {
-        tripsApi
-          .listOrganizerTrips()
-          .then(setTrips)
-          .catch(() => setTrips(loadOrgTrips(orgUser.email)));
-        setBookings(loadOrgBookings(orgUser.email));
-      }
       navigateTo("Dashboard", true);
     }
   };
 
   const handleLogout = () => {
+    clearToken();
+    clearOrgData();
+    setChats([]);
+    setNotifications([]);
+    setPayouts([]);
     const reset = {
       ...organizer,
       isAuthenticated: false,
@@ -757,7 +771,7 @@ export default function OrgApp() {
         setPayouts(loadOrgPayouts());
       }
     } catch {
-      setPayouts(loadOrgPayouts());
+      if (!getToken()) setPayouts(loadOrgPayouts());
     }
   }, [organizer.isAuthenticated]);
 
@@ -845,7 +859,7 @@ export default function OrgApp() {
         bookingsApi
           .listOrganizer()
           .then((list) => {
-            if (list?.length) setBookings(list);
+            if (Array.isArray(list)) setBookings(list);
           })
           .catch(() => {});
         await hydrateOrganizerLoyalty();

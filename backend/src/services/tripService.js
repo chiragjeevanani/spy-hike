@@ -36,6 +36,12 @@ export function validateTripPayload(body) {
 
   if (!Array.isArray(body.departureDates) || body.departureDates.length === 0) {
     errors.departureDates = 'At least one departure date is required';
+  } else if (body.departureDates.some((date) => {
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return true;
+    const parsed = new Date(`${date}T00:00:00Z`);
+    return !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date;
+  })) {
+    errors.departureDates = 'Departure dates must be valid calendar dates in YYYY-MM-DD format';
   }
 
   if (Object.keys(errors).length > 0) {

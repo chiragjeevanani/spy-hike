@@ -7,7 +7,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // "+91 98765 43210" under "Phone". These assert it shows the agency's real,
 // published details instead.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const ADMIN = {
   email: process.env.ADMIN_EMAIL || 'superadmin@gmail.com',
   password: process.env.ADMIN_PASSWORD || 'password123',
@@ -120,7 +120,7 @@ test.describe('Ticket — organizing agency', () => {
       localStorage.setItem('trekigo_auth_token', seed.token);
     }, { account, token });
 
-    await page.goto('/app/bookings');
+    await page.goto('/app/bookings', { waitUntil: 'domcontentloaded' });
     await page.getByText(booking.tripName).first().click();
 
     const agency = page.getByText('Organizing Agency');
@@ -146,7 +146,7 @@ test.describe('Ticket — organizing agency', () => {
       localStorage.setItem('trekigo_auth_token', seed.token);
     }, { account, token });
 
-    await page.goto('/app/bookings');
+    await page.goto('/app/bookings', { waitUntil: 'domcontentloaded' });
     await page.getByText(booking.tripName).first().click();
     await expect(page.getByText('Organizing Agency')).toBeVisible({ timeout: 15000 });
 

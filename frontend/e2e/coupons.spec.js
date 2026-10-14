@@ -4,7 +4,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // customer applies a coupon at checkout (total drops) and an invalid code is
 // rejected — all against the API-backed coupon service.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
@@ -18,7 +18,7 @@ async function dismissOnboarding(page) {
 }
 
 async function customerLogin(page) {
-  await page.goto('/app/login');
+  await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
   await dismissOnboarding(page);
   await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
@@ -36,7 +36,7 @@ async function createBookableTrip(name) {
       pricingTiers: [{ label: 'Solo', price: 1000 }],
       pickup: { location: 'Manali', price: 100 },
       startPoint: { lat: 32.2, lng: 78.0, label: 'Base' },
-      departureDates: ['2026-10-05', '2026-10-19'],
+      departureDates: ['2099-10-05', '2099-10-19'],
       difficulty: 'Moderate', durationDays: 5, maxGroupSize: 15, availableSeats: 15,
       category: 'Trekking', coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Coupon e2e trek', status: 'Published',
@@ -49,13 +49,13 @@ async function createBookableTrip(name) {
 
 test('admin creates a coupon through the console and it appears in the table', async ({ page }) => {
   page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(/\/admin\/dashboard/, { timeout: 10000 });
 
-  await page.goto('/admin/coupons');
+  await page.goto('/admin/coupons', { waitUntil: 'domcontentloaded' });
   const code = `E2E${Date.now().toString().slice(-6)}`;
   await page.getByRole('button', { name: /create coupon/i }).click();
   await page.locator('input[placeholder="e.g. SUMMER25"]').fill(code);
@@ -70,7 +70,7 @@ test('customer applies a seeded coupon at checkout and the total drops', async (
   page.setViewportSize({ width: 460, height: 950 });
   const trip = await createBookableTrip(`E2E Coupon Trek ${Date.now()}`);
   await customerLogin(page);
-  await page.goto(`/app/book/${trip.id}`);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // Step 1 (date + default traveler) → Step 2 → Step 3 checkout.
   await expect(page.locator('#btn-booking-step-1-continue')).toBeEnabled({ timeout: 10000 });

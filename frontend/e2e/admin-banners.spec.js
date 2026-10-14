@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 1280, height: 900 } });
 
 async function loginAsAdmin(page) {
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', 'superadmin@gmail.com');
   await page.fill('input[type="password"]', 'password123');
   await page.click('button[type="submit"]');
@@ -14,7 +14,7 @@ test.describe('Admin Promotional Banners CMS', () => {
   test('reset defaults button shows modal, can be cancelled, and when confirmed resets banners to platform defaults', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/admin/banners');
+    await page.goto('/admin/banners', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /Customer App Home Banners/i })).toBeVisible({ timeout: 10000 });
 
     // Locate the first banner title input

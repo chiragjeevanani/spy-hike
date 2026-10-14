@@ -17,6 +17,7 @@
  */
 import { createClient } from 'redis';
 import { env } from '../config/env.js';
+import { tripToday } from '../utils/tripDate.js';
 
 // Bumped when a cached response's shape changes, so a deploy can't serve
 // yesterday's field set out of a warm cache.
@@ -163,6 +164,9 @@ export function cached(keyFn, ttlSeconds) {
     let key;
     try {
       key = keyFn(req);
+      // Each process stops using yesterday's catalog cache at midnight,
+      // even when another worker performed the expiry sweep.
+      if (key?.startsWith('trips:') || key?.startsWith('treks:')) key += `:day:${tripToday()}`;
     } catch {
       return next();
     }

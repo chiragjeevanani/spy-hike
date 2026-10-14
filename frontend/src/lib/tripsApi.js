@@ -36,7 +36,7 @@ export const tripsApi = {
   listCategories: () => api.get('/categories', { auth: false }).then((r) => r.categories),
 
   // ─── Organizer ───
-  listOrganizerTrips: () => api.get('/organizer/trips').then((r) => r.trips),
+  listOrganizerTrips: (opts) => api.get('/organizer/trips', opts).then((r) => r.trips),
   createTrip: (payload) => api.post('/organizer/trips', payload).then((r) => r.trip),
   updateTrip: (id, payload) => api.put(`/organizer/trips/${encodeURIComponent(id)}`, payload).then((r) => r.trip),
   setTripStatus: (id, status) => api.patch(`/organizer/trips/${encodeURIComponent(id)}/status`, { status }).then((r) => r.trip),

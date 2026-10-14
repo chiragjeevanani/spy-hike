@@ -3,7 +3,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // Phase 9 — refunds, financials & payouts. Exercises the cancel→refund and the
 // earn→request-payout→admin-settle flows end-to-end through the e2e server.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 

@@ -4,12 +4,18 @@ import { CUSTOMER_USER, seedLocalStorage } from './fixtures/seed.js';
 test.use({ viewport: { width: 425, height: 865 } });
 
 test.describe('Customer Home — Departure Date Picker Modal', () => {
-  test('opens as a bottom sheet modal when clicking calendar icon, handles navigation, dismisses cleanly', async ({ page }) => {
+  test('opens as a bottom sheet modal when clicking calendar icon, handles navigation, dismisses cleanly', async ({ page, request }) => {
+    const response = await request.post(`http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1/auth/login`, {
+      data: { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' },
+    });
+    expect(response.ok()).toBeTruthy();
+    const { token } = await response.json();
+    await page.addInitScript((value) => localStorage.setItem('trekigo_auth_token', value), token);
     await seedLocalStorage(page, {
       trekigo_user: CUSTOMER_USER,
     });
 
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#search-input-box')).toBeVisible();
 
     // Click calendar icon next to the search input

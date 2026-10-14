@@ -1,3 +1,4 @@
+import { completeOrganizerRetirement } from '../services/organizerRetirementService.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
@@ -26,8 +27,7 @@ const PASSWORD_HELP = 'Password must be at least 8 characters, with at least one
 
 async function findUserByIdOrEmail(sub, email) {
   if (sub && mongoose.Types.ObjectId.isValid(sub)) {
-    const user = await User.findById(sub);
-    if (user) return user;
+    return User.findById(sub);
   }
   if (email) {
     const user = await User.findOne({ email: email.toLowerCase() });
@@ -48,13 +48,13 @@ function sanitizeUrl(url) {
 
 // Customer-role token + public JSON.
 function customerAuthResponse(user) {
-  const token = signToken({ sub: user._id.toString(), role: 'customer', email: user.email });
+  const token = signToken({ sub: user._id.toString(), role: 'customer', email: user.email, sessionVersion: user.sessionVersion || 0 });
   return { token, role: 'customer', account: user.toPublicJSON() };
 }
 
 // Organizer-role token + organizer-shaped JSON.
 function organizerAuthResponse(user) {
-  const token = signToken({ sub: user._id.toString(), role: 'organizer', email: user.email });
+  const token = signToken({ sub: user._id.toString(), role: 'organizer', email: user.email, sessionVersion: user.sessionVersion || 0 });
   return { token, role: 'organizer', account: user.toOrganizerJSON() };
 }
 
@@ -395,6 +395,10 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
   const normalizedEmail = email.toLowerCase();
   let user = await User.findOne({ email: normalizedEmail });
 
+  if (mobile && await User.exists({ mobile, ...(user ? { _id: { $ne: user._id } } : {}) })) {
+    throw ApiError.conflict('This mobile number already belongs to an account. Sign in to that account to apply as an organizer.');
+  }
+
   if (user) {
     // Customer already exists — upgrade them to organizer in-place.
     if (user.isOrganizer) throw ApiError.conflict('An organizer account with this email already exists');
@@ -412,6 +416,7 @@ export const registerOrganizer = asyncHandler(async (req, res) => {
     });
   }
 
+  await completeOrganizerRetirement(user);
   user.isOrganizer = true;
   user.organizer = {
     agencyName: agencyName.trim(),
@@ -458,6 +463,7 @@ export const applyAsOrganizer = asyncHandler(async (req, res) => {
     return res.json(organizerAuthResponse(user));
   }
 
+  await completeOrganizerRetirement(user);
   user.isOrganizer = true;
   user.organizer = {
     agencyName: agencyName.trim(),
@@ -516,7 +522,7 @@ export const getLinkedOrganizerStatus = asyncHandler(async (req, res) => {
     isApproved: org.isApproved ?? false,
     isPendingApproval: org.isPendingApproval ?? true,
     organizer: user.toOrganizerJSON(),
-    token: signToken({ sub: user._id.toString(), role: 'organizer', email: user.email }),
+    token: signToken({ sub: user._id.toString(), role: 'organizer', email: user.email, sessionVersion: user.sessionVersion || 0 }),
   });
 });
 

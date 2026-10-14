@@ -46,7 +46,7 @@ async function seedSession(page) {
   // 401s and the session resets itself to the login screen.
   await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'e2e-token'));
 
-  await page.route('http://localhost:4000/**', (route) => {
+  await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/**`, (route) => {
     const url = route.request().url();
     const json = (body) => route.fulfill({
       status: 200,
@@ -63,7 +63,7 @@ async function seedSession(page) {
 
 async function openHomeScrolled(page) {
   await seedSession(page);
-  await page.goto('/app');
+  await page.goto('/app', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('h5', { hasText: 'Test Trek 1' }).first()).toBeVisible();
 
   // #root is the app's scroll surface (html/body are locked — see index.css).
@@ -161,7 +161,7 @@ test.describe('Customer — back navigation', () => {
   // replayed after the gesture had already committed.
   test('a gesture back out of a Profile sub-page lands on the finished screen', async ({ page }) => {
     await seedSession(page);
-    await page.goto('/app/profile');
+    await page.goto('/app/profile', { waitUntil: 'domcontentloaded' });
 
     await page.getByRole('button', { name: 'Personal Details' }).first().click();
     await expect(page).toHaveURL(/\/app\/profile\/personal-details$/);
@@ -176,7 +176,7 @@ test.describe('Customer — back navigation', () => {
 
   test('the Profile sub-page back chevron still animates', async ({ page }) => {
     await seedSession(page);
-    await page.goto('/app/profile');
+    await page.goto('/app/profile', { waitUntil: 'domcontentloaded' });
 
     await page.getByRole('button', { name: 'Personal Details' }).first().click();
     await expect(page).toHaveURL(/\/app\/profile\/personal-details$/);
@@ -198,7 +198,7 @@ test.describe('Customer — back navigation', () => {
   // the visitor had never navigated to from there.
   async function homeWithExploreBehind(page) {
     await seedSession(page);
-    await page.goto('/app');
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
     await page.getByText(/^Explore$/).last().click({ force: true });
     await expect(page).toHaveURL(/\/app\/explore$/);
     await page.getByText(/^Home$/).last().click({ force: true });
@@ -237,13 +237,16 @@ test.describe('Customer — back navigation', () => {
   });
 
   test('the fullscreen map is a route too, so a gesture back closes it', async ({ page }) => {
-    await homeWithExploreBehind(page);
+    await seedSession(page);
+    await page.goto('/app', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Explore', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/explore$/);
 
     await page.locator('#btn-open-map').click();
     await expect(page).toHaveURL(/\/app\/map$/);
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/app$/);
+    await expect(page).toHaveURL(/\/app\/explore$/);
     await expect(page.locator('#btn-open-map')).toBeVisible();
   });
 });
