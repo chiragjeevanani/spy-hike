@@ -16,6 +16,8 @@ import { sanitizePhoneInput, isValidPhone, PHONE_MAX_DIGITS, PHONE_RULE_MESSAGE 
 import { downloadTicketPDF } from '../utils/ticketPdf';
 import { loadLoyaltyConfig, getCustomerProgress } from '../../../utils/loyalty';
 import authApi from '../../../lib/authApi';
+import useOtpCooldown from '../../../lib/useOtpCooldown';
+import OtpResendButton from '../../../components/OtpResendButton';
 import { getToken } from '../../../lib/apiClient';
 import contentApi from '../../../lib/contentApi';
 import { useToast } from '../../../components/ToastProvider';
@@ -231,6 +233,8 @@ export default function ProfileView({
   const [mobileOtp, setMobileOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState('');
+  const emailCooldown = useOtpCooldown(`email:${profileEmail.trim().toLowerCase()}`);
+  const mobileCooldown = useOtpCooldown(`sms:${profileMobile.replace(/\D/g, '')}`);
   const [profileFieldErrors, setProfileFieldErrors] = useState({});
   const toast = useToast();
   const profileNameRef = useRef(null);
@@ -456,15 +460,41 @@ export default function ProfileView({
 
     setOtpLoading(true);
     try {
-      if (emailChanged) {
+      if (emailChanged && emailCooldown.canSend()) {
         await authApi.requestEmailOtp(profileEmail.toLowerCase());
+        emailCooldown.start();
+        setEmailOtp('');
       }
-      if (mobileChanged) {
+      if (mobileChanged && mobileCooldown.canSend()) {
         await authApi.requestOtp(profileMobile);
+        mobileCooldown.start();
+        setMobileOtp('');
       }
       setShowOtpModal(true);
     } catch (err) {
       toast.error(err?.message || 'Failed to initiate OTP verification.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendProfileOtp = async (channel) => {
+    const cooldown = channel === 'email' ? emailCooldown : mobileCooldown;
+    if (otpLoading || !cooldown.canSend()) return;
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      if (channel === 'email') {
+        await authApi.requestEmailOtp(profileEmail.toLowerCase());
+        setEmailOtp('');
+      } else {
+        await authApi.requestOtp(profileMobile);
+        setMobileOtp('');
+      }
+      cooldown.start();
+      toast.success('OTP sent again.');
+    } catch (err) {
+      setOtpError(err?.message || 'Could not resend OTP. Please try again.');
     } finally {
       setOtpLoading(false);
     }
@@ -2442,6 +2472,7 @@ export default function ProfileView({
                       darkMode ? 'bg-zinc-950 border-zinc-850 text-white' : 'bg-gray-50 border-zinc-200'
                     }`}
                   />
+                  <OtpResendButton cooldown={emailCooldown} busy={otpLoading} onClick={() => handleResendProfileOtp('email')} label="Resend email OTP" />
                 </div>
               )}
 
@@ -2460,6 +2491,7 @@ export default function ProfileView({
                       darkMode ? 'bg-zinc-950 border-zinc-850 text-white' : 'bg-gray-50 border-zinc-200'
                     }`}
                   />
+                  <OtpResendButton cooldown={mobileCooldown} busy={otpLoading} onClick={() => handleResendProfileOtp('mobile')} label="Resend mobile OTP" />
                 </div>
               )}
             </div>

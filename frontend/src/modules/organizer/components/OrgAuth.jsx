@@ -4,6 +4,7 @@ import { Eye, EyeOff, Mail, Lock, Phone, User, Building2, CreditCard, ArrowRight
 import { saveOrgUser } from '../utils/storage';
 import authApi from '../../../lib/authApi';
 import usePhoneVerification from '../../../lib/usePhoneVerification';
+import OtpResendButton from '../../../components/OtpResendButton';
 import AppLogo from '../../../components/AppLogo';
 import { useToast } from '../../../components/ToastProvider';
 import { scrollToFirstError } from '../../../utils/formValidation';
@@ -399,6 +400,9 @@ export default function OrgAuth({ onSuccess, onSwitchMode, darkMode }) {
                 {phoneVerify.busy ? '…' : 'Verify'}
               </button>
             </div>
+          )}
+          {phoneVerify.sent && !phoneVerify.verified && (
+            <OtpResendButton cooldown={phoneVerify.cooldown} busy={phoneVerify.busy} onClick={phoneVerify.send} />
           )}
           {(phoneVerify.error || phoneVerify.info) && (
             <p className={`text-[11px] font-semibold mt-1.5 ${phoneVerify.error ? 'text-red-500' : 'text-emerald-500'}`}>

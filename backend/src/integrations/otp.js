@@ -4,7 +4,7 @@ import OtpChallenge from '../models/OtpChallenge.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const TTL_SECONDS = 300;
-const RESEND_SECONDS = 30;
+const RESEND_SECONDS = 45;
 const MAX_ATTEMPTS = 5;
 const digest = (mobile, code) => createHmac('sha256', env.jwtSecret)
   .update(`${mobile}:${code}`).digest('hex');
@@ -18,7 +18,7 @@ function validateMobile(mobile) {
 export const otpProvider = {
   async sendOtp(mobile) {
     validateMobile(mobile);
-    if (env.otpMock) return { sent: true, mobile, provider: 'mock' };
+    if (env.otpMock) return { sent: true, mobile, provider: 'mock', retryAfter: RESEND_SECONDS };
     if (!env.smsindiahubApiKey || !env.smsindiahubSenderId || !env.smsindiahubPeId
       || !env.smsindiahubTemplateId || !env.smsindiahubBrand) {
       throw new ApiError(503, 'SMS gateway is not configured. Contact support.');
@@ -36,7 +36,7 @@ export const otpProvider = {
         { upsert: true, new: true, setDefaultsOnInsert: true },
       );
     } catch (err) {
-      if (err.code === 11000) throw new ApiError(429, 'Please wait 30 seconds before requesting another OTP.');
+      if (err.code === 11000) throw new ApiError(429, 'Please wait 45 seconds before requesting another OTP.');
       throw err;
     }
     const url = new URL('https://cloud.smsindiahub.in/api/mt/SendSMS');

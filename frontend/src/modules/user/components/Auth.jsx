@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import authApi from '../../../lib/authApi';
 import contentApi from '../../../lib/contentApi';
 import usePhoneVerification from '../../../lib/usePhoneVerification';
+import useOtpCooldown from '../../../lib/useOtpCooldown';
+import OtpResendButton from '../../../components/OtpResendButton';
 import SwitchTransition from './SwitchTransition';
 import AppLogo from '../../../components/AppLogo';
 import { useToast } from '../../../components/ToastProvider';
@@ -77,23 +79,13 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [otpTimer, setOtpTimer] = useState(30);
+  const loginCooldown = useOtpCooldown(`sms:${phone.replace(/\D/g, '')}`);
+  const forgotCooldown = useOtpCooldown(`sms:${forgotPhone.replace(/\D/g, '')}`);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [showOrgTransition, setShowOrgTransition] = useState(false);
   const [roleSwitchLabel, setRoleSwitchLabel] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // Start OTP timer if confirm screen
-  useEffect(() => {
-    let interval;
-    if (mode === 'OTP_CONFIRM' && otpTimer > 0) {
-      interval = setInterval(() => {
-        setOtpTimer(prev => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [mode, otpTimer]);
 
   // Persists the real organizer account (returned by the API) into the
   // organizer panel's own session storage and hands off to /organizer — the
@@ -180,6 +172,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    if (!loginCooldown.canSend()) { setMode('OTP_CONFIRM'); return; }
     setErrorMsg('');
     const cleanPhone = phone.replace(/\D/g, '');
     if (!/^\d{10}$/.test(cleanPhone)) {
@@ -190,7 +184,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     setSubmitting(true);
     try {
       await authApi.requestOtp(phone);
-      setOtpTimer(30);
+      loginCooldown.start();
+      setOtpCode('');
       setMode('OTP_CONFIRM');
       setSuccessMsg('OTP sent to your device!');
       toast.success('OTP sent to your device!');
@@ -298,6 +293,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
   const handlePhoneSendOTP = async (e) => {
     e.preventDefault();
+    if (regPhoneVerify.sent) { setRegisterStep(3); return; }
 
     const cleanPhone = regPhone.replace(/\D/g, '');
     if (!/^\d{10}$/.test(cleanPhone)) {
@@ -371,6 +367,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
 
   const handleForgotPassSendOtp = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    if (!forgotCooldown.canSend()) { setForgotStep(2); return; }
     const cleanPhone = forgotPhone.replace(/\D/g, '');
     if (!/^\d{10}$/.test(cleanPhone)) {
       toast.error('Please enter a valid 10-digit mobile number.');
@@ -379,6 +377,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     setSubmitting(true);
     try {
       await authApi.requestOtp(cleanPhone);
+      forgotCooldown.start();
+      setForgotOtp('');
       setForgotStep(2);
       toast.success('OTP sent to your mobile');
     } catch (err) {
@@ -641,7 +641,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               <div className="flex justify-between items-center">
                 <label className="text-[11px] font-semibold uppercase opacity-80">6-Digit OTP</label>
                 <span className="text-xs text-zinc-400 font-mono">
-                  {otpTimer > 0 ? `Resend in 00:${otpTimer.toString().padStart(2, '0')}` : 'Resend available'}
+                  {loginCooldown.seconds > 0 ? `Resend in 00:${loginCooldown.seconds.toString().padStart(2, '0')}` : 'Resend available'}
                 </span>
               </div>
               <div className="relative">
@@ -665,14 +665,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               >
                 Change Number
               </button>
-              <button
-                type="button"
-                disabled={otpTimer > 0 || submitting}
-                onClick={handleSendOTP}
-                className={`font-semibold ${otpTimer > 0 ? 'text-zinc-600 cursor-not-allowed' : 'text-spy-orange active:scale-95'}`}
-              >
-                Resend OTP
-              </button>
+              <OtpResendButton cooldown={loginCooldown} busy={submitting} onClick={handleSendOTP} />
             </div>
 
             <button
@@ -804,6 +797,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                   >
                     Back to Mobile Input
                   </button>
+                  <OtpResendButton cooldown={forgotCooldown} busy={submitting} onClick={handleForgotPassSendOtp} />
                 </div>
 
                 <button
@@ -992,6 +986,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                   </div>
                 </div>
 
+                <OtpResendButton cooldown={regPhoneVerify.cooldown} busy={submitting || regPhoneVerify.busy} onClick={regPhoneVerify.send} />
+
                 {regPhoneVerify.error && (
                   <p className="text-[10px] font-semibold text-red-500">{regPhoneVerify.error}</p>
                 )}
@@ -1008,7 +1004,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || regPhoneVerify.busy}
                     className="flex-1 bg-forest-600 hover:bg-forest-700 text-white font-bold py-2.5 rounded-xl shadow-lg cursor-pointer active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-xs"
                   >
                     {submitting ? 'Verifying…' : 'Verify & Sign Up'}

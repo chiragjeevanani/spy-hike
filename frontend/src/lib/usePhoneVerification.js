@@ -10,10 +10,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import authApi from './authApi';
+import useOtpCooldown from './useOtpCooldown';
 
 const digits = (s) => String(s || '').replace(/\D/g, '');
 
 export function usePhoneVerification(mobile) {
+  const cooldown = useOtpCooldown(`sms:${digits(mobile)}`);
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState('');
   const [verified, setVerified] = useState(false);
@@ -32,11 +34,20 @@ export function usePhoneVerification(mobile) {
   }, [mobile]);
 
   const send = useCallback(async () => {
+    if (busy) return false;
+    if (!cooldown.canSend()) {
+      verifiedMobileRef.current = mobile;
+      setSent(true);
+      setInfo('An OTP was already sent to this number. Enter it below or wait to resend.');
+      return true;
+    }
     setError(''); setInfo('');
     if (digits(mobile).length !== 10) { setError('Enter a valid 10-digit mobile number.'); return false; }
     setBusy(true);
     try {
       await authApi.requestOtp(mobile);
+      cooldown.start();
+      setCode(''); setVerified(false); setToken(null);
       verifiedMobileRef.current = mobile; // track the number the OTP was sent to
       setSent(true);
       setInfo('OTP sent to your mobile');
@@ -45,7 +56,7 @@ export function usePhoneVerification(mobile) {
       setError(err?.message || 'Could not send OTP. Please try again.');
       return false;
     } finally { setBusy(false); }
-  }, [mobile]);
+  }, [mobile, busy, cooldown]);
 
   const verify = useCallback(async () => {
     setError(''); setInfo('');
@@ -68,7 +79,7 @@ export function usePhoneVerification(mobile) {
     setSent(false); setVerified(false); setToken(null); setCode(''); setError(''); setInfo('');
   }, []);
 
-  return { sent, code, setCode, verified, token, busy, error, info, send, verify, reset };
+  return { sent, code, setCode, verified, token, busy, error, info, send, verify, reset, cooldown };
 }
 
 export default usePhoneVerification;

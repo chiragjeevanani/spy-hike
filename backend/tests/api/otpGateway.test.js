@@ -18,13 +18,13 @@ beforeEach(() => {
   fetchMock = vi.fn().mockImplementation(async () => success());
   vi.stubGlobal('fetch', fetchMock);
 });
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('SMSINDIAHUB OTP', () => {
   it('sends the exact DLT text, sender and IDs without exposing the code in the API response', async () => {
     const res = await request(app).post('/api/v1/auth/otp/request').send({ mobile });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ provider: 'smsindiahub', expiresIn: 300 });
+    expect(res.body).toMatchObject({ provider: 'smsindiahub', expiresIn: 300, retryAfter: 45 });
     const url = new URL(fetchMock.mock.calls[0][0]);
     expect(url.origin + url.pathname).toBe('https://cloud.smsindiahub.in/api/mt/SendSMS');
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
@@ -58,12 +58,17 @@ describe('SMSINDIAHUB OTP', () => {
     expect(await otpProvider.verifyOtp(mobile, code)).toBe(false);
   });
 
-  it('enforces resend cooldown and invalidates the earlier code on resend', async () => {
+  it('enforces a 45-second cooldown and permits resend at the deadline', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const started = Date.now();
     await otpProvider.sendOtp(mobile);
+    expect(+(await OtpChallenge.findOne({ mobile })).resendAt - started).toBe(45_000);
+    vi.setSystemTime(started + 44_999);
     await expect(otpProvider.sendOtp(mobile)).rejects.toMatchObject({ statusCode: 429 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    await OtpChallenge.updateOne({ mobile }, { $set: { resendAt: new Date(0) } });
+    vi.setSystemTime(started + 45_000);
     await otpProvider.sendOtp(mobile);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     // Random generation may repeat a value; the replacement challenge still resets attempts.
     expect((await OtpChallenge.findOne({ mobile })).attempts).toBe(0);
     expect(await otpProvider.verifyOtp(mobile, sentCode())).toBe(true);

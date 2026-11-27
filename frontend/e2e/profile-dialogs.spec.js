@@ -130,3 +130,39 @@ test.describe('Profile editing', () => {
     await expect(page.getByRole('heading', { name: 'Edit Agency Profile' })).toBeVisible();
   });
 });
+
+test('profile email and mobile each have a working 45-second resend countdown', async ({ page }) => {
+  await page.clock.install();
+  await seed(page);
+  const sent = { email: [], mobile: [] };
+  await page.route('**/auth/otp/request', route => {
+    sent.mobile.push(route.request().postDataJSON());
+    return route.fulfill({ json: { sent: true } });
+  });
+  await page.route('**/auth/email-otp/request', route => {
+    sent.email.push(route.request().postDataJSON());
+    return route.fulfill({ json: { sent: true } });
+  });
+  await page.goto('/app/profile/personal-details');
+  await page.locator('input[type="email"]').fill('resend-profile@example.com');
+  await page.locator('input[type="tel"]').first().fill('9876543211');
+  await page.getByRole('button', { name: 'Save Account Details', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Verify Identity Change' });
+  const email = dialog.getByRole('button', { name: /^Resend email OTP/ });
+  const mobile = dialog.getByRole('button', { name: /^Resend mobile OTP/ });
+  await expect(email).toBeDisabled();
+  await expect(mobile).toBeDisabled();
+  await page.clock.fastForward(44_000);
+  await expect(email).toBeDisabled();
+  await expect(mobile).toBeDisabled();
+  await page.clock.fastForward(1_000);
+  await expect(email).toBeEnabled();
+  await expect(mobile).toBeEnabled();
+  await email.click();
+  await expect(email).toHaveText('Resend email OTP in 45s');
+  await expect(mobile).toBeEnabled();
+  await mobile.click();
+  await expect(mobile).toHaveText('Resend mobile OTP in 45s');
+  expect(sent.email).toEqual([{ email: 'resend-profile@example.com' }, { email: 'resend-profile@example.com' }]);
+  expect(sent.mobile).toEqual([{ mobile: '9876543211' }, { mobile: '9876543211' }]);
+});

@@ -31,7 +31,7 @@ Do not enable it on a public deployment. Missing credentials or failed gateway
 requests in live mode return an error; they never enable mock verification.
 
 Live codes expire after five minutes, allow five verification attempts, and can
-be used only once. A 30-second resend cooldown applies per mobile number.
+be used only once. A 45-second resend cooldown applies per mobile number.
 Challenges are stored as keyed hashes in MongoDB so multiple API workers share
 verification state. Resending replaces the previous challenge. The API reports
 gateway acceptance, not confirmed handset delivery. Login, signup verification,
