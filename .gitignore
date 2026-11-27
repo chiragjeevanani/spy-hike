@@ -8,6 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Environment Variables & Secrets
+.env
+.env.*
 *.env
 !.env.example
 *.pem
@@ -50,6 +52,7 @@ env.bak/
 venv.bak/
 
 # Local Workspace, IDEs & OS Meta
+.vscode/
 .idea/
 *.swp
 *.swo
@@ -83,4 +86,3 @@ temp_*.sh
 # Serverless & Deployment cache
 .vercel/
 .serverless/
-config.bat
