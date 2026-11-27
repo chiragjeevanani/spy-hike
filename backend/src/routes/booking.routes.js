@@ -9,7 +9,7 @@ import { getWishlist, setWishlist } from '../controllers/wishlistController.js';
 import {
   listCustomerNotifications, markCustomerNotificationRead, markAllCustomerNotificationsRead,
 } from '../controllers/notificationController.js';
-import { listCustomerChats, sendCustomerMessage } from '../controllers/chatController.js';
+import { listCustomerChats, getCustomerTripChat, sendCustomerMessage } from '../controllers/chatController.js';
 
 // Customer-authenticated endpoints.
 const router = Router();
@@ -43,6 +43,7 @@ router.patch('/notifications/:id/read', ...customerOnly, markCustomerNotificatio
 router.patch('/notifications/read-all', ...customerOnly, markAllCustomerNotificationsRead);
 
 router.get('/chats', ...customerOnly, listCustomerChats);
+router.get('/chats/:tripId', ...customerOnly, getCustomerTripChat);
 router.post('/chats/:tripId/messages', ...customerOnly, sendCustomerMessage);
 
 export default router;

@@ -25,6 +25,8 @@ const adminSchema = new mongoose.Schema(
       default: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
     },
     displayRole: { type: String, default: 'Super Admin' },
+    fcmToken: { type: String, default: '' },
+    fcmTokens: { type: [String], default: [] },
   },
   { timestamps: true },
 );

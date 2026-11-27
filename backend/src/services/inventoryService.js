@@ -1,4 +1,5 @@
 import Departure from '../models/Departure.js';
+import Booking from '../models/Booking.js';
 
 // Keeps a trip's Departure batches in sync with its `departureDates`:
 // - creates a batch for any new date (seeded with the trip's current
@@ -6,9 +7,8 @@ import Departure from '../models/Departure.js';
 // - removes batches for dates the organizer no longer offers.
 // Idempotent: safe to call on every trip create/update.
 //
-// NOTE (Phase 3): removal is unconditional because no bookings exist yet.
-// Phase 5 introduces bookings and will preserve any departure that already
-// has seats booked into it rather than deleting it out from under a booking.
+// Historical/booked batches stay attached to their bookings when an organizer
+// renews the same listing with fresh dates.
 export async function provisionDepartures(trip) {
   const dates = Array.isArray(trip.departureDates) ? trip.departureDates : [];
   const totalSeats = Number(trip.maxGroupSize) || Number(trip.availableSeats) || 0;
@@ -34,7 +34,10 @@ export async function provisionDepartures(trip) {
   const wanted = new Set(dates);
   const removable = existing.filter((d) => !wanted.has(d.date));
   if (removable.length) {
-    await Departure.deleteMany({ _id: { $in: removable.map((d) => d._id) } });
+    const bookedDates = await Booking.distinct('selectedDate', {
+      tripId: trip._id, selectedDate: { $in: removable.map((d) => d.date) },
+    });
+    await Departure.deleteMany({ _id: { $in: removable.filter((d) => !bookedDates.includes(d.date)).map((d) => d._id) } });
   }
 }
 

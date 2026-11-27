@@ -12,9 +12,10 @@ export const loyaltyApi = {
   getConfig: () => api.get('/loyalty/config', { auth: false }).then((r) => r.config),
   getCustomerLoyalty: () => api.get('/loyalty/me'), // { progress, vouchers }
   getOrganizerLoyalty: () => api.get('/organizer/loyalty'), // { progress, vouchers }
+  getCustomerLoyalty: (opts) => api.get('/loyalty/me', { forceRefresh: true, ...opts }), // { progress, vouchers }
+  getOrganizerLoyalty: (opts) => api.get('/organizer/loyalty', { forceRefresh: true, ...opts }), // { progress, vouchers }
   organizerRedeemReward: (bookingId) =>
-    api.post(`/organizer/bookings/${encodeURIComponent(bookingId)}/redeem-reward`, undefined,
-      { invalidates: ['/organizer/loyalty', '/organizer/financials'] }).then((r) => r.booking),
+    api.post(`/organizer/bookings/${encodeURIComponent(bookingId)}/redeem-reward`).then((r) => r.booking),
 
   // Admin
   adminGetConfig: () => api.get('/admin/loyalty/config').then((r) => r.config),

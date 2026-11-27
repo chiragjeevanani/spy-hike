@@ -276,17 +276,19 @@ describe('JWT + role protection', () => {
   });
 
   it('GET /auth/me returns the current principal', async () => {
-    const reg = await registerCustomer();
+    const email = `hiker-me-${Date.now()}@example.com`;
+    const reg = await registerCustomer({ email });
     const res = await request(app)
       .get('/api/v1/auth/me')
       .set('Authorization', `Bearer ${reg.body.token}`);
     expect(res.status).toBe(200);
-    expect(res.body.account.email).toBe('hiker@example.com');
+    expect(res.body.account.email).toBe(email);
     expect(res.body.role).toBe('customer');
   });
 
   it('a customer token cannot access admin routes (403)', async () => {
-    const reg = await registerCustomer();
+    const email = `hiker-admin-${Date.now()}@example.com`;
+    const reg = await registerCustomer({ email });
     const res = await request(app)
       .get('/api/v1/admin/organizers')
       .set('Authorization', `Bearer ${reg.body.token}`);

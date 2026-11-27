@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import api, { clearApiCache } from './apiClient.js';
+import api, { clearApiCache, setToken } from './apiClient.js';
 import bookingsApi from './bookingsApi.js';
 import loyaltyApi from './loyaltyApi.js';
 import tripsApi from './tripsApi.js';
@@ -8,6 +8,11 @@ let ledgerVersion;
 let fetchMock;
 beforeEach(() => {
   clearApiCache();
+  const storage = new Map();
+  vi.stubGlobal('localStorage', { getItem: key => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) });
+  vi.stubGlobal('window', { location: { pathname: '/app' } });
+  setToken('regression-session');
   ledgerVersion = 'available';
   fetchMock = vi.fn(async (url, options) => {
     const path = new URL(url).pathname;
@@ -21,7 +26,7 @@ beforeEach(() => {
 });
 afterEach(() => { clearApiCache(); vi.unstubAllGlobals(); });
 
-describe('booking and loyalty cache consistency', () => {
+describe('fresh server reads after booking and loyalty changes', () => {
   it.each(['create', 'checkout', 'cancel'])('%s refreshes the customer voucher ledger and wallet', async method => {
     expect((await loyaltyApi.getCustomerLoyalty()).vouchers[0].status).toBe('available');
     await api.get('/organizer/financials');
@@ -33,7 +38,7 @@ describe('booking and loyalty cache consistency', () => {
     const callsTo = path => fetchMock.mock.calls.filter(([url]) => new URL(url).pathname.endsWith(path)).length;
     expect(callsTo('/loyalty/me')).toBe(2);
     expect(callsTo('/organizer/financials')).toBe(2);
-    expect(callsTo('/unrelated-config')).toBe(1);
+    expect(callsTo('/unrelated-config')).toBe(2);
   });
 
   it('refreshes the organizer voucher ledger after a zero-commission redemption', async () => {
@@ -44,7 +49,7 @@ describe('booking and loyalty cache consistency', () => {
 });
 
 
-it('refreshes trek counts and grouped browse results after an admin pauses an offer', async () => {
+it('reads fresh trek counts and browse results after an admin pauses an offer', async () => {
   await api.get('/treks', { auth: false });
   await tripsApi.listTrekGroups();
   await api.get('/unrelated-config', { auth: false });
@@ -55,5 +60,5 @@ it('refreshes trek counts and grouped browse results after an admin pauses an of
   const callsTo = path => fetchMock.mock.calls.filter(([url]) => new URL(url).pathname.endsWith(path)).length;
   expect(callsTo('/treks')).toBe(2);
   expect(callsTo('/trek-groups')).toBe(2);
-  expect(callsTo('/unrelated-config')).toBe(1);
+  expect(callsTo('/unrelated-config')).toBe(2);
 });

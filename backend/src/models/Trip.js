@@ -35,6 +35,7 @@ const tripSchema = new mongoose.Schema(
   {
     _id: { type: String }, // trip id/slug
     trekId: { type: String, index: true, required: true },
+    archivedOrganizer: { type: mongoose.Schema.Types.Mixed, default: undefined },
     organizerEmail: { type: String, index: true, required: true },
     organizer: {
       name: String,
@@ -84,6 +85,8 @@ const tripSchema = new mongoose.Schema(
     itinerary: { type: [itineraryDaySchema], default: [] },
     faqs: { type: [faqSchema], default: [] },
     status: { type: String, enum: ['Draft', 'Published', 'Paused'], default: 'Draft' },
+    autoPausedReason: { type: String, enum: ['', 'departures_expired'], default: '' },
+    autoPausedAt: { type: Date, default: null },
     rating: { type: Number, default: 0 },
     reviewsCount: { type: Number, default: 0 },
     reviews: { type: [reviewSchema], default: [] },

@@ -1,5 +1,4 @@
 import { futureDate } from './fixtures/dates.js';
-import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 8 — notifications, wishlist, reviews. Drives the customer app against
@@ -7,7 +6,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // drawer, the wishlist persists to the API, and a review updates the trip's
 // rating. (Chat + broadcast fan-out are covered by the backend API tests.)
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const WISHLIST_TRIP = 'himalayan-ridge-pass-trek'; // seeded, resolvable in the UI
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
@@ -22,7 +21,7 @@ async function freshCustomerCtx() {
 // other specs for the shared seed trip's inventory.
 async function makeFreshTrip(ctx) {
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await createTrip(ctx, {
+  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Social Trek ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -39,6 +38,7 @@ async function makeFreshTrip(ctx) {
 
 async function seedSession(page, email, token) {
   await page.addInitScript((d) => {
+    localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, name: 'Social Hiker', email: d.email }));
     localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, profileSetupComplete: true, name: 'Social Hiker', email: d.email }));
     localStorage.setItem('trekigo_auth_token', d.token);
   }, { email, token });
@@ -49,11 +49,20 @@ test.use({ viewport: { width: 460, height: 950 } });
 test('a booking notification surfaces in the customer bell drawer', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
   const trip = await makeFreshTrip(ctx);
-  await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
+  await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Social Hiker' }] } });
+  await ctx.post(`${API}/bookings`, {
+    ...auth,
+    data: {
+      tripId: trip.id,
+      selectedDate: futureDate(30),
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Social Hiker', age: 24, gender: 'Male', emergencyContact: '9876543210' }],
+    },
+  });
   await ctx.dispose();
 
   await seedSession(page, email, token);
-  await page.goto('/app');
+  await page.goto('/app', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#btn-bell-notifications')).toBeVisible({ timeout: 10000 });
   // Give the social hydration (keyed on the booking roster) a beat to land.
   await page.click('#btn-bell-notifications');
@@ -64,7 +73,7 @@ test('toggling a wishlist heart persists to the API', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
 
   await seedSession(page, email, token);
-  await page.goto(`/app/trip/${WISHLIST_TRIP}`);
+  await page.goto(`/app/trip/${WISHLIST_TRIP}`, { waitUntil: 'domcontentloaded' });
   await page.click('#btn-toggle-wishlist-details', { force: true });
 
   await expect
@@ -76,7 +85,15 @@ test('toggling a wishlist heart persists to the API', async ({ page }) => {
 test('submitting a review updates the trip rating on the server', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
   const trip = await makeFreshTrip(ctx);
-  const booking = (await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } })).json()).booking;
+  const booking = (await (await ctx.post(`${API}/bookings`, {
+    ...auth,
+    data: {
+      tripId: trip.id,
+      selectedDate: futureDate(30),
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Social Hiker', age: 24, gender: 'Male', emergencyContact: '9876543210' }],
+    },
+  })).json()).booking;
 
   // Review via the API (the UI path prompts via window.prompt, which is
   // awkward to drive; the frontend calls this same endpoint).

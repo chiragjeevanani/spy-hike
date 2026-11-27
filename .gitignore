@@ -86,3 +86,7 @@ temp_*.sh
 # Serverless & Deployment cache
 .vercel/
 .serverless/
+
+# Python security-check cache
+__pycache__/
+*.py[cod]

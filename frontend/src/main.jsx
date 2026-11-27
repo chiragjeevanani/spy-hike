@@ -18,7 +18,9 @@ if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/ap
     const rawOrgUser = localStorage.getItem('trekigo_org_user');
     const rawUser = localStorage.getItem('trekigo_user');
 
-    if (activeRole === 'organizer' && rawOrgUser) {
+    const token = localStorage.getItem('trekigo_auth_token');
+    localStorage.removeItem('trekigo_token');
+    if (activeRole === 'organizer' && rawOrgUser && token) {
       const orgUser = JSON.parse(rawOrgUser);
       if (orgUser?.isAuthenticated) {
         isOrganizerPath = true;
@@ -26,7 +28,7 @@ if (!isAdminPath && !isOrganizerPath && (routePath === '/' || routePath === '/ap
         window.history.replaceState(null, '', target);
         routePath = target;
       }
-    } else if (rawUser) {
+    } else if (rawUser && token) {
       const hikerUser = JSON.parse(rawUser);
       if (hikerUser?.isAuthenticated) {
         // '/app' IS the home route (see APP_PREFIX in modules/user/App.jsx);
@@ -83,6 +85,22 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// Initial theme setup (all apps default to light theme)
+try {
+  let isDark = false;
+  if (isAdminPath) {
+    const v = localStorage.getItem('trekigo_admin_darkmode_v2');
+    isDark = v !== null ? JSON.parse(v) : false;
+  } else if (isOrganizerPath) {
+    const v = localStorage.getItem('trekigo_org_darkmode_v2');
+    isDark = v !== null ? JSON.parse(v) : false;
+  } else {
+    const v = localStorage.getItem('trekigo_darkmode_v2');
+    isDark = v !== null ? JSON.parse(v) : false;
+  }
+  document.documentElement.classList.toggle('dark', !!isDark);
+} catch (e) {}
 
 async function bootstrap() {
   let AppComponent;

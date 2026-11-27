@@ -74,7 +74,9 @@ const landingContentSchema = new mongoose.Schema(
         default: () => [
           { icon: 'Settings', iconColor: 'text-spy-orange', title: 'AI Recommendation Engine', desc: 'Tailors trek difficulty options dynamically based on your physical fitness level and alpine experience.' },
           { icon: 'ShieldCheck', iconColor: 'text-emerald-500', title: 'Verified Agency Guides', desc: 'Connect directly with local Sherpa guides carrying government-audited permits and zero-accident safety records.' },
-          { icon: 'QrCode', iconColor: 'text-[#4A90E2]', title: 'Instant Permit Booking', desc: 'Secure high-altitude transit passes in a streamlined 3-step wizard with secure PayU checkout.' },
+          // IOS-REVIEW-TEMP: original copy (restore after App Store approval):
+          // { icon: 'QrCode', iconColor: 'text-[#4A90E2]', title: 'Instant Permit Booking', desc: 'Secure high-altitude transit passes in a streamlined 3-step wizard with secure PayU checkout.' },
+          { icon: 'QrCode', iconColor: 'text-[#4A90E2]', title: 'Instant Permit Booking', desc: 'Secure high-altitude transit passes in a streamlined 3-step wizard and pay on arrival at base camp.' },
           { icon: 'MessageSquare', iconColor: 'text-purple-500', title: 'Real-time Coordinator Chat', desc: 'Direct communication line with guides and coordinators to plan gear lists and coordinate base assembly.' },
         ],
       },
@@ -97,7 +99,7 @@ const landingContentSchema = new mongoose.Schema(
       items: {
         type: [portalSchema],
         default: () => [
-          { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, pay via simulated gateways, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
+          { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, book with secure PayU checkout, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
           { key: 'organizer', title: 'Organizer Portal', badge: 'Agency Access', desc: 'Designed for local trekking agencies. Publish multi-day itineraries, manage seat inventory, upload dynamic photo galleries, and coordinate with hikers.', cta: 'Launch Organizer Portal', features: ['Dynamic Hike Form Builder', 'Booking Roster Trackers', 'Simulated Hiker Reply Chat', 'Verification Wizard'] },
         ],
       },

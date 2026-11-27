@@ -7,20 +7,25 @@ import Trek from '../../src/models/Trek.js';
 const app = createApp();
 
 async function customerToken(email = 'hiker@example.com') {
+  await User.deleteOne({ email });
   const reg = await request(app).post('/api/v1/auth/register').send({ name: 'Hiker', email, password: 'pass1234' });
-  return reg.body.token;
+  return reg.body?.token;
 }
 async function approvedOrganizerToken(email = 'org@example.com') {
+  await User.deleteOne({ email });
   const reg = await request(app).post('/api/v1/auth/organizer/register').send({ name: 'Org', email, password: 'pass1234', agencyName: 'Guides', socialMediaLink: 'https://instagram.com/test', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' });
-  await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
+  if (reg.body?.account?.id) {
+    await User.findByIdAndUpdate(reg.body.account.id, { 'organizer.isApproved': true, 'organizer.isPendingApproval': false });
+  }
   const login = await request(app).post('/api/v1/auth/organizer/login').send({ email, password: 'pass1234' });
-  return login.body.token;
+  return login.body?.token;
 }
 let trekSeq = 0;
 async function makeTrip(orgToken) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `checkin-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Checkin Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `checkin-trek-${Date.now()}-${seq}`,
+    title: `Checkin Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({
@@ -28,14 +33,14 @@ async function makeTrip(orgToken) {
     pricingTiers: [{ label: 'Solo', price: 500 }],
     pickup: { location: 'Manali', price: 0 },
     startPoint: { lat: 32.2, lng: 77.1, label: 'Base' },
-    departureDates: ['2026-08-01'], maxGroupSize: 10, availableSeats: 10,
+    departureDates: ['2099-08-01'], maxGroupSize: 10, availableSeats: 10,
     category: 'Trekking', status: 'Published',
   });
   return res.body.trip;
 }
 async function makeBooking(custToken, tripId) {
   const res = await request(app).post('/api/v1/bookings').set('Authorization', `Bearer ${custToken}`).send({
-    tripId, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    tripId, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
   });
   return res.body.booking;
 }

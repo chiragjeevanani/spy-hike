@@ -1,9 +1,15 @@
+import http from 'http';
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
-import { upsertAdmin } from './seed.js';
+import { upsertAdmin, upsertHomeFilters } from './seed.js';
 import { initCache, closeCache } from './lib/cache.js';
+import { initSocket } from './lib/socket.js';
 import mongoose from 'mongoose';
+import { startTripExpiryScheduler } from './services/tripExpiryService.js';
+
+import Notification from './models/Notification.js';
+import { purgeExpiredNotifications } from './services/notificationService.js';
 
 async function start() {
   const app = createApp();
@@ -11,14 +17,33 @@ async function start() {
   const maxRetries = 10;
 
   function listen() {
-    const server = app.listen(env.port, () => {
-      console.log(`✓ Find Your Trek API listening on http://localhost:${env.port} (${env.nodeEnv})`);
+    const httpServer = http.createServer(app);
+    initSocket(httpServer);
+
+    const server = httpServer.listen(env.port, () => {
+      console.log(`✓ Find Your Trek API + WebSockets listening on http://localhost:${env.port} (${env.nodeEnv})`);
       connectDB()
-        .then(async () => {
-          console.log('✓ MongoDB connected');
+        .then(async (conn) => {
+          console.log(`✓ MongoDB connected to ${conn.host}:${conn.port}/${conn.name}`);
+          startTripExpiryScheduler();
           await upsertAdmin();
+          // Non-destructive reference-data migration: existing deployments get
+          // the four starter homepage filters without running the full seed,
+          // which intentionally resets demo trip data.
+          await upsertHomeFilters();
+          // Register 30-day TTL index and compound query indexes on MongoDB
+          Notification.syncIndexes().catch((err) => console.warn('[notifications] syncIndexes warning:', err.message));
+          // Immediately purge any stale notifications older than 30 days to keep cluster storage optimal
+          purgeExpiredNotifications(30).catch((err) => console.warn('[notifications] initial purge warning:', err.message));
         })
         .catch((err) => console.error('✗ MongoDB connection failed:', err.message));
+
+      // Periodic 24-hour maintenance safeguard for MongoDB free cluster
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      setInterval(() => {
+        purgeExpiredNotifications(30).catch((err) => console.warn('[notifications] periodic purge warning:', err.message));
+      }, DAY_MS).unref();
+
       // Never awaited: a missing or slow Redis must not hold up the API, which
       // serves fine from the in-memory fallback until this resolves.
       initCache().catch((err) => console.warn('[cache] init failed:', err.message));
@@ -50,6 +75,14 @@ async function start() {
       }
     });
   }
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[server] Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
+  process.on('uncaughtException', (err) => {
+    console.error('[server] Uncaught Exception:', err);
+  });
 
   listen();
 }

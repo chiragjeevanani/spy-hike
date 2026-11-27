@@ -1,148 +1,274 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { AnimatePresence, motion } from "motion/react";
 
 import {
-  loadOrgUser, saveOrgUser,
-  loadOrgTrips,
-  loadOrgBookings, saveOrgBookings,
-  loadOrgNotifications, saveOrgNotifications,
-  loadOrgDarkMode, saveOrgDarkMode,
-  loadOrgPayouts, saveOrgPayouts,
-  loadOrgChats, saveOrgChats,
-} from './utils/storage';
-import { syncOrganizerVouchers, markOrganizerVoucherUsed, hydrateOrganizerLoyalty } from '../../utils/loyalty';
-import { resetPageScroll } from '../../utils/scroll';
-import authApi from '../../lib/authApi';
-import tripsApi from '../../lib/tripsApi';
-import bookingsApi from '../../lib/bookingsApi';
-import loyaltyApi from '../../lib/loyaltyApi';
-import socialApi from '../../lib/socialApi';
-import { getToken } from '../../lib/apiClient';
-import { initPushNotifications } from '../../utils/pushNotifications';
-import { useLivePoll, LIVE } from '../../utils/livePoll';
-import { requestPushPermission, OrganizerAlerts } from '../../utils/pushNotificationService';
-import { useToast } from '../../components/ToastProvider';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import { safeSetItem } from '../../utils/safeStorage';
+  clearOrgData,
+  organizerCacheIdentity,
+  saveOrgUser,
+  DEFAULT_ORG_USER,
+  saveOrgTrips,
+  saveOrgBookings,
+  saveOrgNotifications,
+  loadOrgDarkMode,
+  saveOrgDarkMode,
+  saveOrgPayouts,
+  saveOrgChats,
+} from "./utils/storage";
+import {
+  hydrateOrganizerLoyalty,
+} from "../../utils/loyalty";
+import { resetPageScroll } from "../../utils/scroll";
+import authApi from "../../lib/authApi";
+import tripsApi from "../../lib/tripsApi";
+import bookingsApi from "../../lib/bookingsApi";
+import loyaltyApi from "../../lib/loyaltyApi";
+import socialApi from "../../lib/socialApi";
+import { getToken, clearToken, sessionIdentity } from "../../lib/apiClient";
+import { initPushNotifications, unregisterPushNotifications } from "../../utils/pushNotifications";
+import { useLivePoll, LIVE } from "../../utils/livePoll";
+import { getSocket, updateSocketAuth } from "../../lib/socket";
+import {
+  requestPushPermission,
+  OrganizerAlerts,
+} from "../../utils/pushNotificationService";
+import { useToast } from "../../components/ToastProvider";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import { safeSetItem } from "../../utils/safeStorage";
 
-import OrgOnboarding from './components/OrgOnboarding';
-import OrgAuth from './components/OrgAuth';
-import PendingApprovalView from './components/PendingApprovalView';
-import NotFoundPage from '../../components/NotFoundPage';
-import OrgBottomNav from './components/OrgBottomNav';
-import OrgDesktopNav from './components/OrgDesktopNav';
-import OrgDashboardView from './components/OrgDashboardView';
-import OrgTripsView from './components/OrgTripsView';
-import TripFormView from './components/TripFormView';
-import OrgBookingsView from './components/OrgBookingsView';
-import OrgProfileView from './components/OrgProfileView';
-import OrgLoyaltyView from './components/OrgLoyaltyView';
-import OrgNotificationsView from './components/OrgNotificationsView';
-import OrgFinancialsView from './components/OrgFinancialsView';
-import OrgCouponsView from './components/OrgCouponsView';
-import OrgScannerView from './components/OrgScannerView';
-import OrgChatsView from './components/OrgChatsView';
+import OrgOnboarding from "./components/OrgOnboarding";
+import OrgAuth from "./components/OrgAuth";
+import PendingApprovalView from "./components/PendingApprovalView";
+import NotFoundPage from "../../components/NotFoundPage";
+import OrgBottomNav from "./components/OrgBottomNav";
+import OrgDesktopNav from "./components/OrgDesktopNav";
+import OrgDashboardView from "./components/OrgDashboardView";
+import OrgTripsView from "./components/OrgTripsView";
+import TripFormView from "./components/TripFormView";
+import OrgBookingsView from "./components/OrgBookingsView";
+import OrgProfileView from "./components/OrgProfileView";
+import OrgLoyaltyView from "./components/OrgLoyaltyView";
+import OrgNotificationsView from "./components/OrgNotificationsView";
+import OrgFinancialsView from "./components/OrgFinancialsView";
+import OrgPayoutSetupView from "./components/OrgPayoutSetupView";
+import OrgCouponsView from "./components/OrgCouponsView";
+import OrgScannerView from "./components/OrgScannerView";
+import OrgChatsView from "./components/OrgChatsView";
+import { hasCompletePayoutDetails } from "./utils/payoutDetails";
 
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
-const PATH_PREFIX = '/organizer';
+const PATH_PREFIX = "/organizer";
 // The traveller app (and its shared Traveller/Organizer login) now lives under /app.
-const SHARED_LOGIN_PATH = '/app/login';
+const SHARED_LOGIN_PATH = "/app/login";
 
 function getOrgTab(pathname) {
-  const p = pathname.replace(PATH_PREFIX, '').replace(/^\//, '');
-  if (!p || p === '' || p === 'dashboard') return 'Dashboard';
-  if (p === 'trips') return 'Trips';
-  if (p === 'trips/new') return 'NewTrip';
-  if (p.startsWith('trips/') && p !== 'trips/new') return 'EditTrip';
-  if (p === 'bookings') return 'Bookings';
-  if (p === 'profile') return 'Profile';
-  if (p === 'register') return 'Register';
-  if (p === 'pending') return 'Pending';
-  if (p === 'onboarding') return 'Onboarding';
-  return 'NotFound';
+  const p = pathname.replace(PATH_PREFIX, "").replace(/^\//, "");
+  if (!p || p === "" || p === "dashboard") return "Dashboard";
+  if (p === "trips") return "Trips";
+  if (p === "trips/new") return "NewTrip";
+  if (p.startsWith("trips/") && p !== "trips/new") return "EditTrip";
+  if (p === "bookings") return "Bookings";
+  if (p === "profile") return "Profile";
+  if (p === "profile/edit") return "EditProfile";
+  if (p === "register" || p === "apply") return "Register";
+  if (p === "pending") return "Pending";
+  if (p === "onboarding") return "Onboarding";
+  return "NotFound";
 }
 
 function tabToPath(tab, tripId = null) {
-  if (tab === 'Dashboard') return `${PATH_PREFIX}/dashboard`;
-  if (tab === 'Trips') return `${PATH_PREFIX}/trips`;
-  if (tab === 'NewTrip') return `${PATH_PREFIX}/trips/new`;
-  if (tab === 'EditTrip' && tripId) return `${PATH_PREFIX}/trips/${tripId}`;
-  if (tab === 'Bookings') return `${PATH_PREFIX}/bookings`;
-  if (tab === 'Profile') return `${PATH_PREFIX}/profile`;
-  if (tab === 'Register') return `${PATH_PREFIX}/register`;
-  if (tab === 'Pending') return `${PATH_PREFIX}/pending`;
-  if (tab === 'Onboarding') return `${PATH_PREFIX}/onboarding`;
+  if (tab === "Dashboard") return `${PATH_PREFIX}/dashboard`;
+  if (tab === "Trips") return `${PATH_PREFIX}/trips`;
+  if (tab === "NewTrip") return `${PATH_PREFIX}/trips/new`;
+  if (tab === "EditTrip" && tripId) return `${PATH_PREFIX}/trips/${tripId}`;
+  if (tab === "Bookings") return `${PATH_PREFIX}/bookings`;
+  if (tab === "Profile") return `${PATH_PREFIX}/profile`;
+  if (tab === "EditProfile") return `${PATH_PREFIX}/profile/edit`;
+  if (tab === "Register") return `${PATH_PREFIX}/register`;
+  if (tab === "Pending") return `${PATH_PREFIX}/pending`;
+  if (tab === "Onboarding") return `${PATH_PREFIX}/onboarding`;
   return `${PATH_PREFIX}/dashboard`;
 }
 
 // ─── Main organizer App ───────────────────────────────────────────────────────
 
+const discardAccountSession = () => {
+  clearToken();
+  clearOrgData();
+  for (const key of ['trekigo_user', 'trekigo_bookings', 'trekigo_notifications',
+    'trekigo_chats', 'trekigo_wishlist', 'trekigo_loyalty_customer_vouchers',
+    'trekigo_loyalty_customer_progress', 'trekigo_active_role', 'trekigo_last_route', 'trekigo_token']) {
+    try { localStorage.removeItem(key); } catch { /* Storage unavailable. */ }
+  }
+};
+
 export default function OrgApp() {
   const [darkMode, setDarkMode] = useState(loadOrgDarkMode());
-  const [organizer, setOrganizer] = useState(loadOrgUser());
-  const [activeTab, setActiveTab] = useState(() => getOrgTab(window.location.pathname));
+  const [organizer, setOrganizer] = useState({ ...DEFAULT_ORG_USER, isOnboarded: true });
+  const [sessionState, setSessionState] = useState('checking');
+  const [walkthroughComplete, setWalkthroughComplete] = useState(() => localStorage.getItem('trekigo_org_walkthrough_completed') === 'true');
+  const [sessionCheckAttempt, setSessionCheckAttempt] = useState(0);
+  const [activeTab, setActiveTab] = useState(() =>
+    getOrgTab(window.location.pathname),
+  );
   const [trips, setTrips] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [notifications, setNotifications] = useState(loadOrgNotifications());
+  const [notifications, setNotifications] = useState([]);
   const [editingTrip, setEditingTrip] = useState(null);
   const [showOrgLoyalty, setShowOrgLoyalty] = useState(false);
   const [showOrgNotifications, setShowOrgNotifications] = useState(false);
   const [showOrgFinancials, setShowOrgFinancials] = useState(false);
   const [showOrgCoupons, setShowOrgCoupons] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [showOrgChats, setShowOrgChats] = useState(false);
+  const [showOrgChats, setShowOrgChats] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") === "chats" || Boolean(params.get("chatId"));
+  });
+  const [pendingOrgChatId, setPendingOrgChatId] = useState(() => {
+    return new URLSearchParams(window.location.search).get("chatId") || null;
+  });
   const [deleteTripTarget, setDeleteTripTarget] = useState(null);
   const toast = useToast();
   const [chats, setChats] = useState([]);
-  const [payouts, setPayouts] = useState(loadOrgPayouts());
-  const [navHidden, setNavHidden] = useState(false);
+  const [payouts, setPayouts] = useState([]);
+  const [commissionRate, setCommissionRate] = useState(10);
 
-  // Load organizer-specific data. Trips + bookings come from the API for a
-  // real (token-backed) session; both fall back to localStorage so the
-  // seeded/offline paths keep working.
+  const [navHidden, setNavHidden] = useState(false);
+  const payoutSetupComplete = hasCompletePayoutDetails(organizer?.bankDetails);
+  const requiresPayoutSetup = organizer?.isAuthenticated && organizer?.isApproved && !payoutSetupComplete;
+  const [showPayoutExitConfirm, setShowPayoutExitConfirm] = useState(false);
+  const payoutSetupPathRef = useRef(null);
+
+  // Keep hardware/browser Back in this document until the user confirms.
+  // A same-document entry also prevents restoring the hiker's cached switch overlay.
+  useEffect(() => {
+    if (!requiresPayoutSetup) return;
+    const path = window.location.pathname + window.location.search + window.location.hash;
+    payoutSetupPathRef.current = path;
+    if (!window.history.state?.payoutSetupGuard) {
+      window.history.pushState({ ...window.history.state, payoutSetupGuard: true }, "", path);
+    }
+  }, [requiresPayoutSetup]);
+
+  const handleReturnToHiker = () => {
+    localStorage.setItem("trekigo_active_role", "hiker");
+    // Load the hiker module afresh instead of restoring the pre-switch page.
+    window.location.replace("/app");
+  };
+
+  useEffect(() => {
+    bookingsApi.getConfig()
+      .then(cfg => {
+        if (cfg && typeof cfg.commissionRate === 'number') {
+          setCommissionRate(cfg.commissionRate);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Organizer data always comes from the verified API session.
   const knownBookingIdsRef = useRef(null);
   const knownChatMsgCountRef = useRef(null);
 
-  // Initial load for organizer data
-  useEffect(() => {
-    if (organizer?.isAuthenticated && organizer?.email) {
-      if (organizer.isApproved) {
-        tripsApi.listOrganizerTrips().then(setTrips).catch(() => setTrips(loadOrgTrips(organizer.email)));
-        bookingsApi.listOrganizer()
-          .then((list) => { if (Array.isArray(list) && list.length) setBookings(list); })
-          .catch(() => {});
-        if (getToken()) {
-          bookingsApi.listPayouts().then((list) => { if (Array.isArray(list)) setPayouts(list); }).catch(() => {});
-        }
-      }
-      const orgBookings = loadOrgBookings(organizer.email);
-      setBookings(orgBookings);
+  const accountKey = organizerCacheIdentity(organizer);
+  const activeAccountRef = useRef(accountKey);
+  activeAccountRef.current = accountKey;
 
-      const lifetimeBookings = Math.max(organizer.totalBookings || 0, orgBookings.length);
-      if (getToken()) {
-        hydrateOrganizerLoyalty();
-        socialApi.getOrganizerNotifications()
-          .then((list) => { if (Array.isArray(list) && list.length) setNotifications(list); })
-          .catch(() => {});
-        socialApi.getOrganizerChats()
-          .then((list) => { if (Array.isArray(list)) setChats(list); })
-          .catch(() => {});
-      } else {
-        syncOrganizerVouchers(lifetimeBookings);
-      }
-      if (lifetimeBookings > (organizer.totalBookings || 0)) {
-        const updated = { ...organizer, totalBookings: lifetimeBookings };
-        saveOrgUser(updated);
-        setOrganizer(updated);
-      }
+  // A real session reads only the server's data, including empty lists. Never
+  // restore legacy local data after an error or an account lifecycle change.
+  useEffect(() => {
+    let cancelled = false;
+    const current = () => !cancelled && activeAccountRef.current === accountKey;
+    setTrips([]);
+    setBookings([]);
+    setChats([]);
+    setNotifications([]);
+    setPayouts([]);
+    knownBookingIdsRef.current = null;
+    knownChatMsgCountRef.current = null;
+    if (!organizer?.isAuthenticated || !organizer?.isApproved || !payoutSetupComplete) {
+      return () => { cancelled = true; };
     }
-  }, [organizer?.email, organizer?.isAuthenticated]);
+    if (getToken()) {
+      saveOrgTrips([]);
+      saveOrgBookings([]);
+      saveOrgChats([]);
+      saveOrgNotifications([]);
+      saveOrgPayouts([]);
+      const load = (promise, setter, save) => promise.then((list) => {
+        if (current() && Array.isArray(list)) {
+          setter(list);
+          save?.(list);
+        }
+      }).catch(() => {});
+      load(tripsApi.listOrganizerTrips(), setTrips);
+      load(bookingsApi.listOrganizer(), setBookings, saveOrgBookings);
+      load(bookingsApi.listPayouts(), setPayouts, saveOrgPayouts);
+      load(socialApi.getOrganizerNotifications(), setNotifications, saveOrgNotifications);
+      load(socialApi.getOrganizerChats(), setChats, saveOrgChats);
+      hydrateOrganizerLoyalty();
+    }
+    return () => { cancelled = true; };
+  }, [accountKey, organizer?.email, organizer?.isAuthenticated, organizer?.isApproved, payoutSetupComplete]);
 
   // Request browser push notification permission if supported
   useEffect(() => {
-    if (organizer?.isAuthenticated && organizer?.isApproved) requestPushPermission();
-  }, [organizer?.isAuthenticated, organizer?.isApproved]);
+    if (organizer?.isAuthenticated && organizer?.isApproved && payoutSetupComplete)
+      requestPushPermission();
+  }, [organizer?.isAuthenticated, organizer?.isApproved, payoutSetupComplete]);
+
+  // Connect and authenticate Socket.IO for organizer
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      updateSocketAuth(token);
+    }
+  }, [organizer?.isAuthenticated]);
+
+  // Real-time WebSocket listener for organizer chats & messages
+  useEffect(() => {
+    const socket = getSocket();
+    const handleChatUpdated = (data) => {
+      if (data?.chat) {
+        setChats((prev) => {
+          const list = Array.isArray(prev) ? prev : [];
+          const exists = list.some(
+            (c) => c.id === data.chat.id || c.tripId === data.chat.tripId,
+          );
+          const next = exists
+            ? list.map((c) =>
+                c.id === data.chat.id || c.tripId === data.chat.tripId
+                  ? data.chat
+                  : c,
+              )
+            : [data.chat, ...list];
+          saveOrgChats(next);
+          return next;
+        });
+      }
+    };
+
+    const handleNewMessage = (data) => {
+      if (data?.chat) {
+        handleChatUpdated(data);
+        const lastMsg = data.message;
+        if (lastMsg && lastMsg.sender === "user") {
+          OrganizerAlerts.newMessage(
+            data.chat.userName || "Hiker",
+            lastMsg.text,
+            toast,
+          );
+        }
+      }
+    };
+
+    socket.on("chat_updated", handleChatUpdated);
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      socket.off("chat_updated", handleChatUpdated);
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [toast]);
 
   // Live sync of Bookings, Messages and Notifications.
   //
@@ -154,96 +280,145 @@ export default function OrgApp() {
   // app returns to the foreground, since a backgrounded webview's timers are
   // suspended.
   const pollLiveUpdates = useCallback(async () => {
-      if (!getToken()) return;
+    if (!getToken()) return;
+    const current = () => activeAccountRef.current === accountKey && !!getToken();
 
-      try {
-        // 1. Live Sync Bookings
-        const freshBookings = await bookingsApi.listOrganizer(LIVE);
-        if (Array.isArray(freshBookings)) {
-          if (knownBookingIdsRef.current !== null) {
-            const newBookings = freshBookings.filter(b => {
-              const bId = b.id || b.bookingId || b._id;
-              return bId && !knownBookingIdsRef.current.has(bId);
-            });
-
-            newBookings.forEach(newB => {
-              OrganizerAlerts.newBooking(newB, toast);
-            });
-          }
-
-          const currentIds = new Set(freshBookings.map(b => b.id || b.bookingId || b._id).filter(Boolean));
-          knownBookingIdsRef.current = currentIds;
-          setBookings(freshBookings);
-          saveOrgBookings(freshBookings);
-        }
-
-        // 2. Live Sync Customer Chats & Messages
-        const freshChats = await socialApi.getOrganizerChats(LIVE);
-        if (Array.isArray(freshChats)) {
-          if (knownChatMsgCountRef.current !== null) {
-            freshChats.forEach(chat => {
-              const cId = String(chat.id || chat._id);
-              const incomingUserMsgs = (chat.messages || []).filter(m => m.sender === 'user');
-              const prevCount = knownChatMsgCountRef.current.get(cId) || 0;
-
-              if (incomingUserMsgs.length > prevCount) {
-                const latestUserMsg = incomingUserMsgs[incomingUserMsgs.length - 1];
-                if (latestUserMsg) {
-                  const senderName = chat.userName || 'Traveller';
-                  const msgText = latestUserMsg.text || 'Sent a message';
-                  OrganizerAlerts.newMessage(senderName, msgText, toast);
-                }
-              }
-            });
-          }
-
-          const newCounts = new Map();
-          freshChats.forEach(c => {
-            const cId = String(c.id || c._id);
-            const userMsgs = (c.messages || []).filter(m => m.sender === 'user');
-            newCounts.set(cId, userMsgs.length);
+    try {
+      // 1. Live Sync Bookings
+      const freshTrips = await tripsApi.listOrganizerTrips(LIVE);
+      if (!current()) return;
+      if (Array.isArray(freshTrips)) setTrips(freshTrips);
+      const freshBookings = await bookingsApi.listOrganizer(LIVE);
+      if (!current()) return;
+      if (Array.isArray(freshBookings)) {
+        if (knownBookingIdsRef.current !== null) {
+          const newBookings = freshBookings.filter((b) => {
+            const bId = b.id || b.bookingId || b._id;
+            return bId && !knownBookingIdsRef.current.has(bId);
           });
-          knownChatMsgCountRef.current = newCounts;
-          setChats(freshChats);
-          saveOrgChats(freshChats);
+
+          newBookings.forEach((newB) => {
+            OrganizerAlerts.newBooking(newB, toast);
+          });
         }
 
-        // 3. Live Sync Notifications
-        const freshNotifs = await socialApi.getOrganizerNotifications(LIVE);
-        if (Array.isArray(freshNotifs)) {
-          setNotifications(freshNotifs);
-          saveOrgNotifications(freshNotifs);
-        }
-      } catch (err) {
-        /* Ignore transient background network errors */
+        const currentIds = new Set(
+          freshBookings
+            .map((b) => b.id || b.bookingId || b._id)
+            .filter(Boolean),
+        );
+        knownBookingIdsRef.current = currentIds;
+        setBookings(freshBookings);
+        saveOrgBookings(freshBookings);
       }
-  }, [organizer?.email, toast]);
+
+      // 2. Live Sync Customer Chats & Messages
+      const freshChats = await socialApi.getOrganizerChats(LIVE);
+      if (!current()) return;
+      if (Array.isArray(freshChats)) {
+        if (knownChatMsgCountRef.current !== null) {
+          freshChats.forEach((chat) => {
+            const cId = String(chat.id || chat._id);
+            const incomingUserMsgs = (chat.messages || []).filter(
+              (m) => m.sender === "user",
+            );
+            const prevCount = knownChatMsgCountRef.current.get(cId) || 0;
+
+            if (incomingUserMsgs.length > prevCount) {
+              const latestUserMsg =
+                incomingUserMsgs[incomingUserMsgs.length - 1];
+              if (latestUserMsg) {
+                const senderName = chat.userName || "Traveller";
+                const msgText = latestUserMsg.text || "Sent a message";
+                OrganizerAlerts.newMessage(senderName, msgText, toast);
+              }
+            }
+          });
+        }
+
+        const newCounts = new Map();
+        freshChats.forEach((c) => {
+          const cId = String(c.id || c._id);
+          const userMsgs = (c.messages || []).filter(
+            (m) => m.sender === "user",
+          );
+          newCounts.set(cId, userMsgs.length);
+        });
+        knownChatMsgCountRef.current = newCounts;
+        setChats(freshChats);
+        saveOrgChats(freshChats);
+      }
+
+      // 3. Live Sync Notifications
+      const freshNotifs = await socialApi.getOrganizerNotifications(LIVE);
+      if (!current()) return;
+      if (Array.isArray(freshNotifs)) {
+        setNotifications(freshNotifs);
+        saveOrgNotifications(freshNotifs);
+      }
+    } catch (err) {
+      /* Ignore transient background network errors */
+    }
+  }, [accountKey, toast]);
 
   useLivePoll(pollLiveUpdates, {
     intervalMs: 5000,
-    enabled: !!organizer?.isAuthenticated && !!organizer?.isApproved,
+    enabled: !!organizer?.isAuthenticated && !!organizer?.isApproved && payoutSetupComplete,
   });
 
   // History popstate — handle native hardware back button / swipe gestures for all overlays & modals
   useEffect(() => {
     const handlePop = () => {
-      if (showOrgChats) { setShowOrgChats(false); return; }
-      if (showOrgFinancials) { setShowOrgFinancials(false); return; }
-      if (showOrgCoupons) { setShowOrgCoupons(false); return; }
-      if (showOrgNotifications) { setShowOrgNotifications(false); return; }
-      if (showOrgLoyalty) { setShowOrgLoyalty(false); return; }
-      if (showScanner) { setShowScanner(false); return; }
-      if (deleteTripTarget) { setDeleteTripTarget(null); return; }
-      if (editingTrip) { setEditingTrip(null); return; }
-      if (activeTab === 'NewTrip' || activeTab === 'EditTrip') {
-        setActiveTab('Trips');
+      if (requiresPayoutSetup) {
+        window.history.pushState(
+          { ...window.history.state, payoutSetupGuard: true },
+          "",
+          payoutSetupPathRef.current,
+        );
+        setShowPayoutExitConfirm(true);
+        return;
+      }
+      if (showOrgChats) {
+        setShowOrgChats(false);
+        return;
+      }
+      if (showOrgFinancials) {
+        setShowOrgFinancials(false);
+        return;
+      }
+      if (showOrgCoupons) {
+        setShowOrgCoupons(false);
+        return;
+      }
+      if (showOrgNotifications) {
+        setShowOrgNotifications(false);
+        return;
+      }
+      if (showOrgLoyalty) {
+        setShowOrgLoyalty(false);
+        return;
+      }
+      if (showScanner) {
+        setShowScanner(false);
+        return;
+      }
+      if (deleteTripTarget) {
+        setDeleteTripTarget(null);
+        return;
+      }
+      if (editingTrip) {
+        setEditingTrip(null);
+        return;
+      }
+      if (activeTab === "NewTrip" || activeTab === "EditTrip") {
+        setActiveTab("Trips");
         return;
       }
       setActiveTab(getOrgTab(window.location.pathname));
     };
 
-    window.addEventListener('popstate', handlePop);
-    return () => window.removeEventListener('popstate', handlePop);
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
   }, [
     showOrgChats,
     showOrgFinancials,
@@ -254,12 +429,13 @@ export default function OrgApp() {
     deleteTripTarget,
     editingTrip,
     activeTab,
+    requiresPayoutSetup,
   ]);
 
   // Dark mode
   useEffect(() => {
     saveOrgDarkMode(darkMode);
-    document.documentElement.classList.toggle('dark', darkMode);
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
   // There's no organizer-specific login screen anymore — sign-in happens on the
@@ -267,10 +443,15 @@ export default function OrgApp() {
   // once authenticated. Bounce anyone who lands here unauthenticated, except
   // the "Apply as Organizer" registration flow which still lives in this module.
   useEffect(() => {
-    if (organizer.isOnboarded && !organizer.isAuthenticated && activeTab !== 'Register') {
+    if (
+      sessionState === 'ready' &&
+      organizer.isOnboarded &&
+      !organizer.isAuthenticated &&
+      activeTab !== "Register" && activeTab !== "Onboarding"
+    ) {
       window.location.href = SHARED_LOGIN_PATH;
     }
-  }, [organizer.isOnboarded, organizer.isAuthenticated, activeTab]);
+  }, [sessionState, organizer.isOnboarded, organizer.isAuthenticated, activeTab]);
 
   // Opt into web push once signed in — no-ops silently if unsupported/denied.
   useEffect(() => {
@@ -278,28 +459,28 @@ export default function OrgApp() {
   }, [organizer.isAuthenticated]);
 
   const openChats = () => {
-    window.history.pushState({ modal: 'chats' }, '');
+    window.history.pushState({ modal: "chats" }, "");
     setShowOrgChats(true);
   };
   const openFinancials = () => {
-    window.history.pushState({ modal: 'financials' }, '');
+    window.history.pushState({ modal: "financials" }, "");
     setShowOrgFinancials(true);
     refreshPayouts();
   };
   const openCoupons = () => {
-    window.history.pushState({ modal: 'coupons' }, '');
+    window.history.pushState({ modal: "coupons" }, "");
     setShowOrgCoupons(true);
   };
   const openLoyalty = () => {
-    window.history.pushState({ modal: 'loyalty' }, '');
+    window.history.pushState({ modal: "loyalty" }, "");
     setShowOrgLoyalty(true);
   };
   const openNotifications = () => {
-    window.history.pushState({ modal: 'notifications' }, '');
+    window.history.pushState({ modal: "notifications" }, "");
     setShowOrgNotifications(true);
   };
   const openScanner = () => {
-    window.history.pushState({ modal: 'scanner' }, '');
+    window.history.pushState({ modal: "scanner" }, "");
     setShowScanner(true);
   };
   const closeCurrentOverlay = (setter) => {
@@ -320,37 +501,41 @@ export default function OrgApp() {
     setShowScanner(false);
     const path = tabToPath(tab, tripId);
     if (replace) {
-      window.history.replaceState({ tab }, '', path);
+      window.history.replaceState({ tab }, "", path);
     } else {
-      window.history.pushState({ tab }, '', path);
+      window.history.pushState({ tab }, "", path);
     }
-    if (path && path.startsWith('/organizer')) {
-      safeSetItem('trekigo_last_route', path);
+    if (path && path.startsWith("/organizer")) {
+      safeSetItem("trekigo_last_route", path);
     }
     setActiveTab(tab);
   }, []);
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  const handleOnboardingComplete = () => {
-    const updated = { ...organizer, isOnboarded: true };
-    saveOrgUser(updated);
-    setOrganizer(updated);
-    window.location.href = SHARED_LOGIN_PATH;
-  };
+  const handleOnboardingComplete = useCallback(() => {
+    localStorage.setItem('trekigo_org_walkthrough_completed', 'true');
+    setWalkthroughComplete(true);
+    navigateTo('Register', true);
+  }, [navigateTo]);
 
   const handleAuthSuccess = (orgUser) => {
     setOrganizer(orgUser);
+    setSessionState('ready');
     if (!orgUser.isApproved && orgUser.isPendingApproval) {
-      navigateTo('Pending', true);
+      navigateTo("Pending", true);
     } else {
-      tripsApi.listOrganizerTrips().then(setTrips).catch(() => setTrips(loadOrgTrips(orgUser.email)));
-      setBookings(loadOrgBookings(orgUser.email));
-      navigateTo('Dashboard', true);
+      navigateTo("Dashboard", true);
     }
   };
 
   const handleLogout = () => {
+    unregisterPushNotifications();
+    clearToken();
+    clearOrgData();
+    setChats([]);
+    setNotifications([]);
+    setPayouts([]);
     const reset = {
       ...organizer,
       isAuthenticated: false,
@@ -364,15 +549,69 @@ export default function OrgApp() {
     // /app/login screen sees an already-authenticated user and bounces
     // straight past the login form into the Traveller Home tab.
     try {
-      const rawUser = localStorage.getItem('trekigo_user');
+      const rawUser = localStorage.getItem("trekigo_user");
       if (rawUser) {
         const travellerUser = JSON.parse(rawUser);
-        localStorage.setItem('trekigo_user', JSON.stringify({ ...travellerUser, isAuthenticated: false }));
+        localStorage.setItem(
+          "trekigo_user",
+          JSON.stringify({ ...travellerUser, isAuthenticated: false }),
+        );
       }
     } catch (e) {}
 
     window.location.href = SHARED_LOGIN_PATH;
   };
+
+  // Browser profiles are display snapshots, never proof that an account exists.
+  // Resolve the live account before allowing registration, payout setup or data reads.
+  useEffect(() => {
+    let cancelled = false;
+    setSessionState('checking');
+    clearOrgData();
+    const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+    const verify = async () => {
+      if (!getToken()) {
+        discardAccountSession();
+        saveOrgUser(reset);
+        setOrganizer(reset);
+        setSessionState('ready');
+        return;
+      }
+      try {
+        const status = await authApi.getLinkedOrganizerStatus();
+        if (cancelled) return;
+        if (!status?.isOrganizer) {
+          saveOrgUser(reset);
+          setOrganizer(reset);
+        } else {
+          const verified = { ...DEFAULT_ORG_USER, ...status.organizer,
+            isAuthenticated: true, isOnboarded: true,
+            isApproved: Boolean(status.isApproved), isPendingApproval: !status.isApproved };
+          saveOrgUser(verified);
+          setOrganizer(verified);
+          if (['Register', 'Pending'].includes(getOrgTab(window.location.pathname))) {
+            navigateTo(verified.isApproved ? 'Dashboard' : 'Pending', true);
+          }
+        }
+        setSessionState('ready');
+      } catch (error) {
+        if (cancelled) return;
+        if ([401, 403, 404].includes(error?.status)) {
+          discardAccountSession();
+          saveOrgUser(reset);
+          setOrganizer(reset);
+          navigateTo('Register', true);
+          setSessionState('ready');
+        } else {
+          // A network outage must never restore a cached approved profile.
+          setOrganizer(reset);
+          setSessionState('error');
+        }
+      }
+    };
+    verify();
+    return () => { cancelled = true; };
+  }, [sessionCheckAttempt, navigateTo]);
 
   // Auto-verify approval status from server on page load / refresh & poll if
   // pending, so an admin approval lands the organizer on their dashboard on its
@@ -397,9 +636,22 @@ export default function OrgApp() {
       try {
         if (!getToken()) return;
         const status = await authApi.getLinkedOrganizerStatus();
-        // No organizer profile on this account (or an unreadable answer) —
-        // leave the local session alone rather than corrupting it.
-        if (cancelled || !status?.isOrganizer) return;
+        if (cancelled) return;
+
+        // Account is not an organizer (revoked or deleted by admin)
+        if (!status?.isOrganizer) {
+          const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+          setOrganizer(reset);
+          saveOrgUser(reset);
+          try {
+            if (localStorage.getItem("trekigo_active_role") === "organizer") {
+              localStorage.removeItem("trekigo_active_role");
+            }
+          } catch (e) {}
+          toast.info("Organizer access has been revoked or removed.");
+          navigateTo("Register", true);
+          return;
+        }
 
         const isNowApproved = Boolean(status.isApproved);
         const fresh = status.organizer || {};
@@ -418,46 +670,99 @@ export default function OrgApp() {
 
         if (isNowApproved && !wasApproved && !announced) {
           announced = true;
-          toast.success('🎉 Your application has been approved! Welcome to Find Your Trek.');
-          tripsApi.listOrganizerTrips().then((list) => { if (!cancelled) setTrips(list); }).catch(() => {});
-          setBookings(loadOrgBookings(fresh.email || organizer.email));
-          navigateTo('Dashboard', true);
+          toast.success("🎉 Your application is approved! Add payout details to finish setup.");
+          navigateTo("Dashboard", true);
         }
       } catch (err) {
-        /* Ignore background network errors */
+        if (cancelled) return;
+        const status = err?.status;
+        const msg = String(err?.message || "").toLowerCase();
+        if (status === 401 || status === 403 || status === 404 || msg.includes("deleted") || msg.includes("not found")) {
+          clearToken();
+          const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+          setOrganizer(reset);
+          saveOrgUser(reset);
+          try {
+            if (localStorage.getItem("trekigo_active_role") === "organizer") {
+              localStorage.removeItem("trekigo_active_role");
+            }
+          } catch (e) {}
+          toast.error("Your organizer account has been removed.");
+          navigateTo("Register", true);
+        }
       }
     };
 
     // Run immediately on page load / mount
     checkStatus();
 
-    if (organizer.isApproved) return () => { cancelled = true; };
-
     // Poll every 8 seconds while waiting for admin approval, and re-check the
     // moment the app comes back to the foreground — reopening the app should
     // reflect an approval that happened while it was closed, without waiting
     // out a poll tick.
     const timer = setInterval(checkStatus, 8000);
-    const onWake = () => { if (document.visibilityState === 'visible') checkStatus(); };
-    document.addEventListener('visibilitychange', onWake);
-    window.addEventListener('focus', checkStatus);
+    const onWake = () => {
+      if (document.visibilityState === "visible") checkStatus();
+    };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", checkStatus);
 
     return () => {
       cancelled = true;
       clearInterval(timer);
-      document.removeEventListener('visibilitychange', onWake);
-      window.removeEventListener('focus', checkStatus);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", checkStatus);
     };
-  }, [organizer?.isAuthenticated, organizer?.email, organizer?.isApproved, navigateTo]);
+  }, [
+    organizer?.isAuthenticated,
+    organizer?.email,
+    organizer?.isApproved,
+    navigateTo,
+  ]);
 
-  const handleToggleDarkMode = () => setDarkMode(p => !p);
+  // Handle cross-tab or interceptor session expiration and revocation events
+  useEffect(() => {
+    const handleRevokedOrExpired = () => {
+      discardAccountSession();
+      const reset = { ...DEFAULT_ORG_USER, isOnboarded: true };
+      setOrganizer(reset);
+      saveOrgUser(reset);
+      try {
+        if (localStorage.getItem("trekigo_active_role") === "organizer") {
+          localStorage.removeItem("trekigo_active_role");
+        }
+      } catch (e) {}
+      navigateTo("Register", true);
+    };
+
+    const onStorage = (event) => {
+      if (event.key === 'trekigo_auth_token'
+        && sessionIdentity(event.oldValue) !== sessionIdentity(event.newValue)) {
+        if (!event.newValue) handleRevokedOrExpired();
+        else window.location.reload();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener("organizer-status-revoked", handleRevokedOrExpired);
+    window.addEventListener("auth-session-expired", handleRevokedOrExpired);
+    window.addEventListener("hiker-status-changed", handleRevokedOrExpired);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener("organizer-status-revoked", handleRevokedOrExpired);
+      window.removeEventListener("auth-session-expired", handleRevokedOrExpired);
+      window.removeEventListener("hiker-status-changed", handleRevokedOrExpired);
+    };
+  }, [navigateTo]);
+
+  const handleToggleDarkMode = () => setDarkMode((p) => !p);
 
   // Re-fetch the real approval status from the API on "Check Status" click.
   const handleCheckApproval = async () => {
     try {
       const status = await authApi.getLinkedOrganizerStatus();
       if (!status?.isOrganizer) {
-        toast.error('No organizer application found on this account.');
+        toast.error("No organizer application found on this account.");
         return;
       }
       const fresh = status.organizer || {};
@@ -472,15 +777,15 @@ export default function OrgApp() {
       setOrganizer(updated);
 
       if (isNowApproved) {
-        toast.success('🎉 Your application has been approved! Welcome to Find Your Trek.');
-        tripsApi.listOrganizerTrips().then(setTrips).catch(() => {});
-        setBookings(loadOrgBookings(updated.email));
-        navigateTo('Dashboard', true);
+        toast.success("🎉 Your application is approved! Add payout details to finish setup.");
+        navigateTo("Dashboard", true);
       } else {
-        toast.info('Application still under review. We will notify you once approved.');
+        toast.info(
+          "Application still under review. We will notify you once approved.",
+        );
       }
     } catch (e) {
-      toast.error('Could not check status. Please verify connection.');
+      toast.error("Could not check status. Please verify connection.");
     }
   };
 
@@ -488,25 +793,18 @@ export default function OrgApp() {
   const refreshOrgTrips = useCallback(async () => {
     try {
       setTrips(await tripsApi.listOrganizerTrips());
-    } catch { /* keep current state on transient failure */ }
+    } catch {
+      /* keep current state on transient failure */
+    }
   }, []);
 
   // Re-fetch this organizer's payouts from the API (source of truth).
   const refreshPayouts = useCallback(async () => {
-    if (!organizer.isAuthenticated) return;
+    if (!organizer.isAuthenticated || !getToken()) return;
     try {
-      if (getToken()) {
-        const list = await bookingsApi.listPayouts();
-        if (Array.isArray(list)) {
-          setPayouts(list);
-          saveOrgPayouts(list);
-        }
-      } else {
-        setPayouts(loadOrgPayouts());
-      }
-    } catch {
-      setPayouts(loadOrgPayouts());
-    }
+      const list = await bookingsApi.listPayouts();
+      if (Array.isArray(list)) setPayouts(list);
+    } catch { /* Never restore browser data after a failed live read. */ }
   }, [organizer.isAuthenticated]);
 
   useEffect(() => {
@@ -517,8 +815,8 @@ export default function OrgApp() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem('fyt_last_module', 'organizer');
-      localStorage.setItem('fyt_last_module', 'organizer');
+      sessionStorage.setItem("fyt_last_module", "organizer");
+      localStorage.setItem("fyt_last_module", "organizer");
     } catch (e) {}
   }, []);
   // passes the full form payload and the backend rebuilds the canonical trip.
@@ -531,33 +829,39 @@ export default function OrgApp() {
       }
       await refreshOrgTrips();
       setEditingTrip(null);
-      navigateTo('Trips', false);
+      navigateTo("Trips", false);
       return true;
     } catch (err) {
-      const detail = err?.details ? Object.values(err.details).join('\n') : err?.message;
-      toast.error(`Could not save trip: ${detail || 'Unknown error'}`);
-      throw new Error(detail || err?.message || 'Failed to save trip');
+      const detail = err?.details
+        ? Object.values(err.details).join("\n")
+        : err?.message;
+      toast.error(`Could not save trip: ${detail || "Unknown error"}`);
+      throw new Error(detail || err?.message || "Failed to save trip");
     }
   };
 
   const handleEditTrip = (trip) => {
     setEditingTrip(trip);
-    navigateTo('EditTrip', false, trip.id);
+    navigateTo("EditTrip", false, trip.id);
   };
 
   const handleNewTrip = () => {
     setEditingTrip(null);
-    navigateTo('NewTrip', false);
+    navigateTo("NewTrip", false);
   };
 
   const handleToggleTripStatus = async (trip) => {
-    const newStatus = trip.status === 'Published' ? 'Paused' : 'Published';
+    const newStatus = trip.status === "Published" ? "Paused" : "Published";
     try {
       await tripsApi.setTripStatus(trip.id, newStatus);
       await refreshOrgTrips();
-      toast.success(newStatus === 'Published' ? 'Trip published.' : 'Trip paused.');
+      toast.success(
+        newStatus === "Published" ? "Trip published." : "Trip paused.",
+      );
     } catch (err) {
-      toast.error(`Could not update status: ${err?.message || 'Unknown error'}`);
+      toast.error(
+        `Could not update status: ${err?.message || "Unknown error"}`,
+      );
     }
   };
 
@@ -569,66 +873,64 @@ export default function OrgApp() {
     try {
       await tripsApi.deleteTrip(tripId);
       await refreshOrgTrips();
-      toast.success('Trip deleted.');
+      toast.success("Trip deleted.");
     } catch (err) {
-      toast.error(`Could not delete trip: ${err?.message || 'Unknown error'}`);
+      toast.error(`Could not delete trip: ${err?.message || "Unknown error"}`);
     }
   };
 
   // Applies an available zero-commission loyalty voucher to a specific
-  // booking — the organizer keeps 100% of that booking's payout. Real sessions
-  // redeem server-side (which verifies the voucher and zeroes commission);
-  // offline/seeded falls back to the local ledger.
+  // booking. Redemption always verifies the voucher on the server.
   const handleApplyLoyaltyReward = async (voucherId, bookingId) => {
     if (getToken()) {
       try {
-        await loyaltyApi.organizerRedeemReward(bookingId);
+        const redeemed = await loyaltyApi.organizerRedeemReward(bookingId);
         await refreshOrgTrips().catch(() => {});
-        bookingsApi.listOrganizer().then((list) => { if (list?.length) setBookings(list); }).catch(() => {});
+        bookingsApi
+          .listOrganizer()
+          .then((list) => {
+            if (Array.isArray(list)) setBookings(list);
+          })
+          .catch(() => {});
         await hydrateOrganizerLoyalty();
-        return;
+        return redeemed;
       } catch (err) {
-        toast.error(err?.message || 'Could not apply reward.');
+        toast.error(err?.message || "Could not apply reward.");
         return;
       }
     }
-    markOrganizerVoucherUsed(voucherId, bookingId);
-    const updated = bookings.map(b =>
-      (b.id === bookingId || b.bookingId === bookingId)
-        ? { ...b, commissionAmount: 0, loyaltyRewardApplied: true }
-        : b
-    );
-    setBookings(updated);
-    saveOrgBookings(updated);
+    toast.error('Please sign in again to apply a reward.');
   };
-
-  const [autoEditProfile, setAutoEditProfile] = useState(false);
 
   const handleBottomNavChange = (tab) => navigateTo(tab);
 
   const handleDashboardNavigate = (tab, opts) => {
-    if (tab === 'NewTrip') { handleNewTrip(); return; }
-    if (tab === 'Notifications') {
+    if (tab === "NewTrip") {
+      handleNewTrip();
+      return;
+    }
+    if (tab === "Notifications") {
       setShowOrgNotifications(true);
       return;
     }
-    if (opts?.edit || tab === 'EditProfile') {
-      setAutoEditProfile(true);
-      navigateTo('Profile');
+    if (opts?.edit || tab === "EditProfile") {
+      navigateTo("EditProfile");
       return;
     }
     navigateTo(tab);
   };
 
   const handleMarkNotificationRead = (id) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    const updated = notifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n,
+    );
     setNotifications(updated);
     saveOrgNotifications(updated);
     if (getToken()) socialApi.markOrganizerNotificationRead(id).catch(() => {});
   };
 
   const handleMarkAllNotificationsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
+    const updated = notifications.map((n) => ({ ...n, read: true }));
     setNotifications(updated);
     saveOrgNotifications(updated);
   };
@@ -642,9 +944,12 @@ export default function OrgApp() {
   // returned (authoritative) chat so the new message shows immediately.
   const handleSendOrgMessage = (chatId, text) => {
     if (!text?.trim()) return;
-    socialApi.sendOrganizerMessage(chatId, text.trim())
-      .then((chat) => setChats((prev) => prev.map((c) => (c.id === chat.id ? chat : c))))
-      .catch((err) => toast.error(err?.message || 'Could not send message.'));
+    socialApi
+      .sendOrganizerMessage(chatId, text.trim())
+      .then((chat) =>
+        setChats((prev) => prev.map((c) => (c.id === chat.id ? chat : c))),
+      )
+      .catch((err) => toast.error(err?.message || "Could not send message."));
   };
 
   const handleMarkOrgChatRead = (chatId) => {
@@ -652,12 +957,16 @@ export default function OrgApp() {
       let changed = false;
       const updated = prev.map((c) => {
         if (String(c.id) === String(chatId)) {
-          const hasUnread = (c.messages || []).some((m) => m.sender === 'user' && !m.read);
+          const hasUnread = (c.messages || []).some(
+            (m) => m.sender === "user" && !m.read,
+          );
           if (hasUnread) {
             changed = true;
             return {
               ...c,
-              messages: (c.messages || []).map((m) => (m.sender === 'user' ? { ...m, read: true } : m)),
+              messages: (c.messages || []).map((m) =>
+                m.sender === "user" ? { ...m, read: true } : m,
+              ),
             };
           }
         }
@@ -672,71 +981,80 @@ export default function OrgApp() {
     });
   };
 
-  const handleSaveBankDetails = (bankDetails) => {
-    const updated = { ...organizer, bankDetails };
+  const handleSaveBankDetails = async (bankDetails) => {
+    const savedOrganizer = await bookingsApi.saveBankDetails(bankDetails);
+    const updated = { ...organizer, ...savedOrganizer, bankDetails: savedOrganizer?.bankDetails || bankDetails };
     saveOrgUser(updated);
     setOrganizer(updated);
-    // Persist to the API for a real session.
-    if (getToken()) bookingsApi.saveBankDetails(bankDetails).catch(() => {});
+    if (['Register', 'Pending'].includes(activeTab)) navigateTo('Dashboard', true);
+    return updated;
   };
 
-  // Requests a payout. A real session records it server-side (validated against
-  // the available balance) and awaits admin settlement; the offline/seeded path
-  // fakes the settlement delay.
+  // Payout requests always validate the available balance on the server.
   const handleRequestPayout = (amount) => {
     if (amount <= 0) return;
 
     if (getToken()) {
-      bookingsApi.requestPayout(amount)
+      bookingsApi
+        .requestPayout(amount)
         .then(() => bookingsApi.listPayouts())
         .then((list) => {
-          if (Array.isArray(list)) { setPayouts(list); saveOrgPayouts(list); }
-          toast.success('Payout requested successfully!');
+          if (Array.isArray(list)) {
+            setPayouts(list);
+            saveOrgPayouts(list);
+          }
+          toast.success("Payout requested successfully!");
         })
-        .catch((err) => toast.error(err?.message || 'Could not request payout.'));
+        .catch((err) =>
+          toast.error(err?.message || "Could not request payout."),
+        );
       return;
     }
 
-    const payoutId = `PO-${Date.now().toString().slice(-6)}`;
-    const method = organizer?.bankDetails?.upiId?.trim() ? 'UPI' : 'Bank Transfer';
-    const newPayout = { id: payoutId, amount, method, status: 'Processing', requestedAt: new Date().toISOString(), completedAt: null, utr: null };
-    setPayouts(prev => { const next = [...prev, newPayout]; saveOrgPayouts(next); return next; });
-    toast.success('Payout requested successfully!');
+    toast.error('Please sign in again to request a payout.');
   };
 
   // ─── Routing render ────────────────────────────────────────────────────────
 
-  const BOTTOM_NAV_TABS = ['Dashboard', 'Trips', 'Bookings', 'Profile'];
+  const BOTTOM_NAV_TABS = ["Dashboard", "Trips", "Bookings", "Profile"];
 
   const renderContent = () => {
+    if (sessionState === 'checking') {
+      return <div role="status" className="p-8 text-center">Checking your organizer account…</div>;
+    }
+    if (sessionState === 'error') {
+      return <div role="alert" className="p-8 text-center space-y-4">
+        <p>We couldn’t verify your organizer account. Please retry to continue.</p>
+        <button onClick={() => setSessionCheckAttempt((attempt) => attempt + 1)} className="px-5 py-3 rounded-xl bg-forest-600 text-white">Retry verification</button>
+        <button onClick={handleLogout} className="block mx-auto">Back to sign in</button>
+      </div>;
+    }
     // 1. Onboarding gate
-    if (!organizer.isOnboarded) {
-      return <OrgOnboarding onComplete={handleOnboardingComplete} darkMode={darkMode} />;
+    if (!organizer.isAuthenticated && !walkthroughComplete
+      && ["Register", "Onboarding"].includes(activeTab)) {
+      return (
+        <OrgOnboarding
+          onComplete={handleOnboardingComplete}
+          darkMode={darkMode}
+        />
+      );
     }
 
     // 2. Auth gate — sign-in lives on the shared /login now (redirected there by
     // the effect above); only the "Apply as Organizer" registration flow renders here.
     if (!organizer.isAuthenticated) {
-      if (activeTab === 'Register') {
+      if (activeTab === "Register") {
         return (
           <OrgAuth
             onSuccess={handleAuthSuccess}
-            onSwitchMode={() => { window.location.href = SHARED_LOGIN_PATH; }}
+            onSwitchMode={() => {
+              window.location.href = SHARED_LOGIN_PATH;
+            }}
             darkMode={darkMode}
           />
         );
       }
       return null;
-    }
-
-    if (activeTab === 'NotFound') {
-      return (
-        <NotFoundPage
-          homePath="/organizer/dashboard"
-          homeLabel="Return to Organizer Dashboard"
-          darkMode={darkMode}
-        />
-      );
     }
 
     // 3. Pending approval
@@ -750,7 +1068,31 @@ export default function OrgApp() {
       );
     }
 
-    // 4. Authenticated + approved — main app
+    // 4. Payout setup — approval unlocks this step, and completing it unlocks
+    // the dashboard and every other organizer feature.
+    if (organizer.isApproved && !payoutSetupComplete) {
+      return (
+        <OrgPayoutSetupView
+          organizer={organizer}
+          onSave={handleSaveBankDetails}
+          onLogout={handleLogout}
+          onBack={() => setShowPayoutExitConfirm(true)}
+          darkMode={darkMode}
+        />
+      );
+    }
+
+    if (activeTab === "NotFound") {
+      return (
+        <NotFoundPage
+          homePath="/organizer/dashboard"
+          homeLabel="Return to Organizer Dashboard"
+          darkMode={darkMode}
+        />
+      );
+    }
+
+    // 5. Authenticated + approved + payout-ready — main app
     const mainContent = () => {
       if (showOrgFinancials) {
         return (
@@ -762,6 +1104,7 @@ export default function OrgApp() {
             onRequestPayout={handleRequestPayout}
             onBack={() => closeCurrentOverlay(setShowOrgFinancials)}
             darkMode={darkMode}
+            commissionRate={commissionRate}
           />
         );
       }
@@ -792,37 +1135,50 @@ export default function OrgApp() {
         );
       }
 
-      if (activeTab === 'NewTrip') {
+      if (activeTab === "NewTrip") {
         return (
           <TripFormView
             trip={null}
             existingTrips={trips}
             onEditExistingTrip={(existingTrip) => {
               setEditingTrip(existingTrip);
-              setActiveTab('EditTrip');
+              setActiveTab("EditTrip");
             }}
             organizer={organizer}
             organizerEmail={organizer.email}
             onSave={handleSaveTrip}
-            onBack={() => navigateTo('Trips')}
+            onBack={() => navigateTo("Trips")}
             darkMode={darkMode}
           />
         );
       }
-      if (activeTab === 'EditTrip') {
+      if (activeTab === "EditTrip") {
         return (
           <TripFormView
             trip={editingTrip}
             existingTrips={trips}
             onEditExistingTrip={(existingTrip) => {
               setEditingTrip(existingTrip);
-              setActiveTab('EditTrip');
+              setActiveTab("EditTrip");
             }}
             organizer={organizer}
             organizerEmail={organizer.email}
             onSave={handleSaveTrip}
-            onBack={() => navigateTo('Trips')}
+            onBack={() => navigateTo("Trips")}
             darkMode={darkMode}
+          />
+        );
+      }
+
+      if (activeTab === "EditProfile") {
+        return (
+          <OrgProfileView
+            organizer={organizer}
+            editingPage
+            darkMode={darkMode}
+            onBack={() => navigateTo("Profile", true)}
+            onSaved={setOrganizer}
+            onFullscreenChange={setNavHidden}
           />
         );
       }
@@ -839,26 +1195,39 @@ export default function OrgApp() {
             onOpenLoyalty={openLoyalty}
             onOpenFinancials={openFinancials}
             onApproveReschedule={(bookingId) => {
-              setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
-                ...b,
-                selectedDate: b.requestedDate || b.selectedDate,
-                rescheduleStatus: 'Approved',
-                requestedDate: null
-              } : b));
-              toast.success('Reschedule request approved! Batch date updated.');
+              setBookings((prev) =>
+                prev.map((b) =>
+                  b.id === bookingId || b.bookingId === bookingId
+                    ? {
+                        ...b,
+                        selectedDate: b.requestedDate || b.selectedDate,
+                        rescheduleStatus: "Approved",
+                        requestedDate: null,
+                      }
+                    : b,
+                ),
+              );
+              toast.success("Reschedule request approved! Batch date updated.");
             }}
             onRejectReschedule={(bookingId, reason) => {
-              setBookings(prev => prev.map(b => (b.id === bookingId || b.bookingId === bookingId) ? {
-                ...b,
-                rescheduleStatus: 'Rejected',
-                rejectionReason: reason
-              } : b));
-              toast.error('Reschedule request declined.');
+              setBookings((prev) =>
+                prev.map((b) =>
+                  b.id === bookingId || b.bookingId === bookingId
+                    ? {
+                        ...b,
+                        rescheduleStatus: "Rejected",
+                        rejectionReason: reason,
+                      }
+                    : b,
+                ),
+              );
+              toast.error("Reschedule request declined.");
             }}
             onOpenScanner={openScanner}
             onOpenChats={openChats}
             chats={chats}
             darkMode={darkMode}
+            commissionRate={commissionRate}
           />
         ),
         Trips: (
@@ -876,6 +1245,7 @@ export default function OrgApp() {
             bookings={bookings}
             onApplyLoyaltyReward={handleApplyLoyaltyReward}
             darkMode={darkMode}
+            commissionRate={commissionRate}
           />
         ),
         Profile: (
@@ -888,45 +1258,61 @@ export default function OrgApp() {
             darkMode={darkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onFullscreenChange={setNavHidden}
-            autoEditProfile={autoEditProfile}
-            onClearAutoEdit={() => setAutoEditProfile(false)}
+            onEditProfile={() => navigateTo("EditProfile")}
           />
         ),
       };
 
-      return tabContent[activeTab] || tabContent['Dashboard'];
+      return tabContent[activeTab] || tabContent["Dashboard"];
     };
 
-    const showBottomNav = BOTTOM_NAV_TABS.includes(activeTab) && !navHidden;
-    const unreadNotifs = notifications.filter(n => !n.read).length;
-    const unreadChats = chats.reduce((s, c) => s + (c.messages || []).filter(m => m.sender === 'user' && !m.read).length, 0);
+    const showBottomNav =
+      BOTTOM_NAV_TABS.includes(activeTab) &&
+      !navHidden &&
+      !showOrgFinancials &&
+      !showOrgCoupons &&
+      !showOrgNotifications;
+    const unreadNotifs = notifications.filter((n) => !n.read).length;
+    const unreadChats = chats.reduce(
+      (s, c) =>
+        s +
+        (c.messages || []).filter((m) => m.sender === "user" && !m.read).length,
+      0,
+    );
 
     const handleSwitchToTraveller = () => {
-      localStorage.setItem('trekigo_active_role', 'hiker');
-      window.location.href = '/app';
+      localStorage.setItem("trekigo_active_role", "hiker");
+      window.location.href = "/app";
     };
 
     return (
       <>
-        {organizer.isAuthenticated && !organizer.isPendingApproval && !navHidden && (
-          <OrgDesktopNav
-            activeTab={activeTab === 'NewTrip' || activeTab === 'EditTrip' ? 'Trips' : activeTab}
-            onChangeTab={handleBottomNavChange}
-            darkMode={darkMode}
-            onToggleDarkMode={handleToggleDarkMode}
-            unreadChats={unreadChats}
-            onOpenChats={openChats}
-            unreadNotifs={unreadNotifs}
-            onOpenNotifications={openNotifications}
-            onOpenScanner={openScanner}
-            organizer={organizer}
-            onSwitchToTraveller={handleSwitchToTraveller}
-          />
-        )}
+        {organizer.isAuthenticated &&
+          !organizer.isPendingApproval &&
+          !navHidden && (
+            <OrgDesktopNav
+              activeTab={
+                activeTab === "NewTrip" || activeTab === "EditTrip"
+                  ? "Trips"
+                  : activeTab
+              }
+              onChangeTab={handleBottomNavChange}
+              darkMode={darkMode}
+              onToggleDarkMode={handleToggleDarkMode}
+              unreadChats={unreadChats}
+              onOpenChats={openChats}
+              unreadNotifs={unreadNotifs}
+              onOpenNotifications={openNotifications}
+              onOpenScanner={openScanner}
+              organizer={organizer}
+              onSwitchToTraveller={handleSwitchToTraveller}
+            />
+          )}
 
-        {/* pb clears the now-`fixed` OrgBottomNav on mobile so a page's last
-            bit of content never sits underneath it. */}
-        <div className={`flex-1 relative overflow-y-auto flex flex-col ${showBottomNav ? 'pb-20 md:pb-0' : ''}`}>
+        {/* pb clears the floating, `fixed` OrgBottomNav on mobile (plus Android's
+            on-screen nav buttons) so a page's last bit of content never sits underneath it. */}
+        <div
+          className={`flex-1 relative overflow-y-auto flex flex-col ${showBottomNav ? "pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -944,9 +1330,8 @@ export default function OrgApp() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-            >
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              style={{ willChange: "opacity, transform" }}>
               {mainContent()}
             </motion.div>
           </AnimatePresence>
@@ -970,15 +1355,17 @@ export default function OrgApp() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-              className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-[#FAF8F2]'}`}
-            >
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              style={{ willChange: "opacity, transform" }}
+              className={`fixed inset-0 z-50 flex flex-col ${darkMode ? "bg-zinc-950" : "bg-[#FAF8F2]"}`}>
               <div className="max-w-5xl mx-auto w-full h-full flex flex-col">
                 <OrgLoyaltyView
                   organizer={organizer}
                   onBack={() => closeCurrentOverlay(setShowOrgLoyalty)}
-                  onGoBookings={() => { closeCurrentOverlay(setShowOrgLoyalty); navigateTo('Bookings'); }}
+                  onGoBookings={() => {
+                    closeCurrentOverlay(setShowOrgLoyalty);
+                    navigateTo("Bookings");
+                  }}
                   darkMode={darkMode}
                 />
               </div>
@@ -996,16 +1383,14 @@ export default function OrgApp() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs overflow-hidden"
-              onClick={() => closeCurrentOverlay(setShowScanner)}
-            >
+              onClick={() => closeCurrentOverlay(setShowScanner)}>
               <motion.div
                 initial={{ scale: 0.94, opacity: 0, y: 14 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.94, opacity: 0, y: 14 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full max-w-lg max-h-[90vh] flex flex-col my-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
+                onClick={(e) => e.stopPropagation()}>
                 <OrgScannerView
                   organizer={organizer}
                   trips={trips}
@@ -1025,16 +1410,19 @@ export default function OrgApp() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              style={{ willChange: 'opacity, transform' }}
-              className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-zinc-950' : 'bg-[#FAF8F2]'}`}
-            >
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              style={{ willChange: "opacity, transform" }}
+              className={`fixed inset-0 z-50 flex flex-col ${darkMode ? "bg-zinc-950" : "bg-[#FAF8F2]"}`}>
               <div className="max-w-5xl mx-auto w-full h-full flex flex-col min-h-0">
                 <OrgChatsView
                   chats={chats}
+                  initialChatId={pendingOrgChatId}
                   onSendMessage={handleSendOrgMessage}
                   onMarkRead={handleMarkOrgChatRead}
-                  onBack={() => closeCurrentOverlay(setShowOrgChats)}
+                  onBack={() => {
+                    setPendingOrgChatId(null);
+                    closeCurrentOverlay(setShowOrgChats);
+                  }}
                   darkMode={darkMode}
                 />
               </div>
@@ -1054,9 +1442,10 @@ export default function OrgApp() {
       // left unset, silently making this div its own accidental scroll
       // container outside #root's overscroll-behavior/background fixes.
       className={`min-h-screen w-full flex flex-col transition-colors duration-300 relative ${
-        darkMode ? 'bg-elegant-bg text-elegant-text' : 'bg-[#FAF8F2] text-zinc-900'
-      }`}
-    >
+        darkMode
+          ? "bg-elegant-bg text-elegant-text"
+          : "bg-[#FAF8F2] text-zinc-900"
+      }`}>
       {/* Ambient background glows for rich aesthetic */}
       {darkMode && (
         <>
@@ -1069,13 +1458,26 @@ export default function OrgApp() {
       <div
         id="findyourtrek-org-viewport"
         className={`relative w-full flex-1 flex flex-col transition-all duration-300 z-10 ${
-          darkMode ? 'bg-elegant-app text-white' : 'bg-transparent text-zinc-900'
-        }`}
-      >
+          darkMode
+            ? "bg-elegant-app text-white"
+            : "bg-transparent text-zinc-900"
+        }`}>
         <div className="flex-1 flex flex-col relative w-full">
           {renderContent()}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showPayoutExitConfirm && requiresPayoutSetup}
+        title="Go back to the hiker app?"
+        message="Do you really want to go back? Any unsaved payout details will be lost. You can complete setup when you return to the organizer app."
+        confirmLabel="Go back"
+        cancelLabel="Stay here"
+        tone="neutral"
+        onConfirm={handleReturnToHiker}
+        onCancel={() => setShowPayoutExitConfirm(false)}
+        darkMode={darkMode}
+      />
 
       <ConfirmDialog
         open={!!deleteTripTarget}

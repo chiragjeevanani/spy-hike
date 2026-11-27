@@ -1,6 +1,6 @@
 // Shared localStorage seeders for the loyalty e2e specs. All three apps
-// (/app, /organizer, /admin) are same-origin mini-SPAs that read/write plain
-// localStorage — no backend to fixture against, so tests seed state directly
+// (/app, /organizer, /admin) are same-origin mini-SPAs. Component-oriented
+// checks seed their cache directly; live API checks also supply real tokens
 // the same way a real session would accumulate it.
 
 export const CUSTOMER_USER = {
@@ -40,6 +40,14 @@ export const ORG_USER = {
   totalBookings: 0,
   rememberMe: true,
   coreCapabilities: ['Certified Trek Leader'],
+  bankDetails: {
+    accountHolderName: 'Himalayan Sherpa Guides',
+    bankName: 'HDFC Bank',
+    accountNumber: '987654321012',
+    ifsc: 'HDFC0001234',
+    upiId: '',
+    panNumber: '',
+  },
 };
 
 // Builds a loyalty config override — mirrors DEFAULT_LOYALTY_CONFIG's shape
@@ -95,23 +103,34 @@ export function makeOrgBooking({ id = 'ob-e2e-1', bookingId = 'TG-ORGE2E-1', hik
 // Seeds localStorage before the app's first script runs, so React mounts
 // straight into the desired state (no login-form/onboarding flow needed).
 export async function seedLocalStorage(page, entries) {
-  // These localStorage-only scenarios exercise the offline UI. Keep their
-  // public config deterministic instead of hydrating another spec's singleton.
-  if (entries.trekigo_loyalty_config) {
-    await page.route('**/api/v1/loyalty/config', route => route.fulfill({
-      json: { config: entries.trekigo_loyalty_config },
-    }));
+  if (entries.trekigo_org_user) {
+    // UI fixtures emulate an authenticated server, never a tokenless offline
+    // account. Lifecycle tests use raw storage plus the real isolated API.
+    let organizer = entries.trekigo_org_user;
+    await page.addInitScript(() => localStorage.setItem('trekigo_auth_token', 'ui-fixture-session'));
+    await page.route(`http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1/**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const method = route.request().method();
+      if (/\/api\/v1\/(treks|categories|home-filters)(\/|\?|$)/.test(path)) return route.continue();
+      let json = { trips: [], treks: [], bookings: [], payouts: [], chats: [], notifications: [], requests: [], vouchers: [] };
+      if (path.endsWith('/auth/organizer-status')) json = { isOrganizer: true, isApproved: organizer.isApproved, organizer };
+      else if (path.endsWith('/auth/me') || path.endsWith('/auth/customer-token')) json = { account: entries.trekigo_user || CUSTOMER_USER, role: 'customer', token: 'ui-fixture-session' };
+      else if (path.endsWith('/organizer/bank-details') && method === 'PATCH') {
+        organizer = { ...organizer, bankDetails: route.request().postDataJSON() };
+        json = { organizer };
+      } else if (path.endsWith('/auth/profile') && method === 'PATCH') json = { account: { ...CUSTOMER_USER, ...route.request().postDataJSON() } };
+      return route.fulfill({ json });
+    });
   }
   await page.addInitScript((data) => {
     for (const [key, value] of Object.entries(data)) {
       window.localStorage.setItem(key, JSON.stringify(value));
     }
+    // Demo cache fixtures belong to this specific organizer session. Legacy
+    // ownerless caches are intentionally cleared by the account-isolation fix.
+    const organizer = data.trekigo_org_user;
+    if (organizer?.isAuthenticated && !('trekigo_org_data_owner' in data)) {
+      window.localStorage.setItem('trekigo_org_data_owner', `${organizer.id || organizer.email}:${organizer.sessionVersion || 0}`);
+    }
   }, entries);
-}
-
-// Explicitly exercise the legacy offline UI without accidental HTTP 401s
-// from a real API invalidating the intentionally tokenless cached session.
-export async function seedOfflineLocalStorage(page, entries) {
-  await page.route('http://localhost:4000/**', route => route.abort());
-  await seedLocalStorage(page, entries);
 }

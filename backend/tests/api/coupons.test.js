@@ -46,7 +46,7 @@ async function makeTrip(orgToken) {
     pricingTiers: [{ label: 'Solo', price: 1000 }],
     pickup: { location: 'Manali', price: 0 },
     startPoint: { lat: 32.2, lng: 77.1, label: 'Base' },
-    departureDates: ['2026-08-01', '2026-08-15'], maxGroupSize: 10, availableSeats: 10,
+    departureDates: ['2099-08-01', '2099-08-15'], maxGroupSize: 10, availableSeats: 10,
     category: 'Trekking', status: 'Published',
   });
   return res.body.trip;
@@ -190,6 +190,7 @@ describe('Organizer coupon CRUD', () => {
       .put(`/api/v1/organizer/coupons/${c.body.coupon.id}`)
       .set('Authorization', `Bearer ${org}`)
       .send({ value: 150 });
+    expect(upd.status, JSON.stringify(upd.body)).toBe(200);
     expect(upd.body.coupon.value).toBe(150);
 
     const del = await request(app).delete(`/api/v1/organizer/coupons/${c.body.coupon.id}`).set('Authorization', `Bearer ${org}`);
@@ -271,7 +272,7 @@ describe('Trip-scoped checkout resolution', () => {
     await createMine(org, { code: 'LIMIT1', type: 'flat', value: 100, expiresAt: '2030-12-31', maxRedemptions: 1 });
 
     const first = await book(cust, {
-      tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }], couponCode: 'LIMIT1',
+      tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }], couponCode: 'LIMIT1',
     });
     expect(first.status).toBe(201);
 
@@ -280,7 +281,7 @@ describe('Trip-scoped checkout resolution', () => {
     // time must refuse since the cap is already spent.
     const secondCust = await customerToken('hiker2@example.com');
     const second = await book(secondCust, {
-      tripId: trip.id, selectedDate: '2026-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }], couponCode: 'LIMIT1',
+      tripId: trip.id, selectedDate: '2099-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }], couponCode: 'LIMIT1',
     });
     expect(second.status).toBe(400);
 

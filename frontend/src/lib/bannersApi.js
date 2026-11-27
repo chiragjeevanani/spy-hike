@@ -77,11 +77,12 @@ export const bannersApi = {
 
   // Admin reset to defaults
   adminResetBanners: async () => {
-    saveLocalBanners(PROMOTIONAL_BANNERS);
+    const defaultBanners = JSON.parse(JSON.stringify(PROMOTIONAL_BANNERS));
+    saveLocalBanners(defaultBanners);
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('fyt-banners-updated', { detail: PROMOTIONAL_BANNERS }));
+      window.dispatchEvent(new CustomEvent('fyt-banners-updated', { detail: defaultBanners }));
     }
-    if (!getToken()) return { banners: PROMOTIONAL_BANNERS, synced: false };
+    if (!getToken()) return { banners: defaultBanners, synced: false };
     try {
       const res = await api.put('/admin/promotional-banners', { reset: true }, { invalidates: ['/promotional-banners'] });
       if (res && Array.isArray(res.banners)) {
@@ -91,10 +92,10 @@ export const bannersApi = {
         }
         return { banners: res.banners, synced: true };
       }
-      return { banners: PROMOTIONAL_BANNERS, synced: false };
+      return { banners: defaultBanners, synced: false };
     } catch (err) {
       console.error('adminResetBanners error:', err);
-      return { banners: PROMOTIONAL_BANNERS, synced: false, error: err?.message || 'Reset failed' };
+      return { banners: defaultBanners, synced: false, error: err?.message || 'Reset failed' };
     }
   },
 };

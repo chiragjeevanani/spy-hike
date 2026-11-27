@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -6,6 +7,7 @@ import {
   Star,
   MapPin,
   Heart,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   X,
@@ -13,6 +15,19 @@ import {
   ArrowUpRight,
   CalendarDays,
   Gift,
+  Mountain,
+  Trees,
+  Leaf,
+  Flame,
+  Grid2X2,
+  CloudRain,
+  Compass,
+  Tent,
+  Sun,
+  Map,
+  Snowflake,
+  Sparkles,
+  Tag,
 } from "lucide-react";
 import { PROMOTIONAL_BANNERS } from "../data/trips";
 import { groupTripsByTrekName } from "../utils/trekGroups";
@@ -27,14 +42,15 @@ import { matchesLocation } from "../utils/locationFilter";
 import { durationRange } from "../../../utils/rangeFormat";
 import { useAppRefresh, REFRESH_EVENT } from "../../../utils/refreshSignal";
 
-// Promo slides travel in the direction the user is moving: the incoming slide
-// enters from the side being swiped away from, the outgoing one leaves the
-// opposite way. `custom` carries the sign through AnimatePresence.
-const promoVariants = {
-  enter: (dir) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
-};
+import usePromoCarousel from "./usePromoCarousel";
+
+const HOME_FILTER_ICONS = { Mountain, Trees, Leaf, Flame, Compass, Tent, Sun, Map, Snowflake };
+const DEFAULT_HOME_FILTERS = [
+  { id: "himalayas", label: "Himalayas", icon: "Mountain" },
+  { id: "south-india", label: "South India", icon: "Trees" },
+  { id: "western-ghats", label: "Western Ghats", icon: "Leaf" },
+  { id: "popular", label: "Popular", icon: "Flame" },
+];
 
 // Persisted chosen location (city / GPS). Google Maps API will later power the
 // live search + reverse-geocoding inside LocationPicker.
@@ -55,6 +71,7 @@ export default function HomeView({
   onSelectTrek,
   onSwitchTab,
   onApplyCategory,
+  onApplyHomeFilter,
   onApplySearch,
   onApplyDate,
   onOpenLoyalty,
@@ -68,12 +85,12 @@ export default function HomeView({
   darkMode,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activePromoIdx, setActivePromoIdx] = useState(0);
-  const [promoDir, setPromoDir] = useState(1); // +1 = advancing, -1 = going back
-  const [promoPaused, setPromoPaused] = useState(false); // held while a finger is down
+
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAllHomeFilters, setShowAllHomeFilters] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
+  const [homeFilters, setHomeFilters] = useState(DEFAULT_HOME_FILTERS);
   // Bumped by a pull-to-refresh to re-run this screen's own fetches.
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -88,6 +105,13 @@ export default function HomeView({
       .listTreks()
       .then(setAllTreks)
       .catch(() => setAllTreks([]));
+  }, [reloadKey]);
+
+  useEffect(() => {
+    treksApi
+      .listHomeFilters()
+      .then((filters) => setHomeFilters(Array.isArray(filters) ? filters : []))
+      .catch(() => setHomeFilters(DEFAULT_HOME_FILTERS));
   }, [reloadKey]);
 
   const trendingTreks = useMemo(
@@ -209,22 +233,11 @@ export default function HomeView({
     return filtered.length > 0 ? filtered : PROMOTIONAL_BANNERS;
   }, [promoBanners]);
 
-  // Promo carousel. A timeout keyed on the active slide (rather than one
-  // long-lived interval) means every manual swipe or dot tap restarts the
-  // 5s countdown, so the banner never jumps a beat after the user moves it.
   const promoCount = activeBanners.length;
-  const currentPromo = activeBanners[activePromoIdx] || activeBanners[0] || {};
-
-  const goToPromo = (idx, dir) => {
-    if (promoCount === 0) return;
-    setPromoDir(dir);
-    setActivePromoIdx(((idx % promoCount) + promoCount) % promoCount);
-  };
-  useEffect(() => {
-    if (promoPaused || promoCount < 2) return undefined;
-    const timer = setTimeout(() => goToPromo(activePromoIdx + 1, 1), 5000);
-    return () => clearTimeout(timer);
-  }, [activePromoIdx, promoPaused, promoCount]);
+  const { ref: promoRef, activeIndex: activePromoIdx, goTo: goToPromo, handlers: promoHandlers } = usePromoCarousel(promoCount);
+  const promoSlides = promoCount > 1
+    ? [activeBanners[promoCount - 1], ...activeBanners, activeBanners[0]]
+    : activeBanners;
 
   // Dynamic greeting based on current local hours
   const getGreeting = () => {
@@ -325,21 +338,41 @@ export default function HomeView({
         ? "bg-spy-orange text-white"
         : "bg-rose-500 text-white";
 
+  const openHomeFilter = (filterId = "") => {
+    if (onApplyHomeFilter) onApplyHomeFilter(filterId);
+    if (onApplyCategory) onApplyCategory("All");
+    setShowAllHomeFilters(false);
+    onSwitchTab("Explore");
+  };
+
+  const homeCategories = [
+    { id: "all", label: "All", icon: Mountain, active: true, action: () => openHomeFilter("") },
+    ...homeFilters.slice(0, 4).map((filter) => ({
+      ...filter,
+      icon: HOME_FILTER_ICONS[filter.icon] || Mountain,
+      action: () => openHomeFilter(filter.id),
+    })),
+    { id: "more", label: "More", icon: Grid2X2, action: () => setShowAllHomeFilters(true) },
+  ];
+
   return (
     <div
-      className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+      className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 ${
         darkMode
           ? "bg-transparent text-elegant-text"
           : "bg-transparent text-zinc-900"
       }`}>
-      {/* 1. Brand header (Mobile only — Desktop uses DesktopNav) */}
-      <div className="flex items-center justify-between pt-5 pb-1 gap-2 md:hidden">
+      {/* Immersive alpine hero — mobile-first, with the desktop nav above it. */}
+      <section
+        className="customer-home-hero trek-hero-grain relative -mx-4 sm:-mx-6 lg:mx-0 lg:mt-7 lg:rounded-[2.5rem] overflow-visible px-4 sm:px-8 lg:px-12 pb-16 shadow-[0_24px_70px_rgba(31,46,34,0.18)]">
+      <div className="customer-home-header relative z-10 flex items-center justify-between pt-5 pb-1 gap-2 md:hidden text-[#201D17]">
         <button
           onClick={() => onSwitchTab("Profile")}
-          className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition min-w-0">
-          <AppLogo size={36} className="shrink-0" />
-          <span className="text-lg font-serif font-semibold tracking-tight truncate">
-            Find Your Trek
+          className="customer-home-brand flex items-center gap-2 cursor-pointer active:scale-95 transition min-w-0">
+          <AppLogo size={40} className="shrink-0 bg-white/92 shadow-lg" />
+          <span className="leading-none text-left">
+            <span className="customer-home-brand-title block font-bold tracking-[0.08em] uppercase whitespace-nowrap">Find Your Trek</span>
+            <span className="customer-home-brand-tagline block tracking-[0.18em] uppercase text-[#201D17]/55 mt-1 whitespace-nowrap">Your journey starts here</span>
           </span>
         </button>
 
@@ -348,13 +381,9 @@ export default function HomeView({
           <button
             id="btn-location"
             onClick={onOpenLocationPicker}
-            className={`flex items-center gap-1 pl-2.5 pr-2 py-2 rounded-full border relative active:scale-95 cursor-pointer shadow-sm ${
-              darkMode
-                ? "bg-elegant-card border-white/5"
-                : "bg-white border-gray-200"
-            }`}>
-            <MapPin size={14} className="text-spy-orange shrink-0" />
-            <span className="text-xs font-semibold truncate max-w-[120px]">
+            className="customer-home-location flex items-center gap-1 pl-3 pr-2.5 py-2.5 rounded-full border border-white/35 relative active:scale-95 cursor-pointer shadow-lg bg-white/92 text-[#1D2018] backdrop-blur-md">
+            <MapPin size={14} className="text-forest-700 shrink-0" />
+            <span className="customer-home-location-label text-xs font-semibold truncate max-w-[120px]">
               {(activeLocation?.label || "India").split(",")[0]}
             </span>
             <ChevronDown size={12} className="opacity-50 shrink-0" />
@@ -364,15 +393,8 @@ export default function HomeView({
           <button
             id="btn-bell-notifications"
             onClick={() => setShowNotificationDrawer(true)}
-            className={`w-10 h-10 rounded-full flex items-center justify-center border relative active:scale-90 cursor-pointer shadow-sm ${
-              darkMode
-                ? "bg-elegant-card border-white/5"
-                : "bg-white border-gray-200"
-            }`}>
-            <Bell
-              size={17}
-              className={darkMode ? "text-[#E0E5E2]/80" : "text-zinc-700"}
-            />
+            className="customer-home-bell w-10 h-10 rounded-full flex items-center justify-center border border-white/35 relative active:scale-90 cursor-pointer shadow-lg bg-white/92 text-[#1D2018] backdrop-blur-md">
+            <Bell size={17} />
             {unreadNotifications.length > 0 && (
               <span className="absolute top-1 right-1 w-4 h-4 bg-spy-orange text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white dark:border-elegant-app">
                 {unreadNotifications.length}
@@ -382,28 +404,27 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* 2. Serif hero */}
-      <div className="mt-4 md:mt-8">
-        <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl leading-[1.05] font-medium tracking-tight">
+      <div className="customer-home-copy relative z-10 mt-20 sm:mt-28 lg:mt-24 max-w-3xl text-[#171A15]">
+        <p className="text-[10px] sm:text-xs font-bold tracking-[0.28em] uppercase text-[#171A15]/75 mb-3">
+          Explore&nbsp;&nbsp;•&nbsp;&nbsp;Trek&nbsp;&nbsp;•&nbsp;&nbsp;Discover
+        </p>
+        <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl leading-[0.98] font-semibold tracking-[-0.035em] drop-shadow-sm">
           Find your next
-          <br className="sm:hidden" />{" "}
-          <span
-            className={darkMode ? "text-elegant-orange" : "text-forest-500"}>
+          <br />
+          <span className="text-forest-700 italic tracking-[-0.04em]">
             raw adventure
           </span>
         </h1>
-        <p
-          className={`mt-3 text-sm sm:text-base leading-relaxed max-w-2xl ${darkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+        <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-md text-[#2D342C]/80">
           Handpicked Himalayan treks and wild trails across the country.
         </p>
       </div>
 
-      {/* 3. Search + departure-date calendar + desktop difficulty pills */}
-      <div className="mt-6 flex flex-col md:flex-row md:items-center gap-3 max-w-3xl">
-        <div className="flex items-stretch gap-3 flex-1">
+      <div className="absolute z-20 -bottom-7 sm:-bottom-8 left-4 right-4 sm:left-8 sm:right-8 lg:left-12 lg:right-12 flex items-center gap-3">
+        <div className="flex items-stretch gap-3 w-full">
           <form onSubmit={handleSearchSubmit} className="relative flex-1">
             <Search
-              className={`absolute left-5 top-1/2 -translate-y-1/2 ${darkMode ? "text-white/40" : "text-zinc-400"}`}
+              className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1D2018]/65"
               size={18}
             />
             <input
@@ -412,12 +433,17 @@ export default function HomeView({
               placeholder="Search treks, peaks, valleys…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full text-sm pl-13 pr-5 py-4 rounded-full outline-hidden border transition-all shadow-sm ${
-                darkMode
-                  ? "bg-elegant-card border-white/5 focus:border-elegant-green text-white placeholder-white/35"
-                  : "bg-white border-gray-200/80 focus:border-forest-500 text-zinc-800 placeholder-zinc-400"
-              }`}
+              className="w-full text-sm sm:text-base pl-13 pr-10 py-4 sm:py-4.5 rounded-full outline-hidden border border-white/70 transition-all shadow-xl bg-[#FFFDF8]/95 focus:border-forest-500 text-[#1D2018] placeholder-[#77766D] backdrop-blur-md"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-1 cursor-pointer">
+                <X size={16} />
+              </button>
+            )}
           </form>
 
           {/* Filter treks by departure date */}
@@ -426,84 +452,202 @@ export default function HomeView({
             onClick={() => setShowDatePicker(true)}
             aria-label="Filter treks by date"
             title="Filter by Departure Date"
-            className={`w-[52px] shrink-0 rounded-full border shadow-sm flex items-center justify-center active:scale-95 transition cursor-pointer ${
-              darkMode
-                ? "bg-elegant-card border-white/5 text-elegant-orange"
-                : "bg-white border-gray-200/80 text-forest-600"
-            }`}>
+            className="w-[52px] sm:w-[58px] shrink-0 rounded-full border border-white/70 shadow-xl flex items-center justify-center active:scale-95 transition cursor-pointer bg-[#FFFDF8]/95 text-forest-700 hover:bg-white hover:text-forest-800 backdrop-blur-md">
             <CalendarDays size={20} />
           </button>
-        </div>
 
-        {/* Quick difficulty pills on tablet & desktop */}
-        <div className="hidden md:flex items-center gap-1.5 shrink-0">
-          {["All", "Easy", "Moderate", "Difficult"].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => onApplyCategory(cat)}
-              className={`px-3.5 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer border ${
-                darkMode
-                  ? "border-white/10 hover:border-white/20 bg-white/5 text-zinc-300 hover:text-white"
-                  : "border-zinc-200 hover:border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-              }`}>
-              {cat}
-            </button>
-          ))}
+          {/* Direct Search / Explore CTA on bigger screens */}
+          <button
+            type="button"
+            onClick={handleSearchSubmit}
+            aria-label="Search treks"
+            className="hidden md:flex items-center gap-2 px-6 py-4 rounded-full bg-forest-600 hover:bg-forest-700 text-white font-bold text-sm shadow-xl active:scale-95 transition cursor-pointer shrink-0">
+            <span>Explore</span>
+            <ArrowUpRight size={16} />
+          </button>
         </div>
       </div>
+      </section>
+
+      {/* Quick region/category rail from the reference home screen. */}
+      <div id="customer-category-rail" className="customer-category-rail mt-12 sm:mt-14 lg:mt-16 w-full grid grid-cols-6 gap-2 sm:gap-3.5 lg:gap-4 no-scrollbar">
+        {homeCategories.map(({ id, label, icon: Icon, active, action }) => (
+          <button
+            key={id || label}
+            id={`btn-home-category-${id || label.toLowerCase()}`}
+            type="button"
+            onClick={action}
+            className={`customer-category-button min-w-0 aspect-square rounded-[1.1rem] sm:rounded-[1.35rem] lg:rounded-2xl flex flex-col items-center justify-center gap-1 sm:gap-2 border shadow-[0_8px_22px_rgba(37,51,39,0.07)] active:scale-95 transition cursor-pointer ${
+              active
+                ? "bg-forest-700 border-forest-700 text-white"
+                : darkMode
+                  ? "bg-elegant-card border-white/8 text-elegant-text hover:border-white/20"
+                  : "bg-[#FFFDF8] border-forest-700/8 text-forest-800 hover:border-forest-700/20"
+            }`}>
+            <Icon className="customer-category-icon" size={active ? 25 : 23} strokeWidth={1.8} />
+            <span className="text-[7px] min-[360px]:text-[8px] sm:text-[11px] font-semibold leading-tight whitespace-normal w-full px-0.5 text-center flex items-center justify-center">
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {<AnimatePresence>
+          {showAllHomeFilters && (
+            <OverlayPortal><motion.div
+              className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAllHomeFilters(false)}>
+              <motion.div
+                initial={{ y: 28, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 28, opacity: 0 }}
+                onClick={(event) => event.stopPropagation()}
+                className={`w-full max-w-lg rounded-[2rem] p-5 shadow-2xl ${
+                  darkMode ? "bg-elegant-card text-white" : "bg-[#FFFDF8] text-zinc-900"
+                }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-serif text-xl font-semibold">Explore every category</h3>
+                    <p className="text-xs opacity-55 mt-1">Choose a collection curated by the admin.</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close filters"
+                    onClick={() => setShowAllHomeFilters(false)}
+                    className="w-9 h-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center cursor-pointer">
+                    <X size={17} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[55vh] overflow-y-auto no-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => openHomeFilter("")}
+                    className="aspect-square rounded-2xl bg-forest-700 text-white flex flex-col items-center justify-center gap-2 text-xs font-semibold cursor-pointer">
+                    <Mountain size={24} /> All
+                  </button>
+                  {homeFilters.map((filter) => {
+                    const FilterIcon = HOME_FILTER_ICONS[filter.icon] || Mountain;
+                    return (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        onClick={() => openHomeFilter(filter.id)}
+                        className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-2 px-1 text-xs font-semibold text-center cursor-pointer ${
+                          darkMode
+                            ? "bg-elegant-app border-white/10 text-white"
+                            : "bg-white border-forest-700/10 text-forest-800"
+                        }`}>
+                        <FilterIcon size={24} /> {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </motion.div></OverlayPortal>
+          )}
+        </AnimatePresence>}
 
       {/* 4. Promotional carousel */}
-      <div className="mt-6 md:mt-8 relative select-none">
-        <div className="overflow-hidden relative aspect-[7/3] sm:aspect-[16/6] md:aspect-[21/6] lg:h-52 rounded-3xl shadow-md">
-          <AnimatePresence initial={false} custom={promoDir}>
-            <motion.div
-              key={activePromoIdx}
-              custom={promoDir}
-              variants={promoVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{
-                x: { type: "spring", stiffness: 320, damping: 34, mass: 0.8 },
-                opacity: { duration: 0.18 },
-              }}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.15}
-              dragMomentum={false}
-              onDragStart={() => setPromoPaused(true)}
-              onDragEnd={(e, info) => {
-                setPromoPaused(false);
-                // Offset *or* a quick flick counts, so a short fast swipe still
-                // turns the page the way it does in a native carousel.
-                const { offset, velocity } = info;
-                if (offset.x < -40 || velocity.x < -400)
-                  goToPromo(activePromoIdx + 1, 1);
-                else if (offset.x > 40 || velocity.x > 400)
-                  goToPromo(activePromoIdx - 1, -1);
-              }}
-              className="absolute inset-0 cursor-grab active:cursor-grabbing">
+      <div className="w-full mt-8 sm:mt-10 lg:mt-12 relative select-none group">
+        <div className="customer-promo-card w-full overflow-hidden relative h-[200px] sm:h-56 md:h-52 lg:h-56 rounded-[1.75rem] sm:rounded-[2.25rem] shadow-xl">
+          <div
+            ref={promoRef}
+            {...promoHandlers}
+            data-testid="promo-track"
+            className="flex h-full w-full overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing"
+          >
+            {promoSlides.map((currentPromo, slot) => {
+              const slideIndex = promoCount > 1 ? (slot - 1 + promoCount) % promoCount : 0;
+              const currentPromoTrip = trips.find((trip) =>
+                trip.id === currentPromo.tripId || trip.trekId === currentPromo.tripId || trip.name === currentPromo.title);
+              return <div
+                key={`${currentPromo.id || slideIndex}-${slot}`}
+                data-testid="promo-slide"
+                aria-hidden={slideIndex !== activePromoIdx || (promoCount > 1 && (slot === 0 || slot === promoCount + 1))}
+                inert={slideIndex !== activePromoIdx || (promoCount > 1 && (slot === 0 || slot === promoCount + 1))}
+                className="relative h-full w-full min-w-full shrink-0 snap-center overflow-hidden"
+              >
               <img
-                key={`${currentPromo.id || activePromoIdx}-${currentPromo.img ? currentPromo.img.slice(0, 40) : ""}`}
+                key={`${currentPromo.id || slideIndex}-${currentPromo.img ? currentPromo.img.slice(0, 40) : ""}`}
                 src={currentPromo.img}
                 alt={currentPromo.title}
-                className="w-full h-full object-cover brightness-[0.7] pointer-events-none"
+                className="w-full h-full object-cover brightness-[0.72] pointer-events-none"
                 draggable={false}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 sm:p-6 flex flex-col justify-between">
-                <div>
-                  <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase">
-                    {currentPromo.tag}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-sm sm:text-lg md:text-2xl font-serif font-semibold text-white leading-tight line-clamp-1">
-                    {currentPromo.title}
-                  </h3>
-                  <div className="flex justify-between items-center gap-2 mt-1.5">
-                    <span className="text-[10px] font-bold text-emerald-300 font-mono truncate">
-                      {currentPromo.code} · {currentPromo.discount}
+              <div className="customer-promo-overlay absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20 md:bg-gradient-to-r md:from-black/95 md:via-black/55 md:to-transparent p-3 sm:p-4 lg:p-5 flex flex-col justify-between">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <span className="customer-promo-tag bg-spy-orange text-white text-[9px] sm:text-xs font-bold tracking-wider px-3 py-1.5 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
+                      <Sparkles size={13} /> {currentPromo.tag}
                     </span>
+                    {currentPromo.discount && (
+                      <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/25 text-white text-[9px] sm:text-xs font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
+                        <Tag size={11} /> {currentPromo.discount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {promoCount > 1 && (
+                      <span className="hidden md:inline-flex text-xs font-mono font-bold text-white/80 bg-black/35 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
+                        {String(slideIndex + 1).padStart(2, "0")} / {String(promoCount).padStart(2, "0")}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Save trek"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentPromoTrip?.id) onToggleWishlist(currentPromoTrip.id);
+                      }}
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/25 flex items-center justify-center backdrop-blur-sm transition active:scale-90 cursor-pointer ${
+                        currentPromoTrip && wishlist?.includes(currentPromoTrip.id)
+                          ? "bg-rose-500/80 text-white border-rose-400"
+                          : "bg-black/35 text-white hover:bg-black/55"
+                      }`}>
+                      <Heart size={18} fill={currentPromoTrip && wishlist?.includes(currentPromoTrip.id) ? "currentColor" : "none"} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 sm:gap-3 mt-auto">
+                  <div className="max-w-xl lg:max-w-2xl min-w-0">
+                    <h3 className="customer-promo-title text-base sm:text-xl lg:text-2xl line-clamp-1 font-serif font-semibold text-white leading-tight drop-shadow-md">
+                      {currentPromo.title}
+                    </h3>
+                    <p className="customer-promo-subtitle text-white/85 text-[11px] sm:text-xs font-medium mt-0.5 sm:mt-1 line-clamp-1 drop-shadow-xs">
+                      {currentPromo.subtitle}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 text-xs text-white/90 mt-1.5 sm:mt-2.5">
+                      <span className="flex items-center gap-1.5 bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[11px] sm:text-xs">
+                        <MapPin size={12} className="text-spy-orange shrink-0" />
+                        <span className="truncate max-w-[160px] sm:max-w-[200px]">{currentPromoTrip?.location || currentPromo.subtitle || "Himalayas"}</span>
+                      </span>
+                      {currentPromoTrip?.difficulty && (
+                        <span className={`px-2.5 py-1 rounded-lg font-bold text-[10px] sm:text-[11px] ${difficultyPill(currentPromoTrip.difficulty)}`}>
+                          {currentPromoTrip.difficulty}
+                        </span>
+                      )}
+                      {currentPromoTrip?.durationDays && (
+                        <span className="bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[10px] sm:text-[11px] font-semibold">
+                          ⏱ {durationRange(currentPromoTrip)} Days
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center md:items-end justify-between md:justify-end gap-3 shrink-0 px-3 py-1.5 sm:p-2 md:p-0">
+                    <div className="text-left md:text-right">
+                      <p className="text-[9px] sm:text-xs font-bold uppercase tracking-wider text-white/70">Starting at</p>
+                      <div className="flex items-baseline md:justify-end">
+                        <span className="customer-promo-price text-lg sm:text-xl lg:text-2xl font-black text-white drop-shadow-sm">
+                          ₹{(currentPromoTrip?.price || 4500).toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-[10px] sm:text-xs text-white/70 ml-1 font-medium">/ person</span>
+                      </div>
+                    </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -519,27 +663,55 @@ export default function HomeView({
                           onSelectTrek(currentPromo.tripId);
                         }
                       }}
-                      className="bg-white hover:bg-gray-100 text-forest-700 text-[10px] font-bold py-1 px-3 rounded-full active:scale-95 cursor-pointer shadow-sm z-20 relative pointer-events-auto shrink-0">
-                      Claim
+                      className="customer-promo-action bg-white hover:bg-forest-50 text-forest-800 text-xs sm:text-sm font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-full active:scale-95 transition-all shadow-lg hover:shadow-xl cursor-pointer shrink-0 flex items-center gap-1.5 group">
+                      <span>View Trek</span>
+                      <ArrowUpRight size={15} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </button>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            </div>;
+            })}
+          </div>
+
+          {/* Desktop Next/Prev Arrow Controls */}
+          {promoCount > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPromo(activePromoIdx - 1);
+                }}
+                aria-label="Previous banner"
+                className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white border border-white/20 items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg opacity-80 hover:opacity-100 cursor-pointer">
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPromo(activePromoIdx + 1);
+                }}
+                aria-label="Next banner"
+                className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white border border-white/20 items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg opacity-80 hover:opacity-100 cursor-pointer">
+                <ChevronRight size={20} />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-1.5 mt-2">
+        <div className="flex justify-center gap-1.5 mt-3">
           {activeBanners.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => goToPromo(idx, idx > activePromoIdx ? 1 : -1)}
+              onClick={() => goToPromo(idx)}
               aria-label={`Show promotion ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all ${
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
                 idx === activePromoIdx
-                  ? "w-5 bg-forest-500"
-                  : `w-1.5 ${darkMode ? "bg-white/25" : "bg-zinc-300"}`
+                  ? "w-6 bg-forest-500"
+                  : `w-1.5 ${darkMode ? "bg-white/25 hover:bg-white/40" : "bg-zinc-300 hover:bg-zinc-400"}`
               }`}
             />
           ))}
@@ -552,7 +724,7 @@ export default function HomeView({
           type="button"
           id="btn-open-loyalty-home"
           onClick={onOpenLoyalty}
-          className="mt-5 relative w-full aspect-[3/1] shrink-0 rounded-3xl overflow-hidden shadow-lg text-left cursor-pointer active:scale-[0.99] transition-transform">
+          className="customer-loyalty-card mt-5 relative w-full aspect-[3/1] shrink-0 rounded-3xl overflow-hidden shadow-lg text-left cursor-pointer active:scale-[0.99] transition-transform">
           {loyaltyConfig.customer.banner.image ? (
             <img
               src={loyaltyConfig.customer.banner.image}
@@ -560,20 +732,24 @@ export default function HomeView({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-forest-600 to-forest-950" />
+            <img
+              src="/images/home-hero-himalayas.png"
+              alt=""
+              className="w-full h-full object-cover object-center"
+            />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
+          <div className="customer-loyalty-overlay absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="bg-spy-orange text-white text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase flex items-center gap-1">
+              <span className="customer-loyalty-tag bg-spy-orange text-white text-[8px] sm:text-[9px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase flex items-center gap-1">
                 <Gift size={10} /> Loyalty Reward
               </span>
               <ChevronRight size={16} className="text-white/70" />
             </div>
             <div>
-              <h3 className="font-serif text-base font-semibold text-white leading-tight">
+              <h3 className="customer-loyalty-title font-serif text-sm sm:text-base font-semibold text-white leading-tight">
                 {loyaltyConfig.customer.banner.title}
               </h3>
-              <p className="text-[11px] text-white/75 mt-0.5">
+              <p className="customer-loyalty-subtitle text-[10px] sm:text-[11px] text-white/75 mt-0.5 line-clamp-1">
                 {loyaltyConfig.customer.banner.subtitle}
               </p>
 

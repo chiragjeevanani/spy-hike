@@ -3,10 +3,19 @@ import Notification from '../models/Notification.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 
-// Lists notifications for the caller's audience (customer or organizer).
+const RETENTION_DAYS = 30;
+
+// Lists notifications for the caller's audience (customer or organizer) up to 1 month old.
 function listFor(ownerType, keyFrom) {
   return asyncHandler(async (req, res) => {
-    const notifs = await Notification.find({ ownerType, ownerKey: keyFrom(req) }).sort({ createdAt: -1 }).limit(100);
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const notifs = await Notification.find({
+      ownerType,
+      ownerKey: keyFrom(req),
+      createdAt: { $gte: cutoff },
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
     res.json({ notifications: notifs.map((n) => n.toPublicJSON()) });
   });
 }
@@ -41,3 +50,7 @@ export const markAllCustomerNotificationsRead = markAllReadFor('customer', custo
 export const listOrganizerNotifications = listFor('organizer', organizerKey);
 export const markOrganizerNotificationRead = markReadFor('organizer', organizerKey);
 export const markAllOrganizerNotificationsRead = markAllReadFor('organizer', organizerKey);
+
+export const listAdminNotifications = listFor('admin', (req) => req.user.email);
+export const markAdminNotificationRead = markReadFor('admin', (req) => req.user.email);
+export const markAllAdminNotificationsRead = markAllReadFor('admin', (req) => req.user.email);

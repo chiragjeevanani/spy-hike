@@ -1,9 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import apiRoutes from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { cacheInvalidate } from './lib/cache.js';
+import { pauseExpiredTrips } from './services/tripExpiryService.js';
+import { asyncHandler } from './utils/asyncHandler.js';
 import { PAYU_WEBHOOK_PATH, PAYU_RETURN_PATH } from './integrations/payments.js';
 
 // Which cached prefixes a successful write can invalidate. Applied centrally
@@ -19,6 +22,7 @@ const INVALIDATION_MAP = [
   // Booking or cancelling moves seat counts, which ride along on trip records.
   [/\/bookings/, ['trips']],
   [/\/categories/, ['categories', 'trips']],
+  [/\/home-filters/, ['home-filters', 'treks', 'trips']],
   [/\/(landing|site|onboarding)-content|\/promotional-banners/, ['content']],
   // Promoting/unpromoting an organizer (directly or via a request approval)
   // rewrites the `organizer.promotedUntil` snapshot on every trip they've
@@ -61,18 +65,20 @@ export function createApp() {
       || req.path === PAYU_WEBHOOK_PATH || req.path === PAYU_RETURN_PATH) {
       return next();
     }
-    try {
-      const { getConfig } = await import('./models/AdminConfig.js');
-      const cfg = await getConfig();
-      if (cfg.maintenanceMode) {
-        return res.status(503).json({
-          error: {
-            status: 503,
-            message: 'System is undergoing scheduled maintenance. Please try again later.',
-          }
-        });
-      }
-    } catch (e) {}
+    if (mongoose.connection.readyState === 1) {
+      try {
+        const { getConfig } = await import('./models/AdminConfig.js');
+        const cfg = await getConfig();
+        if (cfg.maintenanceMode) {
+          return res.status(503).json({
+            error: {
+              status: 503,
+              message: 'System is undergoing scheduled maintenance. Please try again later.',
+            }
+          });
+        }
+      } catch (e) {}
+    }
     next();
   });
 
@@ -88,6 +94,12 @@ export function createApp() {
     return next();
   });
 
+  app.use('/api/v1', asyncHandler(async (req, res, next) => {
+    if (/^\/(trips|treks|trek-groups|pickup-cities|trek-cities|organizer\/trips|admin\/trips|bookings)(\/|\?|$)/.test(req.path)) {
+      await pauseExpiredTrips();
+    }
+    next();
+  }));
   app.use('/api/v1', apiRoutes);
 
   app.use(notFoundHandler);

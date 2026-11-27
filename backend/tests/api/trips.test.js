@@ -38,7 +38,7 @@ const validTrip = (trekId, over = {}) => ({
   ],
   pickup: { location: 'Manali', price: 50 },
   startPoint: { lat: 32.24, lng: 77.18, label: 'Manali Base' },
-  departureDates: ['2026-08-01', '2026-08-15'],
+  departureDates: ['2099-08-01', '2099-08-15'],
   maxGroupSize: 15,
   availableSeats: 15,
   category: 'Trekking',
@@ -244,6 +244,26 @@ describe('Admin trip moderation', () => {
     expect(del.status).toBe(200);
     const get = await request(app).get(`/api/v1/trips/${id}`);
     expect(get.status).toBe(404);
+  });
+
+  it('admin can fetch full trip detail with departures and booking stats, even when paused', async () => {
+    const orgToken = await approvedOrganizerToken();
+    const admin = await adminToken();
+    const trekId = await createTrek({ title: 'Detail Trek' });
+    const create = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send(validTrip(trekId));
+    const id = create.body.trip.id;
+    await request(app).patch(`/api/v1/admin/trips/${id}/status`).set('Authorization', `Bearer ${admin}`).send({ status: 'Paused' });
+
+    const res = await request(app).get(`/api/v1/admin/trips/${id}`).set('Authorization', `Bearer ${admin}`);
+    expect(res.status).toBe(200);
+    expect(res.body.trip).toMatchObject({ id, status: 'Paused' });
+    expect(Array.isArray(res.body.trip.itinerary)).toBe(true);
+    expect(Array.isArray(res.body.departures)).toBe(true);
+    expect(res.body.stats).toMatchObject({ totalBookings: 0, travelers: 0, revenue: 0 });
+    expect(res.body.recentBookings).toEqual([]);
+
+    expect((await request(app).get(`/api/v1/admin/trips/${id}`).set('Authorization', `Bearer ${orgToken}`)).status).toBe(403);
+    expect((await request(app).get('/api/v1/admin/trips/no-such-trip').set('Authorization', `Bearer ${admin}`)).status).toBe(404);
   });
 
   it('a non-admin cannot moderate trips (403)', async () => {

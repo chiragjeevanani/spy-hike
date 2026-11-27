@@ -85,7 +85,7 @@ export const DEFAULT_LANDING_CONTENT = {
     heading: 'Find Your Trek Portal Ecosystem',
     subheading: 'Our application features separate sandboxes representing key roles in the adventure marketplace. Try out each layout.',
     items: [
-      { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, pay via simulated gateways, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
+      { key: 'hiker', title: 'Hiker Mobile App', badge: 'Sandbox Enabled', desc: 'Explore mountain expeditions, toggle wishlist items, customize add-ons, book with secure PayU checkout, and manage live ticket bookings.', cta: 'Launch Hiker App', features: ['AI Trek Matching', '3-Step Fast Checkout', 'Direct Guide Chat', 'Notifications Bell'] },
       { key: 'organizer', title: 'Organizer Portal', badge: 'Agency Access', desc: 'Designed for local trekking agencies. Publish multi-day itineraries, manage seat inventory, upload dynamic photo galleries, and coordinate with hikers.', cta: 'Launch Organizer Portal', features: ['Dynamic Hike Form Builder', 'Booking Roster Trackers', 'Simulated Hiker Reply Chat', 'Verification Wizard'] },
     ],
   },

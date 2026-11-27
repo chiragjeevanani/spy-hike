@@ -22,18 +22,22 @@ echo "==> Deploying branch '$BRANCH' from $REPO_DIR"
 cd "$REPO_DIR"
 
 echo "==> Pulling latest code"
-git fetch origin
-git checkout "$BRANCH"
-git pull origin "$BRANCH"
+python3 scripts/security_scan.py
+git -c core.hooksPath=/dev/null -c core.fsmonitor=false fetch origin
+REMOTE_COMMIT="$(git rev-parse "refs/remotes/origin/$BRANCH")"
+python3 scripts/security_scan.py --ref "$REMOTE_COMMIT"
+git -c core.hooksPath=/dev/null checkout "$BRANCH"
+git -c core.hooksPath=/dev/null merge --ff-only "$REMOTE_COMMIT"
+python3 scripts/security_scan.py
 
 echo "==> Installing backend dependencies"
 cd "$REPO_DIR/backend"
-npm ci --omit=dev
+npm ci --ignore-scripts --omit=dev
 
 echo "==> Installing frontend dependencies and building"
 cd "$REPO_DIR/frontend"
-npm ci
-npm run build
+npm ci --ignore-scripts
+npm --ignore-scripts run build
 
 echo "==> Publishing frontend build to $FRONTEND_WEBROOT"
 if [ ! -d "$FRONTEND_WEBROOT" ]; then
@@ -43,7 +47,6 @@ if [ ! -d "$FRONTEND_WEBROOT" ]; then
   echo "    sudo chmod -R 2775 $FRONTEND_WEBROOT" >&2
   exit 1
 fi
-rsync -a --delete "$REPO_DIR/frontend/dist/" "$FRONTEND_WEBROOT/"
 rsync -a --no-o --no-g --delete "$REPO_DIR/frontend/dist/" "$FRONTEND_WEBROOT/"
 
 echo "==> Reloading backend via PM2"

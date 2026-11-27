@@ -4,6 +4,18 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify } from '../utils/slug.js';
 import { validateTrekFields, normalizeRangeMax } from '../utils/trekValidation.js';
+import { cacheInvalidate } from '../lib/cache.js';
+import HomeFilter from '../models/HomeFilter.js';
+
+const validatedHomeFilterIds = async (value) => {
+  if (!Array.isArray(value)) return [];
+  const requested = [...new Set(value.map(String).filter(Boolean))];
+  if (requested.length === 0) return [];
+  const existing = await HomeFilter.distinct('_id', { _id: { $in: requested } });
+  const missing = requested.filter((id) => !existing.includes(id));
+  if (missing.length) throw ApiError.badRequest(`Unknown homepage filter: ${missing.join(', ')}`);
+  return requested;
+};
 
 // ─── Public ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +34,7 @@ const TREK_LIST_EXCLUDE = [
 export const listTreks = asyncHandler(async (req, res) => {
   const filter = { status: 'Active' };
   if (req.query.trending === 'true') filter.trending = true;
+  if (req.query.homeFilter) filter.homeFilterIds = req.query.homeFilter;
   // `tripCount` — how many published trips exist under each trek. The customer
   // app needs this for the "Trending destinations" counts and to know which
   // treks are still awaiting their first organizer ("Coming soon"). It used to
@@ -62,7 +75,7 @@ export const createTrek = asyncHandler(async (req, res) => {
     title, location, startingPoint, state, city, difficulty, durationDays,
     durationDaysMax, distanceKm, distanceKmMax, elevationMeters, coverImage,
     galleryImages, category, description,
-    itinerary, thingsToCarry, included, notIncluded, highlights, trending
+    itinerary, thingsToCarry, included, notIncluded, highlights, trending, homeFilterIds
   } = req.body;
 
   const id = slugify(title);
@@ -70,6 +83,7 @@ export const createTrek = asyncHandler(async (req, res) => {
   if (await Trek.exists({ _id: id })) {
     throw ApiError.conflict('A trek with this title already exists');
   }
+  const normalizedHomeFilterIds = await validatedHomeFilterIds(homeFilterIds);
 
   const trek = await Trek.create({
     _id: id,
@@ -95,7 +109,9 @@ export const createTrek = asyncHandler(async (req, res) => {
     highlights: Array.isArray(highlights) ? highlights : [],
     status: 'Active',
     trending: !!trending,
+    homeFilterIds: normalizedHomeFilterIds,
   });
+  await cacheInvalidate('treks', 'trips');
   res.status(201).json({ trek: trek.toPublicJSON() });
 });
 
@@ -146,6 +162,9 @@ export const updateTrek = asyncHandler(async (req, res) => {
   if (f.highlights !== undefined) trek.highlights = Array.isArray(f.highlights) ? f.highlights : [];
   if (f.status !== undefined) trek.status = f.status === 'Inactive' ? 'Inactive' : 'Active';
   if (f.trending !== undefined) trek.trending = !!f.trending;
+  if (f.homeFilterIds !== undefined) {
+    trek.homeFilterIds = await validatedHomeFilterIds(f.homeFilterIds);
+  }
 
   await trek.save();
 
@@ -171,6 +190,8 @@ export const updateTrek = asyncHandler(async (req, res) => {
     },
   );
 
+  await cacheInvalidate('treks', 'trips');
+
   res.json({ trek: trek.toPublicJSON() });
 });
 
@@ -183,5 +204,6 @@ export const deleteTrek = asyncHandler(async (req, res) => {
   }
   const trek = await Trek.findByIdAndDelete(req.params.id);
   if (!trek) throw ApiError.notFound('Trek not found');
+  await cacheInvalidate('treks', 'trips');
   res.json({ ok: true, id: req.params.id });
 });

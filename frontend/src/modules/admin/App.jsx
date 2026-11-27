@@ -7,6 +7,7 @@ import {
   loadAdminDarkMode,
   saveAdminDarkMode,
 } from "./utils/storage";
+import { initPushNotifications, unregisterPushNotifications } from '../../utils/pushNotifications';
 import api, { clearToken } from "../../lib/apiClient";
 import { useToast } from "../../components/ToastProvider";
 
@@ -19,6 +20,7 @@ import AdminUserProfileView from "./components/AdminUserProfileView";
 import OrganizersView from "./components/OrganizersView";
 import AdminOrganizerProfileView from "./components/AdminOrganizerProfileView";
 import TripsView from "./components/TripsView";
+import AdminTripDetailView from "./components/AdminTripDetailView";
 import TreksView from "./components/TreksView";
 import TrekRequestsView from "./components/TrekRequestsView";
 import PromotionRequestsView from "./components/PromotionRequestsView";
@@ -50,6 +52,7 @@ function getAdminTab(pathname) {
   if (p === "promotions" || p === "promotion-requests") return "Promotions";
   if (p === "promoted-organizers") return "PromotedOrganizers";
   if (p === "trips") return "Trips";
+  if (p.startsWith("trips/")) return "TripDetail";
   if (p === "bookings") return "Bookings";
   if (p === "payouts") return "Payouts";
   if (p === "coupons") return "Coupons";
@@ -73,6 +76,8 @@ function getProfileParam(pathname) {
     return decodeURIComponent(p.slice("users/".length));
   if (p.startsWith("organizers/"))
     return decodeURIComponent(p.slice("organizers/".length));
+  if (p.startsWith("trips/"))
+    return decodeURIComponent(p.slice("trips/".length));
   return null;
 }
 
@@ -89,6 +94,8 @@ function tabToPath(tab, param) {
   if (tab === "Promotions") return `${PATH_PREFIX}/promotions`;
   if (tab === "PromotedOrganizers") return `${PATH_PREFIX}/promoted-organizers`;
   if (tab === "Trips") return `${PATH_PREFIX}/trips`;
+  if (tab === "TripDetail")
+    return `${PATH_PREFIX}/trips/${encodeURIComponent(param || "")}`;
   if (tab === "Bookings") return `${PATH_PREFIX}/bookings`;
   if (tab === "Payouts") return `${PATH_PREFIX}/payouts`;
   if (tab === "Coupons") return `${PATH_PREFIX}/coupons`;
@@ -119,6 +126,7 @@ export default function AdminApp() {
     getProfileParam(window.location.pathname),
   );
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => { if (admin.isAuthenticated) initPushNotifications(); }, [admin.isAuthenticated, admin.email]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Sync back-button routing
@@ -166,6 +174,7 @@ export default function AdminApp() {
   };
 
   const handleLogout = () => {
+    unregisterPushNotifications();
     // Drop the JWT with the session — leaving it behind means the next sign-in
     // carries a stale token.
     clearToken();
@@ -288,6 +297,17 @@ export default function AdminApp() {
         return (
           <TripsView
             onOpenOrganizer={openOrganizerProfile}
+            onOpenTrip={(id) => navigateTo("TripDetail", false, id)}
+            darkMode={darkMode}
+          />
+        );
+      case "TripDetail":
+        return (
+          <AdminTripDetailView
+            tripId={profileParam}
+            onBack={() => navigateTo("Trips")}
+            onOpenOrganizer={openOrganizerProfile}
+            onOpenUser={openUserProfile}
             darkMode={darkMode}
           />
         );
@@ -348,7 +368,9 @@ export default function AdminApp() {
             ? "Users"
             : activeTab === "OrganizerProfile"
               ? "Organizers"
-              : activeTab
+              : activeTab === "TripDetail"
+                ? "Trips"
+                : activeTab
         }
         onSelectTab={navigateTo}
         onLogout={handleLogout}
@@ -368,7 +390,9 @@ export default function AdminApp() {
               ? "Hiker Profile"
               : activeTab === "OrganizerProfile"
                 ? "Organizer Profile"
-                : activeTab
+                : activeTab === "TripDetail"
+                  ? "Trip Details"
+                  : activeTab
           }
           admin={admin}
           darkMode={darkMode}

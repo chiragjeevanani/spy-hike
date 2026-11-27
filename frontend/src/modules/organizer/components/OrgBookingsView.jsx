@@ -1,5 +1,5 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   CalendarCheck, Users, IndianRupee, ChevronRight, Search, Filter,
@@ -9,16 +9,22 @@ import { getAvailableOrganizerVoucher } from '../../../utils/loyalty';
 
 const STATUS_FILTERS = ['All', 'Upcoming', 'Ongoing', 'Completed', 'Missed', 'Cancelled'];
 
-export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMode }) {
+export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMode, commissionRate = 10 }) {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const availableVoucher = getAvailableOrganizerVoucher();
+  const [redeeming, setRedeeming] = useState(false);
 
-  const handleRedeem = () => {
-    if (!availableVoucher || !selectedBooking) return;
-    onApplyLoyaltyReward(availableVoucher.id, selectedBooking.bookingId || selectedBooking.id);
-    setSelectedBooking(prev => ({ ...prev, commissionAmount: 0, loyaltyRewardApplied: true }));
+  const handleRedeem = async () => {
+    if (!availableVoucher || !selectedBooking || redeeming) return;
+    setRedeeming(true);
+    try {
+      const redeemed = await onApplyLoyaltyReward(availableVoucher.id, selectedBooking.bookingId || selectedBooking.id);
+      if (redeemed) setSelectedBooking(redeemed);
+    } finally {
+      setRedeeming(false);
+    }
   };
 
   const filtered = bookings.filter(b => {
@@ -135,7 +141,7 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${statusColor(booking.status)}`}>
                         {statusIcon(booking.status)} {booking.status}
                       </span>
-                      {booking.loyaltyRewardApplied && (
+                      {booking.organizerRewardApplied && (
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-spy-orange/15 text-spy-orange flex items-center gap-1">
                           <Gift size={9} /> 0% Fee Reward
                         </span>
@@ -178,10 +184,9 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
       </div>
 
       {/* Booking Detail Modal / Drawer */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
+      {typeof document !== 'undefined' && <AnimatePresence>
           {selectedBooking && (
-            <div
+            <OverlayPortal><div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6"
               onClick={() => setSelectedBooking(null)}
             >
@@ -245,31 +250,31 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                       <span className="font-bold">₹{selectedBooking.finalAmount?.toLocaleString('en-IN')}</span>
                     </div>
 
-                    {selectedBooking.loyaltyRewardApplied ? (
+                    {selectedBooking.organizerRewardApplied ? (
                       <div className="flex justify-between text-xs sm:text-sm text-spy-orange">
                         <span className="flex items-center gap-1"><Gift size={13} /> Platform Commission</span>
                         <span className="font-bold">₹0 (Zero Fee Reward Applied)</span>
                       </div>
                     ) : (
                       <div className="flex justify-between text-xs sm:text-sm text-rose-400">
-                        <span>Platform Commission ({selectedBooking.commissionRate || 10}%)</span>
-                        <span className="font-bold">-₹{(selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1)).toLocaleString('en-IN')}</span>
+                        <span>Platform Commission ({selectedBooking.commissionRate || commissionRate || 10}%)</span>
+                        <span className="font-bold">-₹{(selectedBooking.commissionAmount !== undefined ? selectedBooking.commissionAmount : (selectedBooking.finalAmount * ((selectedBooking.commissionRate || commissionRate || 10) / 100))).toLocaleString('en-IN')}</span>
                       </div>
                     )}
 
                     <div className={`pt-2.5 border-t flex justify-between ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
                       <span className="font-bold text-sm">Net Partner Disbursal</span>
                       <span className="font-black text-emerald-400 text-base font-mono">
-                        ₹{(selectedBooking.loyaltyRewardApplied
+                        ₹{(selectedBooking.organizerRewardApplied
                           ? selectedBooking.finalAmount
-                          : selectedBooking.finalAmount - (selectedBooking.commissionAmount || (selectedBooking.finalAmount * 0.1))
+                          : selectedBooking.finalAmount - (selectedBooking.commissionAmount !== undefined ? selectedBooking.commissionAmount : (selectedBooking.finalAmount * ((selectedBooking.commissionRate || commissionRate || 10) / 100)))
                         ).toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
 
                   {/* Loyalty Voucher Redemption */}
-                  {availableVoucher && !selectedBooking.loyaltyRewardApplied && selectedBooking.status === 'Upcoming' && (
+                  {availableVoucher && !selectedBooking.organizerRewardApplied && selectedBooking.status === 'Upcoming' && (
                     <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
                       darkMode ? 'bg-spy-orange/10 border-spy-orange/30 text-white' : 'bg-orange-50 border-orange-200 text-zinc-900'
                     }`}>
@@ -277,12 +282,13 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                         <p className="text-xs font-bold text-spy-orange flex items-center gap-1">
                           <Sparkles size={13} /> Milestone Reward Ready
                         </p>
-                        <p className="text-[11px] opacity-75 mt-0.5">Waive the 10% platform commission on this booking.</p>
+                        <p className="text-[11px] opacity-75 mt-0.5">Waive the {selectedBooking.commissionRate || commissionRate || 10}% platform commission on this booking.</p>
                       </div>
                       <button
                         type="button"
                         id="btn-apply-org-loyalty-reward"
                         onClick={handleRedeem}
+                        disabled={redeeming}
                         className="px-3.5 py-2 rounded-xl text-xs font-bold bg-spy-orange hover:bg-[#d96d1a] text-white active:scale-95 transition shadow-sm cursor-pointer shrink-0"
                       >
                         Apply 0% Fee
@@ -291,11 +297,9 @@ export default function OrgBookingsView({ bookings, onApplyLoyaltyReward, darkMo
                   )}
                 </div>
               </motion.div>
-            </div>
+            </div></OverlayPortal>
           )}
-        </AnimatePresence>,
-        document.body
-      )}
+        </AnimatePresence>}
     </div>
   );
 }

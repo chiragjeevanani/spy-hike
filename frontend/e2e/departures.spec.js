@@ -1,27 +1,25 @@
-import { futureDate } from './fixtures/dates.js';
-import { createTrip, selectDeparture } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 3 — Departures & seat inventory. Verifies the customer booking flow
 // reflects real per-date availability: a near-full batch shows the remaining
 // seat count, and a sold-out trip blocks selection/booking.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.getByPlaceholder('Email address or 10-digit phone number');
+  const email = page.locator('input[placeholder*="Email address"], input[type="email"]');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
 }
 
 async function customerLogin(page) {
-  await page.goto('/app/login');
+  await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
   await dismissOnboarding(page);
-  await page.getByPlaceholder('Email address or 10-digit phone number').fill(DEMO_CUSTOMER.email);
+  await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
   await page.click('#btn-login-email-submit');
   await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
@@ -32,7 +30,7 @@ async function createTripWithSeats(name, availableSeats) {
   const ctx = await pwRequest.newContext();
   const login = await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG });
   const token = (await login.json()).token;
-  const res = await createTrip(ctx, {
+  const res = await ctx.post(`${API}/organizer/trips`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       name,
@@ -42,7 +40,7 @@ async function createTripWithSeats(name, availableSeats) {
       pricingTiers: [{ label: 'Solo', price: 700 }],
       pickup: { location: 'Manali', price: 80 },
       startPoint: { lat: 32.22, lng: 78.07, label: 'Kaza Base' },
-      departureDates: [futureDate(30), futureDate(44)],
+      departureDates: ['2099-09-10', '2099-09-24'],
       difficulty: 'Difficult',
       durationDays: 7,
       maxGroupSize: 12,
@@ -63,9 +61,7 @@ test.use({ viewport: { width: 460, height: 950 } });
 test('a near-full departure shows the remaining seat count in the booking flow', async ({ page }) => {
   const trip = await createTripWithSeats(`E2E Nearfull ${Date.now()}`, 2);
   await customerLogin(page);
-  await page.goto(`/app/book/${trip.id}`);
-
-  await selectDeparture(page);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // Live per-date availability (2 seats) surfaces both as the selected-date
   // pill and the traveler-count capacity readout.
@@ -76,7 +72,7 @@ test('a near-full departure shows the remaining seat count in the booking flow',
 test('a sold-out trip disables date selection and blocks booking', async ({ page }) => {
   const trip = await createTripWithSeats(`E2E Soldout ${Date.now()}`, 0);
   await customerLogin(page);
-  await page.goto(`/app/book/${trip.id}`);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // No seats anywhere → capacity reads 0 and the traveler stepper can't add
   // anyone, so Continue stays disabled (can't proceed to book a sold-out batch).

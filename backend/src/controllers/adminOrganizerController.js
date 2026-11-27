@@ -1,4 +1,6 @@
 import User from '../models/User.js';
+import { notifyOrganizerApproved } from '../services/notificationService.js';
+import { retireOrganizer, completeOrganizerRetirement } from '../services/organizerRetirementService.js';
 import { hashPassword } from '../utils/password.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -14,6 +16,7 @@ export const setOrganizerStatus = asyncHandler(async (req, res) => {
   if (!user) throw ApiError.notFound('Organizer not found');
 
   const org = user.organizer || {};
+  const wasApproved = Boolean(org.isApproved);
 
   switch (action) {
     case 'approve':
@@ -36,6 +39,7 @@ export const setOrganizerStatus = asyncHandler(async (req, res) => {
 
   user.organizer = org;
   await user.save();
+  if (action === 'approve' && !wasApproved) await notifyOrganizerApproved(user);
   res.json({ organizer: user.toOrganizerJSON() });
 });
 
@@ -89,6 +93,11 @@ export const createOrganizer = asyncHandler(async (req, res) => {
   if (existing && existing.isOrganizer) {
     throw ApiError.conflict('An organizer with this email already exists');
   }
+  if (mobile && await User.exists({ mobile, ...(existing ? { _id: { $ne: existing._id } } : {}) })) {
+    throw ApiError.conflict('This mobile number already belongs to another account');
+  }
+
+  if (existing) await completeOrganizerRetirement(existing);
 
   const isApproved = approved !== false; // admin-added partners default to approved
 
@@ -161,14 +170,10 @@ export const updateOrganizer = asyncHandler(async (req, res) => {
   res.json({ organizer: user.toOrganizerJSON() });
 });
 
-// DELETE /admin/organizers/:id — remove an organizer account.
-// Converts them back to a pure customer account so customer data / bookings are retained.
+// Removes organizer access and archives its ownership before contact reuse.
 export const deleteOrganizer = asyncHandler(async (req, res) => {
-  const user = await User.findOneAndUpdate(
-    { _id: req.params.id, isOrganizer: true },
-    { $set: { isOrganizer: false, organizer: null } },
-    { new: true }
-  );
-  if (!user) throw ApiError.notFound('Organizer not found');
+  const user = await User.findById(req.params.id);
+  if (!user || (!user.isOrganizer && !user.organizerRetirementKey)) throw ApiError.notFound('Organizer not found');
+  await retireOrganizer(user);
   res.json({ ok: true, id: req.params.id });
 });

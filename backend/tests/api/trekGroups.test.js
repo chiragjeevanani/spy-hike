@@ -29,7 +29,7 @@ async function seedTrip(over = {}) {
     price: over.price ?? 1000,
     pricingTiers: [{ id: 'solo', label: 'Solo', price: over.price ?? 1000 }],
     pickup: { location: over.pickupCity || 'Manali', price: over.price ?? 1000 },
-    departureDates: over.departureDates || ['2026-09-01'],
+    departureDates: over.departureDates || ['2099-09-01'],
     difficulty: over.difficulty || 'Easy',
     durationDays: over.durationDays ?? 3,
     distanceKm: 10,
@@ -111,10 +111,10 @@ describe('GET /trek-groups', () => {
   });
 
   it('keeps a trek when any organizer departs on the requested date', async () => {
-    await seedTrip({ trekId: 'date-trek', name: 'Date Trek', departureDates: ['2026-10-05'] });
-    await seedTrip({ trekId: 'other-trek', name: 'Other Trek', departureDates: ['2026-11-20'] });
+    await seedTrip({ trekId: 'date-trek', name: 'Date Trek', departureDates: ['2099-10-05'] });
+    await seedTrip({ trekId: 'other-trek', name: 'Other Trek', departureDates: ['2099-11-20'] });
 
-    const res = await get('?date=2026-10-05');
+    const res = await get('?date=2099-10-05');
     expect(res.body.groups.map((g) => g.trekName)).toEqual(['Date Trek']);
   });
 

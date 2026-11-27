@@ -1,4 +1,3 @@
-import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Admin payout management — drives the real /admin/payouts console: approve a
@@ -6,7 +5,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // (→ Rejected). Each test provisions an isolated approved organizer + a booking
 // so the balance is independent of the shared demo org.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 function dateInDays(n) {
@@ -20,12 +19,21 @@ async function seedProcessingPayout(amount = 500) {
   const ctx = await pwRequest.newContext();
   const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: DEMO_ADMIN })).json()).token;
   const orgEmail = `payorg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`;
-  const reg = await (await ctx.post(`${API}/auth/organizer/register`, { data: { name: 'Payout Org', email: orgEmail, password: 'pass1234', agencyName: 'Payout Guides', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' } })).json();
+  const reg = await (await ctx.post(`${API}/auth/organizer/register`, {
+    data: {
+      name: 'Payout Org',
+      email: orgEmail,
+      password: 'pass1234',
+      agencyName: 'Payout Guides',
+      govtIdType: 'Aadhaar',
+      govtIdNumber: '123456789012',
+    },
+  })).json();
   await ctx.patch(`${API}/admin/organizers/${reg.account.id}/status`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { action: 'approve' } });
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: { email: orgEmail, password: 'pass1234' } })).json()).token;
   const orgAuth = { headers: { Authorization: `Bearer ${orgToken}` } };
 
-  const trip = (await (await createTrip(ctx, {
+  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
     ...orgAuth,
     data: {
       name: `E2E Payout UI Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
@@ -38,9 +46,9 @@ async function seedProcessingPayout(amount = 500) {
   })).json()).trip;
 
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email: `payuic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`, password: 'pass1234' } })).json()).token;
-  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: dateInDays(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
+  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: dateInDays(30), selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Payout Hiker', age: 25, gender: 'Male', emergencyContact: '9876543210' }] } });
 
-  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Payout Guides', bankName: 'HDFC', ifsc: 'HDFC0000001', accountNumber: '1234567890' } });
+  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Payout Guides', bankName: 'HDFC', ifsc: 'HDFC0001234', accountNumber: '1234567890' } });
   const payout = (await (await ctx.post(`${API}/organizer/payouts`, { ...orgAuth, data: { amount } })).json()).payout;
   await ctx.dispose();
   return { reference: payout.reference };
@@ -48,7 +56,7 @@ async function seedProcessingPayout(amount = 500) {
 
 async function adminConsoleLogin(page) {
   page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');
@@ -59,7 +67,7 @@ test('admin approves a payout in the console and downloads its receipt', async (
   const { reference } = await seedProcessingPayout(500);
   await adminConsoleLogin(page);
 
-  await page.goto('/admin/payouts');
+  await page.goto('/admin/payouts', { waitUntil: 'domcontentloaded' });
   // Isolate the seeded payout via the search box (server-side filter).
   await page.getByPlaceholder(/Search organizer/i).fill(reference);
   const row = page.locator('tr', { hasText: reference });
@@ -83,7 +91,7 @@ test('admin rejects a payout with a reason and the balance is freed', async ({ p
   const { reference } = await seedProcessingPayout(400);
   await adminConsoleLogin(page);
 
-  await page.goto('/admin/payouts');
+  await page.goto('/admin/payouts', { waitUntil: 'domcontentloaded' });
   await page.getByPlaceholder(/Search organizer/i).fill(reference);
   const row = page.locator('tr', { hasText: reference });
   await expect(row).toBeVisible({ timeout: 10000 });

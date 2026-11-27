@@ -32,7 +32,7 @@ const tripPayload = (trekId, over = {}) => ({
   pricingTiers: [{ label: 'Solo', price: 1000 }, { label: 'Couple', price: 900 }],
   pickup: { location: 'Manali', price: 100 },
   startPoint: { lat: 32.24, lng: 77.18, label: 'Base' },
-  departureDates: ['2026-08-01', '2026-08-15'],
+  departureDates: ['2099-08-01', '2099-08-15'],
   maxGroupSize: 10,
   availableSeats: 5,
   category: 'Trekking',
@@ -41,9 +41,10 @@ const tripPayload = (trekId, over = {}) => ({
 });
 
 async function makeTrip(orgToken, over) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `booking-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Booking Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `booking-trek-${Date.now()}-${seq}`,
+    title: `Booking Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send(tripPayload(trek._id, over));
@@ -64,7 +65,7 @@ describe('Booking creation & pricing', () => {
     // tax-inclusive, so final == base; commission 10% = 200; payout 1800.
     const res = await book(cust, {
       tripId: trip.id,
-      selectedDate: '2026-08-01',
+      selectedDate: '2099-08-01',
       selections: [{ label: 'Solo', count: 2 }],
       travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }],
     });
@@ -94,7 +95,7 @@ describe('Booking creation & pricing', () => {
 
     const res = await book(cust, {
       tripId: trip.id,
-      selectedDate: '2026-08-01',
+      selectedDate: '2099-08-01',
       selections: [{ label: 'Solo', count: 1 }],
       travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
     });
@@ -111,7 +112,7 @@ describe('Booking creation & pricing', () => {
     await Coupon.create({ _id: 'cp-x', code: 'SAVE10', type: 'percentage', value: 10, status: 'Active' });
 
     const res = await book(cust, {
-      tripId: trip.id, selectedDate: '2026-08-01',
+      tripId: trip.id, selectedDate: '2099-08-01',
       selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
       couponCode: 'SAVE10',
     });
@@ -127,8 +128,8 @@ describe('Booking creation & pricing', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org); // 5 seats/departure
-    await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
-    const dep = await Departure.findOne({ tripId: trip.id, date: '2026-08-01' });
+    await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }, { name: 'Traveler Two', age: 28, gender: 'Female', emergencyContact: '9876543211' }] });
+    const dep = await Departure.findOne({ tripId: trip.id, date: '2099-08-01' });
     expect(dep.availableSeats).toBe(3);
   });
 
@@ -136,9 +137,9 @@ describe('Booking creation & pricing', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org); // 5 seats
-    const res = await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 6 }], travelers: [] });
+    const res = await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 6 }], travelers: [] });
     expect(res.status).toBe(409);
-    const dep = await Departure.findOne({ tripId: trip.id, date: '2026-08-01' });
+    const dep = await Departure.findOne({ tripId: trip.id, date: '2099-08-01' });
     expect(dep.availableSeats).toBe(5); // untouched
   });
 
@@ -146,9 +147,9 @@ describe('Booking creation & pricing', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org);
-    const res = await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Solo Traveler', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const res = await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 2 }], travelers: [{ name: 'Solo Traveler', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     expect(res.status).toBe(400);
-    const dep = await Departure.findOne({ tripId: trip.id, date: '2026-08-01' });
+    const dep = await Departure.findOne({ tripId: trip.id, date: '2099-08-01' });
     expect(dep.availableSeats).toBe(5); // reserved seats were released
   });
 
@@ -161,7 +162,7 @@ describe('Booking creation & pricing', () => {
     const org = await approvedOrganizerToken();
     const cust = await customerToken();
     const trip = await makeTrip(org);
-    const res = await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [traveler] });
+    const res = await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [traveler] });
     expect(res.status).toBe(400);
   });
 
@@ -171,7 +172,7 @@ describe('Booking creation & pricing', () => {
     const admin = await adminToken();
     const trip = await makeTrip(org);
 
-    const res = await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const res = await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     expect(res.body.booking.commissionRate).toBe(10);
 
     // Admin raises commission to 25%.
@@ -182,7 +183,7 @@ describe('Booking creation & pricing', () => {
     expect(list.body.bookings[0].commissionRate).toBe(10);
 
     // A new booking picks up the new 25%.
-    const res2 = await book(cust, { tripId: trip.id, selectedDate: '2026-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const res2 = await book(cust, { tripId: trip.id, selectedDate: '2099-08-15', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     expect(res2.body.booking.commissionRate).toBe(25);
   });
 
@@ -195,10 +196,10 @@ describe('Booking creation & pricing', () => {
     // Server verifies a real voucher now: lower the threshold and book once to
     // mint one, then redeem it on the next booking.
     await request(app).patch('/api/v1/admin/loyalty/config').set('Authorization', `Bearer ${admin}`).send({ customer: { thresholdPersons: 1, enabled: true } });
-    await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 
     const res = await book(cust, {
-      tripId: trip.id, selectedDate: '2026-08-15',
+      tripId: trip.id, selectedDate: '2099-08-15',
       selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }], useLoyaltyReward: true,
     });
     expect(res.body.booking.finalAmount).toBe(0);
@@ -221,7 +222,7 @@ describe('Booking visibility per role', () => {
     const cust = await customerToken();
     const admin = await adminToken();
     const trip = await makeTrip(org);
-    const created = await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const created = await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
     const amount = created.body.booking.finalAmount;
 
     const mine = await request(app).get('/api/v1/bookings').set('Authorization', `Bearer ${cust}`);
@@ -239,7 +240,7 @@ describe('Booking visibility per role', () => {
     const custA = await customerToken('a@example.com');
     const custB = await customerToken('b@example.com');
     const trip = await makeTrip(org);
-    await book(custA, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    await book(custA, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 
     const bList = await request(app).get('/api/v1/bookings').set('Authorization', `Bearer ${custB}`);
     expect(bList.body.bookings).toHaveLength(0);
@@ -250,7 +251,7 @@ describe('Booking visibility per role', () => {
     const cust = await customerToken();
     const admin = await adminToken();
     const trip = await makeTrip(org);
-    const created = await book(cust, { tripId: trip.id, selectedDate: '2026-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
+    const created = await book(cust, { tripId: trip.id, selectedDate: '2099-08-01', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Traveler One', age: 25, gender: 'Male', emergencyContact: '9876543210' }] });
 
     const res = await request(app)
       .patch(`/api/v1/admin/bookings/${created.body.booking.bookingId}/status`)

@@ -10,14 +10,14 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // it showed up first, because creating one is the first thing that fails loudly
 // (the list silently rendered as empty).
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const ADMIN = {
   email: process.env.ADMIN_EMAIL || 'superadmin@gmail.com',
   password: process.env.ADMIN_PASSWORD || 'password123',
 };
 
 async function adminLogin(page) {
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', ADMIN.email);
   await page.fill('input[type="password"]', ADMIN.password);
   await page.click('button[type="submit"]');
@@ -25,7 +25,7 @@ async function adminLogin(page) {
 }
 
 async function createCoupon(page, code) {
-  await page.goto('/admin/coupons');
+  await page.goto('/admin/coupons', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Create Coupon/i }).first().click();
   await page.fill('form input[type=text]', code);
   await page.locator('form input[type=number]').first().fill('20');
@@ -83,7 +83,7 @@ test.describe('Admin coupons', () => {
     // The flag says signed in; the credentials are gone. Previously the panel
     // rendered in full and only failed at the point of saving.
     await page.evaluate(() => localStorage.removeItem('trekigo_admin_auth_token'));
-    await page.goto('/admin/coupons');
+    await page.goto('/admin/coupons', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByText(/session has ended/i).first()).toBeVisible({ timeout: 15000 });
     await expect(page).toHaveURL(/\/admin\/login/, { timeout: 15000 });
@@ -96,7 +96,7 @@ test.describe('Admin coupons', () => {
         ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Boom' } }) })
         : route.continue()
     ));
-    await page.goto('/admin/coupons');
+    await page.goto('/admin/coupons', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByText('Boom')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('No coupons matching criteria found.')).toHaveCount(0);

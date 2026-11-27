@@ -7,8 +7,7 @@ import User from '../models/User.js';
 
 async function findAuthUser(sub, email) {
   if (sub && mongoose.Types.ObjectId.isValid(sub)) {
-    const user = await User.findById(sub);
-    if (user) return user;
+    return User.findById(sub);
   }
   if (email) {
     const user = await User.findOne({ email: email.toLowerCase() });
@@ -36,17 +35,15 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   if (req.user.role === 'customer' || req.user.role === 'organizer') {
     let user = null;
     if (req.user.sub && mongoose.Types.ObjectId.isValid(req.user.sub)) {
-      user = await User.findById(req.user.sub).select('status');
-    }
-    if (!user && req.user.email) {
-      user = await User.findOne({ email: req.user.email.toLowerCase() }).select('status');
-      if (user) {
-        req.user.sub = user._id.toString();
-      }
+      user = await User.findById(req.user.sub).select('status sessionVersion email');
     }
     if (!user) {
       throw ApiError.unauthorized('User account has been deleted');
     }
+    if ((req.user.sessionVersion || 0) !== (user.sessionVersion || 0)) {
+      throw ApiError.unauthorized('This login session has been revoked');
+    }
+    req.user.email = user.email;
     if (user.status === 'Banned') {
       throw ApiError.forbidden('User is banned');
     }

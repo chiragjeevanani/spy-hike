@@ -66,7 +66,7 @@ export default function OrgOnboarding({ onComplete, darkMode }) {
   const current = slides[Math.min(currentSlide, slides.length - 1)] || slides[0];
 
   return (
-    <div className={`min-h-screen w-full flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8 font-sans relative overflow-hidden transition-colors ${
+    <div data-testid="organizer-walkthrough" className={`min-h-screen w-full flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8 font-sans relative overflow-hidden transition-colors ${
       darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-900'
     }`}>
       

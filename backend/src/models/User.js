@@ -104,6 +104,7 @@ const userSchema = new mongoose.Schema(
     notificationUpdates:  { type: Boolean, default: true },
     notificationPromo:    { type: Boolean, default: false },
     referralCode:  { type: String, unique: true },
+    referralCode:  { type: String, unique: true, sparse: true },
     referredBy:    { type: String, default: null },
     // Legacy single-device field, kept so older clients and existing rows keep
     // working; `fcmTokens` is the real list. One account can be signed in on a
@@ -112,6 +113,9 @@ const userSchema = new mongoose.Schema(
     fcmTokens:     { type: [String], default: [] },
 
     // ── Organizer fields (only populated when isOrganizer: true) ──────────
+    sessionVersion: { type: Number, default: 0 },
+    organizerRetirementKey: { type: String, default: undefined },
+    organizerRetirementSnapshot: { type: mongoose.Schema.Types.Mixed, default: undefined },
     isOrganizer:   { type: Boolean, default: false },
     organizer:     { type: organizerSubSchema, default: null },
   },
@@ -163,6 +167,7 @@ userSchema.methods.toOrganizerJSON = function toOrganizerJSON() {
   return {
     id:    this._id.toString(),
     role:  'organizer',
+    sessionVersion: this.sessionVersion || 0,
     isAuthenticated: true,
     isOnboarded:     true,
     isOrganizer:     true,

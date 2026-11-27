@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import Admin from '../models/Admin.js';
 import { pushProvider } from './fcmService.js';
 
 // Mirrors an in-app notification onto the recipient's devices.
@@ -49,18 +50,19 @@ export async function pushToUser(email, { title, content, type = 'System' } = {}
     if (!email) return { sent: 0, skipped: 'no recipient' };
 
     const user = await User.findOne({ email: String(email).toLowerCase().trim() })
-      .select('fcmToken fcmTokens notificationBookings notificationUpdates notificationPromo status')
+      .select('fcmToken fcmTokens notificationBookings notificationUpdates notificationPromo status sessionVersion')
       .lean();
     if (!user) return { sent: 0, skipped: 'no account' };
     // Someone who switched this category off in their settings still gets the
     // in-app notification — push is the channel they opted out of.
     if (!allowsPush(user, type)) return { sent: 0, skipped: 'opted out' };
+    if (user.status === 'Deactivated') return { sent: 0, skipped: 'deactivated' };
     if (user.status === 'Banned') return { sent: 0, skipped: 'banned' };
 
     const tokens = tokensOf(user);
     if (!tokens.length) return { sent: 0, skipped: 'no device registered' };
 
-    const result = await pushProvider.sendToTokens(tokens, title, content, { type, ...extraData });
+    const result = await pushProvider.sendToTokens(tokens, title, content, { type, ...extraData, recipientId: user._id.toString(), recipientSessionVersion: String(user.sessionVersion || 0) });
     await pruneTokens(user, result.deadTokens);
     return result;
   } catch (err) {
@@ -70,3 +72,22 @@ export async function pushToUser(email, { title, content, type = 'System' } = {}
 }
 
 export default pushToUser;
+
+export async function pushToAdmin(email, { title, content, type = 'System' }, extraData = {}) {
+  try {
+    const admin = await Admin.findOne({ email }).select('fcmToken fcmTokens').lean();
+    if (!admin) return { sent: 0, skipped: 'no admin' };
+    const tokens = tokensOf(admin);
+    if (!tokens.length) return { sent: 0, skipped: 'no device registered' };
+    const result = await pushProvider.sendToTokens(tokens, title, content, { type, ...extraData, recipientId: admin._id.toString(), recipientSessionVersion: '0' });
+    if (result.deadTokens?.length) {
+      const update = { $pull: { fcmTokens: { $in: result.deadTokens } } };
+      if (result.deadTokens.includes(admin.fcmToken)) update.$set = { fcmToken: '' };
+      await Admin.updateOne({ _id: admin._id }, update);
+    }
+    return result;
+  } catch (error) {
+    console.error('[push] admin delivery failed:', error.message);
+    return { sent: 0, error: error.message };
+  }
+}

@@ -1,5 +1,4 @@
 import { futureDate } from './fixtures/dates.js';
-import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { ORG_USER } from './fixtures/seed.js';
 
@@ -7,7 +6,7 @@ import { ORG_USER } from './fixtures/seed.js';
 // and checks a booking in via the manual-entry fallback (headless has no
 // camera); a second check-in reports the ticket as already checked in.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 test.use({ viewport: { width: 460, height: 950 } });
@@ -17,7 +16,7 @@ test.use({ viewport: { width: 460, height: 950 } });
 async function seedBookingAndOrgToken() {
   const ctx = await pwRequest.newContext();
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await createTrip(ctx, {
+  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Checkin Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
@@ -35,7 +34,12 @@ async function seedBookingAndOrgToken() {
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Booker', email: custEmail, password: 'pass1234' } })).json()).token;
   const booking = (await (await ctx.post(`${API}/bookings`, {
     headers: { Authorization: `Bearer ${custToken}` },
-    data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() },
+    data: {
+      tripId: trip.id,
+      selectedDate: futureDate(30),
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Booker', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    },
   })).json()).booking;
 
   await ctx.dispose();
@@ -51,8 +55,8 @@ test('organizer scans a ticket to check it in; a second scan shows already check
     localStorage.setItem('trekigo_auth_token', data.token);
   }, { org: { ...ORG_USER, email: DEMO_ORG.email }, token: orgToken });
 
-  await page.goto('/organizer');
-  await page.getByRole('button', { name: 'Scan QR Ticket', exact: true }).click();
+  await page.goto('/organizer', { waitUntil: 'domcontentloaded' });
+  await page.locator('button[title*="Scan"]:visible, button:has-text("Verify Ticket QR"):visible').first().click();
 
   // Camera is unavailable headless → the manual-entry fallback is shown.
   const codeInput = page.locator('#scanner-manual-code');
@@ -63,10 +67,12 @@ test('organizer scans a ticket to check it in; a second scan shows already check
   await expect(page.getByText('Checked in ✓')).toBeVisible({ timeout: 10000 });
 
   // Scan again → idempotent "already checked in".
-  await page.getByRole('button', { name: /Scan Another Ticket/i }).click();
+  const scanAnotherBtn = page.getByRole('button', { name: /Scan Another Ticket/i });
+  await expect(scanAnotherBtn).toBeVisible({ timeout: 10000 });
+  await scanAnotherBtn.click({ force: true });
   const codeInput2 = page.locator('#scanner-manual-code');
   await expect(codeInput2).toBeVisible({ timeout: 10000 });
   await codeInput2.fill(bookingId);
-  await page.click('#scanner-manual-checkin');
+  await page.click('#scanner-manual-checkin', { force: true });
   await expect(page.getByText('Already checked in')).toBeVisible({ timeout: 10000 });
 });

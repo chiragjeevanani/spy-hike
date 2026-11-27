@@ -1,12 +1,11 @@
 import { futureDate } from './fixtures/dates.js';
-import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 10 — admin analytics. The dashboard's KPIs + charts now come from the
 // API aggregates, not localStorage mocks (which, for the admin app, would read
 // as zero). A booking's revenue is reflected in the analytics overview.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
@@ -16,7 +15,7 @@ test('admin dashboard shows real trip + revenue KPIs from the API', async ({ pag
   // Seed a booking so there is revenue in the aggregates.
   const ctx = await pwRequest.newContext();
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await createTrip(ctx, {
+  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Analytics Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
@@ -28,11 +27,20 @@ test('admin dashboard shows real trip + revenue KPIs from the API', async ({ pag
     },
   })).json()).trip;
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email: `an-${Date.now()}@example.com`, password: 'pass1234' } })).json()).token;
-  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
+  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: [{}] } });
+  await ctx.post(`${API}/bookings`, {
+    headers: { Authorization: `Bearer ${custToken}` },
+    data: {
+      tripId: trip.id,
+      selectedDate: futureDate(30),
+      selections: [{ label: 'Solo', count: 1 }],
+      travelers: [{ name: 'Alex Doe', age: 25, gender: 'Male', emergencyContact: '9876543210' }],
+    },
+  });
   await ctx.dispose();
 
   // Admin logs in and opens the dashboard.
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');

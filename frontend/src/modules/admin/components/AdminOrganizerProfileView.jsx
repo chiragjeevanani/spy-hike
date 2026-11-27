@@ -7,6 +7,7 @@ import {
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import {
   getOrganizerByEmail, getTripsByOrganizerEmail, getBookingsByOrganizerEmail,
+  deleteOrganizerAccount,
 } from '../utils/storage';
 import adminApi from '../../../lib/adminApi';
 import authApi from '../../../lib/authApi';
@@ -255,6 +256,9 @@ export default function AdminOrganizerProfileView({ email, onBack, onNavigateToO
   const handleDelete = async () => {
     try {
       await adminApi.deleteOrganizer(existingOrg.id);
+      if (existingOrg.email) {
+        deleteOrganizerAccount(existingOrg.email);
+      }
       setShowDeleteConfirm(false);
       onBack();
     } catch (err) {

@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 const promotionRequestSchema = new mongoose.Schema(
   {
     _id: { type: String },
+    archivedOrganizer: { type: mongoose.Schema.Types.Mixed, default: undefined },
     organizerEmail: { type: String, required: true, index: true },
     organizerName: { type: String, default: '' }, // agencyName snapshot, for the admin list
     message: { type: String, default: '', trim: true }, // organizer's optional pitch

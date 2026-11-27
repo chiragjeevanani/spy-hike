@@ -5,7 +5,7 @@ import {
   Compass, Backpack, ChevronRight
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
-import { getUserByEmail, getBookingsByUserEmail, getTripById } from '../utils/storage';
+import { getUserByEmail, getBookingsByUserEmail, getTripById, deleteUser } from '../utils/storage';
 import adminApi from '../../../lib/adminApi';
 import bookingsApi from '../../../lib/bookingsApi';
 import { getToken } from '../../../lib/apiClient';
@@ -189,6 +189,9 @@ export default function AdminUserProfileView({ email, onBack, onNavigateToUser, 
   const handleDelete = async () => {
     try {
       await adminApi.deleteUser(existingUser.id);
+      if (existingUser.email) {
+        deleteUser(existingUser.email);
+      }
       toast.success('Hiker account deleted.');
     } catch (err) {
       toast.error(err?.message || 'Could not delete user.');

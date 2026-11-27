@@ -18,6 +18,7 @@ import {
   refundBookingPayment, releasePendingBooking, expireStalePayments,
 } from '../services/paymentService.js';
 import { autoResolveBookingStatuses } from '../utils/bookingStatusHelper.js';
+import { tripToday } from '../utils/tripDate.js';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -47,13 +48,14 @@ async function withOrganizers(bookings) {
     const json = b.toPublicJSON();
     const user = byEmail.get(b.organizerEmail);
     const org = user?.organizer || {};
+    const archived = b.archivedOrganizer || {};
     // No account behind the email (deleted, or a legacy booking) — fall back to
     // the snapshot on the booking rather than inventing contact details.
     json.organizer = {
-      name: org.agencyName || user?.name || json.organizerName || '',
-      email: org.supportEmail || user?.email || json.organizerEmail || '',
-      phone: org.supportPhone || user?.mobile || '',
-      avatar: user?.avatar || '',
+      name: org.agencyName || user?.name || archived.name || json.organizerName || '',
+      email: org.supportEmail || user?.email || archived.supportEmail || json.organizerEmail || '',
+      phone: org.supportPhone || user?.mobile || archived.supportPhone || '',
+      avatar: user?.avatar || archived.avatar || '',
       verified: !!org.isApproved,
     };
     return json;
@@ -120,6 +122,7 @@ export const createBooking = asyncHandler(async (req, res) => {
   if (!selectedDate || !trip.departureDates.includes(selectedDate)) {
     throw ApiError.badRequest('Select a valid departure date');
   }
+  if (selectedDate < tripToday()) throw ApiError.badRequest('This departure date has already passed');
 
   // A loyalty free-booking must be backed by a real, available voucher —
   // the server (not the client) decides whether the reward applies.

@@ -9,6 +9,7 @@ router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    dbHost: mongoose.connection.readyState === 1 ? mongoose.connection.host : null,
     timestamp: new Date().toISOString(),
   });
 });

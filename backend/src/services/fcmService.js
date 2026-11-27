@@ -176,8 +176,9 @@ export const pushProvider = {
     try {
       const response = await admin.messaging().sendEachForMulticast({
         tokens: list,
-        notification: { title, body },
-        data: { ...stringifyData(data), click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+        // Data-only web messages are displayed once by our service worker,
+        // which retains the target URL for the notification click.
+        data: { ...stringifyData(data), title, content: body },
       });
 
       const deadTokens = [];

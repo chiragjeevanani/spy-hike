@@ -34,10 +34,10 @@ const clean = (value) =>
 const rs = (n) => `Rs.${Math.round(n || 0).toLocaleString('en-IN')}`;
 const trunc = (s, n) => { s = String(s ?? ''); return s.length > n ? `${s.slice(0, n - 3)}...` : s; };
 
-const commissionOf = (b) => b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount || 0) * 0.1;
-const netOf = (b) => (b.finalAmount || 0) - commissionOf(b);
-
-export function downloadFinancialReportPDF({ organizer, bookings, payouts }) {
+export function downloadFinancialReportPDF({ organizer, bookings, payouts, commissionRate = 10 }) {
+  const rate = (typeof commissionRate === 'number' ? commissionRate : 10) / 100;
+  const commissionOf = (b) => b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount || 0) * rate;
+  const netOf = (b) => (b.finalAmount || 0) - commissionOf(b);
   const activeBookings = bookings.filter(b => b.status !== 'Cancelled').slice().reverse();
   const completed = bookings.filter(b => b.status === 'Completed');
   const upcoming = bookings.filter(b => b.status === 'Upcoming');

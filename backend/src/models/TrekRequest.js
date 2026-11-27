@@ -22,6 +22,7 @@ const trekRequestSchema = new mongoose.Schema(
     coverImage: { type: String, required: true },
     category: { type: String, default: '' },
     description: { type: String, default: '' },
+    archivedOrganizer: { type: mongoose.Schema.Types.Mixed, default: undefined },
     requestedByEmail: { type: String, required: true, index: true },
     requestedByName: { type: String, default: '' },
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },

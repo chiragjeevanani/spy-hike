@@ -9,28 +9,21 @@
 
 import api from './apiClient.js';
 
-// Booking mutations also change the voucher ledger, notifications and wallet.
-// Expire those reads before the app rehydrates them after checkout/cancellation.
-const bookingInvalidations = [
-  '/trips', '/departures', '/loyalty/me', '/organizer/loyalty',
-  '/notifications', '/organizer/financials',
-];
-
 export const bookingsApi = {
   // ─── Customer ───
   // Reserving seats changes live availability on the trip and its departures.
   create: (payload) =>
-    api.post('/bookings', payload, { invalidates: bookingInvalidations }).then((r) => r.booking),
+    api.post('/bookings', payload, { invalidates: ['/trips', '/departures', '/loyalty'] }).then((r) => r.booking),
   // Same call, keeping the payment instructions: { booking, payment }. When
   // `payment.required` is true the booking is pending and `payment.checkout`
   // is the signed PayU form to redirect to (see lib/payu.js).
   checkout: (payload) =>
-    api.post('/bookings', payload, { invalidates: bookingInvalidations }),
+    api.post('/bookings', payload, { invalidates: ['/trips', '/departures', '/loyalty'] }),
   listMine: (opts) => api.get('/bookings', opts).then((r) => r.bookings),
   getMine: (id) => api.get(`/bookings/${encodeURIComponent(id)}`).then((r) => r.booking),
   // Cancelling releases the seats back to the trip and its departures.
   cancel: (id) =>
-    api.post(`/bookings/${encodeURIComponent(id)}/cancel`, undefined, { invalidates: bookingInvalidations })
+    api.post(`/bookings/${encodeURIComponent(id)}/cancel`, undefined, { invalidates: ['/trips', '/departures', '/loyalty'] })
       .then((r) => r.booking),
 
   // ─── Online payment (PayU) ───
@@ -69,8 +62,8 @@ export const bookingsApi = {
   adminSetStatus: (id, status) =>
     api.patch(`/admin/bookings/${encodeURIComponent(id)}/status`, { status }).then((r) => r.booking),
 
-  // ─── Admin platform config (commission / tax) ───
-  getConfig: () => api.get('/admin/config').then((r) => r.config),
+  // ─── Platform config (commission / tax) ───
+  getConfig: () => api.get('/config').catch(() => api.get('/admin/config')).then((r) => r.config),
   updateConfig: (payload) => api.patch('/admin/config', payload).then((r) => r.config),
 
   // ─── Admin analytics ───

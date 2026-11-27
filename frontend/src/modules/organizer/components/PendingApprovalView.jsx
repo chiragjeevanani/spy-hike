@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { initPushNotifications } from '../../../utils/pushNotifications';
 import { motion } from 'motion/react';
 import { Clock, Shield, CheckCircle, Mail, PhoneCall, RefreshCw } from 'lucide-react';
 
 export default function PendingApprovalView({ organizer, onRefresh, darkMode }) {
+  const [pushMessage, setPushMessage] = useState('');
+  const enablePush = async () => {
+    const result = await initPushNotifications({ requestPermission: true });
+    setPushMessage(result.enabled ? 'Approval notifications enabled on this device.' : result.reason);
+  };
   const steps = [
     { label: 'Application Submitted', done: true },
     { label: 'Documents Under Review', done: false, current: true },
@@ -89,7 +95,7 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
             <div>
               <p className="text-sm font-bold">Email notification</p>
               <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                We'll notify <span className="text-spy-orange font-medium">{organizer?.email}</span> once approved
+                Approval updates appear here and on devices with notifications enabled.
               </p>
             </div>
           </div>
@@ -105,6 +111,10 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
         </div>
       </div>
 
+      <div className="px-6 py-3 space-y-2">
+        <button type="button" onClick={enablePush} className="w-full rounded-2xl py-3 bg-spy-orange text-white font-bold">Enable approval notifications</button>
+        {pushMessage && <p role="status" className="text-xs text-center">{pushMessage}</p>}
+      </div>
       {/* Re-check approval status (approval is admin-driven) */}
       <div className="px-6 pb-8 mt-2 space-y-3">
         <button
@@ -118,7 +128,7 @@ export default function PendingApprovalView({ organizer, onRefresh, darkMode }) 
           Check Approval Status
         </button>
         <p className={`text-center text-[10px] ${darkMode ? 'text-zinc-700' : 'text-zinc-400'}`}>
-          We'll email you the moment an admin approves your application.
+          Your approval notification will link directly to the next onboarding step.
         </p>
       </div>
     </div>

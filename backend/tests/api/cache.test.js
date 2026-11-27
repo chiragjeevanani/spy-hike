@@ -26,9 +26,9 @@ describe('Response cache primitives', () => {
     await cacheInvalidate('');
   });
 
-  it('stores and returns a value', async () => {
+  it('does not retain responses without Redis', async () => {
     await cacheSet('unit:a', { hello: 'world' }, 60);
-    expect(await cacheGet('unit:a')).toEqual({ hello: 'world' });
+    expect(await cacheGet('unit:a')).toBeNull();
   });
 
   it('misses for an unknown key', async () => {
@@ -49,7 +49,7 @@ describe('Response cache primitives', () => {
 
     expect(await cacheGet('trips:list:a')).toBeNull();
     expect(await cacheGet('trips:list:b')).toBeNull();
-    expect(await cacheGet('treks:list:all')).toEqual({ v: 3 });
+    expect(await cacheGet('treks:list:all')).toBeNull();
   });
 });
 
@@ -58,14 +58,15 @@ describe('Cached catalog endpoints', () => {
     await cacheInvalidate('');
   });
 
-  it('serves a MISS then a HIT, and returns identical bodies', async () => {
+  it('reads the server on every request without Redis', async () => {
     await Trek.create({ _id: 'cache-trek-1', ...trekPayload() });
 
     const first = await request(app).get(`${api}/treks`);
     expect(first.headers['x-cache']).toBe('MISS');
 
     const second = await request(app).get(`${api}/treks`);
-    expect(second.headers['x-cache']).toBe('HIT');
+    expect(second.status, JSON.stringify(second.body)).toBe(200);
+    expect(second.headers['x-cache']).not.toBe('HIT');
     expect(second.body).toEqual(first.body);
   });
 
@@ -87,10 +88,11 @@ describe('Cached catalog endpoints', () => {
     const token = await adminToken();
     await Trek.create({ _id: 'offer-count-trek', ...trekPayload(), trending: true });
     await Trip.create({ _id: 'offer-count-trip', trekId: 'offer-count-trek',
-      organizerEmail: 'guide@example.com', name: 'Cache Trek', location: 'Manali', status: 'Published' });
+      organizerEmail: 'guide@example.com', name: 'Cache Trek', location: 'Manali', status: 'Published',
+      departureDates: [new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)] });
     const read = () => request(app).get(`${api}/treks`);
     expect((await read()).body.treks[0].tripCount).toBe(1);
-    expect((await read()).headers['x-cache']).toBe('HIT');
+    expect((await read()).headers['x-cache']).toBe('MISS');
 
     for (const [status, count] of [['Paused', 0], ['Published', 1]]) {
       const changed = await request(app).patch(`${api}/admin/trips/offer-count-trip/status`)
@@ -121,12 +123,30 @@ describe('Cached catalog endpoints', () => {
     expect(trending.body.treks).toHaveLength(1);
   });
 
+  it('pausing the last published trip refreshes the trek organizer count', async () => {
+    const token = await adminToken();
+    await Trek.create({ _id: 'cache-count-trek', ...trekPayload() });
+    await Trip.create({ _id: 'cache-count-trip', trekId: 'cache-count-trek',
+      organizerEmail: 'guide@example.com', name: 'Cache Trek',
+      location: 'Manali', status: 'Published' });
+    const before = await request(app).get(`${api}/treks`);
+    expect(before.body.treks[0].tripCount).toBe(1);
+    expect((await request(app).get(`${api}/treks`)).headers['x-cache']).toBe('MISS');
+
+    const paused = await request(app).patch(`${api}/admin/trips/cache-count-trip/status`)
+      .set('Authorization', `Bearer ${token}`).send({ status: 'Paused' });
+    expect(paused.status).toBe(200);
+    const after = await request(app).get(`${api}/treks`);
+    expect(after.headers['x-cache']).toBe('MISS');
+    expect(after.body.treks[0].tripCount).toBe(0);
+  });
+
   it('treats differently-ordered query params as one entry', async () => {
     const a = await request(app).get(`${api}/trips?page=1&limit=5`);
     expect(a.headers['x-cache']).toBe('MISS');
 
     const b = await request(app).get(`${api}/trips?limit=5&page=1`);
-    expect(b.headers['x-cache']).toBe('HIT');
+    expect(b.headers['x-cache']).toBe('MISS');
   });
 
   it('does not cache live seat availability', async () => {
@@ -145,7 +165,7 @@ describe('Cached catalog endpoints', () => {
     expect(denied.status).toBeGreaterThanOrEqual(400);
 
     const after = await request(app).get(`${api}/treks`);
-    expect(after.headers['x-cache']).toBe('HIT');
+    expect(after.headers['x-cache']).toBe('MISS');
   });
 });
 

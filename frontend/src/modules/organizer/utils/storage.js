@@ -5,8 +5,30 @@ const ORG_TRIPS_KEY = 'trekigo_org_trips';
 const ORG_BOOKINGS_KEY = 'trekigo_org_bookings';
 const ORG_NOTIFICATIONS_KEY = 'trekigo_org_notifications';
 const ORG_CHATS_KEY = 'trekigo_org_chats';
-const ORG_DARK_MODE_KEY = 'trekigo_org_darkmode';
+const ORG_DARK_MODE_KEY = 'trekigo_org_darkmode_v2';
 const ORG_PAYOUTS_KEY = 'trekigo_org_payouts';
+const ORG_DATA_OWNER_KEY = 'trekigo_org_data_owner';
+
+export const organizerCacheIdentity = (user) => user?.isAuthenticated
+  ? `${user.id || user.email}:${user.sessionVersion || 0}` : null;
+
+export const clearOrgData = () => {
+  for (const key of [ORG_TRIPS_KEY, ORG_BOOKINGS_KEY, ORG_NOTIFICATIONS_KEY,
+    ORG_CHATS_KEY, ORG_PAYOUTS_KEY, ORG_DATA_OWNER_KEY,
+    'trekigo_loyalty_org_vouchers', 'trekigo_loyalty_org_progress']) {
+    try { localStorage.removeItem(key); } catch { /* Storage may be disabled. */ }
+  }
+};
+
+const ensureOrgDataOwner = (user) => {
+  try {
+    const owner = organizerCacheIdentity(user);
+    if (!owner || localStorage.getItem(ORG_DATA_OWNER_KEY) !== owner) {
+      clearOrgData();
+      if (owner) localStorage.setItem(ORG_DATA_OWNER_KEY, owner);
+    }
+  } catch { /* Real sessions can still load directly from the API. */ }
+};
 
 export const DEFAULT_ORG_USER = {
   isAuthenticated: false,
@@ -40,19 +62,14 @@ export const DEFAULT_ORG_USER = {
   },
 };
 
-const DEMO_ORG_TRIPS = [];
-
-const DEMO_ORG_BOOKINGS = [];
-
+// Saved display profiles must never authenticate an organizer on startup.
 export const loadOrgUser = () => {
-  try {
-    const val = localStorage.getItem(ORG_USER_KEY);
-    if (val) return JSON.parse(val);
-  } catch (e) { console.error(e); }
-  return DEFAULT_ORG_USER;
+  clearOrgData();
+  return { ...DEFAULT_ORG_USER, isOnboarded: true };
 };
 
 export const saveOrgUser = (state) => {
+  ensureOrgDataOwner(state);
   safeSetItem(ORG_USER_KEY, state);
   if (state?.isAuthenticated) {
     safeSetItem('trekigo_active_role', 'organizer');
@@ -83,81 +100,35 @@ export const saveOrgUser = (state) => {
   }
 };
 
-export const loadOrgTrips = (orgEmail) => {
-  try {
-    const val = localStorage.getItem(ORG_TRIPS_KEY);
-    if (val) {
-      const all = JSON.parse(val);
-      return orgEmail ? all.filter(t => t.organizerEmail === orgEmail) : all;
-    }
-  } catch (e) { console.error(e); }
-  return [];
+export const loadOrgTrips = () => [];
+export const saveOrgTrips = () => {
+  try { localStorage.removeItem(ORG_TRIPS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const saveOrgTrips = (trips) => {
-  safeSetItem(ORG_TRIPS_KEY, trips);
+export const loadOrgBookings = () => [];
+export const saveOrgBookings = () => {
+  try { localStorage.removeItem(ORG_BOOKINGS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const loadOrgBookings = (orgEmail) => {
-  try {
-    const val = localStorage.getItem(ORG_BOOKINGS_KEY);
-    if (val) {
-      const all = JSON.parse(val);
-      return orgEmail ? all.filter(b => b.organizerEmail === orgEmail) : all;
-    }
-  } catch (e) { console.error(e); }
-  return [];
+export const loadOrgNotifications = () => [];
+export const saveOrgNotifications = () => {
+  try { localStorage.removeItem(ORG_NOTIFICATIONS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const saveOrgBookings = (bookings) => {
-  safeSetItem(ORG_BOOKINGS_KEY, bookings);
+export const loadOrgChats = () => [];
+export const saveOrgChats = () => {
+  try { localStorage.removeItem(ORG_CHATS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const loadOrgNotifications = () => {
-  try {
-    const val = localStorage.getItem(ORG_NOTIFICATIONS_KEY);
-    if (val) return JSON.parse(val);
-  } catch (e) { console.error(e); }
-  return [];
-};
-
-export const saveOrgNotifications = (val) => {
-  safeSetItem(ORG_NOTIFICATIONS_KEY, val);
-};
-
-export const loadOrgChats = () => {
-  try {
-    const val = localStorage.getItem(ORG_CHATS_KEY);
-    if (val) return JSON.parse(val);
-  } catch (e) { console.error(e); }
-  return [];
-};
-
-export const saveOrgChats = (val) => {
-  safeSetItem(ORG_CHATS_KEY, val);
-};
-
 export const loadOrgDarkMode = () => {
   try {
     const val = localStorage.getItem(ORG_DARK_MODE_KEY);
     if (val !== null) return JSON.parse(val);
   } catch (e) { console.error(e); }
-  return true;
+  return false; // Light mode by default
 };
 
 export const saveOrgDarkMode = (val) => {
   safeSetItem(ORG_DARK_MODE_KEY, val);
 };
 
-export const loadOrgPayouts = () => {
-  try {
-    const val = localStorage.getItem(ORG_PAYOUTS_KEY);
-    if (val) return JSON.parse(val);
-  } catch (e) { console.error(e); }
-  return [];
+export const loadOrgPayouts = () => [];
+export const saveOrgPayouts = () => {
+  try { localStorage.removeItem(ORG_PAYOUTS_KEY); } catch { /* Storage unavailable. */ }
 };
-
-export const saveOrgPayouts = (val) => {
-  safeSetItem(ORG_PAYOUTS_KEY, val);
-};
-

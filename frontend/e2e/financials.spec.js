@@ -1,10 +1,9 @@
-import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 9 — refunds, financials & payouts. Exercises the cancel→refund and the
 // earn→request-payout→admin-settle flows end-to-end through the e2e server.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
@@ -17,7 +16,7 @@ function dateInDays(n) {
 async function ctxWithTrip(departDays) {
   const ctx = await pwRequest.newContext();
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await createTrip(ctx, {
+  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Fin Trek ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -38,7 +37,7 @@ test('cancelling well before departure refunds fully and frees the seat', async 
   const { ctx, custToken, trip } = await ctxWithTrip([30]);
   const auth = { headers: { Authorization: `Bearer ${custToken}` } };
   const date = dateInDays(30);
-  const booking = (await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: date, selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } })).json()).booking;
+  const booking = (await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: date, selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Fin Traveler', age: 25, gender: 'Male', emergencyContact: '9876543210' }] } })).json()).booking;
 
   const cancel = await (await ctx.post(`${API}/bookings/${booking.bookingId}/cancel`, auth)).json();
   expect(cancel.booking.status).toBe('Cancelled');
@@ -57,12 +56,21 @@ test('organizer earns, requests a payout, and admin settles it to Paid', async (
   const ctx = await pwRequest.newContext();
   const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: DEMO_ADMIN })).json()).token;
   const orgEmail = `finorg-${Date.now()}@example.com`;
-  const reg = await (await ctx.post(`${API}/auth/organizer/register`, { data: { name: 'Fin Org', email: orgEmail, password: 'pass1234', agencyName: 'Fin Guides', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' } })).json();
+  const reg = await (await ctx.post(`${API}/auth/organizer/register`, {
+    data: {
+      name: 'Fin Org',
+      email: orgEmail,
+      password: 'pass1234',
+      agencyName: 'Fin Guides',
+      govtIdType: 'Aadhaar',
+      govtIdNumber: '123456789012',
+    },
+  })).json();
   await ctx.patch(`${API}/admin/organizers/${reg.account.id}/status`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { action: 'approve' } });
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: { email: orgEmail, password: 'pass1234' } })).json()).token;
   const orgAuth = { headers: { Authorization: `Bearer ${orgToken}` } };
 
-  const trip = (await (await createTrip(ctx, {
+  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
     ...orgAuth,
     data: {
       name: `E2E Payout Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
@@ -74,14 +82,14 @@ test('organizer earns, requests a payout, and admin settles it to Paid', async (
     },
   })).json()).trip;
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email: `payc-${Date.now()}@example.com`, password: 'pass1234' } })).json()).token;
-  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: dateInDays(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
+  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: dateInDays(30), selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Fin Traveler', age: 25, gender: 'Male', emergencyContact: '9876543210' }] } });
 
-  // Inclusive tier price 1000, commission 100, payout 900 (isolated org).
+  // final 1000, commission 100, payout 900 available (isolated org).
   const fin = await (await ctx.get(`${API}/organizer/financials`, orgAuth)).json();
   expect(fin.financials.available).toBe(900);
 
   // A payout method is required before requesting — configure a bank account.
-  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Fin Guides', bankName: 'HDFC', ifsc: 'HDFC0000001', accountNumber: '1234567890' } });
+  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Fin Guides', bankName: 'HDFC', ifsc: 'HDFC0001234', accountNumber: '1234567890' } });
 
   const payout = (await (await ctx.post(`${API}/organizer/payouts`, { ...orgAuth, data: { amount: 500 } })).json()).payout;
   expect(payout.status).toBe('Processing');

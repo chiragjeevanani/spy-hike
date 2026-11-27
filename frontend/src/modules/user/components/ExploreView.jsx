@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, SlidersHorizontal, Star, MapPin, Calendar, DollarSign, Clock, Users, ArrowUpAZ, X, Sparkles, Check, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown
+  Search, SlidersHorizontal, MapPin, Calendar, Clock, Users, X, Sparkles, Heart, Bus, ChevronLeft, ChevronRight, ChevronDown,
+  Mountain, Trees, Leaf, Flame, Compass, Tent, Sun, Map, Snowflake
 } from 'lucide-react';
 import { matchesLocation, matchesQuery } from '../utils/locationFilter';
 import SkeletonCard from '../../../components/SkeletonCard';
@@ -9,6 +10,23 @@ import treksApi from '../../../lib/treksApi';
 import { useAppRefresh } from '../../../utils/refreshSignal';
 import tripsApi from '../../../lib/tripsApi';
 import { durationRange } from '../../../utils/rangeFormat';
+
+const HOME_FILTER_ICONS = {
+  Mountain,
+  Trees,
+  Leaf,
+  Flame,
+  Compass,
+  Tent,
+  Sun,
+  Map,
+  Snowflake,
+};
+
+const renderFilterIcon = (iconName, size = 14) => {
+  const IconComp = HOME_FILTER_ICONS[iconName] || Mountain;
+  return <IconComp size={size} className="shrink-0" />;
+};
 
 export default function ExploreView({
   trips,
@@ -20,6 +38,8 @@ export default function ExploreView({
   onSetSearchQuery,
   selectedCategory,
   onSetCategory,
+  selectedHomeFilter = '',
+  onSetHomeFilter = () => {},
   selectedDate,
   onSetDate,
   userLocation,
@@ -27,8 +47,8 @@ export default function ExploreView({
   onOpenLocationPicker,
   darkMode
 }) {
-  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [allTreks, setAllTreks] = useState([]);
+  const [homeFilters, setHomeFilters] = useState([]);
   // Bumped by a pull-to-refresh to re-run this screen's own fetches.
   const [reloadKey, setReloadKey] = useState(0);
   useAppRefresh(() => setReloadKey((key) => key + 1));
@@ -38,6 +58,7 @@ export default function ExploreView({
   // (otherwise those treks are invisible anywhere in the customer app).
   useEffect(() => {
     treksApi.listTreks().then(setAllTreks).catch(() => setAllTreks([]));
+    treksApi.listHomeFilters().then(setHomeFilters).catch(() => setHomeFilters([]));
   }, [reloadKey]);
 
   // Pagination state
@@ -76,7 +97,7 @@ export default function ExploreView({
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategory, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption, userLocation]);
+  }, [searchQuery, selectedCategory, selectedHomeFilter, selectedDate, filterPickupCity, filterDifficulty, filterBudget, filterDuration, filterMinSeats, sortOption, userLocation]);
 
   // Categories quick toggles
   const categoriesList = ['All', 'Trekking', 'Hiking', 'Camping', 'Adventure Tours', 'Nature Walks', 'Weekend Trips'];
@@ -102,6 +123,7 @@ export default function ExploreView({
     limit: ITEMS_PER_PAGE,
     search: searchQuery.trim() || undefined,
     category: selectedCategory !== 'All' ? selectedCategory : undefined,
+    homeFilter: selectedHomeFilter || undefined,
     difficulty: filterDifficulty !== 'All' ? filterDifficulty : undefined,
     date: selectedDate || undefined,
     pickupCity: filterPickupCity !== 'All' ? filterPickupCity : undefined,
@@ -111,7 +133,7 @@ export default function ExploreView({
     minSeats: filterMinSeats > 1 ? filterMinSeats : undefined,
     sort: sortOption,
   }), [
-    currentPage, searchQuery, selectedCategory, filterDifficulty, selectedDate,
+    currentPage, searchQuery, selectedCategory, selectedHomeFilter, filterDifficulty, selectedDate,
     filterPickupCity, cityFilter, filterBudget, priceCeiling, filterDuration,
     filterMinSeats, sortOption,
   ]);
@@ -150,8 +172,18 @@ export default function ExploreView({
     if (searchQuery.trim()) {
       result = result.filter(t => matchesQuery(t, searchQuery));
     }
+    if (selectedHomeFilter) {
+      const matchedFilter = homeFilters.find(f => f.id === selectedHomeFilter || f.label?.toLowerCase() === selectedHomeFilter?.toLowerCase());
+      const filterLabel = matchedFilter?.label?.toLowerCase();
+      result = result.filter(t =>
+        (t.homeFilterIds || []).includes(selectedHomeFilter) ||
+        (matchedFilter && (t.homeFilterIds || []).includes(matchedFilter.id)) ||
+        (filterLabel && t.category?.toLowerCase() === filterLabel) ||
+        t.category?.toLowerCase() === selectedHomeFilter.toLowerCase()
+      );
+    }
     return result;
-  }, [allTreks, trips, userLocation, searchQuery]);
+  }, [allTreks, userLocation, searchQuery, selectedHomeFilter, homeFilters]);
 
   // Bookable results are what Explore is for, so the coming-soon strip starts
   // collapsed to a short preview and expands on demand instead of adding an
@@ -171,6 +203,7 @@ export default function ExploreView({
     setSortOption('Popular');
     onSetSearchQuery('');
     onSetCategory('All');
+    onSetHomeFilter('');
     if (onSetDate) onSetDate('');
   };
 
@@ -183,9 +216,10 @@ export default function ExploreView({
     if (filterPickupCity !== 'All') count++;
     if (sortOption !== 'Popular') count++;
     if (selectedCategory !== 'All') count++;
+    if (selectedHomeFilter) count++;
     if (selectedDate) count++;
     return count;
-  }, [filterDifficulty, filterBudget, filterDuration, filterMinSeats, filterPickupCity, sortOption, selectedCategory, selectedDate, priceCeiling]);
+  }, [filterDifficulty, filterBudget, filterDuration, filterMinSeats, filterPickupCity, sortOption, selectedCategory, selectedHomeFilter, selectedDate, priceCeiling]);
 
   // "Sat, 20 Aug" style label for the active departure-date chip
   const selectedDateLabel = selectedDate
@@ -193,7 +227,7 @@ export default function ExploreView({
     : '';
 
   return (
-    <div className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-28 md:pb-16 ${
+    <div className={`flex-1 font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 ${
       darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
@@ -226,7 +260,7 @@ export default function ExploreView({
         </div>
 
         {/* Search + filter */}
-        <div className="flex gap-3 mt-5 max-w-4xl">
+        <div className="flex gap-3 mt-5 w-full max-w-5xl">
           <div className="relative flex-1">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${darkMode ? 'text-white/40' : 'text-zinc-400'}`} size={17} />
             <input
@@ -262,38 +296,92 @@ export default function ExploreView({
           </button>
         </div>
 
-        {/* Active departure-date / pickup-city filter chips */}
-        {(selectedDate || filterPickupCity !== 'All') && (
-          <div className="flex items-center flex-wrap gap-2 mt-4">
-            {selectedDate && (
-              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
+        {/* Trek categories filter rail */}
+        {homeFilters.length > 0 && (
+          <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar pb-0.5">
+            <button
+              type="button"
+              id="filter-cat-all"
+              onClick={() => onSetHomeFilter('')}
+              className={`px-4 py-2 rounded-full text-xs font-semibold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
+                !selectedHomeFilter
+                  ? 'bg-forest-600 text-white shadow-sm'
+                  : (darkMode ? 'bg-elegant-card text-zinc-300 border border-white/5 hover:border-white/15' : 'bg-white text-zinc-600 border border-gray-200/80 hover:border-gray-300')
+              }`}
+            >
+              <span>All</span>
+            </button>
+            {homeFilters.map((filter) => {
+              const isSelected = selectedHomeFilter === filter.id || selectedHomeFilter === filter.label;
+              return (
+                <button
+                  key={filter.id}
+                  id={`filter-cat-${filter.id}`}
+                  type="button"
+                  onClick={() => onSetHomeFilter(isSelected ? '' : filter.id)}
+                  className={`px-4 py-2 rounded-full text-xs font-semibold shrink-0 transition flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-forest-600 text-white shadow-sm'
+                      : (darkMode ? 'bg-elegant-card text-zinc-300 border border-white/5 hover:border-white/15' : 'bg-white text-zinc-600 border border-gray-200/80 hover:border-gray-300')
+                  }`}
+                >
+                  {renderFilterIcon(filter.icon, 13)}
+                  <span>{filter.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Active category / departure-date / pickup-city filter chips */}
+        {(selectedHomeFilter || selectedDate || filterPickupCity !== 'All') && (
+          <div className="flex items-center flex-wrap gap-2 mt-3">
+            {selectedHomeFilter && (
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
                 darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
               }`}>
-                <Calendar size={14} /> Departing {selectedDateLabel}
+                {renderFilterIcon(homeFilters.find(f => f.id === selectedHomeFilter || f.label === selectedHomeFilter)?.icon, 13)}
+                <span>{homeFilters.find(f => f.id === selectedHomeFilter || f.label === selectedHomeFilter)?.label || selectedHomeFilter}</span>
                 <button
-                  onClick={() => onSetDate && onSetDate('')}
-                  aria-label="Clear date filter"
-                  className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
+                  onClick={() => onSetHomeFilter('')}
+                  aria-label="Clear category filter"
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ml-0.5 cursor-pointer ${
                     darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
                   }`}
                 >
-                  <X size={12} />
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+            {selectedDate && (
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
+                darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
+              }`}>
+                <Calendar size={13} /> Departing {selectedDateLabel}
+                <button
+                  onClick={() => onSetDate && onSetDate('')}
+                  aria-label="Clear date filter"
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ml-0.5 cursor-pointer ${
+                    darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
+                  }`}
+                >
+                  <X size={11} />
                 </button>
               </span>
             )}
             {filterPickupCity !== 'All' && (
-              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-2 rounded-full text-sm font-semibold shadow-sm ${
+              <span className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
                 darkMode ? 'bg-forest-500/15 text-forest-400' : 'bg-forest-500/10 text-forest-700'
               }`}>
-                <Bus size={14} /> Ex-{filterPickupCity}
+                <Bus size={13} /> Ex-{filterPickupCity}
                 <button
                   onClick={() => setFilterPickupCity('All')}
                   aria-label="Clear pickup city filter"
-                  className={`w-5 h-5 rounded-full flex items-center justify-center ml-0.5 ${
+                  className={`w-4 h-4 rounded-full flex items-center justify-center ml-0.5 cursor-pointer ${
                     darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-forest-500/15 hover:bg-forest-500/25'
                   }`}
                 >
-                  <X size={12} />
+                  <X size={11} />
                 </button>
               </span>
             )}
@@ -301,12 +389,12 @@ export default function ExploreView({
         )}
 
         {/* Difficulty pills */}
-        <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar pb-0.5">
+        <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar pb-0.5">
           {['All', 'Easy', 'Moderate', 'Difficult'].map(diff => (
             <button
               key={diff}
               onClick={() => setFilterDifficulty(diff)}
-              className={`px-5 py-2.5 rounded-full text-sm font-medium shrink-0 transition ${
+              className={`px-4 py-1.5 rounded-full text-xs font-medium shrink-0 transition cursor-pointer ${
                 filterDifficulty === diff
                   ? 'bg-spy-orange text-white shadow-sm'
                   : (darkMode ? 'bg-elegant-card text-zinc-300' : 'bg-white text-zinc-600 border border-gray-200/70')
@@ -342,6 +430,34 @@ export default function ExploreView({
               </div>
 
               {/* 1. Category filter (difficulty lives in the primary pills above) */}
+              {homeFilters.length > 0 && (
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Trek Category & Region</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSetHomeFilter('')}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition ${!selectedHomeFilter ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
+                    >All</button>
+                    {homeFilters.map((filter) => {
+                      const isSelected = selectedHomeFilter === filter.id || selectedHomeFilter === filter.label;
+                      return (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          onClick={() => onSetHomeFilter(isSelected ? '' : filter.id)}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isSelected ? 'bg-forest-600 text-white' : (darkMode ? 'bg-elegant-app text-zinc-300' : 'bg-gray-100 text-zinc-600')}`}
+                        >
+                          {renderFilterIcon(filter.icon, 13)}
+                          <span>{filter.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity category is independent from the admin-managed home collections. */}
               <div>
                 <label className="text-[11px] font-bold uppercase tracking-wider opacity-55 block mb-2">Category</label>
                 <div className="flex flex-wrap gap-2">
@@ -559,15 +675,19 @@ export default function ExploreView({
                       className={`rounded-3xl overflow-hidden cursor-pointer shadow-md flex flex-col h-full ${darkMode ? 'bg-elegant-card' : 'bg-white'}`}
                     >
                       {/* Cover */}
-                      <div className="relative h-48 sm:h-52 overflow-hidden">
+                      <div className="relative h-44 sm:h-48 overflow-hidden">
                         <img src={trip.coverImage} alt={trip.name} className="w-full h-full object-cover" />
-                        <span className={`absolute top-3.5 left-3.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
+                        <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/55 to-transparent pointer-events-none" />
+                        <span className={`absolute top-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-sm ${diffText}`}>
                           {trip.difficulty}
+                        </span>
+                        <span className="absolute bottom-3 left-3 flex items-center gap-1 text-[11px] font-semibold text-white px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm">
+                          <Clock size={12} /> {durationRange(trip)} Days
                         </span>
                         <button
                           id={`btn-toggle-wishlist-explore-${trip.id}`}
                           onClick={(e) => { e.stopPropagation(); onToggleWishlist(trip.id); }}
-                          className={`absolute top-3.5 right-3.5 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition z-20 ${
+                          className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md active:scale-90 transition z-20 ${
                             isSaved ? 'bg-rose-500 text-white' : 'bg-black/35 text-white hover:bg-black/55'
                           }`}
                         >
@@ -576,24 +696,30 @@ export default function ExploreView({
                       </div>
 
                       {/* Details */}
-                      <div className="p-5">
-                        <h3 className="font-serif text-xl font-semibold leading-tight">{trip.name}</h3>
+                      <div className="px-4 pt-3.5 pb-4 flex flex-col flex-1">
+                        <h3 className="font-serif text-lg font-semibold leading-snug line-clamp-1">{trip.name}</h3>
+                        <p className={`flex items-center gap-1 text-xs mt-1 truncate ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          <MapPin size={13} className="opacity-70 shrink-0" />
+                          <span className="truncate">{trip.location}</span>
+                        </p>
 
-                        <div className={`flex items-center gap-x-4 gap-y-1.5 flex-wrap text-xs mt-2.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          <span className="flex items-center gap-1"><MapPin size={13} className="opacity-70" /> {trip.location}</span>
-                          <span className="flex items-center gap-1"><Clock size={13} className="opacity-70" /> {durationRange(trip)} Days</span>
-                          <span className="flex items-center gap-1"><Users size={13} className="opacity-70" /> {trip.availableSeats} slots</span>
-                          {group.organizerCount > 1 && (
-                            <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
-                          )}
-                        </div>
-
-                        <div className="flex items-end justify-between mt-4">
-                          <div>
-                            <span className={`text-[11px] font-semibold block ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Starting from</span>
-                            <span className={`font-serif text-2xl font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{group.minPrice}</span>
+                        <div className={`flex items-end justify-between gap-3 mt-auto pt-3 border-t ${darkMode ? 'border-white/10' : 'border-zinc-100'}`}>
+                          <div className={`flex flex-col gap-1 text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            <span className={`flex items-center gap-1 ${trip.availableSeats > 0 && trip.availableSeats <= 5 ? 'text-spy-orange font-semibold' : ''}`}>
+                              <Users size={13} className="opacity-70" />
+                              {trip.availableSeats > 0 && trip.availableSeats <= 5 ? `Only ${trip.availableSeats} left` : `${trip.availableSeats} slots`}
+                            </span>
+                            {group.organizerCount > 1 && (
+                              <span className="flex items-center gap-1"><Sparkles size={12} className="opacity-70" /> {group.organizerCount} organizers</span>
+                            )}
                           </div>
-                          <span className={`text-xs ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>per person</span>
+                          <div className="text-right leading-none shrink-0">
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>From</span>
+                            <div className="mt-1">
+                              <span className={`font-serif text-xl font-semibold ${darkMode ? 'text-elegant-text' : 'text-zinc-900'}`}>₹{Number(group.minPrice).toLocaleString('en-IN')}</span>
+                              <span className={`text-[11px] ml-0.5 ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>/person</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </motion.div>

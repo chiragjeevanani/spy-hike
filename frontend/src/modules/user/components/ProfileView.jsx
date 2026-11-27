@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -8,6 +9,7 @@ import {
 import ThemeToggle from '../../../components/ThemeToggle';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import TravelTicket from './TravelTicket';
+import AthleticsExperienceFields from './AthleticsExperienceFields';
 import SwitchTransition from './SwitchTransition';
 import { useInstantNav, routeSwapVariants } from '../../../utils/navTransition';
 import { sanitizePhoneInput, isValidPhone, PHONE_MAX_DIGITS, PHONE_RULE_MESSAGE } from '../../../utils/phone';
@@ -245,6 +247,12 @@ export default function ProfileView({
   const [hikeExperience, setHikeExperience] = useState(user.hikingExperience);
   const [fitLevel, setFitLevel] = useState(user.fitnessLevel);
 
+  useEffect(() => {
+    // Entering or leaving the page discards its draft, including browser Back.
+    setHikeExperience(user.hikingExperience || 'Beginner');
+    setFitLevel(user.fitnessLevel || 'Moderate');
+  }, [currentSub, user.hikingExperience, user.fitnessLevel]);
+
   // Settings
 
   const [passwordState, setPasswordState] = useState({ current: '', next: '', confirm: '' });
@@ -287,8 +295,8 @@ export default function ProfileView({
       const raw = localStorage.getItem(ORG_USER_STORAGE_KEY);
       if (!raw) return false;
       const org = JSON.parse(raw);
-      // Must at least be onboarded — covers both approved and pending-approval states
-      return !!(org?.isOnboarded && (org?.email === user?.email || org?.isAuthenticated));
+      // Must be authenticated, onboarded, and belong to the active hiker email
+      return !!(org?.isAuthenticated && org?.isOnboarded && org?.email && org.email.toLowerCase() === (user?.email || '').toLowerCase());
     } catch { return false; }
   })();
 
@@ -577,7 +585,7 @@ export default function ProfileView({
       hikingExperience: hikeExperience,
       fitnessLevel: fitLevel
     });
-    toast.success('Adventure statistics updated! AI recommend algorithms adjusted.');
+    toast.success('Athletics & experience saved.');
     goSub('MAIN');
   };
 
@@ -693,6 +701,12 @@ export default function ProfileView({
             window.location.href = '/organizer';
           }, 1400);
         } else {
+          try {
+            localStorage.removeItem(ORG_USER_STORAGE_KEY);
+            if (localStorage.getItem('trekigo_active_role') === 'organizer') {
+              localStorage.removeItem('trekigo_active_role');
+            }
+          } catch (e) {}
           setOrgSwitching(false);
           goSub('BECOME_ORGANIZER');
         }
@@ -857,7 +871,7 @@ export default function ProfileView({
   };
 
   return (
-    <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-16 ${
+    <div className={`flex-1 flex flex-col font-sans w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 ${
       darkMode ? 'bg-transparent text-elegant-text' : 'bg-transparent text-zinc-900'
     }`}>
 
@@ -1451,7 +1465,7 @@ export default function ProfileView({
             exit="exit"
             onSubmit={handleSavePersonalInfo}
             noValidate
-            className="flex-1 flex flex-col justify-between pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col justify-between pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16"
           >
           <div className="space-y-6">
             <div className={subHeaderCls}>
@@ -1567,7 +1581,7 @@ export default function ProfileView({
             already applied lands on the review screen instead, no matter how
             they got here (menu tap, deep link, or a restored route). */}
         {currentSub === 'BECOME_ORGANIZER' && !orgStatusResolved && (
-          <motion.div
+          <OverlayPortal><motion.div
             key="ORG_STATUS_LOADING"
             custom={instantNav}
             variants={FADE_SWAP}
@@ -1580,11 +1594,11 @@ export default function ProfileView({
           >
             <RefreshCw size={22} className="text-spy-orange animate-spin" />
             <p className="text-sm font-semibold opacity-60">Checking your application status…</p>
-          </motion.div>
+          </motion.div></OverlayPortal>
         )}
 
         {currentSub === 'BECOME_ORGANIZER' && orgStatusResolved && hasApplied && (
-          <motion.div
+          <OverlayPortal><motion.div
             key="ORG_APPLICATION_STATUS"
             custom={instantNav}
             variants={SHEET_SWAP}
@@ -1716,13 +1730,13 @@ export default function ProfileView({
                 </>
               )}
             </div>
-          </motion.div>
+          </motion.div></OverlayPortal>
         )}
 
         {/* Partner application form — only for accounts with no application on
             file (mirrors the OrgAuth signup fields) */}
         {currentSub === 'BECOME_ORGANIZER' && orgStatusResolved && !hasApplied && (
-          <motion.form
+          <OverlayPortal><motion.form
             key="BECOME_ORGANIZER"
             custom={instantNav}
             variants={SHEET_SWAP}
@@ -1940,7 +1954,7 @@ export default function ProfileView({
               Submit Application <ChevronRight size={16} />
             </button>
           </div>
-          </motion.form>
+          </motion.form></OverlayPortal>
         )}
 
         {/* SUB 2: EDIT ATHLETICS & STATS */}
@@ -1953,84 +1967,36 @@ export default function ProfileView({
             animate="animate"
             exit="exit"
             onSubmit={handleSaveStatsInfo}
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16 max-w-2xl mx-auto lg:mx-0"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 max-w-2xl mx-auto lg:mx-0"
           >
             <div className={`rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-colors ${
               darkMode ? 'bg-elegant-card border-white/10' : 'bg-white border-zinc-200/80 shadow-xs'
             }`}>
               <div className="flex items-center gap-3.5 pb-4 border-b border-white/5">
-                <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
+                <button type="button" aria-label="Back to profile" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
                   <ArrowLeft size={17} />
                 </button>
                 <div>
                   <h3 className={subTitleCls}>Athletics & Experience</h3>
                   <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    AI-Recommendation matrix parameters for trail difficulty matching.
+                    Your experience, your fitness, your next adventure.
                   </p>
                 </div>
               </div>
 
-              {/* Hiking Experience toggles */}
-              <div className="space-y-3">
-                <label className={subLabelCls}>Outdoors Hiking Experience</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: 'Beginner', title: 'Beginner', desc: '0-2 day hikes' },
-                    { id: 'Intermediate', title: 'Intermediate', desc: '3-8 moderate trails' },
-                    { id: 'Advanced', title: 'Advanced', desc: 'Alpine & summit treks' }
-                  ].map(lev => (
-                    <button
-                      key={lev.id}
-                      type="button"
-                      onClick={() => setHikeExperience(lev.id)}
-                      className={`p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
-                        hikeExperience === lev.id
-                          ? 'border-forest-500 bg-forest-500/15 text-forest-600 dark:text-forest-400 shadow-xs'
-                          : (darkMode ? 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:border-white/20' : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 shadow-xs')
-                      }`}
-                    >
-                      <span className="text-sm font-bold block">{lev.title}</span>
-                      <span className={`text-[11px] mt-1 opacity-75 block ${hikeExperience === lev.id ? 'font-medium' : ''}`}>
-                        {lev.desc}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Fitness Level toggles */}
-              <div className="space-y-3">
-                <label className={subLabelCls}>Current Cardio Fitness Level</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: 'Low', title: 'Low', desc: 'Light walking' },
-                    { id: 'Moderate', title: 'Moderate', desc: 'Regular workouts' },
-                    { id: 'High', title: 'High', desc: 'Endurance athlete' }
-                  ].map(fit => (
-                    <button
-                      key={fit.id}
-                      type="button"
-                      onClick={() => setFitLevel(fit.id)}
-                      className={`p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
-                        fitLevel === fit.id
-                          ? 'border-forest-500 bg-forest-500/15 text-forest-600 dark:text-forest-400 shadow-xs'
-                          : (darkMode ? 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 hover:border-white/20' : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 shadow-xs')
-                      }`}
-                    >
-                      <span className="text-sm font-bold block">{fit.title}</span>
-                      <span className={`text-[11px] mt-1 opacity-75 block ${fitLevel === fit.id ? 'font-medium' : ''}`}>
-                        {fit.desc}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <AthleticsExperienceFields
+                darkMode={darkMode}
+                experience={hikeExperience}
+                fitness={fitLevel}
+                onExperienceChange={setHikeExperience}
+                onFitnessChange={setFitLevel}
+              />
 
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => goSub('MAIN')}
-                  className={`hidden sm:block px-5 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider border cursor-pointer transition ${
+                  className={`px-5 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider border cursor-pointer transition ${
                     darkMode ? 'border-white/10 hover:bg-white/5 text-zinc-400' : 'border-zinc-200 hover:bg-zinc-100 text-zinc-600'
                   }`}
                 >
@@ -2040,7 +2006,7 @@ export default function ProfileView({
                   type="submit"
                   className="w-full sm:w-auto px-7 py-3.5 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-2xl text-xs sm:text-sm uppercase tracking-wider transition cursor-pointer active:scale-95 shadow-md shadow-forest-900/20"
                 >
-                  Update Physical Stats
+                  Save changes
                 </button>
               </div>
             </div>
@@ -2056,7 +2022,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2109,7 +2075,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16 space-y-5"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16 space-y-5"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2229,7 +2195,7 @@ export default function ProfileView({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 flex flex-col pt-4 pb-28 md:pb-16"
+            className="flex-1 flex flex-col pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-16"
           >
           <div className={subHeaderCls}>
             <button type="button" onClick={() => goSub('MAIN')} className={subBackBtnCls}>
@@ -2441,8 +2407,8 @@ export default function ProfileView({
 
       {/* OTP verification Modal */}
       {showOtpModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-5 z-[100] animate-fade-in">
-          <div className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 ${
+        <OverlayPortal><div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-5 z-[100] animate-fade-in">
+          <div role="dialog" aria-modal="true" aria-label="Verify Identity Change" className={`w-full max-w-sm max-h-[calc(100dvh-2.5rem)] overflow-y-auto overscroll-contain rounded-3xl p-6 shadow-2xl space-y-4 ${
             darkMode ? 'bg-zinc-900 border border-zinc-800 text-white' : 'bg-white text-zinc-800'
           }`}>
             <div className="text-center space-y-1.5">
@@ -2518,7 +2484,7 @@ export default function ProfileView({
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       <ConfirmDialog

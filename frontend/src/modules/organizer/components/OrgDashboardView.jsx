@@ -21,15 +21,17 @@ export default function OrgDashboardView({
   onOpenChats,
   onApproveReschedule,
   onRejectReschedule,
-  darkMode
+  darkMode,
+  commissionRate = 10,
 }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
   const showLoyaltyBanner = loyaltyConfig.organizer.enabled && loyaltyConfig.organizer.banner.enabled;
   const activeBookings = bookings.filter(b => b.status === 'Upcoming' || b.status === 'Completed');
   const grossRevenue = activeBookings.reduce((s, b) => s + (b.finalAmount || 0), 0);
+  const rate = (typeof commissionRate === 'number' ? commissionRate : 10) / 100;
   const totalCommission = activeBookings.reduce((s, b) => {
-    const commission = b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount * 0.1);
+    const commission = b.commissionAmount !== undefined ? b.commissionAmount : (b.finalAmount * rate);
     return s + commission;
   }, 0);
   const netRevenue = grossRevenue - totalCommission;

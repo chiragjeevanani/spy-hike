@@ -1,3 +1,4 @@
+import { futureDate } from './fixtures/dates.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // City selection, end to end against real catalog data.
@@ -7,7 +8,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 // it. These specs assert the replacement is driven by the catalog — every city
 // offered has treks, and picking one shows them.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const ADMIN = {
   email: process.env.ADMIN_EMAIL || 'superadmin@gmail.com',
   password: process.env.ADMIN_PASSWORD || 'password123',
@@ -78,7 +79,7 @@ async function seedCatalog() {
         pricingTiers: [{ label: 'Solo', price: 4999 }],
         pickup: { location: s.location.split(',')[0], price: 300 },
         startPoint: { lat: s.lat, lng: s.lng, label: `${s.location.split(',')[0]} Base` },
-        departureDates: ['2026-11-10', '2026-11-24'],
+        departureDates: [futureDate(30), futureDate(44)],
         difficulty: 'Moderate', durationDays: 3, maxGroupSize: 15, availableSeats: 15,
         category: 'Trekking', coverImage: COVER,
         description: 'City picker e2e trek.', status: 'Published',

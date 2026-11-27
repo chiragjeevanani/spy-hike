@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { cacheInvalidate, closeCache } from '../../src/lib/cache.js';
 import { env } from '../../src/config/env.js';
+import { invalidateConfigCache } from '../../src/models/AdminConfig.js';
 
 /**
  * Single-instance in-memory MongoDB manager.
@@ -33,6 +34,7 @@ beforeAll(async () => {
 beforeEach(() => {
   env.otpMock = true;
   env.otpMockCode = '123456';
+  invalidateConfigCache();
   env.paymentMode = 'arrival';
   env.payuMerchantKey = '';
   env.payuMerchantSalt = '';
@@ -53,10 +55,4 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closeCache();
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.connection.close();
-  }
-  if (globalThis.__MONGOD_INSTANCE__) {
-    await globalThis.__MONGOD_INSTANCE__.stop();
-  }
-}, 60000);
+});

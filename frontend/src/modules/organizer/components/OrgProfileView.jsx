@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   User, Building2, Mail, Phone, Globe, Star, Award, TrendingUp, LogOut,
-  Moon, Sun, Edit3, ChevronRight, Save, X, Plus, Minus, Gift, LifeBuoy,
+  Moon, Sun, Edit3, ChevronRight, Save, ArrowLeft, Loader2, Plus, Minus, Gift, LifeBuoy,
   Info, Instagram, AlertCircle, Wallet, TicketPercent, ShieldCheck, Compass
 } from 'lucide-react';
 import ThemeToggle from '../../../components/ThemeToggle';
@@ -29,32 +29,23 @@ export default function OrgProfileView({
   darkMode,
   onToggleDarkMode,
   onFullscreenChange,
-  autoEditProfile,
-  onClearAutoEdit
+  editingPage = false,
+  onEditProfile,
+  onBack,
+  onSaved
 }) {
   const loyaltyConfig = loadLoyaltyConfig();
   const loyaltyProgress = getOrganizerProgress(organizer?.totalBookings || 0, loyaltyConfig);
-  const [editing, setEditing] = useState(Boolean(autoEditProfile));
+  const [saving, setSaving] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpSupport, setShowHelpSupport] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [travSwitching, setTravSwitching] = useState(false);
 
   useEffect(() => {
-    if (autoEditProfile) {
-      setEditing(true);
-    }
-  }, [autoEditProfile]);
-
-  const closeEditModal = () => {
-    setEditing(false);
-    if (onClearAutoEdit) onClearAutoEdit();
-  };
-
-  useEffect(() => {
-    if (onFullscreenChange) onFullscreenChange(travSwitching);
+    if (onFullscreenChange) onFullscreenChange(travSwitching || editingPage);
     return () => { if (onFullscreenChange) onFullscreenChange(false); };
-  }, [travSwitching, onFullscreenChange]);
+  }, [travSwitching, editingPage, onFullscreenChange]);
 
   const handleSwitchToTraveller = () => {
     setTravSwitching(true);
@@ -111,7 +102,9 @@ export default function OrgProfileView({
     return errors;
   };
 
-  const handleSave = () => {
+  const handleSave = async (event) => {
+    event.preventDefault();
+    if (saving) return;
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       const order = ['name', 'agencyName', 'headline', 'supportPhone', 'supportEmail', 'agencyWebsite', 'socialMediaLink', 'yearsExperience'];
@@ -124,19 +117,21 @@ export default function OrgProfileView({
     }
     setFieldErrors({});
     setFormError('');
-    authApi.updateOrganizerProfile(form)
-      .then((res) => {
-        const updated = { ...organizer, ...res.organizer };
-        saveOrgUser(updated);
-        setEditing(false);
-        toast.success('Profile updated successfully!');
-        window.location.reload();
-      })
-      .catch((err) => {
-        const message = err?.message || 'Failed to save profile details.';
-        setFormError(message);
-        toast.error(message);
-      });
+    setSaving(true);
+    try {
+      const res = await authApi.updateOrganizerProfile(form);
+      const updated = { ...organizer, ...res.organizer };
+      saveOrgUser(updated);
+      onSaved?.(updated);
+      toast.success('Profile updated successfully!');
+      onBack?.();
+    } catch (err) {
+      const message = err?.message || 'Failed to save profile details.';
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputCls = `w-full px-4 py-3 rounded-2xl text-xs sm:text-sm border outline-none transition ${
@@ -167,6 +162,133 @@ export default function OrgProfileView({
         onBack={() => setShowAbout(false)}
         darkMode={darkMode}
       />
+    );
+  }
+
+
+  if (editingPage) {
+    return (
+      <section className={`min-h-screen w-full px-4 py-6 sm:px-6 sm:py-10 ${darkMode ? 'bg-zinc-950 text-white' : 'bg-[#FAF8F2] text-zinc-900'}`}>
+        <div className="mx-auto max-w-3xl">
+          <button type="button" onClick={onBack} aria-label="Back to agency profile" className="mb-6 flex items-center gap-2 text-sm font-bold text-spy-orange">
+            <ArrowLeft size={18} /> Agency profile
+          </button>
+          <header className="mb-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-spy-orange">Your agency</p>
+            <h1 className="mt-2 text-3xl font-display font-black">Edit Agency Profile</h1>
+            <p className={`mt-2 text-sm ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Introduce your team, share your expertise, and help hikers get in touch.</p>
+          </header>
+          <form onSubmit={handleSave} noValidate className={`rounded-3xl border overflow-hidden ${darkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
+              <div className="p-5 sm:p-8 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { label: 'Full Name *', key: 'name', type: 'text', placeholder: 'Your name' },
+                    { label: 'Agency Name *', key: 'agencyName', type: 'text', placeholder: 'Agency name' },
+                    { label: 'Agency Headline', key: 'headline', type: 'text', placeholder: 'e.g. High-safety alpine expeditions' },
+                    { label: 'Support Phone (10 digits)', key: 'supportPhone', type: 'tel', placeholder: '9876543210', inputMode: 'numeric', maxLength: 10 },
+                    { label: 'Support Email', key: 'supportEmail', type: 'email', placeholder: 'support@agency.com' },
+                    { label: 'Official Website', key: 'agencyWebsite', type: 'url', placeholder: 'https://...' },
+                    { label: 'Social Media Link (Optional)', key: 'socialMediaLink', type: 'url', placeholder: 'https://instagram.com/agency', required: false },
+                    { label: 'Years Experience', key: 'yearsExperience', type: 'number', placeholder: '5' },
+                  ].map(field => (
+                    <div key={field.key} className={field.key === 'headline' || field.key === 'socialMediaLink' ? 'sm:col-span-2' : ''}>
+                      <label className={labelCls}>{field.label}</label>
+                      <input
+                        ref={el => { fieldRefs.current[field.key] = { current: el }; }}
+                        type={field.type}
+                        required={field.required}
+                        inputMode={field.inputMode}
+                        maxLength={field.maxLength}
+                        className={`${inputCls} ${fieldErrors[field.key] ? 'border-red-500 focus:border-red-500' : ''}`}
+                        placeholder={field.placeholder}
+                        value={form[field.key]}
+                        onChange={e => {
+                          const raw = e.target.value;
+                          const val = field.key === 'supportPhone' ? raw.replace(/\D/g, '').slice(0, 10) : raw;
+                          setForm(p => ({ ...p, [field.key]: val }));
+                          setFormError('');
+                          setFieldErrors(er => ({ ...er, [field.key]: '' }));
+                        }}
+                      />
+                      {fieldErrors[field.key] && <p className="text-[11px] font-semibold text-red-500 mt-1">{fieldErrors[field.key]}</p>}
+                    </div>
+                  ))}
+                </div>
+
+                {formError && (
+                  <div className={`flex gap-2 items-center p-3 rounded-2xl text-xs font-semibold ${
+                    darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'
+                  }`}>
+                    <AlertCircle size={14} className="shrink-0" /> {formError}
+                  </div>
+                )}
+
+                <div>
+                  <label className={labelCls}>Agency Overview / Bio</label>
+                  <textarea
+                    className={`${inputCls} resize-none`}
+                    rows={3}
+                    placeholder="Briefly describe your agency's mountain legacy and safety standards..."
+                    value={form.bio}
+                    onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={labelCls}>Core Capabilities</label>
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, coreCapabilities: [...p.coreCapabilities, ''] }))}
+                      className="text-spy-orange text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={13} /> Add capability
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {form.coreCapabilities.map((cap, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <input
+                          type="text"
+                          className={`${inputCls} flex-1 min-w-0`}
+                          placeholder={`Capability ${idx + 1}`}
+                          value={cap}
+                          onChange={e => {
+                            const arr = [...form.coreCapabilities];
+                            arr[idx] = e.target.value;
+                            setForm(p => ({ ...p, coreCapabilities: arr }));
+                          }}
+                        />
+                        {form.coreCapabilities.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const arr = form.coreCapabilities.filter((_, i) => i !== idx);
+                              setForm(p => ({ ...p, coreCapabilities: arr }));
+                            }}
+                            className="text-rose-500 px-2 cursor-pointer"
+                          >
+                            <Minus size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={`p-6 border-t shrink-0 ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full py-3.5 rounded-2xl bg-spy-orange hover:bg-[#d96d1a] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {saving ? 'Saving…' : 'Save Profile Changes'}
+                </button>
+              </div>
+          </form>
+        </div>
+      </section>
     );
   }
 
@@ -222,7 +344,7 @@ export default function OrgProfileView({
             <button
               type="button"
               id="btn-edit-org-profile"
-              onClick={() => { setFormError(''); setEditing(true); }}
+              onClick={onEditProfile}
               className="self-start sm:self-center flex items-center gap-2 px-5 py-3 rounded-2xl bg-spy-orange hover:bg-[#d96d1a] text-white font-bold text-xs sm:text-sm shadow-md shadow-spy-orange/20 transition cursor-pointer active:scale-95 shrink-0"
             >
               <Edit3 size={16} /> Edit Profile
@@ -461,146 +583,6 @@ export default function OrgProfileView({
 
       </div>
 
-      {/* Edit Profile Modal Dialog */}
-      <AnimatePresence>
-        {editing && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6"
-            onClick={closeEditModal}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className={`w-full max-w-2xl rounded-3xl overflow-hidden max-h-[90vh] flex flex-col border shadow-2xl ${
-                darkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'
-              }`}
-            >
-              <div className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${
-                darkMode ? 'border-white/10' : 'border-zinc-200'
-              }`}>
-                <h2 className="text-lg font-display font-black">Edit Agency Profile</h2>
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className={`p-2 rounded-xl cursor-pointer ${darkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}
-                >
-                  <X size={17} />
-                </button>
-              </div>
-
-              <div className="p-6 overflow-y-auto space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { label: 'Full Name *', key: 'name', type: 'text', placeholder: 'Your name' },
-                    { label: 'Agency Name *', key: 'agencyName', type: 'text', placeholder: 'Agency name' },
-                    { label: 'Agency Headline', key: 'headline', type: 'text', placeholder: 'e.g. High-safety alpine expeditions' },
-                    { label: 'Support Phone (10 digits)', key: 'supportPhone', type: 'tel', placeholder: '9876543210', inputMode: 'numeric', maxLength: 10 },
-                    { label: 'Support Email', key: 'supportEmail', type: 'email', placeholder: 'support@agency.com' },
-                    { label: 'Official Website', key: 'agencyWebsite', type: 'url', placeholder: 'https://...' },
-                    { label: 'Social Media Link (Optional)', key: 'socialMediaLink', type: 'url', placeholder: 'https://instagram.com/agency', required: false },
-                    { label: 'Years Experience', key: 'yearsExperience', type: 'number', placeholder: '5' },
-                  ].map(field => (
-                    <div key={field.key} className={field.key === 'headline' || field.key === 'socialMediaLink' ? 'sm:col-span-2' : ''}>
-                      <label className={labelCls}>{field.label}</label>
-                      <input
-                        ref={el => { fieldRefs.current[field.key] = { current: el }; }}
-                        type={field.type}
-                        required={field.required}
-                        inputMode={field.inputMode}
-                        maxLength={field.maxLength}
-                        className={`${inputCls} ${fieldErrors[field.key] ? 'border-red-500 focus:border-red-500' : ''}`}
-                        placeholder={field.placeholder}
-                        value={form[field.key]}
-                        onChange={e => {
-                          const raw = e.target.value;
-                          const val = field.key === 'supportPhone' ? raw.replace(/\D/g, '').slice(0, 10) : raw;
-                          setForm(p => ({ ...p, [field.key]: val }));
-                          setFormError('');
-                          setFieldErrors(er => ({ ...er, [field.key]: '' }));
-                        }}
-                      />
-                      {fieldErrors[field.key] && <p className="text-[11px] font-semibold text-red-500 mt-1">{fieldErrors[field.key]}</p>}
-                    </div>
-                  ))}
-                </div>
-
-                {formError && (
-                  <div className={`flex gap-2 items-center p-3 rounded-2xl text-xs font-semibold ${
-                    darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'
-                  }`}>
-                    <AlertCircle size={14} className="shrink-0" /> {formError}
-                  </div>
-                )}
-
-                <div>
-                  <label className={labelCls}>Agency Overview / Bio</label>
-                  <textarea
-                    className={`${inputCls} resize-none`}
-                    rows={3}
-                    placeholder="Briefly describe your agency's mountain legacy and safety standards..."
-                    value={form.bio}
-                    onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className={labelCls}>Core Capabilities</label>
-                    <button
-                      type="button"
-                      onClick={() => setForm(p => ({ ...p, coreCapabilities: [...p.coreCapabilities, ''] }))}
-                      className="text-spy-orange text-xs font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus size={13} /> Add capability
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {form.coreCapabilities.map((cap, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <input
-                          type="text"
-                          className={`${inputCls} flex-1 min-w-0`}
-                          placeholder={`Capability ${idx + 1}`}
-                          value={cap}
-                          onChange={e => {
-                            const arr = [...form.coreCapabilities];
-                            arr[idx] = e.target.value;
-                            setForm(p => ({ ...p, coreCapabilities: arr }));
-                          }}
-                        />
-                        {form.coreCapabilities.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const arr = form.coreCapabilities.filter((_, i) => i !== idx);
-                              setForm(p => ({ ...p, coreCapabilities: arr }));
-                            }}
-                            className="text-rose-500 px-2 cursor-pointer"
-                          >
-                            <Minus size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className={`p-6 border-t shrink-0 ${darkMode ? 'border-white/10' : 'border-zinc-200'}`}>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  className="w-full py-3.5 rounded-2xl bg-spy-orange hover:bg-[#d96d1a] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-spy-orange/20 active:scale-95 transition-all cursor-pointer"
-                >
-                  <Save size={16} /> Save Profile Changes
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       <ConfirmDialog
         open={showLogoutConfirm}

@@ -1,12 +1,16 @@
 import Trip from '../models/Trip.js';
 import Trek from '../models/Trek.js';
 import Category from '../models/Category.js';
+import HomeFilter from '../models/HomeFilter.js';
+import Booking from '../models/Booking.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { slugify, makeTripId } from '../utils/slug.js';
 import { validateTripPayload } from '../services/tripService.js';
 import { provisionDepartures, getDepartures } from '../services/inventoryService.js';
 import { isPromotedNow } from '../utils/promotion.js';
+import { pauseExpiredListing, EXPIRED_DEPARTURES } from '../services/tripExpiryService.js';
+import { hasUpcomingDeparture } from '../utils/tripDate.js';
 
 // ─── Public catalog ────────────────────────────────────────────────────────
 
@@ -55,7 +59,7 @@ const GROUP_CARD_FIELDS = {
 export const listTrekGroups = asyncHandler(async (req, res) => {
   const {
     page = 1, limit = 12, search, category, difficulty, date, pickupCity,
-    city, state, maxPrice, maxDuration, minSeats, sort = 'Popular',
+    city, state, homeFilter, maxPrice, maxDuration, minSeats, sort = 'Popular',
   } = req.query;
 
   const pageNum = Math.max(1, Number(page) || 1);
@@ -63,6 +67,32 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
 
   // ── Filters on individual offers, applied before grouping ──
   const offerMatch = { status: 'Published' };
+  const andConditions = [];
+
+  if (homeFilter) {
+    let filterDoc = await HomeFilter.findById(homeFilter).select('label');
+    if (!filterDoc) {
+      filterDoc = await HomeFilter.findOne({ label: new RegExp(`^${homeFilter}$`, 'i') }).select('label _id');
+    }
+    const filterId = filterDoc?._id || homeFilter;
+    const filterLabel = filterDoc?.label || homeFilter;
+    const trekIds = await Trek.distinct('_id', {
+      status: 'Active',
+      $or: [
+        { homeFilterIds: filterId },
+        { homeFilterIds: homeFilter },
+        { category: new RegExp(`^${filterLabel}$`, 'i') },
+        { category: new RegExp(`^${homeFilter}$`, 'i') },
+      ],
+    });
+    andConditions.push({
+      $or: [
+        { trekId: { $in: trekIds } },
+        { category: new RegExp(`^${filterLabel}$`, 'i') },
+        { category: new RegExp(`^${homeFilter}$`, 'i') },
+      ],
+    });
+  }
   if (category && category !== 'All') offerMatch.category = category;
   if (difficulty && difficulty !== 'All') offerMatch.difficulty = difficulty;
   if (date) offerMatch.departureDates = date;
@@ -73,21 +103,27 @@ export const listTrekGroups = asyncHandler(async (req, res) => {
   }
   if (search) {
     const rx = safeRegex(search);
-    offerMatch.$or = [
-      { name: rx }, { location: rx }, { state: rx }, { city: rx },
-      { category: rx }, { 'startPoint.label': rx }, { 'pickup.location': rx },
-    ];
+    andConditions.push({
+      $or: [
+        { name: rx }, { location: rx }, { state: rx }, { city: rx },
+        { category: rx }, { 'startPoint.label': rx }, { 'pickup.location': rx },
+      ],
+    });
   }
   // A city/state selection matches any of the place fields, mirroring the
   // client's matchesLocation() which also accepted a pickup or start point.
   if (city || state) {
     const rx = safeRegex(city || state);
-    offerMatch.$and = [{
+    andConditions.push({
       $or: [
         { city: rx }, { state: rx }, { location: rx },
         { 'startPoint.label': rx }, { 'pickup.location': rx },
       ],
-    }];
+    });
+  }
+
+  if (andConditions.length > 0) {
+    offerMatch.$and = andConditions;
   }
 
   // ── Filters that only make sense once offers are grouped ──
@@ -421,7 +457,30 @@ export const listCategories = asyncHandler(async (req, res) => {
 // from the admin-curated Trek the organizer selected, so every organizer's
 // offering of the same trek shows identical stats.
 async function buildTripFields(body, organizer) {
-  const trek = await Trek.findById(body.trekId);
+  let trek = null;
+  if (body.trekId) {
+    trek = await Trek.findById(body.trekId);
+  }
+  if (!trek && body.name) {
+    const slug = slugify(body.name);
+    trek = (await Trek.findById(slug)) || (await Trek.findOne({ title: body.name }));
+    if (!trek) {
+      trek = await Trek.create({
+        _id: slug,
+        title: body.name,
+        location: body.location || 'Himalayas',
+        state: body.state || 'Himachal Pradesh',
+        city: body.city || 'Manali',
+        difficulty: body.difficulty || 'Moderate',
+        durationDays: body.durationDays || 3,
+        distanceKm: body.distanceKm || 15,
+        elevationMeters: body.elevationMeters || 3000,
+        coverImage: body.coverImage || 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+        category: body.category || 'Trekking',
+        status: 'Active',
+      });
+    }
+  }
   if (!trek) throw ApiError.badRequest('Select a valid trek before publishing');
   if (trek.status !== 'Active') throw ApiError.badRequest('This trek is no longer available for new listings');
 
@@ -490,11 +549,11 @@ export const createTrip = asyncHandler(async (req, res) => {
     throw ApiError.badRequest(`You have already posted a trip for '${fields.name}'. Organizers cannot post multiple trips under the same trek category. You can edit your existing trip instead.`);
   }
 
-  const trip = await Trip.create({
+  const trip = await Trip.create(pauseExpiredListing({
     _id: makeTripId(fields.name),
     ...fields,
     status: req.body.status === 'Published' ? 'Published' : 'Draft',
-  });
+  }));
   await provisionDepartures(trip);
   res.status(201).json({ trip: trip.toPublicJSON() });
 });
@@ -507,8 +566,15 @@ export const updateTrip = asyncHandler(async (req, res) => {
   }
   validateTripPayload(req.body);
   const fields = await buildTripFields(req.body, req.organizer);
+  const wasAutoPaused = trip.status === 'Paused' && trip.autoPausedReason === EXPIRED_DEPARTURES;
   Object.assign(trip, fields);
   if (req.body.status) trip.status = req.body.status;
+  else if (wasAutoPaused && hasUpcomingDeparture(trip)) trip.status = 'Published';
+  if (req.body.status === 'Paused') {
+    trip.autoPausedReason = '';
+    trip.autoPausedAt = null;
+  }
+  pauseExpiredListing(trip);
   await trip.save();
   await provisionDepartures(trip);
   res.json({ trip: trip.toPublicJSON() });
@@ -525,6 +591,11 @@ export const setOrganizerTripStatus = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('status must be Draft, Published or Paused');
   }
   trip.status = status;
+  if (status === 'Published' && !hasUpcomingDeparture(trip)) {
+    throw ApiError.badRequest('Add an upcoming departure date before publishing this trip');
+  }
+  trip.autoPausedReason = '';
+  trip.autoPausedAt = null;
   await trip.save();
   res.json({ trip: trip.toPublicJSON() });
 });
@@ -546,13 +617,51 @@ export const listAllTrips = asyncHandler(async (req, res) => {
   res.json({ trips: trips.map((t) => t.toPublicJSON()) });
 });
 
+// GET /admin/trips/:id — everything the admin trip detail page shows in one
+// call: the full listing (drafts and paused trips included, unlike the public
+// detail route), its dated departures, and a booking summary.
+export const adminGetTrip = asyncHandler(async (req, res) => {
+  const trip = await Trip.findById(req.params.id);
+  if (!trip) throw ApiError.notFound('Trip not found');
+
+  const [departures, bookings] = await Promise.all([
+    getDepartures(trip._id),
+    Booking.find({ tripId: trip._id })
+      .select('bookingId userName userEmail selectedDate travelersCount finalAmount status createdAt')
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  const active = bookings.filter((b) => b.status !== 'Cancelled');
+  const stats = {
+    totalBookings: bookings.length,
+    cancelledBookings: bookings.length - active.length,
+    travelers: active.reduce((sum, b) => sum + (b.travelersCount || 0), 0),
+    revenue: active.reduce((sum, b) => sum + (b.finalAmount || 0), 0),
+  };
+
+  res.json({
+    trip: trip.toPublicJSON(),
+    departures,
+    stats,
+    recentBookings: bookings.slice(0, 10).map(({ _id, ...b }) => b),
+  });
+});
+
 export const adminSetTripStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   if (!['Draft', 'Published', 'Paused'].includes(status)) {
     throw ApiError.badRequest('status must be Draft, Published or Paused');
   }
-  const trip = await Trip.findByIdAndUpdate(req.params.id, { status }, { new: true });
+  const trip = await Trip.findById(req.params.id);
   if (!trip) throw ApiError.notFound('Trip not found');
+  if (status === 'Published' && !hasUpcomingDeparture(trip)) {
+    throw ApiError.badRequest('Add an upcoming departure date before publishing this trip');
+  }
+  trip.status = status;
+  trip.autoPausedReason = '';
+  trip.autoPausedAt = null;
+  await trip.save();
   res.json({ trip: trip.toPublicJSON() });
 });
 

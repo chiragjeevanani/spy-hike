@@ -33,9 +33,10 @@ async function adminToken() {
 }
 let trekSeq = 0;
 async function makeTrip(orgToken, departDays) {
+  const seq = trekSeq++;
   const trek = await Trek.create({
-    _id: `refund-trek-${Date.now()}-${trekSeq++}`,
-    title: 'Refund Trek', location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
+    _id: `refund-trek-${Date.now()}-${seq}`,
+    title: `Refund Trek ${seq}`, location: 'Manali', difficulty: 'Easy', durationDays: 3, distanceKm: 10,
     coverImage: 'https://example.com/trek.jpg',
   });
   const res = await request(app).post('/api/v1/organizer/trips').set('Authorization', `Bearer ${orgToken}`).send({
@@ -272,5 +273,16 @@ describe('Organizer financials & payouts', () => {
     const res = await request(app).patch('/api/v1/organizer/bank-details').set('Authorization', `Bearer ${org}`)
       .send({ accountHolderName: 'Guides Ltd', panNumber: 'invalid' });
     expect(res.status).toBe(400);
+  });
+
+  it('exposes platform commissionRate on GET /config publicly and in organizer financials', async () => {
+    const configRes = await request(app).get('/api/v1/config');
+    expect(configRes.status).toBe(200);
+    expect(typeof configRes.body.config.commissionRate).toBe('number');
+
+    const org = await approvedOrganizerToken();
+    const finRes = await request(app).get('/api/v1/organizer/financials').set('Authorization', `Bearer ${org}`);
+    expect(finRes.status).toBe(200);
+    expect(typeof finRes.body.commissionRate).toBe('number');
   });
 });

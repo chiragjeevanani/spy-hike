@@ -1,3 +1,4 @@
+import OverlayPortal from '../../../components/OverlayPortal';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X, CheckCheck, Trash2 } from 'lucide-react';
@@ -14,7 +15,7 @@ export default function NotificationDrawer({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex justify-end overflow-hidden select-none">
+        <OverlayPortal><div className="fixed inset-0 z-[60] flex justify-end overflow-hidden select-none">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -131,7 +132,7 @@ export default function NotificationDrawer({
               </div>
             )}
           </motion.div>
-        </div>
+        </div></OverlayPortal>
       )}
     </AnimatePresence>
   );

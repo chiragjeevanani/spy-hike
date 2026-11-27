@@ -4,13 +4,18 @@ import {
   listTrekGroups, listPickupCities, listTrekCities,
 } from '../controllers/tripController.js';
 import { listTreks, getTrek } from '../controllers/trekController.js';
+import { listHomeFilters } from '../controllers/homeFilterController.js';
 import { listActiveCoupons, validateCouponEndpoint } from '../controllers/couponController.js';
 import { listTripReviews } from '../controllers/reviewController.js';
-import { reverseGeocodeLocation } from '../controllers/locationController.js';
+import { reverseGeocodeLocation, searchPlaces } from '../controllers/locationController.js';
+import { getAdminConfig } from '../controllers/configController.js';
 import { cached, TTL } from '../lib/cache.js';
 
 // Public, unauthenticated catalog endpoints consumed by the customer app.
 const router = Router();
+
+// Public platform config (commission rate, tax rate, maintenance status)
+router.get('/config', getAdminConfig);
 
 // Cached: read constantly, written only by an admin or organizer, and every
 // write path explicitly invalidates the affected prefix (see cacheInvalidate
@@ -29,7 +34,7 @@ const tripsKey = (req) => {
     .join('&');
   return `trips:list:${qs}`;
 };
-const treksKey = (req) => `treks:list:${req.query.trending === 'true' ? 'trending' : 'all'}`;
+const treksKey = (req) => `treks:list:${req.query.trending === 'true' ? 'trending' : 'all'}:${req.query.homeFilter || 'all'}`;
 
 // Explore's browse feed: filtered, grouped by trek and paged in the database.
 const groupsKey = (req) => {
@@ -44,6 +49,7 @@ router.get('/trek-groups', cached(groupsKey, TTL.trips), listTrekGroups);
 router.get('/pickup-cities', cached(() => 'trips:pickup-cities', TTL.trips), listPickupCities);
 router.get('/trek-cities', cached(() => 'trips:trek-cities', TTL.trips), listTrekCities);
 router.get('/reverse-geocode', reverseGeocodeLocation);
+router.get('/place-search', searchPlaces);
 router.get('/trips', cached(tripsKey, TTL.trips), listTrips);
 router.get('/trips/:id', cached((req) => `trips:one:${req.params.id}`, TTL.trips), getTrip);
 router.get('/trips/:id/departures', getTripDepartures);
@@ -52,6 +58,7 @@ router.get('/treks', cached(treksKey, TTL.treks), listTreks);
 router.get('/treks/:id', cached((req) => `treks:one:${req.params.id}`, TTL.treks), getTrek);
 router.get('/treks/:trekId/offers', cached((req) => `trips:offers:${req.params.trekId}`, TTL.trips), getTrekOffers);
 router.get('/categories', cached(() => 'categories:list', TTL.categories), listCategories);
+router.get('/home-filters', cached(() => 'home-filters:list', TTL.categories), listHomeFilters);
 
 router.get('/coupons', listActiveCoupons);
 router.post('/coupons/validate', validateCouponEndpoint);

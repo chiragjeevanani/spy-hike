@@ -1,28 +1,26 @@
-import { futureDate } from './fixtures/dates.js';
-import { createTrip, fillTravelerDetails, selectDeparture } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 4 — Coupons. Admin creates a coupon through the console UI; the
 // customer applies a coupon at checkout (total drops) and an invalid code is
 // rejected — all against the API-backed coupon service.
 
-const API = 'http://localhost:4000/api/v1';
+const API = `http://localhost:${process.env.E2E_API_PORT || 4013}/api/v1`;
 const DEMO_CUSTOMER = { email: 'chiragjeevanani333@gmail.com', password: 'findyourtrek123' };
 const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.getByPlaceholder('Email address or 10-digit phone number');
+  const email = page.locator('input[placeholder*="Email address"], input[type="email"]');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
 }
 
 async function customerLogin(page) {
-  await page.goto('/app/login');
+  await page.goto('/app/login', { waitUntil: 'domcontentloaded' });
   await dismissOnboarding(page);
-  await page.getByPlaceholder('Email address or 10-digit phone number').fill(DEMO_CUSTOMER.email);
+  await page.fill('input[placeholder*="Email address"], input[type="email"]', DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
   await page.click('#btn-login-email-submit');
   await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
@@ -31,14 +29,14 @@ async function customerLogin(page) {
 async function createBookableTrip(name) {
   const ctx = await pwRequest.newContext();
   const token = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const res = await createTrip(ctx, {
+  const res = await ctx.post(`${API}/organizer/trips`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       name, location: 'Kaza, Spiti', state: 'HP', city: 'Kaza',
       pricingTiers: [{ label: 'Solo', price: 1000 }],
       pickup: { location: 'Manali', price: 100 },
       startPoint: { lat: 32.2, lng: 78.0, label: 'Base' },
-      departureDates: [futureDate(30), futureDate(44)],
+      departureDates: ['2099-10-05', '2099-10-19'],
       difficulty: 'Moderate', durationDays: 5, maxGroupSize: 15, availableSeats: 15,
       category: 'Trekking', coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Coupon e2e trek', status: 'Published',
@@ -51,13 +49,13 @@ async function createBookableTrip(name) {
 
 test('admin creates a coupon through the console and it appears in the table', async ({ page }) => {
   page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/admin/login');
+  await page.goto('/admin/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[type="email"]', DEMO_ADMIN.email);
   await page.fill('input[type="password"]', DEMO_ADMIN.password);
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(/\/admin\/dashboard/, { timeout: 10000 });
 
-  await page.goto('/admin/coupons');
+  await page.goto('/admin/coupons', { waitUntil: 'domcontentloaded' });
   const code = `E2E${Date.now().toString().slice(-6)}`;
   await page.getByRole('button', { name: /create coupon/i }).click();
   await page.locator('input[placeholder="e.g. SUMMER25"]').fill(code);
@@ -72,13 +70,11 @@ test('customer applies a seeded coupon at checkout and the total drops', async (
   page.setViewportSize({ width: 460, height: 950 });
   const trip = await createBookableTrip(`E2E Coupon Trek ${Date.now()}`);
   await customerLogin(page);
-  await page.goto(`/app/book/${trip.id}`);
+  await page.goto(`/app/book/${trip.id}`, { waitUntil: 'domcontentloaded' });
 
   // Step 1 (date + default traveler) → Step 2 → Step 3 checkout.
-  await selectDeparture(page);
   await expect(page.locator('#btn-booking-step-1-continue')).toBeEnabled({ timeout: 10000 });
   await page.click('#btn-booking-step-1-continue');
-  await fillTravelerDetails(page);
   await page.click('#btn-booking-step-2-continue');
   await expect(page.getByText(/Checkout & Settlement/i)).toBeVisible({ timeout: 10000 });
 

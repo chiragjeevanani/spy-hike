@@ -31,6 +31,7 @@ export const socialApi = {
 
   // ─── Chat (customer) ───
   getChats: (opts) => api.get('/chats', opts).then((r) => r.chats),
+  getTripChat: (tripId, opts) => api.get(`/chats/${encodeURIComponent(tripId)}`, opts).then((r) => r.chat),
   sendMessage: (tripId, text) => api.post(`/chats/${encodeURIComponent(tripId)}/messages`, { text }).then((r) => r.chat),
   markChatRead: (tripId) => api.patch(`/chats/${encodeURIComponent(tripId)}/read`),
 
