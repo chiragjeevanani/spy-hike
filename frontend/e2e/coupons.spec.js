@@ -1,3 +1,5 @@
+import { futureDate } from './fixtures/dates.js';
+import { createTrip, fillTravelerDetails, selectDeparture } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 4 — Coupons. Admin creates a coupon through the console UI; the
@@ -11,7 +13,7 @@ const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.locator('input[type="email"]');
+  const email = page.getByPlaceholder('Email address or 10-digit phone number');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
@@ -20,7 +22,7 @@ async function dismissOnboarding(page) {
 async function customerLogin(page) {
   await page.goto('/app/login');
   await dismissOnboarding(page);
-  await page.fill('input[type="email"]', DEMO_CUSTOMER.email);
+  await page.getByPlaceholder('Email address or 10-digit phone number').fill(DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
   await page.click('#btn-login-email-submit');
   await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
@@ -29,14 +31,14 @@ async function customerLogin(page) {
 async function createBookableTrip(name) {
   const ctx = await pwRequest.newContext();
   const token = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const res = await ctx.post(`${API}/organizer/trips`, {
+  const res = await createTrip(ctx, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       name, location: 'Kaza, Spiti', state: 'HP', city: 'Kaza',
       pricingTiers: [{ label: 'Solo', price: 1000 }],
       pickup: { location: 'Manali', price: 100 },
       startPoint: { lat: 32.2, lng: 78.0, label: 'Base' },
-      departureDates: ['2026-10-05', '2026-10-19'],
+      departureDates: [futureDate(30), futureDate(44)],
       difficulty: 'Moderate', durationDays: 5, maxGroupSize: 15, availableSeats: 15,
       category: 'Trekking', coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Coupon e2e trek', status: 'Published',
@@ -73,8 +75,10 @@ test('customer applies a seeded coupon at checkout and the total drops', async (
   await page.goto(`/app/book/${trip.id}`);
 
   // Step 1 (date + default traveler) → Step 2 → Step 3 checkout.
+  await selectDeparture(page);
   await expect(page.locator('#btn-booking-step-1-continue')).toBeEnabled({ timeout: 10000 });
   await page.click('#btn-booking-step-1-continue');
+  await fillTravelerDetails(page);
   await page.click('#btn-booking-step-2-continue');
   await expect(page.getByText(/Checkout & Settlement/i)).toBeVisible({ timeout: 10000 });
 
@@ -87,5 +91,5 @@ test('customer applies a seeded coupon at checkout and the total drops', async (
   // An invalid code is rejected.
   await page.locator('input[placeholder="CODE (e.g. FYT20)"]').fill('NOPE-XYZ-999');
   await page.click('#btn-apply-coupon');
-  await expect(page.getByText(/invalid coupon code/i)).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText(/invalid coupon code/i).first()).toBeVisible({ timeout: 10000 });
 });

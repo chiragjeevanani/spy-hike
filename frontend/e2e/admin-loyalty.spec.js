@@ -39,9 +39,9 @@ test.describe('Admin — Loyalty Program', () => {
 
     // Defaults from DEFAULT_LOYALTY_CONFIG in src/utils/loyalty.js
     const numberInputs = page.locator('input[type="number"]');
-    await expect(numberInputs).toHaveCount(2);
+    await expect(numberInputs).toHaveCount(3);
     await expect(numberInputs.nth(0)).toHaveValue('30');
-    await expect(numberInputs.nth(1)).toHaveValue('1000');
+    await expect(numberInputs.nth(2)).toHaveValue('1000');
   });
 
   test('editing thresholds persists to localStorage and survives reload', async ({ page }) => {
@@ -50,7 +50,7 @@ test.describe('Admin — Loyalty Program', () => {
 
     const numberInputs = page.locator('input[type="number"]');
     await numberInputs.nth(0).fill('12');
-    await numberInputs.nth(1).fill('250');
+    await numberInputs.nth(2).fill('250');
 
     await page.getByRole('button', { name: 'Save Loyalty Settings' }).click();
     await expect(page.getByRole('button', { name: 'Saved!' })).toBeVisible();
@@ -62,7 +62,7 @@ test.describe('Admin — Loyalty Program', () => {
     // Reload — the page should read the persisted config back, not the defaults.
     await page.reload();
     await expect(numberInputs.nth(0)).toHaveValue('12');
-    await expect(numberInputs.nth(1)).toHaveValue('250');
+    await expect(numberInputs.nth(2)).toHaveValue('250');
   });
 
   test('disabling a reward banner reflects a "Hidden in app" preview state', async ({ page }) => {

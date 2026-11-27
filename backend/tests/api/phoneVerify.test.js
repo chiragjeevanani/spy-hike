@@ -32,7 +32,7 @@ describe('Phone OTP verification during signup', () => {
   });
 
   it('marks an organizer mobileVerified when registered with a matching phoneToken', async () => {
-    const { body } = await verifyPhone('9822222222', '1234');
+    const { body } = await verifyPhone('9822222222', '123456');
     const reg = await request(app).post(`${api}/auth/organizer/register`).send({
       name: 'Verified Org', email: 'vorg@example.com', password: 'pass1234', agencyName: 'Verified Guides', socialMediaLink: 'https://instagram.com/test',
       govtIdType: 'Aadhaar', govtIdNumber: '123456789012',

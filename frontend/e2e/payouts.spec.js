@@ -1,3 +1,4 @@
+import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Admin payout management — drives the real /admin/payouts console: approve a
@@ -19,12 +20,12 @@ async function seedProcessingPayout(amount = 500) {
   const ctx = await pwRequest.newContext();
   const adminToken = (await (await ctx.post(`${API}/auth/admin/login`, { data: DEMO_ADMIN })).json()).token;
   const orgEmail = `payorg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`;
-  const reg = await (await ctx.post(`${API}/auth/organizer/register`, { data: { name: 'Payout Org', email: orgEmail, password: 'pass1234', agencyName: 'Payout Guides' } })).json();
+  const reg = await (await ctx.post(`${API}/auth/organizer/register`, { data: { name: 'Payout Org', email: orgEmail, password: 'pass1234', agencyName: 'Payout Guides', govtIdType: 'Aadhaar', govtIdNumber: '123456789012' } })).json();
   await ctx.patch(`${API}/admin/organizers/${reg.account.id}/status`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { action: 'approve' } });
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: { email: orgEmail, password: 'pass1234' } })).json()).token;
   const orgAuth = { headers: { Authorization: `Bearer ${orgToken}` } };
 
-  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
+  const trip = (await (await createTrip(ctx, {
     ...orgAuth,
     data: {
       name: `E2E Payout UI Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
@@ -37,9 +38,9 @@ async function seedProcessingPayout(amount = 500) {
   })).json()).trip;
 
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email: `payuic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`, password: 'pass1234' } })).json()).token;
-  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: dateInDays(30), selections: [{ label: 'Solo', count: 1 }], travelers: [{}] } });
+  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: dateInDays(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
 
-  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Payout Guides', bankName: 'HDFC', ifsc: 'HDFC0001', accountNumber: '1234567890' } });
+  await ctx.patch(`${API}/organizer/bank-details`, { ...orgAuth, data: { accountHolderName: 'Payout Guides', bankName: 'HDFC', ifsc: 'HDFC0000001', accountNumber: '1234567890' } });
   const payout = (await (await ctx.post(`${API}/organizer/payouts`, { ...orgAuth, data: { amount } })).json()).payout;
   await ctx.dispose();
   return { reference: payout.reference };

@@ -12,7 +12,7 @@ const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 // email field so the caller can drive the form.
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.locator('input[type="email"]');
+  const email = page.getByPlaceholder('Email address or 10-digit phone number');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) {
     await skip.first().click();
@@ -26,7 +26,7 @@ test.describe('Phase 1 — Customer auth', () => {
   test('demo customer logs in and lands on the home feed with a stored JWT', async ({ page }) => {
     await page.goto('/app/login');
     await dismissOnboarding(page);
-    await page.fill('input[type="email"]', DEMO_CUSTOMER.email);
+    await page.getByPlaceholder('Email address or 10-digit phone number').fill(DEMO_CUSTOMER.email);
     await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
     await page.click('#btn-login-email-submit');
 
@@ -45,21 +45,18 @@ test.describe('Phase 1 — Customer auth', () => {
     await page.goto('/app/register');
     await expect(page.getByText('Register Account')).toBeVisible({ timeout: 10000 });
 
-    await page.fill('input[placeholder="Chirag Jeevanani"]', 'E2E Hiker');
-    await page.fill('input[placeholder="+91 98765 43210"]', '9876543210');
-    await page.fill('input[placeholder="chiragjeevanani333@gmail.com"]', email);
-    await page.fill('input[placeholder="Minimum 6 characters"]', 'pass1234');
-
-    // Sign-up is blocked until the mobile is verified.
-    await expect(page.locator('#btn-register-submit')).toBeDisabled();
-
-    await page.click('#btn-reg-send-otp');
-    await page.fill('input[placeholder="Enter OTP (123456)"]', '123456');
-    await page.click('#btn-reg-verify-otp');
-    await expect(page.getByText('Verified', { exact: true })).toBeVisible({ timeout: 10000 });
-
-    await expect(page.locator('#btn-register-submit')).toBeEnabled();
-    await page.click('#btn-register-submit');
+    await page.locator('#reg-name').fill('Browser Hiker');
+    await page.locator('#reg-email').fill(email);
+    await page.locator('#reg-password').fill('pass1234');
+    await page.getByRole('button', { name: 'Continue to Mobile Setup' }).click();
+    await page.locator('#reg-phone').fill('9876543213');
+    await page.getByRole('button', { name: 'Send OTP', exact: true }).click();
+    await page.locator('#reg-otp').fill('000000');
+    await page.getByRole('button', { name: 'Verify & Sign Up' }).click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('trekigo_auth_token'))).toBeNull();
+    await expect(page.getByText('Incorrect OTP', { exact: true }).first()).toBeVisible();
+    await page.locator('#reg-otp').fill('123456');
+    await page.getByRole('button', { name: 'Verify & Sign Up' }).click();
 
     // Registration succeeded → JWT stored for the new account.
     await expect.poll(() => page.evaluate(() => localStorage.getItem('trekigo_auth_token'))).not.toBeNull();
@@ -68,11 +65,11 @@ test.describe('Phase 1 — Customer auth', () => {
   test('wrong credentials show an error and do not authenticate', async ({ page }) => {
     await page.goto('/app/login');
     await dismissOnboarding(page);
-    await page.fill('input[type="email"]', 'nobody@example.com');
+    await page.getByPlaceholder('Email address or 10-digit phone number').fill('nobody@example.com');
     await page.fill('input[type="password"]', 'wrongpass');
     await page.click('#btn-login-email-submit');
 
-    await expect(page.getByText(/invalid email or password/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/invalid email address, phone number, or password/i).first()).toBeVisible({ timeout: 10000 });
     const token = await page.evaluate(() => localStorage.getItem('trekigo_auth_token'));
     expect(token).toBeFalsy();
   });
@@ -88,7 +85,7 @@ test.describe('Phase 1 — Admin auth', () => {
     await page.click('button[type="submit"]');
 
     await expect(page).toHaveURL(/\/admin\/dashboard/, { timeout: 10000 });
-    const token = await page.evaluate(() => localStorage.getItem('trekigo_auth_token'));
+    const token = await page.evaluate(() => localStorage.getItem('trekigo_admin_auth_token'));
     expect(token).toBeTruthy();
   });
 
@@ -121,12 +118,12 @@ test.describe('Phase 1 — Organizer registration → pending approval', () => {
     await expect(page.locator('input[placeholder="Your full name"]')).toBeVisible({ timeout: 10000 });
 
     // Step 1 — personal info + mobile OTP verification (required to continue)
-    await page.fill('input[placeholder="Your full name"]', 'E2E Org Owner');
+    await page.fill('input[placeholder="Your full name"]', 'Browser Org Owner');
     await page.fill('input[placeholder="your@email.com"]', email);
-    await page.fill('input[placeholder="+91 XXXXX XXXXX"]', '9876543210');
+    await page.fill('input[placeholder="10-digit number"]', '9876543214');
     await page.fill('input[placeholder="Min 8 characters"]', 'pass1234');
     await page.getByRole('button', { name: 'Send OTP' }).click();
-    await page.fill('input[placeholder="Enter OTP (123456)"]', '123456');
+    await page.fill('input[placeholder="6-digit OTP"]', '123456');
     await page.getByRole('button', { name: 'Verify' }).click();
     await expect(page.getByText('Verified', { exact: true })).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: /continue/i }).click();
@@ -137,7 +134,7 @@ test.describe('Phase 1 — Organizer registration → pending approval', () => {
     await page.getByRole('button', { name: /continue/i }).click();
 
     // Step 3 — verification
-    await page.fill('input[placeholder="Enter your ID number"]', 'ABCD-1234-5678');
+    await page.fill('input[placeholder="12-digit Aadhaar number"]', '123456789012');
     await page.getByRole('button', { name: /submit application/i }).click();
 
     await expect(page.getByText(/Application Under Review/i)).toBeVisible({ timeout: 10000 });

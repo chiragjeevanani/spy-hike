@@ -1,3 +1,5 @@
+import { futureDate } from './fixtures/dates.js';
+import { createTrip } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 2 — Trips catalog. Drives the real customer Explore + admin Trips UIs
@@ -12,7 +14,7 @@ const DEMO_ADMIN = { email: 'admin@findyourtrek.com', password: 'admin123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.locator('input[type="email"]');
+  const email = page.getByPlaceholder('Email address or 10-digit phone number');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
@@ -21,7 +23,7 @@ async function dismissOnboarding(page) {
 async function customerLogin(page) {
   await page.goto('/app/login');
   await dismissOnboarding(page);
-  await page.fill('input[type="email"]', DEMO_CUSTOMER.email);
+  await page.getByPlaceholder('Email address or 10-digit phone number').fill(DEMO_CUSTOMER.email);
   await page.fill('input[type="password"]', DEMO_CUSTOMER.password);
   await page.click('#btn-login-email-submit');
   await expect(page.getByText(/Find your next/i)).toBeVisible({ timeout: 10000 });
@@ -32,7 +34,7 @@ async function createOrganizerTrip(name) {
   const ctx = await pwRequest.newContext();
   const login = await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG });
   const token = (await login.json()).token;
-  const res = await ctx.post(`${API}/organizer/trips`, {
+  const res = await createTrip(ctx, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       name,
@@ -42,7 +44,7 @@ async function createOrganizerTrip(name) {
       pricingTiers: [{ label: 'Solo', price: 700 }, { label: 'Group of 4+', price: 600 }],
       pickup: { location: 'Manali', price: 80 },
       startPoint: { lat: 32.22, lng: 78.07, label: 'Kaza Base' },
-      departureDates: ['2026-09-10', '2026-09-24'],
+      departureDates: [futureDate(30), futureDate(44)],
       difficulty: 'Difficult',
       durationDays: 7,
       maxGroupSize: 12,
@@ -64,12 +66,14 @@ test.describe('Phase 2 — Customer catalog', () => {
   test('Explore lists seeded trips and trip details show batch pricing tiers', async ({ page }) => {
     await customerLogin(page);
     await page.goto('/app/explore');
-    // A seeded trek is visible in the grouped Explore list.
+    await page.getByPlaceholder('Search treks or locations…').fill('Valley of Flowers');
+    // Search the paginated catalog rather than depending on its first page.
     await expect(page.getByText('Valley of Flowers Scenic Valley').first()).toBeVisible({ timeout: 10000 });
 
     // Tapping the trek card opens the organizers list (offers for this trek),
     // which already surfaces the per-tier prices from the API.
     await page.getByText('Valley of Flowers Scenic Valley').first().click();
+    await page.locator('#view-organisers-btn').click();
     await expect(page.getByText(/ORGANIZER OFFERING THIS TREK/i)).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/Solo:/i).first()).toBeVisible();
 
@@ -79,8 +83,8 @@ test.describe('Phase 2 — Customer catalog', () => {
   });
 });
 
-test.describe('Phase 2 — Organizer trip appears; admin pause removes it', () => {
-  test('a newly created published trip shows in Explore, then admin pause hides it', async ({ page, browser }) => {
+test.describe('Phase 2 — Organizer trip appears; admin pauses its offer', () => {
+  test('admin pause removes the bookable offer and leaves a Coming soon catalog preview', async ({ page, browser }) => {
     const name = `E2E Spiti Expedition ${Date.now()}`;
     const trip = await createOrganizerTrip(name);
     expect(trip.id).toBeTruthy();
@@ -108,13 +112,19 @@ test.describe('Phase 2 — Organizer trip appears; admin pause removes it', () =
     await expect(apage.getByText(name).first()).toBeVisible({ timeout: 10000 });
     // The trip card's Pause button.
     await apage.getByRole('button', { name: /pause/i }).first().click();
-    await apage.waitForTimeout(1000);
+    await apage.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await expect(apage.getByRole('button', { name: /activate/i }).first()).toBeVisible();
 
-    // Customer reloads Explore → the paused trip is gone.
+    // The curated trek remains a Coming soon preview; its offer is no longer bookable.
     await cpage.reload();
     await cpage.waitForTimeout(1000);
     await search.fill('Spiti Expedition');
-    await expect(cpage.getByText(name)).toHaveCount(0, { timeout: 10000 });
+    await expect(cpage.getByRole('heading', { name, level: 3 })).toHaveCount(0);
+    await expect(cpage.getByRole('heading', { name, level: 5 })).toBeVisible();
+    await expect.poll(async () => {
+      const res = await cpage.request.get(`${API}/treks/${trip.trekId}/offers`);
+      return (await res.json()).offers.length;
+    }).toBe(0);
 
     await cctx.close();
     await actx.close();

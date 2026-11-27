@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import Trek from '../../src/models/Trek.js';
+import Trip from '../../src/models/Trip.js';
 import { cacheGet, cacheSet, cacheInvalidate, closeCache } from '../../src/lib/cache.js';
 import { hashPassword } from '../../src/utils/password.js';
 import Admin from '../../src/models/Admin.js';
@@ -80,6 +81,31 @@ describe('Cached catalog endpoints', () => {
     const after = await request(app).get(`${api}/treks`);
     expect(after.headers['x-cache']).toBe('MISS');
     expect(after.body.treks.map((t) => t.title)).toContain('Freshly Added Trek');
+  });
+
+  it('refreshes trek offer counts when an admin pauses, republishes or deletes a trip', async () => {
+    const token = await adminToken();
+    await Trek.create({ _id: 'offer-count-trek', ...trekPayload(), trending: true });
+    await Trip.create({ _id: 'offer-count-trip', trekId: 'offer-count-trek',
+      organizerEmail: 'guide@example.com', name: 'Cache Trek', location: 'Manali', status: 'Published' });
+    const read = () => request(app).get(`${api}/treks`);
+    expect((await read()).body.treks[0].tripCount).toBe(1);
+    expect((await read()).headers['x-cache']).toBe('HIT');
+
+    for (const [status, count] of [['Paused', 0], ['Published', 1]]) {
+      const changed = await request(app).patch(`${api}/admin/trips/offer-count-trip/status`)
+        .set('Authorization', `Bearer ${token}`).send({ status });
+      expect(changed.status).toBe(200);
+      const fresh = await read();
+      expect(fresh.headers['x-cache']).toBe('MISS');
+      expect(fresh.body.treks[0].tripCount).toBe(count);
+    }
+    const deleted = await request(app).delete(`${api}/admin/trips/offer-count-trip`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(deleted.status).toBe(200);
+    const fresh = await read();
+    expect(fresh.headers['x-cache']).toBe('MISS');
+    expect(fresh.body.treks[0].tripCount).toBe(0);
   });
 
   it('keeps the trending and full catalog under separate keys', async () => {

@@ -15,6 +15,14 @@ export const env = {
   adminPassword: process.env.ADMIN_PASSWORD || 'password123',
   jwtSecret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  // Mocking is explicit; missing live credentials never enable demo codes.
+  otpMock: (process.env.OTP_MOCK || 'false').trim().toLowerCase() === 'true',
+  otpMockCode: (process.env.OTP_MOCK_CODE || '123456').trim(),
+  smsindiahubApiKey: (process.env.SMSINDIAHUB_API_KEY || '').trim(),
+  smsindiahubSenderId: (process.env.SMSINDIAHUB_SENDER_ID || 'BGADEC').trim(),
+  smsindiahubPeId: (process.env.SMSINDIAHUB_PE_ID || '1001164203633432409').trim(),
+  smsindiahubTemplateId: (process.env.SMSINDIAHUB_TEMPLATE_ID || '1007282516644508833').trim(),
+  smsindiahubBrand: (process.env.SMSINDIAHUB_BRAND || 'Find Your Trek').trim(),
   // Optional. Unset (as in tests) falls back to an in-process response cache —
   // see src/lib/cache.js. Never set during tests, so runs stay isolated.
   redisUrl: isTestEnv() ? '' : (process.env.REDIS_URL || ''),

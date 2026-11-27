@@ -31,6 +31,8 @@ beforeAll(async () => {
 // suite opts into 'online' explicitly in its own beforeEach, which runs after
 // this one.
 beforeEach(() => {
+  env.otpMock = true;
+  env.otpMockCode = '123456';
   env.paymentMode = 'arrival';
   env.payuMerchantKey = '';
   env.payuMerchantSalt = '';

@@ -14,7 +14,8 @@ const INVALIDATION_MAP = [
   // Editing a trek syncs its identity fields into every trip beneath it, so
   // both families go.
   [/\/treks/, ['treks', 'trips']],
-  [/\/trips/, ['trips']],
+  // Publishing/pausing/deleting an offer also changes Trek.tripCount.
+  [/\/trips/, ['trips', 'treks']],
   // Booking or cancelling moves seat counts, which ride along on trip records.
   [/\/bookings/, ['trips']],
   [/\/categories/, ['categories', 'trips']],

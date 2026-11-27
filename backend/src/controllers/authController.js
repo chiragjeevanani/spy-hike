@@ -296,8 +296,8 @@ export const updateProfileVerify = asyncHandler(async (req, res) => {
   if (mobile && mobile !== user.mobile) {
     if (!MOBILE_REGEX.test(mobile)) throw ApiError.badRequest('Mobile number must be a valid 10-digit number');
     if (!mobileOtp) throw ApiError.badRequest('OTP code is required to update mobile number');
-    if (!['1234', '123456'].includes(String(mobileOtp).trim())) {
-      throw ApiError.unauthorized('Incorrect mobile verification code. Use 123456.');
+    if (!await otpProvider.verifyOtp(mobile, mobileOtp)) {
+      throw ApiError.unauthorized('Incorrect or expired mobile verification code.');
     }
     const dup = await User.findOne({ mobile });
     if (dup && dup._id.toString() !== sub) throw ApiError.badRequest('An account with this mobile number already exists');
@@ -695,7 +695,7 @@ export const resetPasswordOtp = asyncHandler(async (req, res) => {
   if (!PASSWORD_REGEX.test(newPassword)) throw ApiError.badRequest(PASSWORD_HELP);
 
   const ok = await otpProvider.verifyOtp(mobile, otpCode);
-  if (!ok) throw ApiError.unauthorized('Incorrect OTP code. Use 123456.');
+  if (!ok) throw ApiError.unauthorized('Incorrect or expired OTP code.');
 
   const user = await User.findOne({ mobile });
   if (!user) throw ApiError.notFound('No account found with this mobile number');

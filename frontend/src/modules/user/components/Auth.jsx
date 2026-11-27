@@ -208,7 +208,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
     setErrorMsg('');
     setSubmitting(true);
     try {
-      const user = await authApi.verifyOtp(phone, otpCode || '123456');
+      const user = await authApi.verifyOtp(phone, otpCode);
       setSuccessMsg('Mobile OTP Verified!');
       onSuccess({ ...user, rememberMe });
     } catch (err) {
@@ -641,7 +641,7 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               <div className="flex justify-between items-center">
                 <label className="text-[11px] font-semibold uppercase opacity-80">6-Digit OTP</label>
                 <span className="text-xs text-zinc-400 font-mono">
-                  {otpTimer > 0 ? `00:${otpTimer.toString().padStart(2, '0')}` : 'Expired'}
+                  {otpTimer > 0 ? `Resend in 00:${otpTimer.toString().padStart(2, '0')}` : 'Resend available'}
                 </span>
               </div>
               <div className="relative">
@@ -667,8 +667,8 @@ export default function Auth({ onSuccess, darkMode, initialMode = 'LOGIN_EMAIL',
               </button>
               <button
                 type="button"
-                disabled={otpTimer > 0}
-                onClick={() => { setOtpTimer(30); setSuccessMsg('OTP Code Resent!'); }}
+                disabled={otpTimer > 0 || submitting}
+                onClick={handleSendOTP}
                 className={`font-semibold ${otpTimer > 0 ? 'text-zinc-600 cursor-not-allowed' : 'text-spy-orange active:scale-95'}`}
               >
                 Resend OTP

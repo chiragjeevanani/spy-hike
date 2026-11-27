@@ -51,7 +51,7 @@ export function usePhoneVerification(mobile) {
     setError(''); setInfo('');
     setBusy(true);
     try {
-      const res = await authApi.verifyPhone(mobile, code || '123456');
+      const res = await authApi.verifyPhone(mobile, code);
       verifiedMobileRef.current = mobile;
       setVerified(true);
       setToken(res.phoneToken);

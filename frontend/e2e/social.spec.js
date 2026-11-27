@@ -1,3 +1,5 @@
+import { futureDate } from './fixtures/dates.js';
+import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 8 — notifications, wishlist, reviews. Drives the customer app against
@@ -20,13 +22,13 @@ async function freshCustomerCtx() {
 // other specs for the shared seed trip's inventory.
 async function makeFreshTrip(ctx) {
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
+  const trip = (await (await createTrip(ctx, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Social Trek ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       location: 'Kaza', state: 'HP', city: 'Kaza',
       pricingTiers: [{ label: 'Solo', price: 500 }], pickup: { location: 'Manali', price: 0 },
-      startPoint: { lat: 32.2, lng: 78.0, label: 'Base' }, departureDates: ['2026-11-05'],
+      startPoint: { lat: 32.2, lng: 78.0, label: 'Base' }, departureDates: [futureDate(30)],
       maxGroupSize: 20, availableSeats: 20, category: 'Trekking',
       coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Social e2e', status: 'Published',
@@ -37,7 +39,7 @@ async function makeFreshTrip(ctx) {
 
 async function seedSession(page, email, token) {
   await page.addInitScript((d) => {
-    localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, name: 'Social Hiker', email: d.email }));
+    localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, profileSetupComplete: true, name: 'Social Hiker', email: d.email }));
     localStorage.setItem('trekigo_auth_token', d.token);
   }, { email, token });
 }
@@ -47,7 +49,7 @@ test.use({ viewport: { width: 460, height: 950 } });
 test('a booking notification surfaces in the customer bell drawer', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
   const trip = await makeFreshTrip(ctx);
-  await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Social Hiker' }] } });
+  await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
   await ctx.dispose();
 
   await seedSession(page, email, token);
@@ -74,7 +76,7 @@ test('toggling a wishlist heart persists to the API', async ({ page }) => {
 test('submitting a review updates the trip rating on the server', async ({ page }) => {
   const { ctx, email, token, auth } = await freshCustomerCtx();
   const trip = await makeFreshTrip(ctx);
-  const booking = (await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Social Hiker' }] } })).json()).booking;
+  const booking = (await (await ctx.post(`${API}/bookings`, { ...auth, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } })).json()).booking;
 
   // Review via the API (the UI path prompts via window.prompt, which is
   // awkward to drive; the frontend calls this same endpoint).

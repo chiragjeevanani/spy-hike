@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 // URL-safe slug, matching the frontend's slugifyTrekName so a trek's grouping
 // id is identical on both sides (frontend: modules/user/utils/trekGroups.js).
 export const slugify = (str) =>
@@ -7,10 +9,9 @@ export const slugify = (str) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
-// Unique trip id derived from the trek slug plus a short base36 timestamp,
-// e.g. "himalayan-ridge-pass-trek-l9x2a1". Keeps ids human-readable while
-// staying unique across multiple organizers listing the same trek.
-export const makeTripId = (name) => `${slugify(name)}-${Date.now().toString(36)}`;
+// Different organizers can publish the same trek in the same millisecond.
+// A timestamp alone collides; a UUID keeps each offer independently addressable.
+export const makeTripId = (name) => `${slugify(name)}-${randomUUID()}`;
 
 // Customer-facing booking code in the frontend's "TG-XXXX-X" format
 // (4 digits + a letter), e.g. "TG-9921-U". Uniqueness is enforced by the

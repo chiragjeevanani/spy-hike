@@ -272,6 +272,10 @@ describe('Promoted organizers always sort first', () => {
     const tripB = await request(app).post(`${api}/organizer/trips`).set(auth(orgB.token)).send(validTrip(trek, { price: 2000 }));
     const tripC = await request(app).post(`${api}/organizer/trips`).set(auth(orgC.token)).send(validTrip(trek, { price: 1000 }));
 
+    expect(tripA.status).toBe(201);
+    expect(tripB.status).toBe(201);
+    expect(tripC.status).toBe(201);
+
     // Promote all 3 organizers
     await request(app).patch(`${api}/admin/organizers/${orgA.id}/promote`).set(auth(admin)).send({ startDate: inDays(0), endDate: inDays(30) });
     await request(app).patch(`${api}/admin/organizers/${orgB.id}/promote`).set(auth(admin)).send({ startDate: inDays(0), endDate: inDays(30) });

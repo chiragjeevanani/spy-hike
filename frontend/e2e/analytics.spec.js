@@ -1,3 +1,5 @@
+import { futureDate } from './fixtures/dates.js';
+import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 10 — admin analytics. The dashboard's KPIs + charts now come from the
@@ -14,19 +16,19 @@ test('admin dashboard shows real trip + revenue KPIs from the API', async ({ pag
   // Seed a booking so there is revenue in the aggregates.
   const ctx = await pwRequest.newContext();
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
+  const trip = (await (await createTrip(ctx, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Analytics Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
       pricingTiers: [{ label: 'Solo', price: 1000 }], pickup: { location: 'Manali', price: 0 },
-      startPoint: { lat: 32.2, lng: 78.0, label: 'Base' }, departureDates: ['2026-11-05'],
+      startPoint: { lat: 32.2, lng: 78.0, label: 'Base' }, departureDates: [futureDate(30)],
       maxGroupSize: 20, availableSeats: 20, category: 'Trekking',
       coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Analytics e2e', status: 'Published',
     },
   })).json()).trip;
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'C', email: `an-${Date.now()}@example.com`, password: 'pass1234' } })).json()).token;
-  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{}] } });
+  await ctx.post(`${API}/bookings`, { headers: { Authorization: `Bearer ${custToken}` }, data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() } });
   await ctx.dispose();
 
   // Admin logs in and opens the dashboard.

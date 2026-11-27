@@ -1,3 +1,5 @@
+import { futureDate } from './fixtures/dates.js';
+import { createTrip, makeTravelers } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { ORG_USER } from './fixtures/seed.js';
 
@@ -15,14 +17,14 @@ test.use({ viewport: { width: 460, height: 950 } });
 async function seedBookingAndOrgToken() {
   const ctx = await pwRequest.newContext();
   const orgToken = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
+  const trip = (await (await createTrip(ctx, {
     headers: { Authorization: `Bearer ${orgToken}` },
     data: {
       name: `E2E Checkin Trek ${Date.now()}`, location: 'Kaza', state: 'HP', city: 'Kaza',
       pricingTiers: [{ label: 'Solo', price: 500 }],
       pickup: { location: 'Manali', price: 0 },
       startPoint: { lat: 32.2, lng: 78.0, label: 'Base' },
-      departureDates: ['2026-11-05'], difficulty: 'Easy', durationDays: 3,
+      departureDates: [futureDate(30)], difficulty: 'Easy', durationDays: 3,
       maxGroupSize: 10, availableSeats: 10, category: 'Trekking',
       coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Check-in e2e', status: 'Published',
@@ -33,7 +35,7 @@ async function seedBookingAndOrgToken() {
   const custToken = (await (await ctx.post(`${API}/auth/register`, { data: { name: 'Booker', email: custEmail, password: 'pass1234' } })).json()).token;
   const booking = (await (await ctx.post(`${API}/bookings`, {
     headers: { Authorization: `Bearer ${custToken}` },
-    data: { tripId: trip.id, selectedDate: '2026-11-05', selections: [{ label: 'Solo', count: 1 }], travelers: [{ name: 'Booker' }] },
+    data: { tripId: trip.id, selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 1 }], travelers: makeTravelers() },
   })).json()).booking;
 
   await ctx.dispose();
@@ -50,7 +52,7 @@ test('organizer scans a ticket to check it in; a second scan shows already check
   }, { org: { ...ORG_USER, email: DEMO_ORG.email }, token: orgToken });
 
   await page.goto('/organizer');
-  await page.getByTitle('Scan ticket').click();
+  await page.getByRole('button', { name: 'Scan QR Ticket', exact: true }).click();
 
   // Camera is unavailable headless → the manual-entry fallback is shown.
   const codeInput = page.locator('#scanner-manual-code');

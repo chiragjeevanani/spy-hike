@@ -13,7 +13,8 @@ export const loyaltyApi = {
   getCustomerLoyalty: () => api.get('/loyalty/me'), // { progress, vouchers }
   getOrganizerLoyalty: () => api.get('/organizer/loyalty'), // { progress, vouchers }
   organizerRedeemReward: (bookingId) =>
-    api.post(`/organizer/bookings/${encodeURIComponent(bookingId)}/redeem-reward`).then((r) => r.booking),
+    api.post(`/organizer/bookings/${encodeURIComponent(bookingId)}/redeem-reward`, undefined,
+      { invalidates: ['/organizer/loyalty', '/organizer/financials'] }).then((r) => r.booking),
 
   // Admin
   adminGetConfig: () => api.get('/admin/loyalty/config').then((r) => r.config),

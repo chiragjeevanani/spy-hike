@@ -1,5 +1,7 @@
+import { futureDate } from './fixtures/dates.js';
+import { makeTravelers, fillTravelerDetails, selectDeparture } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
-import { CUSTOMER_USER, makeLoyaltyConfig, makeCustomerBooking, seedLocalStorage } from './fixtures/seed.js';
+import { CUSTOMER_USER, makeLoyaltyConfig, makeCustomerBooking, seedOfflineLocalStorage as seedLocalStorage } from './fixtures/seed.js';
 
 const API = 'http://localhost:4000/api/v1';
 
@@ -54,8 +56,8 @@ test.describe('Customer — Loyalty Rewards', () => {
       }), { timeout: 10000 })
       .toBeGreaterThan(0);
 
-    await page.getByText('Profile', { exact: true }).click();
-    await expect(page.getByText('Free booking unlocked')).toBeVisible();
+    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await expect(page.getByText('Free booking unlocked — tap to view!')).toBeVisible();
 
     await page.click('#btn-open-loyalty-rewards');
     await expect(page.getByText('Free Booking Ready!')).toBeVisible();
@@ -74,12 +76,12 @@ test.describe('Customer — Loyalty Rewards', () => {
     // A 2-traveler booking crosses threshold=2 → mints one server voucher.
     await ctx.post(`${API}/bookings`, {
       headers: { Authorization: `Bearer ${custToken}` },
-      data: { tripId: 'himalayan-ridge-pass-trek', selectedDate: '2026-07-20', selections: [{ label: 'Solo', count: 2 }], travelers: [{}, {}] },
+      data: { tripId: 'himalayan-ridge-pass-trek', selectedDate: futureDate(30), selections: [{ label: 'Solo', count: 2 }], travelers: makeTravelers(2) },
     });
     await ctx.dispose();
 
     await page.addInitScript((data) => {
-      localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, name: 'Loyalty Hiker', email: data.email }));
+      localStorage.setItem('trekigo_user', JSON.stringify({ isAuthenticated: true, isOnboarded: true, profileSetupComplete: true, name: 'Loyalty Hiker', email: data.email }));
       localStorage.setItem('trekigo_auth_token', data.token);
     }, { email, token: custToken });
 
@@ -96,17 +98,19 @@ test.describe('Customer — Loyalty Rewards', () => {
     // details → Book-Now click chain under load).
     await page.goto('/app/book/himalayan-ridge-pass-trek');
     await expect(page.locator('#btn-booking-step-1-continue')).toBeVisible({ timeout: 15000 });
+    await selectDeparture(page);
     await page.click('#btn-booking-step-1-continue', { force: true });
+    await fillTravelerDetails(page);
     await page.click('#btn-booking-step-2-continue', { force: true });
 
-    const rewardCard = page.getByText('Free Booking Reward Available!');
+    const rewardCard = page.getByText('Loyalty Reward Available!');
     await expect(rewardCard).toBeVisible({ timeout: 10000 });
 
     await page.click('#btn-toggle-loyalty-reward', { force: true });
     await expect(page.locator('#btn-pay-and-confirm')).toHaveText(/Confirm Free Booking/);
 
     await page.click('#btn-pay-and-confirm', { force: true });
-    await expect(page.getByText('Booking Succeeded!')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('ADVENTURE BOOKING RECEIPT')).toBeVisible({ timeout: 10000 });
     await page.click('#btn-booking-done-finish', { force: true });
 
     // Poll until the consumed voucher + comped booking land in the cache

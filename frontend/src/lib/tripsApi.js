@@ -8,6 +8,9 @@
 
 import api from './apiClient.js';
 
+// Grouped browse results and trek counts depend on the published offers too.
+const catalogInvalidations = ['/treks', '/trek-groups', '/pickup-cities', '/trek-cities'];
+
 export const tripsApi = {
   // ─── Public catalog ───
   listTrips: (params = {}) => {
@@ -37,17 +40,17 @@ export const tripsApi = {
 
   // ─── Organizer ───
   listOrganizerTrips: () => api.get('/organizer/trips').then((r) => r.trips),
-  createTrip: (payload) => api.post('/organizer/trips', payload).then((r) => r.trip),
-  updateTrip: (id, payload) => api.put(`/organizer/trips/${encodeURIComponent(id)}`, payload).then((r) => r.trip),
-  setTripStatus: (id, status) => api.patch(`/organizer/trips/${encodeURIComponent(id)}/status`, { status }).then((r) => r.trip),
-  deleteTrip: (id) => api.del(`/organizer/trips/${encodeURIComponent(id)}`),
+  createTrip: (payload) => api.post('/organizer/trips', payload, { invalidates: catalogInvalidations }).then((r) => r.trip),
+  updateTrip: (id, payload) => api.put(`/organizer/trips/${encodeURIComponent(id)}`, payload, { invalidates: catalogInvalidations }).then((r) => r.trip),
+  setTripStatus: (id, status) => api.patch(`/organizer/trips/${encodeURIComponent(id)}/status`, { status }, { invalidates: catalogInvalidations }).then((r) => r.trip),
+  deleteTrip: (id) => api.del(`/organizer/trips/${encodeURIComponent(id)}`, { invalidates: catalogInvalidations }),
 
   // ─── Admin ───
   listAllTrips: () => api.get('/admin/trips').then((r) => r.trips),
-  adminSetTripStatus: (id, status) => api.patch(`/admin/trips/${encodeURIComponent(id)}/status`, { status }).then((r) => r.trip),
-  adminSetTripFeatured: (id, featured) => api.patch(`/admin/trips/${encodeURIComponent(id)}/featured`, { featured }).then((r) => r.trip),
-  adminSetTripPopular: (id, popular) => api.patch(`/admin/trips/${encodeURIComponent(id)}/popular`, { popular }).then((r) => r.trip),
-  adminDeleteTrip: (id) => api.del(`/admin/trips/${encodeURIComponent(id)}`),
+  adminSetTripStatus: (id, status) => api.patch(`/admin/trips/${encodeURIComponent(id)}/status`, { status }, { invalidates: catalogInvalidations }).then((r) => r.trip),
+  adminSetTripFeatured: (id, featured) => api.patch(`/admin/trips/${encodeURIComponent(id)}/featured`, { featured }, { invalidates: catalogInvalidations }).then((r) => r.trip),
+  adminSetTripPopular: (id, popular) => api.patch(`/admin/trips/${encodeURIComponent(id)}/popular`, { popular }, { invalidates: catalogInvalidations }).then((r) => r.trip),
+  adminDeleteTrip: (id) => api.del(`/admin/trips/${encodeURIComponent(id)}`, { invalidates: catalogInvalidations }),
 };
 
 export default tripsApi;

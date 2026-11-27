@@ -6,6 +6,7 @@
 export const CUSTOMER_USER = {
   isAuthenticated: true,
   isOnboarded: true,
+  profileSetupComplete: true,
   isOrganizer: true,
   name: 'Chirag Jeevanani',
   email: 'chiragjeevanani333@gmail.com',
@@ -94,9 +95,23 @@ export function makeOrgBooking({ id = 'ob-e2e-1', bookingId = 'TG-ORGE2E-1', hik
 // Seeds localStorage before the app's first script runs, so React mounts
 // straight into the desired state (no login-form/onboarding flow needed).
 export async function seedLocalStorage(page, entries) {
+  // These localStorage-only scenarios exercise the offline UI. Keep their
+  // public config deterministic instead of hydrating another spec's singleton.
+  if (entries.trekigo_loyalty_config) {
+    await page.route('**/api/v1/loyalty/config', route => route.fulfill({
+      json: { config: entries.trekigo_loyalty_config },
+    }));
+  }
   await page.addInitScript((data) => {
     for (const [key, value] of Object.entries(data)) {
       window.localStorage.setItem(key, JSON.stringify(value));
     }
   }, entries);
+}
+
+// Explicitly exercise the legacy offline UI without accidental HTTP 401s
+// from a real API invalidating the intentionally tokenless cached session.
+export async function seedOfflineLocalStorage(page, entries) {
+  await page.route('http://localhost:4000/**', route => route.abort());
+  await seedLocalStorage(page, entries);
 }

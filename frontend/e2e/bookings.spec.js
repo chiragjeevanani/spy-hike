@@ -1,3 +1,5 @@
+import { futureDate } from './fixtures/dates.js';
+import { createTrip, fillTravelerDetails, selectDeparture } from './fixtures/api.js';
 import { test, expect, request as pwRequest } from '@playwright/test';
 
 // Phase 5 — Bookings + commission engine. Drives the full 3-step booking flow
@@ -11,7 +13,7 @@ const DEMO_ORG = { email: 'demo@himalayan.com', password: 'organizer123' };
 
 async function dismissOnboarding(page) {
   const skip = page.getByText('Skip Onboarding');
-  const email = page.locator('input[type="email"]');
+  const email = page.getByPlaceholder('Email address or 10-digit phone number');
   await expect(skip.or(email).first()).toBeVisible({ timeout: 10000 });
   if (await skip.count()) await skip.first().click();
   await expect(email).toBeVisible({ timeout: 10000 });
@@ -30,14 +32,14 @@ async function freshCustomer() {
 async function createBookableTrip(name) {
   const ctx = await pwRequest.newContext();
   const token = (await (await ctx.post(`${API}/auth/organizer/login`, { data: DEMO_ORG })).json()).token;
-  const trip = (await (await ctx.post(`${API}/organizer/trips`, {
+  const trip = (await (await createTrip(ctx, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       name, location: 'Kaza, Spiti', state: 'HP', city: 'Kaza',
       pricingTiers: [{ label: 'Solo', price: 1000 }],
       pickup: { location: 'Manali', price: 100 },
       startPoint: { lat: 32.2, lng: 78.0, label: 'Base' },
-      departureDates: ['2026-11-05', '2026-11-19'],
+      departureDates: [futureDate(30), futureDate(44)],
       difficulty: 'Moderate', durationDays: 5, maxGroupSize: 15, availableSeats: 15,
       category: 'Trekking', coverImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
       description: 'Booking e2e trek', status: 'Published',
@@ -57,7 +59,7 @@ test('full booking flow: pay, then the booking shows for customer, organizer and
   page.setViewportSize({ width: 460, height: 950 });
   await page.addInitScript((data) => {
     localStorage.setItem('trekigo_user', JSON.stringify({
-      isAuthenticated: true, isOnboarded: true, name: 'Booker', email: data.email,
+      isAuthenticated: true, isOnboarded: true, profileSetupComplete: true, name: 'Booker', email: data.email,
     }));
     localStorage.setItem('trekigo_auth_token', data.token);
   }, { token, email });
@@ -74,14 +76,16 @@ test('full booking flow: pay, then the booking shows for customer, organizer and
   await page.goto(`/app/book/${trip.id}`);
 
   // Step 1 (date + default 1 Solo) → Step 2 → Step 3.
+  await selectDeparture(page);
   await expect(page.locator('#btn-booking-step-1-continue')).toBeEnabled({ timeout: 10000 });
   await page.click('#btn-booking-step-1-continue');
+  await fillTravelerDetails(page);
   await page.click('#btn-booking-step-2-continue');
   await expect(page.getByText(/Checkout & Settlement/i)).toBeVisible({ timeout: 10000 });
 
-  // Pay. Base 1 Solo = 1000 + 100 pickup = 1100; +5% tax = 1155.
+  // Tier prices already include pickup and taxes: one Solo costs 1000.
   await page.click('#btn-pay-and-confirm');
-  await expect(page.getByText(/Booking Succeeded!/i)).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText('ADVENTURE BOOKING RECEIPT')).toBeVisible({ timeout: 10000 });
   const receiptText = await page.locator('body').innerText();
   const bookingId = receiptText.match(/TG-\d{4}-[A-Z]/)?.[0];
   expect(bookingId).toBeTruthy();
@@ -96,8 +100,8 @@ test('full booking flow: pay, then the booking shows for customer, organizer and
   const orgBookings = await (await orgCtx.request.get(`${API}/organizer/bookings`, { headers: { Authorization: `Bearer ${orgToken}` } })).json();
   const orgBooking = orgBookings.bookings.find((b) => b.bookingId === bookingId);
   expect(orgBooking).toBeTruthy();
-  expect(orgBooking.finalAmount).toBe(1155);
-  expect(orgBooking.commissionAmount).toBe(115.5); // 10% snapshot
+  expect(orgBooking.finalAmount).toBe(1000);
+  expect(orgBooking.commissionAmount).toBe(100); // 10% snapshot
   await orgCtx.close();
 
   // Admin sees it too.
@@ -106,6 +110,6 @@ test('full booking flow: pay, then the booking shows for customer, organizer and
   const adminBookings = await (await adminCtx.request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${adminToken}` } })).json();
   const adminBooking = adminBookings.bookings.find((b) => b.bookingId === bookingId);
   expect(adminBooking).toBeTruthy();
-  expect(adminBooking.finalAmount).toBe(1155);
+  expect(adminBooking.finalAmount).toBe(1000);
   await adminCtx.close();
 });
